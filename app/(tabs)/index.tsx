@@ -1,96 +1,98 @@
-import { useRouter } from 'expo-router';
-import { ScrollView, StatusBar, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
+import { Platform, StyleSheet } from 'react-native';
 
-import { BPResultCard } from '@/components/home/bp-result-card';
-import { CameraButton } from '@/components/home/camera-button';
-import { HeaderSection } from '@/components/home/header-section';
-import { HealthTipsSection } from '@/components/home/health-tips-section';
-import { TrendsSection } from '@/components/home/trends-section';
-import { AppColors } from '@/constants/colors';
+import { HelloWave } from '@/components/hello-wave';
+import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Link } from 'expo-router';
 
 export default function HomeScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-
-  // Mock data - จะเปลี่ยนเป็นข้อมูลจริงจาก API/Database ภายหลัง
-  const userData = {
-    userName: 'intira',
-    profileImage: undefined, // จะใส่ URL รูปจริงภายหลัง
-  };
-
-  const latestBPResult = {
-    systolic: 112,
-    diastolic: 78,
-    heartRate: 75,
-    status: 'ปกติ' as const,
-    lastMeasuredDate: 'อ. 9 ธ.ค. 2568',
-    lastMeasuredTime: '16:50',
-  };
-
-  const handleNotificationPress = () => {
-    // TODO: Navigate to notifications
-    console.log('Notification pressed');
-  };
-
-  const handleCameraPress = () => {
-    router.push('/(tabs)/camera');
-  };
-
-  const handleViewHistory = () => {
-    router.push('/history-detail');
-  };
-
-  const handleGenerateReport = () => {
-    // TODO: Generate PDF report
-    console.log('Generate report pressed');
-  };
-
-  const handleHealthTipPress = (tipId: string) => {
-    // TODO: Navigate to health tip detail
-    console.log('Health tip pressed:', tipId);
-  };
-
   return (
-    <View className="flex-1 bg-gray-100">
-      <StatusBar barStyle="light-content" backgroundColor={AppColors.primary} />
-      
-      {/* Header Background */}
-      <View className="bg-primary pb-10" style={{ paddingTop: insets.top }}>
-        <HeaderSection
-          userName={userData.userName}
-          profileImage={userData.profileImage}
-          onNotificationPress={handleNotificationPress}
+    <ParallaxScrollView
+      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
+      headerImage={
+        <Image
+          source={require('@/assets/images/partial-react-logo.png')}
+          style={styles.reactLogo}
         />
-      </View>
+      }>
+      <ThemedView style={styles.titleContainer}>
+        <ThemedText type="title">Welcome!</ThemedText>
+        <HelloWave />
+      </ThemedView>
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
+        <ThemedText>
+          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
+          Press{' '}
+          <ThemedText type="defaultSemiBold">
+            {Platform.select({
+              ios: 'cmd + d',
+              android: 'cmd + m',
+              web: 'F12',
+            })}
+          </ThemedText>{' '}
+          to open developer tools.
+        </ThemedText>
+      </ThemedView>
+      <ThemedView style={styles.stepContainer}>
+        <Link href="/modal">
+          <Link.Trigger>
+            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
+          </Link.Trigger>
+          <Link.Preview />
+          <Link.Menu>
+            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
+            <Link.MenuAction
+              title="Share"
+              icon="square.and.arrow.up"
+              onPress={() => alert('Share pressed')}
+            />
+            <Link.Menu title="More" icon="ellipsis">
+              <Link.MenuAction
+                title="Delete"
+                icon="trash"
+                destructive
+                onPress={() => alert('Delete pressed')}
+              />
+            </Link.Menu>
+          </Link.Menu>
+        </Link>
 
-      <ScrollView 
-        className="flex-1"
-        contentContainerStyle={{ flexGrow: 1 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* BP Result Card */}
-        <BPResultCard
-          systolic={latestBPResult.systolic}
-          diastolic={latestBPResult.diastolic}
-          heartRate={latestBPResult.heartRate}
-          status={latestBPResult.status}
-          lastMeasuredDate={latestBPResult.lastMeasuredDate}
-          lastMeasuredTime={latestBPResult.lastMeasuredTime}
-        />
-
-        {/* Camera Button */}
-        <CameraButton onPress={handleCameraPress} />
-
-        {/* Trends Section */}
-        <TrendsSection
-          onViewHistory={handleViewHistory}
-          onGenerateReport={handleGenerateReport}
-        />
-
-        {/* Health Tips Section */}
-        <HealthTipsSection onTipPress={handleHealthTipPress} />
-      </ScrollView>
-    </View>
+        <ThemedText>
+          {`Tap the Explore tab to learn more about what's included in this starter app.`}
+        </ThemedText>
+      </ThemedView>
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
+        <ThemedText>
+          {`When you're ready, run `}
+          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
+          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
+          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
+          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
+        </ThemedText>
+      </ThemedView>
+    </ParallaxScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepContainer: {
+    gap: 8,
+    marginBottom: 8,
+  },
+  reactLogo: {
+    height: 178,
+    width: 290,
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+  },
+});
