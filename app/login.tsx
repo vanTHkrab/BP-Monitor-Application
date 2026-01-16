@@ -16,7 +16,7 @@ import { AuthInput } from '@/components/auth/auth-input';
 import { AuthTab, AuthTabs } from '@/components/auth/auth-tabs';
 import { AppColors } from '@/constants/colors';
 
-import { Text as TextTest} from '@/components/nativewindui/Text';
+import { TextNative as TextTest } from '@/components/nativewindui/Text.native';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
