@@ -1,1 +1,10 @@
 nodeLinker: hoisted
+<<<<<<< Updated upstream
+=======
+
+onlyBuiltDependencies:
+  - unrs-resolver
+
+onlyBuiltDependencies:
+  - unrs-resolver
+>>>>>>> Stashed changes
