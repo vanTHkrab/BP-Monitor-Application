@@ -1,10 +1,6 @@
 nodeLinker: hoisted
-<<<<<<< Updated upstream
-=======
 
 onlyBuiltDependencies:
+  - '@firebase/util'
+  - protobufjs
   - unrs-resolver
-
-onlyBuiltDependencies:
-  - unrs-resolver
->>>>>>> Stashed changes
