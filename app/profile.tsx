@@ -11,6 +11,8 @@ import { Alert, Image, ScrollView, Text, TouchableOpacity, View } from 'react-na
 
 export default function ProfileScreen() {
   const { user, updateMyProfile, uploadMyAvatar } = useAppStore();
+  const themePreference = useAppStore((s) => s.themePreference);
+  const headerIconColor = themePreference === 'dark' ? '#E2E8F0' : Colors.text.primary;
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
@@ -79,12 +81,20 @@ export default function ProfileScreen() {
     <GradientBackground>
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View className="flex-row items-center px-4 py-4">
-          <TouchableOpacity onPress={() => router.back()} className="mr-4">
-            <Ionicons name="arrow-back" size={28} color={Colors.text.primary} />
+        <View className="relative flex-row items-center justify-center px-4 py-4">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{ position: 'absolute', left: 16, padding: 4 }}
+          >
+            <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-800 flex-1 text-center">โปรไฟล์ของฉัน</Text>
-          <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
+
+          <Text className="text-xl font-bold text-gray-800 dark:text-slate-100 text-center">โปรไฟล์ของฉัน</Text>
+
+          <TouchableOpacity
+            onPress={() => setIsEditing(!isEditing)}
+            style={{ position: 'absolute', right: 16, padding: 4 }}
+          >
             <Text className="text-blue-500 font-medium">{isEditing ? 'ยกเลิก' : 'แก้ไข'}</Text>
           </TouchableOpacity>
         </View>
@@ -92,11 +102,11 @@ export default function ProfileScreen() {
         {/* Avatar */}
         <View className="items-center py-6">
           <TouchableOpacity onPress={isEditing ? pickImage : undefined} activeOpacity={isEditing ? 0.7 : 1}>
-            <View className="w-28 h-28 rounded-full bg-white overflow-hidden border-4 border-white shadow-lg">
+            <View className="w-28 h-28 rounded-full bg-white dark:bg-slate-900 overflow-hidden border-4 border-white dark:border-slate-700 shadow-lg">
               {avatar ? (
                 <Image source={{ uri: avatar }} className="w-full h-full" />
               ) : (
-                <View className="w-full h-full items-center justify-center bg-gray-200">
+                <View className="w-full h-full items-center justify-center bg-gray-200 dark:bg-slate-800">
                   <Ionicons name="person" size={48} color={Colors.text.secondary} />
                 </View>
               )}
@@ -141,19 +151,19 @@ export default function ProfileScreen() {
 
         {/* Stats */}
         <View className="px-4 mt-8">
-          <Text className="text-lg font-bold text-gray-800 mb-4">สถิติของคุณ</Text>
-          <View className="bg-white rounded-xl p-4">
-            <View className="flex-row justify-between py-2 border-b border-gray-100">
-              <Text className="text-gray-600">จำนวนการวัดทั้งหมด</Text>
-              <Text className="font-bold text-gray-800">156 ครั้ง</Text>
+          <Text className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-4">สถิติของคุณ</Text>
+          <View className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-transparent dark:border-slate-700">
+            <View className="flex-row justify-between py-2 border-b border-gray-100 dark:border-slate-700">
+              <Text className="text-gray-600 dark:text-slate-300">จำนวนการวัดทั้งหมด</Text>
+              <Text className="font-bold text-gray-800 dark:text-slate-100">156 ครั้ง</Text>
             </View>
-            <View className="flex-row justify-between py-2 border-b border-gray-100">
-              <Text className="text-gray-600">วันที่เริ่มใช้งาน</Text>
-              <Text className="font-bold text-gray-800">15 ม.ค. 2567</Text>
+            <View className="flex-row justify-between py-2 border-b border-gray-100 dark:border-slate-700">
+              <Text className="text-gray-600 dark:text-slate-300">วันที่เริ่มใช้งาน</Text>
+              <Text className="font-bold text-gray-800 dark:text-slate-100">15 ม.ค. 2567</Text>
             </View>
             <View className="flex-row justify-between py-2">
-              <Text className="text-gray-600">ค่าเฉลี่ยความดัน</Text>
-              <Text className="font-bold text-gray-800">118/76 mmHg</Text>
+              <Text className="text-gray-600 dark:text-slate-300">ค่าเฉลี่ยความดัน</Text>
+              <Text className="font-bold text-gray-800 dark:text-slate-100">118/76 mmHg</Text>
             </View>
           </View>
         </View>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ViewStyle } from 'react-native';
+import { cssInterop } from 'react-native-css-interop';
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
@@ -7,10 +8,16 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 
+cssInterop(Animated.View, { className: 'style' });
+
+const AnimatedPressableBase = Animated.createAnimatedComponent(Pressable);
+cssInterop(AnimatedPressableBase, { className: 'style' });
+
 interface AnimatedPressableProps {
   children: React.ReactNode;
   onPress?: () => void;
   style?: ViewStyle;
+  className?: string;
   scaleValue?: number;
   disabled?: boolean;
 }
@@ -19,6 +26,7 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   children,
   onPress,
   style,
+  className,
   scaleValue = 0.97,
   disabled = false,
 }) => {
@@ -37,16 +45,16 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   };
 
   return (
-    <Pressable
+    <AnimatedPressableBase
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={disabled}
+      className={className}
+      style={[style, animatedStyle]}
     >
-      <Animated.View style={[style, animatedStyle]}>
-        {children}
-      </Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressableBase>
   );
 };
 
@@ -55,6 +63,7 @@ interface FadeInViewProps {
   delay?: number;
   duration?: number;
   style?: ViewStyle;
+  className?: string;
 }
 
 export const FadeInView: React.FC<FadeInViewProps> = ({
@@ -62,6 +71,7 @@ export const FadeInView: React.FC<FadeInViewProps> = ({
   delay = 0,
   duration = 500,
   style,
+  className,
 }) => {
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
@@ -80,7 +90,7 @@ export const FadeInView: React.FC<FadeInViewProps> = ({
   }));
 
   return (
-    <Animated.View style={[style, animatedStyle]}>
+    <Animated.View className={className} style={[style, animatedStyle]}>
       {children}
     </Animated.View>
   );
@@ -91,6 +101,7 @@ interface SlideInViewProps {
   direction?: 'left' | 'right' | 'up' | 'down';
   delay?: number;
   style?: ViewStyle;
+  className?: string;
 }
 
 export const SlideInView: React.FC<SlideInViewProps> = ({
@@ -98,6 +109,7 @@ export const SlideInView: React.FC<SlideInViewProps> = ({
   direction = 'up',
   delay = 0,
   style,
+  className,
 }) => {
   const translateX = useSharedValue(direction === 'left' ? -100 : direction === 'right' ? 100 : 0);
   const translateY = useSharedValue(direction === 'up' ? 50 : direction === 'down' ? -50 : 0);
@@ -121,7 +133,7 @@ export const SlideInView: React.FC<SlideInViewProps> = ({
   }));
 
   return (
-    <Animated.View style={[style, animatedStyle]}>
+    <Animated.View className={className} style={[style, animatedStyle]}>
       {children}
     </Animated.View>
   );
@@ -130,12 +142,14 @@ export const SlideInView: React.FC<SlideInViewProps> = ({
 interface PulseViewProps {
   children: React.ReactNode;
   style?: ViewStyle;
+  className?: string;
   active?: boolean;
 }
 
 export const PulseView: React.FC<PulseViewProps> = ({
   children,
   style,
+  className,
   active = true,
 }) => {
   const scale = useSharedValue(1);
@@ -157,7 +171,7 @@ export const PulseView: React.FC<PulseViewProps> = ({
   }));
 
   return (
-    <Animated.View style={[style, animatedStyle]}>
+    <Animated.View className={className} style={[style, animatedStyle]}>
       {children}
     </Animated.View>
   );
@@ -167,12 +181,14 @@ interface ScaleOnMountProps {
   children: React.ReactNode;
   delay?: number;
   style?: ViewStyle;
+  className?: string;
 }
 
 export const ScaleOnMount: React.FC<ScaleOnMountProps> = ({
   children,
   delay = 0,
   style,
+  className,
 }) => {
   const scale = useSharedValue(0.8);
   const opacity = useSharedValue(0);
@@ -191,7 +207,7 @@ export const ScaleOnMount: React.FC<ScaleOnMountProps> = ({
   }));
 
   return (
-    <Animated.View style={[style, animatedStyle]}>
+    <Animated.View className={className} style={[style, animatedStyle]}>
       {children}
     </Animated.View>
   );

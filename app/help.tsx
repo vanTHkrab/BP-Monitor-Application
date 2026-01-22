@@ -1,11 +1,25 @@
 import { GradientBackground } from '@/components/gradient-background';
 import { Colors } from '@/constants/colors';
+import { useAppStore } from '@/store/useAppStore';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HelpScreen() {
+  const themePreference = useAppStore((s) => s.themePreference);
+  const headerIconColor = themePreference === 'dark' ? '#E2E8F0' : Colors.text.primary;
+  const isDark = themePreference === 'dark';
+
+  const contactDeveloper = async () => {
+    const url = 'mailto:support@bpapp.com?subject=BP%20Mobile%20-%20ติดต่อผู้พัฒนา';
+    await Linking.openURL(url);
+  };
+
+  const reportProblem = async () => {
+    const url = 'mailto:support@bpapp.com?subject=BP%20Mobile%20-%20รายงานปัญหา&body=อธิบายปัญหา:%0A%0Aรุ่นแอป:%0Aรุ่นเครื่อง/OS:%0Aแนบรูปหรือขั้นตอนที่ทำให้เกิดปัญหา:%0A';
+    await Linking.openURL(url);
+  };
   const faqItems = [
     {
       question: 'วิธีการถ่ายภาพเครื่องวัดความดัน?',
@@ -31,60 +45,93 @@ export default function HelpScreen() {
         {/* Header */}
         <View className="flex-row items-center px-4 py-4">
           <TouchableOpacity onPress={() => router.back()} className="mr-4">
-            <Ionicons name="arrow-back" size={28} color={Colors.text.primary} />
+            <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-800 flex-1 text-center">ช่วยเหลือและคำแนะนำ</Text>
+          <Text className="text-xl font-bold text-gray-800 dark:text-slate-100 flex-1 text-center">ช่วยเหลือและคำแนะนำ</Text>
           <View className="w-7" />
         </View>
 
         {/* Contact Section */}
         <View className="px-4 mb-6">
-          <Text className="text-lg font-bold text-gray-800 mb-3">ติดต่อเรา</Text>
+          <Text className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-3">ติดต่อเรา</Text>
           
-          <TouchableOpacity className="flex-row items-center bg-white p-4 rounded-xl mb-3 border border-sky-200">
-            <View className="w-10 h-10 bg-sky-100 rounded-full items-center justify-center mr-3">
+          <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700">
+            <View className="w-10 h-10 bg-sky-100 dark:bg-slate-800 rounded-full items-center justify-center mr-3">
               <Ionicons name="mail-outline" size={22} color={Colors.primary.blue} />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-800 font-medium">อีเมล</Text>
-              <Text className="text-gray-500 text-sm">support@bpapp.com</Text>
+              <Text className="text-gray-800 dark:text-slate-100 font-medium">อีเมล</Text>
+              <Text className="text-gray-500 dark:text-slate-300 text-sm">support@bpapp.com</Text>
             </View>
           </TouchableOpacity>
           
-          <TouchableOpacity className="flex-row items-center bg-white p-4 rounded-xl mb-3 border border-sky-200">
-            <View className="w-10 h-10 bg-sky-100 rounded-full items-center justify-center mr-3">
+          <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700">
+            <View className="w-10 h-10 bg-sky-100 dark:bg-slate-800 rounded-full items-center justify-center mr-3">
               <Ionicons name="call-outline" size={22} color={Colors.primary.blue} />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-800 font-medium">โทรศัพท์</Text>
-              <Text className="text-gray-500 text-sm">02-123-4567</Text>
+              <Text className="text-gray-800 dark:text-slate-100 font-medium">โทรศัพท์</Text>
+              <Text className="text-gray-500 dark:text-slate-300 text-sm">02-123-4567</Text>
             </View>
           </TouchableOpacity>
           
-          <TouchableOpacity className="flex-row items-center bg-white p-4 rounded-xl border border-sky-200">
+          <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl border border-sky-200 dark:border-slate-700">
             <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
               <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-800 font-medium">Line Official</Text>
-              <Text className="text-gray-500 text-sm">@bpapp</Text>
+              <Text className="text-gray-800 dark:text-slate-100 font-medium">Line Official</Text>
+              <Text className="text-gray-500 dark:text-slate-300 text-sm">@bpapp</Text>
             </View>
           </TouchableOpacity>
         </View>
 
         {/* FAQ Section */}
         <View className="px-4">
-          <Text className="text-lg font-bold text-gray-800 mb-3">คำถามที่พบบ่อย</Text>
+          <Text className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-3">คำถามที่พบบ่อย</Text>
           
           {faqItems.map((item, index) => (
-            <View key={index} className="bg-white rounded-xl p-4 mb-3 border border-sky-200">
+            <View key={index} className="bg-white dark:bg-slate-900 rounded-xl p-4 mb-3 border border-sky-200 dark:border-slate-700">
               <View className="flex-row items-start mb-2">
                 <Ionicons name="help-circle" size={20} color={Colors.primary.blue} />
-                <Text className="text-gray-800 font-medium ml-2 flex-1">{item.question}</Text>
+                <Text className="text-gray-800 dark:text-slate-100 font-medium ml-2 flex-1">{item.question}</Text>
               </View>
-              <Text className="text-gray-600 text-sm ml-7">{item.answer}</Text>
+              <Text className="text-gray-600 dark:text-slate-300 text-sm ml-7">{item.answer}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Contact Developer (as cards) */}
+        <View className="px-4 mt-4">
+          <View className="flex-row items-center justify-between">
+            <TouchableOpacity
+              onPress={() => void contactDeveloper()}
+              className="flex-1 rounded-2xl overflow-hidden mr-3"
+              activeOpacity={0.9}
+            >
+              <View className="bg-teal-700 dark:bg-teal-800 p-6 items-center justify-center min-h-[140px]">
+                <Ionicons name="mail-outline" size={40} color="white" />
+                <Text className="text-white font-bold text-lg mt-3 text-center">ติดต่อผู้พัฒนา</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => void reportProblem()}
+              className="flex-1 rounded-2xl overflow-hidden"
+              activeOpacity={0.9}
+            >
+              <View className="bg-cyan-700 dark:bg-cyan-800 p-6 items-center justify-center min-h-[140px]">
+                <Ionicons name="megaphone-outline" size={40} color="white" />
+                <Text className="text-white font-bold text-lg mt-3 text-center">ส่งรายงานปัญหา</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <Text className="text-gray-600 dark:text-slate-300 text-sm mt-3">
+            {isDark
+              ? 'หากพบปัญหาในการใช้งาน สามารถส่งอีเมลถึงผู้พัฒนาได้'
+              : 'หากพบปัญหาในการใช้งาน สามารถส่งอีเมลถึงผู้พัฒนาได้'}
+          </Text>
         </View>
 
         {/* Tutorial */}

@@ -1,7 +1,7 @@
+import { useAppStore } from '@/store/useAppStore';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
 
 interface CustomInputProps {
   placeholder: string;
@@ -26,47 +26,90 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   editable = true,
   error,
 }) => {
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
+
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const scale = useSharedValue(1);
 
   const handleFocus = () => {
     setIsFocused(true);
-    scale.value = withSpring(1.02, { damping: 15 });
   };
 
   const handleBlur = () => {
     setIsFocused(false);
-    scale.value = withSpring(1, { damping: 15 });
   };
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const borderColor = error
+    ? '#EF4444'
+    : isFocused
+      ? '#5DADE2'
+      : isDark
+        ? '#334155'
+        : '#94A3B8';
+
+  const backgroundColor = error
+    ? (isDark ? '#2A0A0A' : '#FEF2F2')
+    : isFocused
+      ? '#FFFFFF'
+      : isDark
+        ? '#0B1220'
+        : '#F8FAFC';
+
+  const baseShadowStyle: ViewStyle | undefined = Platform.OS !== 'web'
+    ? {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.15 : 0.07,
+        shadowRadius: 6,
+        elevation: 2,
+      }
+    : undefined;
+
+  const focusShadowStyle: ViewStyle | undefined = isFocused && Platform.OS !== 'web'
+    ? {
+        shadowColor: '#5DADE2',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.18,
+        shadowRadius: 10,
+        elevation: 3,
+      }
+    : undefined;
+
+  const wrapperStyle: ViewStyle = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: Platform.OS === 'web' ? 1 : 2,
+    borderColor,
+    backgroundColor,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  };
+
+  const iconBg = isFocused
+    ? (isDark ? '#0B2A3A' : '#EBF5FB')
+    : (isDark ? '#111827' : '#F3F4F6');
+
+  const inputColor = isDark ? '#E2E8F0' : '#2C3E50';
+  const placeholderColor = isDark ? '#94A3B8' : '#9CA3AF';
 
   return (
-    <View style={styles.container}>
-      <Animated.View
-        style={[
-          styles.inputWrapper,
-          isFocused && styles.inputWrapperFocused,
-          error && styles.inputWrapperError,
-          animatedStyle,
-        ]}
-      >
+    <View style={{ marginBottom: 16 }}>
+      <View style={[wrapperStyle, baseShadowStyle, focusShadowStyle]}>
         {icon && (
-          <View style={[styles.iconContainer, isFocused && styles.iconContainerFocused]}>
+          <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
             <Ionicons
               name={icon}
               size={20}
-              color={error ? '#EF4444' : isFocused ? '#3498DB' : '#9CA3AF'}
+              color={error ? '#EF4444' : isFocused ? '#3498DB' : isDark ? '#94A3B8' : '#9CA3AF'}
             />
           </View>
         )}
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: inputColor }]}
           placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={placeholderColor}
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={secureTextEntry && !isPasswordVisible}
@@ -77,79 +120,41 @@ export const CustomInput: React.FC<CustomInputProps> = ({
           onBlur={handleBlur}
         />
         {secureTextEntry && (
-          <TouchableOpacity 
-            onPress={() => setIsPasswordVisible(!isPasswordVisible)}
-            style={styles.eyeButton}
-          >
+          <Pressable onPress={() => setIsPasswordVisible(!isPasswordVisible)} style={{ padding: 8, marginLeft: 4 }}>
             <Ionicons
               name={isPasswordVisible ? 'eye-off' : 'eye'}
               size={22}
-              color="#9CA3AF"
+              color={isDark ? '#94A3B8' : '#9CA3AF'}
             />
-          </TouchableOpacity>
+          </Pressable>
         )}
-      </Animated.View>
+      </View>
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-  },
-  inputWrapperFocused: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#5DADE2',
-    shadowColor: '#5DADE2',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  inputWrapperError: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEF2F2',
-  },
-  iconContainer: {
+  iconBox: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
-  iconContainerFocused: {
-    backgroundColor: '#EBF5FB',
-  },
   input: {
     flex: 1,
     fontSize: 15,
-    color: '#2C3E50',
+    fontWeight: '600',
     paddingVertical: 12,
-    fontWeight: '500',
-  },
-  eyeButton: {
-    padding: 8,
-    marginLeft: 4,
   },
   errorText: {
     color: '#EF4444',
     fontSize: 13,
     marginTop: 6,
     marginLeft: 4,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });
 

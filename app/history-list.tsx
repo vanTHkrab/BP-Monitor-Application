@@ -10,7 +10,10 @@ import React, { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HistoryListScreen() {
-  const { readings } = useAppStore();
+  const readings = useAppStore((s) => s.readings);
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
+  const headerIconColor = isDark ? '#E2E8F0' : Colors.text.primary;
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
 
   const timeFilterTabs = [
@@ -52,11 +55,11 @@ export default function HistoryListScreen() {
             onPress={() => router.back()}
             style={{ position: 'absolute', left: 16, padding: 4 }}
           >
-            <Ionicons name="arrow-back" size={28} color={Colors.text.primary} />
+            <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-800 text-center">ประวัติความดัน</Text>
+          <Text className="text-xl font-bold text-gray-800 dark:text-slate-100 text-center">ประวัติความดัน</Text>
           <TouchableOpacity style={{ position: 'absolute', right: 16, padding: 4 }}>
-            <Ionicons name="information-circle-outline" size={28} color={Colors.text.primary} />
+            <Ionicons name="information-circle-outline" size={26} color={headerIconColor} />
           </TouchableOpacity>
         </View>
 
@@ -66,6 +69,7 @@ export default function HistoryListScreen() {
             tabs={timeFilterTabs}
             activeTab={timeFilter}
             onTabChange={(key) => setTimeFilter(key as TimeFilter)}
+            variant="pill"
           />
         </View>
 
@@ -81,9 +85,16 @@ export default function HistoryListScreen() {
               />
             ))
           ) : (
-            <View className="bg-white rounded-2xl p-8 items-center">
-              <Ionicons name="document-text-outline" size={48} color={Colors.text.secondary} />
-              <Text className="text-gray-500 mt-4">ไม่มีข้อมูลในช่วงเวลานี้</Text>
+            <View className="bg-white dark:bg-slate-900 rounded-2xl p-8 items-center border border-transparent dark:border-slate-700">
+              <Ionicons
+                name="document-text-outline"
+                size={48}
+                color={isDark ? '#94A3B8' : Colors.text.secondary}
+              />
+              <Text className="text-lg font-bold text-gray-800 dark:text-slate-100 mt-4">ยังไม่มีประวัติการวัด</Text>
+              <Text className="text-gray-500 dark:text-slate-300 text-center mt-2">
+                เริ่มต้นบันทึกค่าความดันของคุณ
+              </Text>
             </View>
           )}
         </View>

@@ -1,31 +1,32 @@
 import { getBPStatus } from '@/constants/colors';
 import { auth, db } from '@/constants/firebase';
 import { BloodPressureReading, CommunityPost, User } from '@/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  updateProfile,
+    createUserWithEmailAndPassword,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    signOut,
+    updateProfile,
 } from 'firebase/auth';
 import {
-  addDoc,
-  arrayRemove,
-  arrayUnion,
-  collection,
-  deleteDoc,
-  doc,
-  DocumentData,
-  getDoc,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  updateDoc,
+    addDoc,
+    arrayRemove,
+    arrayUnion,
+    collection,
+    deleteDoc,
+    doc,
+    DocumentData,
+    getDoc,
+    limit,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    setDoc,
+    Timestamp,
+    updateDoc,
 } from 'firebase/firestore';
 import { create } from 'zustand';
 
@@ -43,6 +44,10 @@ interface AppState {
   
   // Community
   posts: CommunityPost[];
+
+  // Theme
+  themePreference: 'light' | 'dark';
+  themeHydrated: boolean;
   
   // Actions
   login: (phone: string, password: string) => Promise<boolean>;
@@ -72,7 +77,12 @@ interface AppState {
   updatePost: (input: { postId: string; content: string; category: CommunityPost['category'] }) => Promise<boolean>;
 
   deletePost: (postId: string) => Promise<boolean>;
+
+  hydrateTheme: () => Promise<void>;
+  setThemePreference: (pref: 'light' | 'dark') => Promise<void>;
 }
+
+const THEME_STORAGE_KEY = 'bp:theme-preference';
 
 const normalizePhone = (value: string) => value.replace(/\D/g, '');
 
@@ -271,6 +281,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   authErrorRawMessage: null,
   readings: [],
   posts: [],
+
+  themePreference: 'light',
+  themeHydrated: false,
   
   // Auth actions
   login: async (phone: string, password: string) => {
@@ -547,6 +560,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       return true;
     } catch {
       return false;
+    }
+  },
+
+  hydrateTheme: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      const pref = raw === 'dark' ? 'dark' : raw === 'light' ? 'light' : null;
+      set({ themePreference: pref ?? 'light', themeHydrated: true });
+    } catch {
+      set({ themeHydrated: true });
+    }
+  },
+
+  setThemePreference: async (pref) => {
+    set({ themePreference: pref });
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, pref);
+    } catch {
+      // ignore
     }
   },
 }));

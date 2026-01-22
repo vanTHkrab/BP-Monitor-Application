@@ -2,7 +2,6 @@ import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animat
 import { BPReadingCard } from '@/components/bp-reading-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/tab-buttons';
-import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/useAppStore';
 import { TimeFilter } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +15,8 @@ const screenWidth = Dimensions.get('window').width;
 
 export default function HistoryScreen() {
   const { readings } = useAppStore();
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
   const [showChart, setShowChart] = useState(true);
 
@@ -81,12 +82,12 @@ export default function HistoryScreen() {
   }, [filteredReadings]);
 
   const chartConfig = {
-    backgroundColor: '#ffffff',
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#F8FAFC',
+    backgroundColor: isDark ? '#0F172A' : '#ffffff',
+    backgroundGradientFrom: isDark ? '#0F172A' : '#ffffff',
+    backgroundGradientTo: isDark ? '#111827' : '#F8FAFC',
     decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(44, 62, 80, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(127, 140, 141, ${opacity})`,
+    color: (opacity = 1) => (isDark ? `rgba(226, 232, 240, ${opacity})` : `rgba(44, 62, 80, ${opacity})`),
+    labelColor: (opacity = 1) => (isDark ? `rgba(148, 163, 184, ${opacity})` : `rgba(127, 140, 141, ${opacity})`),
     style: {
       borderRadius: 16,
     },
@@ -97,7 +98,7 @@ export default function HistoryScreen() {
     },
     propsForBackgroundLines: {
       strokeDasharray: '',
-      stroke: '#E8E8E8',
+      stroke: isDark ? '#334155' : '#E8E8E8',
       strokeWidth: 1,
     },
   };
@@ -133,6 +134,7 @@ export default function HistoryScreen() {
               tabs={timeFilterTabs}
               activeTab={timeFilter}
               onTabChange={(key) => setTimeFilter(key as TimeFilter)}
+              variant="pill"
             />
           </View>
         </FadeInView>
@@ -140,20 +142,20 @@ export default function HistoryScreen() {
         {/* Chart */}
         {showChart && chartData && (
           <ScaleOnMount delay={300}>
-            <View className="mx-4 rounded-3xl overflow-hidden shadow-lg mb-5 bg-white">
+            <View className="mx-4 rounded-3xl overflow-hidden shadow-lg mb-5 bg-white dark:bg-slate-900 border border-transparent dark:border-slate-700">
               <LinearGradient
-                colors={['#FFFFFF', '#F8FAFC']}
+                colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F8FAFC']}
                 style={{ padding: 16, borderRadius: 24 }}
               >
                 {/* Legend */}
                 <View className="flex-row justify-center gap-6 mb-2">
                   <View className="flex-row items-center">
                     <View className="w-2.5 h-2.5 rounded-full bg-[#5DADE2] mr-1.5" />
-                    <Text className="text-xs text-gray-500 font-medium">ค่าบน (SYS)</Text>
+                    <Text className="text-xs text-gray-500 dark:text-slate-300 font-medium">ค่าบน (SYS)</Text>
                   </View>
                   <View className="flex-row items-center">
                     <View className="w-2.5 h-2.5 rounded-full bg-[#8E44AD] mr-1.5" />
-                    <Text className="text-xs text-gray-500 font-medium">ค่าล่าง (DIA)</Text>
+                    <Text className="text-xs text-gray-500 dark:text-slate-300 font-medium">ค่าล่าง (DIA)</Text>
                   </View>
                 </View>
 
@@ -191,7 +193,7 @@ export default function HistoryScreen() {
         {/* Readings List */}
         <FadeInView delay={400}>
           <View className="px-4">
-            <Text className="text-lg font-bold text-gray-800 mb-3">รายการล่าสุด</Text>
+            <Text className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-3">รายการล่าสุด</Text>
             {filteredReadings.slice(0, 3).map((reading, index) => (
               <FadeInView key={reading.id} delay={450 + index * 100}>
                 <BPReadingCard reading={reading} onPress={() => {}} />

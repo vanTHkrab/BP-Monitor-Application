@@ -6,13 +6,21 @@ import { useAppStore } from '@/store/useAppStore';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { cssInterop } from 'react-native-css-interop';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+cssInterop(LinearGradient, { className: 'style' });
+cssInterop(Animated.View, { className: 'style' });
 
 type CommunityTab = 'general' | 'experience' | 'qa';
 
 export default function CommunityScreen() {
   const { posts, toggleLike, createPost, updatePost, deletePost, isAuthenticated, user } = useAppStore();
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<CommunityTab>('general');
   const [refreshing, setRefreshing] = useState(false);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -44,6 +52,10 @@ export default function CommunityScreen() {
   const fabAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: fabScale.value }],
   }));
+
+  const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
+  const tabBarHeight = tabBarBaseHeight + insets.bottom;
+  const fabBottom = tabBarHeight + 16;
 
   const communityTabs = [
     { key: 'general', label: 'พูดคุยทั่วไป' },
@@ -190,7 +202,7 @@ export default function CommunityScreen() {
   return (
     <GradientBackground>
       <ScrollView 
-        style={styles.container}
+        className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -198,15 +210,17 @@ export default function CommunityScreen() {
       >
         {/* Header */}
         <FadeInView delay={100}>
-          <View style={styles.header}>
+          <View className="items-center px-4 pt-3 pb-4">
             <LinearGradient
               colors={['#9B59B6', '#8E44AD']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.titleBadge}
+              className="flex-row items-center px-5 py-2.5 rounded-xl shadow-lg"
             >
-              <Ionicons name="people" size={20} color="white" style={{ marginRight: 8 }} />
-              <Text style={styles.titleText}>ชุมชนสุขภาพ</Text>
+              <View className="mr-2">
+                <Ionicons name="people" size={20} color="white" />
+              </View>
+              <Text className="text-lg font-bold text-white">ชุมชนสุขภาพ</Text>
             </LinearGradient>
             {/* <AnimatedPressable style={styles.notificationBtn} onPress={() => {}}>
               <Ionicons name="notifications-outline" size={24} color={Colors.primary.blue} />
@@ -216,7 +230,7 @@ export default function CommunityScreen() {
 
         {/* Category Tabs */}
         <FadeInView delay={200}>
-          <View style={styles.tabContainer}>
+          <View className="px-4 mb-4">
             <TabButtons
               tabs={communityTabs}
               activeTab={activeTab}
@@ -227,7 +241,7 @@ export default function CommunityScreen() {
         </FadeInView>
 
         {/* Posts */}
-        <View style={styles.postsContainer}>
+        <View className="px-4">
           {filteredPosts.length > 0 ? (
             filteredPosts.map((post, index) => (
               <FadeInView key={post.id} delay={300 + index * 100}>
@@ -242,27 +256,45 @@ export default function CommunityScreen() {
             ))
           ) : (
             <ScaleOnMount delay={300}>
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconContainer}>
+              <View
+                className={
+                  (isDark ? 'bg-[#0F172A] border border-[#334155]' : 'bg-white') +
+                  ' rounded-3xl p-8 items-center shadow-md'
+                }
+              >
+                <View className={(isDark ? 'bg-[#1F2937]' : 'bg-[#F3E5F5]') + ' w-20 h-20 rounded-full items-center justify-center mb-4'}>
                   <Ionicons name="chatbubbles-outline" size={48} color="#8E44AD" />
                 </View>
-                <Text style={styles.emptyTitle}>ยังไม่มีโพสต์ในหมวดหมู่นี้</Text>
-                <Text style={styles.emptyDesc}>เป็นคนแรกที่แชร์ประสบการณ์</Text>
+                <Text className={isDark ? 'text-base font-semibold text-slate-200 mb-1' : 'text-base font-semibold text-[#2C3E50] mb-1'}>
+                  ยังไม่มีโพสต์ในหมวดหมู่นี้
+                </Text>
+                <Text className={isDark ? 'text-sm text-slate-400' : 'text-sm text-[#7F8C8D]'}>
+                  เป็นคนแรกที่แชร์ประสบการณ์
+                </Text>
               </View>
             </ScaleOnMount>
           )}
         </View>
 
         {/* Bottom Spacing */}
-        <View style={{ height: 100 }} />
+        <View className="h-[100px]" />
       </ScrollView>
 
       {/* Floating Action Button */}
-      <Animated.View style={[styles.fabContainer, fabAnimatedStyle]}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            right: 20,
+            bottom: fabBottom,
+          },
+          fabAnimatedStyle,
+        ]}
+      >
         <AnimatedPressable onPress={openComposer}>
           <LinearGradient
             colors={['#9B59B6', '#8E44AD', '#6C3483']}
-            style={styles.fab}
+            className="w-[60px] h-[60px] rounded-full items-center justify-center shadow-xl"
           >
             <Ionicons name="add" size={28} color="white" />
           </LinearGradient>
@@ -278,54 +310,107 @@ export default function CommunityScreen() {
           closeComposer();
         }}
       >
-        <View style={styles.modalBackdrop}>
+        <View className="flex-1 bg-black/45 justify-end">
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-            style={styles.modalSheetWrapper}
+            className="flex-1 w-full justify-end"
           >
-            <View style={styles.modalSheet}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{editingPostId ? 'แก้ไขโพสต์' : 'สร้างโพสต์'}</Text>
-                <View style={styles.modalHeaderRight}>
+            <View
+              className={
+                (isDark ? 'bg-[#0F172A] border-t border-[#334155]' : 'bg-white') +
+                ' rounded-t-[22px] px-4 pt-3.5 ' +
+                (Platform.OS === 'ios' ? 'pb-7' : 'pb-4')
+              }
+            >
+              <View className="flex-row items-center justify-between mb-2.5">
+                <Text className={isDark ? 'text-[17px] font-extrabold text-slate-200' : 'text-[17px] font-extrabold text-[#111827]'}>
+                  {editingPostId ? 'แก้ไขโพสต์' : 'สร้างโพสต์'}
+                </Text>
+                <View className="flex-row items-center space-x-2.5">
                   <AnimatedPressable
                     onPress={submitPost}
                     disabled={!canSubmit}
-                    style={styles.modalConfirmBtn}
+                    className="rounded-xl overflow-hidden"
                   >
                     <LinearGradient
                       colors={!canSubmit ? ['#9CA3AF', '#6B7280'] : ['#22C55E', '#16A34A']}
-                      style={styles.modalConfirmGradient}
+                      className="flex-row items-center justify-center px-3.5 py-2.5"
                     >
                       <Ionicons name="checkmark" size={18} color="white" />
-                      <Text style={styles.modalConfirmText}>{isPosting ? 'กำลังทำ...' : 'ยืนยัน'}</Text>
+                      <Text className="text-white font-extrabold text-sm ml-1.5">{isPosting ? 'กำลังทำ...' : 'ยืนยัน'}</Text>
                     </LinearGradient>
                   </AnimatedPressable>
 
-                  <AnimatedPressable onPress={closeComposer} style={styles.modalCloseBtn}>
-                    <Ionicons name="close" size={22} color="#374151" />
+                  <AnimatedPressable
+                    onPress={closeComposer}
+                    className={(isDark ? 'bg-[#111827]' : 'bg-gray-100') + ' w-9 h-9 items-center justify-center rounded-xl'}
+                  >
+                    <Ionicons name="close" size={22} color={isDark ? '#E2E8F0' : '#374151'} />
                   </AnimatedPressable>
                 </View>
               </View>
 
-              <View style={styles.modalCategoryRow}>
+              <View className="flex-row space-x-2 mb-2.5">
                 <AnimatedPressable
                   onPress={() => setActiveTab('general')}
-                  style={StyleSheet.flatten([styles.categoryChip, activeTab === 'general' && styles.categoryChipActive])}
+                  className={
+                    'px-2.5 py-2 rounded-full border ' +
+                    (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
+                    (activeTab === 'general'
+                      ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
+                      : '')
+                  }
                 >
-                  <Text style={[styles.categoryChipText, activeTab === 'general' && styles.categoryChipTextActive]}>พูดคุยทั่วไป</Text>
+                  <Text
+                    className={
+                      'text-xs font-bold ' +
+                      (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
+                      (activeTab === 'general' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                    }
+                  >
+                    พูดคุยทั่วไป
+                  </Text>
                 </AnimatedPressable>
                 <AnimatedPressable
                   onPress={() => setActiveTab('experience')}
-                  style={StyleSheet.flatten([styles.categoryChip, activeTab === 'experience' && styles.categoryChipActive])}
+                  className={
+                    'px-2.5 py-2 rounded-full border ' +
+                    (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
+                    (activeTab === 'experience'
+                      ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
+                      : '')
+                  }
                 >
-                  <Text style={[styles.categoryChipText, activeTab === 'experience' && styles.categoryChipTextActive]}>แชร์ประสบการณ์</Text>
+                  <Text
+                    className={
+                      'text-xs font-bold ' +
+                      (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
+                      (activeTab === 'experience' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                    }
+                  >
+                    แชร์ประสบการณ์
+                  </Text>
                 </AnimatedPressable>
                 <AnimatedPressable
                   onPress={() => setActiveTab('qa')}
-                  style={StyleSheet.flatten([styles.categoryChip, activeTab === 'qa' && styles.categoryChipActive])}
+                  className={
+                    'px-2.5 py-2 rounded-full border ' +
+                    (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
+                    (activeTab === 'qa'
+                      ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
+                      : '')
+                  }
                 >
-                  <Text style={[styles.categoryChipText, activeTab === 'qa' && styles.categoryChipTextActive]}>Q&A</Text>
+                  <Text
+                    className={
+                      'text-xs font-bold ' +
+                      (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
+                      (activeTab === 'qa' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                    }
+                  >
+                    Q&A
+                  </Text>
                 </AnimatedPressable>
               </View>
 
@@ -333,24 +418,30 @@ export default function CommunityScreen() {
                 value={composerText}
                 onChangeText={setComposerText}
                 placeholder="พิมพ์ข้อความของคุณ..."
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
                 multiline
-                style={styles.modalInput}
+                className={
+                  (isDark
+                    ? 'border border-[#334155] bg-[#111827] text-slate-200'
+                    : 'border border-gray-200 bg-gray-50 text-[#111827]') +
+                  ' min-h-[120px] max-h-[220px] rounded-2xl px-3.5 py-3 text-[15px]'
+                }
+                textAlignVertical="top"
               />
 
-              <View style={styles.modalActionsRow}>
-                <AnimatedPressable onPress={closeComposer} style={styles.modalActionBtn}>
-                  <LinearGradient colors={['#9CA3AF', '#6B7280']} style={styles.modalActionGradient}>
-                    <Text style={styles.modalActionText}>ยกเลิก</Text>
+              <View className="flex-row space-x-3 mt-3">
+                <AnimatedPressable onPress={closeComposer} className="flex-1 rounded-2xl overflow-hidden">
+                  <LinearGradient colors={['#9CA3AF', '#6B7280']} className="flex-row items-center justify-center py-3.5">
+                    <Text className="text-white font-bold text-[15px]">ยกเลิก</Text>
                   </LinearGradient>
                 </AnimatedPressable>
-                <AnimatedPressable onPress={submitPost} disabled={!canSubmit} style={styles.modalActionBtn}>
+                <AnimatedPressable onPress={submitPost} disabled={!canSubmit} className="flex-1 rounded-2xl overflow-hidden">
                   <LinearGradient
                     colors={!canSubmit ? ['#9CA3AF', '#6B7280'] : ['#22C55E', '#16A34A']}
-                    style={styles.modalActionGradient}
+                    className="flex-row items-center justify-center py-3.5"
                   >
                     <Ionicons name="send" size={18} color="white" />
-                    <Text style={styles.modalActionText}>{isPosting ? 'กำลังทำ...' : editingPostId ? 'ยืนยัน' : 'โพสต์'}</Text>
+                    <Text className="text-white font-bold text-[15px] ml-2">{isPosting ? 'กำลังทำ...' : editingPostId ? 'ยืนยัน' : 'โพสต์'}</Text>
                   </LinearGradient>
                 </AnimatedPressable>
               </View>
@@ -361,212 +452,3 @@ export default function CommunityScreen() {
     </GradientBackground>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  titleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    shadowColor: '#8E44AD',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  titleText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  notificationBtn: {
-    position: 'absolute',
-    right: 16,
-    padding: 8,
-  },
-  tabContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  postsContainer: {
-    paddingHorizontal: 16,
-  },
-  emptyState: {
-    backgroundColor: 'white',
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    backgroundColor: '#F3E5F5',
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2C3E50',
-    marginBottom: 4,
-  },
-  emptyDesc: {
-    fontSize: 14,
-    color: '#7F8C8D',
-  },
-  fabContainer: {
-    position: 'absolute',
-    bottom: 100,
-    right: 20,
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#8E44AD',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalSheetWrapper: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  modalHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  modalCloseBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-  },
-  modalConfirmBtn: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  modalConfirmGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  modalConfirmText: {
-    color: 'white',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  modalCategoryRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  categoryChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  categoryChipActive: {
-    backgroundColor: '#EDE9FE',
-    borderColor: '#C4B5FD',
-  },
-  categoryChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
-  categoryChipTextActive: {
-    color: '#6D28D9',
-  },
-  modalInput: {
-    minHeight: 120,
-    maxHeight: 220,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: '#111827',
-    textAlignVertical: 'top',
-  },
-  modalActionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  modalActionBtn: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  modalActionGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    gap: 8,
-  },
-  modalActionText: {
-    color: 'white',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-});

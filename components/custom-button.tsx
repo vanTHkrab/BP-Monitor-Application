@@ -1,15 +1,16 @@
 import { Colors } from '@/constants/colors';
+import { useAppStore } from '@/store/useAppStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
     ActivityIndicator,
     Pressable,
-    StyleSheet,
     Text,
     TextStyle,
     View,
     ViewStyle,
 } from 'react-native';
+import { cssInterop } from 'react-native-css-interop';
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
@@ -24,12 +25,16 @@ interface CustomButtonProps {
   disabled?: boolean;
   loading?: boolean;
   icon?: React.ReactNode;
+  className?: string;
   style?: ViewStyle;
   textStyle?: TextStyle;
   fullWidth?: boolean;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+cssInterop(LinearGradient, { className: 'style' });
+cssInterop(AnimatedPressable, { className: 'style' });
 
 export const CustomButton: React.FC<CustomButtonProps> = ({
   title,
@@ -39,10 +44,14 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   disabled = false,
   loading = false,
   icon,
+  className,
   style,
   textStyle,
   fullWidth = true,
 }) => {
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
+
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -83,45 +92,36 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
     }
   };
 
-  const getSizeStyles = () => {
-    switch (size) {
-      case 'small':
-        return { paddingVertical: 10, paddingHorizontal: 18 };
-      case 'large':
-        return { paddingVertical: 18, paddingHorizontal: 32 };
-      default:
-        return { paddingVertical: 16, paddingHorizontal: 28 };
-    }
-  };
+  const sizeClassName =
+    size === 'small'
+      ? 'py-[10px] px-[18px]'
+      : size === 'large'
+        ? 'py-[18px] px-8'
+        : 'py-4 px-7';
 
-  const getFontSize = () => {
-    switch (size) {
-      case 'small':
-        return 14;
-      case 'large':
-        return 20;
-      default:
-        return 18;
-    }
+  const textSizeClassName = size === 'small' ? 'text-sm' : size === 'large' ? 'text-xl' : 'text-lg';
+
+  const shadowStyle: ViewStyle = {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   };
 
   const buttonContent = (
-    <View style={styles.contentContainer}>
+    <View className="flex-row items-center justify-center">
       {loading ? (
         <ActivityIndicator color={getTextColor()} />
       ) : (
         <>
           {icon}
           <Text
-            style={[
-              styles.text,
-              {
-                color: getTextColor(),
-                fontSize: getFontSize(),
-                marginLeft: icon ? 8 : 0,
-              },
-              textStyle,
-            ]}
+            className={
+              `font-bold text-center tracking-wide ${textSizeClassName}` +
+              (icon ? ' ml-2' : '')
+            }
+            style={[{ color: getTextColor() }, textStyle]}
           >
             {title}
           </Text>
@@ -136,18 +136,21 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={disabled || loading}
+      className={(fullWidth ? 'w-full' : '') + (className ? ` ${className}` : '')}
       style={[
         animatedStyle,
-        { width: fullWidth ? '100%' : undefined },
         style,
       ]}
     >
       {variant === 'outline' ? (
         <View
+          className={
+            `rounded-2xl ${sizeClassName} ` +
+            (isDark ? 'bg-[#0F172A]' : 'bg-white')
+          }
           style={[
-            styles.button,
-            styles.outlineButton,
-            getSizeStyles(),
+            shadowStyle,
+            { borderWidth: 2, borderColor: Colors.primary.blue },
           ]}
         >
           {buttonContent}
@@ -157,11 +160,8 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
           colors={getGradientColors()}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[
-            styles.button,
-            styles.gradientButton,
-            getSizeStyles(),
-          ]}
+          className={`rounded-2xl overflow-hidden ${sizeClassName}`}
+          style={shadowStyle}
         >
           {buttonContent}
         </LinearGradient>
@@ -169,34 +169,5 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
     </AnimatedPressable>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  gradientButton: {
-    overflow: 'hidden',
-  },
-  outlineButton: {
-    borderWidth: 2,
-    borderColor: Colors.primary.blue,
-    backgroundColor: 'white',
-  },
-  contentContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  text: {
-    fontWeight: '700',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-});
 
 export default CustomButton;
