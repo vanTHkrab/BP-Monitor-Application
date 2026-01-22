@@ -7,10 +7,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import React from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, ScrollView, Text, View } from 'react-native';
+import { cssInterop } from 'react-native-css-interop';
+
+cssInterop(LinearGradient, { className: 'style' });
 
 export default function MenuScreen() {
   const { logout, user } = useAppStore();
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
 
   const handleLogout = () => {
     Alert.alert(
@@ -32,18 +37,20 @@ export default function MenuScreen() {
 
   return (
     <GradientBackground>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <FadeInView delay={100}>
-          <View style={styles.header}>
+          <View className="items-center py-4">
             <LinearGradient
               colors={['#5DADE2', '#3498DB']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.titleBadge}
+              className="flex-row items-center px-6 py-2.5 rounded-xl shadow-lg"
             >
-              <Ionicons name="menu" size={20} color="white" style={{ marginRight: 8 }} />
-              <Text style={styles.titleText}>เมนูอื่นๆ</Text>
+              <View className="mr-2">
+                <Ionicons name="menu" size={20} color="white" />
+              </View>
+              <Text className="text-lg font-bold text-white">เมนูอื่นๆ</Text>
             </LinearGradient>
           </View>
         </FadeInView>
@@ -52,37 +59,43 @@ export default function MenuScreen() {
         <ScaleOnMount delay={200}>
           <AnimatedPressable 
             onPress={() => router.push('/profile' as Href)}
-            style={styles.profileCardWrapper}
+            className="mx-4 mt-2 rounded-2xl overflow-hidden shadow-lg"
           >
             <LinearGradient
-              colors={['#FFFFFF', '#F8FAFC']}
-              style={styles.profileCard}
+              colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F8FAFC']}
+              className="flex-row items-center p-4"
             >
-              <View style={styles.avatarContainer}>
+              <View className="w-[60px] h-[60px] rounded-full overflow-hidden mr-3.5">
                 {user?.avatar ? (
-                  <Image source={{ uri: user.avatar }} style={styles.avatar} />
+                  <Image source={{ uri: user.avatar }} className="w-full h-full" />
                 ) : (
                   <LinearGradient
                     colors={['#5DADE2', '#3498DB']}
-                    style={styles.avatarPlaceholder}
+                    className="w-full h-full items-center justify-center"
                   >
                     <Ionicons name="person" size={32} color="white" />
                   </LinearGradient>
                 )}
               </View>
-              <View style={styles.profileInfo}>
-                <Text style={styles.profileName}>{user?.name || 'ผู้ใช้'}</Text>
-                <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
+              <View className="flex-1">
+                <Text className={isDark ? 'text-lg font-bold text-slate-200 mb-1' : 'text-lg font-bold text-[#2C3E50] mb-1'}>
+                  {user?.name || 'ผู้ใช้'}
+                </Text>
+                <Text className={isDark ? 'text-sm text-slate-400' : 'text-sm text-[#7F8C8D]'}>
+                  {user?.email || 'user@example.com'}
+                </Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+              <Ionicons name="chevron-forward" size={24} color={isDark ? '#94A3B8' : '#9CA3AF'} />
             </LinearGradient>
           </AnimatedPressable>
         </ScaleOnMount>
 
         {/* Menu Items */}
-        <View style={styles.menuContainer}>
+        <View className="px-4 mt-5">
           <FadeInView delay={300}>
-            <Text style={styles.sectionTitle}>บัญชีและการตั้งค่า</Text>
+            <Text className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' text-sm font-semibold mb-3 ml-1 uppercase tracking-[0.5px]'}>
+              บัญชีและการตั้งค่า
+            </Text>
             <MenuItem
               icon="person-outline"
               title="โปรไฟล์ของฉัน"
@@ -103,7 +116,9 @@ export default function MenuScreen() {
           </FadeInView>
 
           <FadeInView delay={400}>
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>ความช่วยเหลือ</Text>
+            <Text className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' text-sm font-semibold mb-3 ml-1 uppercase tracking-[0.5px] mt-6'}>
+              ความช่วยเหลือ
+            </Text>
             <MenuItem
               icon="help-circle-outline"
               title="ช่วยเหลือและคำแนะนำ"
@@ -120,7 +135,7 @@ export default function MenuScreen() {
 
         {/* Logout Button */}
         <FadeInView delay={500}>
-          <View style={styles.logoutContainer}>
+          <View className="px-4 mt-6">
             <CustomButton
               title="ออกจากระบบ"
               onPress={handleLogout}
@@ -131,111 +146,11 @@ export default function MenuScreen() {
 
         {/* App Version */}
         <FadeInView delay={600}>
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>BP Monitor v1.0.0</Text>
+          <View className="items-center py-6 pb-[100px]">
+            <Text className={isDark ? 'text-xs text-slate-400' : 'text-xs text-gray-400'}>BP Monitor v1.0.0</Text>
           </View>
         </FadeInView>
       </ScrollView>
     </GradientBackground>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  titleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 12,
-    shadowColor: '#3498DB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  titleText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  profileCardWrapper: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 20,
-  },
-  avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    overflow: 'hidden',
-    marginRight: 14,
-  },
-  avatar: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    marginBottom: 4,
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: '#7F8C8D',
-  },
-  menuContainer: {
-    paddingHorizontal: 16,
-    marginTop: 20,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#7F8C8D',
-    marginBottom: 12,
-    marginLeft: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  logoutContainer: {
-    paddingHorizontal: 16,
-    marginTop: 24,
-  },
-  versionContainer: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingBottom: 100,
-  },
-  versionText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-});

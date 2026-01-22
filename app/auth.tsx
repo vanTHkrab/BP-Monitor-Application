@@ -1,4 +1,4 @@
-import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animated-components';
+import { FadeInView, ScaleOnMount } from '@/components/animated-components';
 import { CustomButton } from '@/components/custom-button';
 import { CustomInput } from '@/components/custom-input';
 import { GradientBackground } from '@/components/gradient-background';
@@ -9,11 +9,26 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
+import { cssInterop } from 'react-native-css-interop';
 
 type AuthTab = 'login' | 'register';
 
+cssInterop(LinearGradient, { className: 'style' });
+
 export default function AuthScreen() {
+  const DEV_BUILD_ID = 'auth-layout-2026-01-22-1';
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -29,6 +44,8 @@ export default function AuthScreen() {
   const [registerAvatarUri, setRegisterAvatarUri] = useState<string | null>(null);
   
   const { login, register, clearAuthError } = useAppStore();
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
 
   const pickRegisterAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -72,7 +89,7 @@ export default function AuthScreen() {
           .join('\n');
         Alert.alert('ข้อผิดพลาด', detail);
       }
-    } catch (error) {
+    } catch {
       Alert.alert('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
     } finally {
       setIsLoading(false);
@@ -125,7 +142,7 @@ export default function AuthScreen() {
           .join('\n');
         Alert.alert('ข้อผิดพลาด', detail);
       }
-    } catch (error) {
+    } catch {
       Alert.alert('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการลงทะเบียน');
     } finally {
       setIsLoading(false);
@@ -137,41 +154,77 @@ export default function AuthScreen() {
     { key: 'register', label: 'ลงทะเบียน' },
   ];
 
+  const authCardStyle: ViewStyle = {
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    borderWidth: Platform.OS === 'web' ? 1 : 2,
+  };
+
+  const authCardShadowStyle: ViewStyle | undefined = Platform.OS !== 'web'
+    ? {
+        shadowColor: isDark ? '#000' : '#0F172A',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: isDark ? 0.4 : 0.15,
+        shadowRadius: 20,
+        elevation: 15,
+      }
+    : undefined;
+
+  const avatarBoxStyle: ViewStyle = {
+    backgroundColor: isDark ? '#0F172A' : '#F9FAFB',
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    borderWidth: 4,
+  };
+
   return (
     <GradientBackground>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
+        className="flex-1"
       >
         <ScrollView 
-          style={styles.container}
-          contentContainerStyle={styles.scrollContent}
+          className="flex-1"
+          contentContainerClassName="flex-grow"
+          contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.content}>
+          <View className="flex-1 px-6 pt-6">
             {/* Logo */}
             <ScaleOnMount delay={100}>
-              <View style={styles.logoContainer}>
+              <View className="items-center mb-8">
                 <LinearGradient
-                  colors={['#FFFFFF', '#F0F7FF']}
-                  style={styles.logoBackground}
+                  colors={isDark ? ['#1E293B', '#0F172A'] : ['#FFFFFF', '#F0F7FF']}
+                  className="w-[120px] h-[120px] rounded-full items-center justify-center mb-4"
+                  style={{
+                    shadowColor: isDark ? '#5DADE2' : '#000',
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: isDark ? 0.3 : 0.15,
+                    shadowRadius: 20,
+                    elevation: 12,
+                  }}
                 >
-                  <View style={styles.logoInner}>
+                  <View className="items-center justify-center relative">
                     <Ionicons name="heart-circle" size={64} color="#E91E63" />
-                    <Ionicons name="pulse" size={32} color="#5DADE2" style={styles.pulseIcon} />
+                    <View className="absolute -bottom-2 -right-4">
+                      <Ionicons name="pulse" size={32} color="#5DADE2" />
+                    </View>
                   </View>
                 </LinearGradient>
-                <Text style={styles.appName}>BP Monitor</Text>
-                <Text style={styles.appTagline}>ติดตามความดันโลหิตอย่างง่ายดาย</Text>
+                <Text className={isDark ? 'text-[28px] font-bold text-white mb-1' : 'text-[28px] font-bold text-[#2C3E50] mb-1'}>
+                  BP Monitor
+                </Text>
+                <Text className={isDark ? 'text-sm text-slate-300' : 'text-sm text-[#7F8C8D]'}>
+                  ติดตามความดันโลหิตอย่างง่ายดาย
+                </Text>
               </View>
             </ScaleOnMount>
             
             {/* Auth Card */}
             <FadeInView delay={200}>
-              <View style={styles.authCard}>
+              <View style={[styles.authCard, authCardStyle, authCardShadowStyle]}>
                 {/* Tabs */}
-                <View style={styles.tabContainer}>
+                <View className="mb-6">
                   <TabButtons
                     tabs={authTabs}
                     activeTab={activeTab}
@@ -183,7 +236,7 @@ export default function AuthScreen() {
                 {/* Login Form */}
                 {activeTab === 'login' && (
                   <FadeInView delay={100}>
-                    <View style={styles.formContainer}>
+                    <View className="pt-2">
                       <CustomInput
                         placeholder="ชื่อ หรือ เบอร์โทรศัพท์"
                         value={loginPhone}
@@ -200,9 +253,9 @@ export default function AuthScreen() {
                         secureTextEntry
                       />
                       
-                      <AnimatedPressable onPress={() => {}} style={styles.forgotBtn}>
-                        <Text style={styles.forgotText}>ลืมรหัสผ่าน?</Text>
-                      </AnimatedPressable>
+                      <Pressable onPress={() => {}} style={styles.forgotPassword}>
+                        <Text className="text-[#3498DB] text-sm font-semibold">ลืมรหัสผ่าน?</Text>
+                      </Pressable>
                       
                       <CustomButton
                         title="เข้าสู่ระบบ"
@@ -210,12 +263,6 @@ export default function AuthScreen() {
                         loading={isLoading}
                         size="large"
                       />
-
-                      {/* Social Login Divider */}
-
-                      {/* Social Login Buttons */}
-                      <View style={styles.socialContainer}>
-                      </View>
                     </View>
                   </FadeInView>
                 )}
@@ -223,18 +270,20 @@ export default function AuthScreen() {
                 {/* Register Form */}
                 {activeTab === 'register' && (
                   <FadeInView delay={100}>
-                    <View style={styles.formContainer}>
-                      <View style={styles.registerAvatarRow}>
-                        <AnimatedPressable onPress={pickRegisterAvatar} style={styles.registerAvatarBtn}>
-                          <View style={styles.registerAvatarCircle}>
+                    <View className="pt-2">
+                      <View className="items-center mb-4">
+                        <Pressable onPress={pickRegisterAvatar} style={styles.avatarPressable}>
+                          <View style={[styles.avatarBox, avatarBoxStyle]}>
                             {registerAvatarUri ? (
-                              <Image source={{ uri: registerAvatarUri }} style={styles.registerAvatarImg} />
+                              <Image source={{ uri: registerAvatarUri }} style={styles.avatarImage} />
                             ) : (
-                              <Ionicons name="person" size={32} color="#6B7280" />
+                              <Ionicons name="person" size={40} color={isDark ? '#64748B' : '#94A3B8'} />
                             )}
                           </View>
-                          <Text style={styles.registerAvatarLabel}>{registerAvatarUri ? 'เปลี่ยนรูปโปรไฟล์' : 'เพิ่มรูปโปรไฟล์'}</Text>
-                        </AnimatedPressable>
+                          <Text className="text-[13px] text-[#3498DB] font-bold mt-3">
+                            {registerAvatarUri ? 'เปลี่ยนรูปโปรไฟล์' : 'เพิ่มรูปโปรไฟล์'}
+                          </Text>
+                        </Pressable>
                       </View>
 
                       <CustomInput
@@ -268,7 +317,7 @@ export default function AuthScreen() {
                         secureTextEntry
                       />
                       
-                      <View style={{ marginTop: 8 }}>
+                      <View className="mt-2">
                         <CustomButton
                           title="ลงทะเบียน"
                           onPress={handleRegister}
@@ -278,11 +327,17 @@ export default function AuthScreen() {
                         />
                       </View>
 
-                      <Text style={styles.termsText}>
+                      <Text
+                        className={
+                          isDark
+                            ? 'text-center mt-5 text-xs text-slate-300 leading-[18px]'
+                            : 'text-center mt-5 text-xs text-[#64748B] leading-[18px]'
+                        }
+                      >
                         การลงทะเบียนหมายความว่าคุณยอมรับ{' '}
-                        <Text style={styles.termsLink}>เงื่อนไขการใช้งาน</Text>
+                        <Text className="text-[#3498DB] font-semibold">เงื่อนไขการใช้งาน</Text>
                         {' '}และ{' '}
-                        <Text style={styles.termsLink}>นโยบายความเป็นส่วนตัว</Text>
+                        <Text className="text-[#3498DB] font-semibold">นโยบายความเป็นส่วนตัว</Text>
                       </Text>
                     </View>
                   </FadeInView>
@@ -293,10 +348,15 @@ export default function AuthScreen() {
           
           {/* Footer */}
           <FadeInView delay={400}>
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>
+            <View className="py-6">
+              <Text className={isDark ? 'text-center text-slate-400 text-xs' : 'text-center text-gray-400 text-xs'}>
                 Copyright©2025 BP Monitor App
               </Text>
+              {__DEV__ && (
+                <Text className={isDark ? 'text-center text-slate-500 text-[10px] mt-1' : 'text-center text-gray-500 text-[10px] mt-1'}>
+                  DEV {DEV_BUILD_ID} ({Platform.OS})
+                </Text>
+              )}
             </View>
           </FadeInView>
         </ScrollView>
@@ -306,155 +366,33 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 48,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  registerAvatarRow: {
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  registerAvatarBtn: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  registerAvatarCircle: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: '#F3F4F6',
-    overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  registerAvatarImg: {
-    width: '100%',
-    height: '100%',
-  },
-  registerAvatarLabel: {
-    fontSize: 13,
-    color: '#2563EB',
-    fontWeight: '700',
-  },
-  logoBackground: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#5DADE2',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-    marginBottom: 16,
-  },
-  logoInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  pulseIcon: {
-    position: 'absolute',
-    bottom: -8,
-    right: -16,
-  },
-  appName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    marginBottom: 4,
-  },
-  appTagline: {
-    fontSize: 14,
-    color: '#7F8C8D',
-  },
   authCard: {
-    backgroundColor: 'white',
     borderRadius: 24,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 10,
+    padding: 24,
   },
-  tabContainer: {
-    marginBottom: 20,
-  },
-  formContainer: {
-    paddingTop: 8,
-  },
-  forgotBtn: {
+  forgotPassword: {
     alignSelf: 'flex-end',
     marginBottom: 20,
     marginTop: -8,
   },
-  forgotText: {
-    color: '#3498DB',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
+  avatarPressable: {
     alignItems: 'center',
-    marginVertical: 20,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E5E7EB',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#9CA3AF',
-    fontSize: 14,
-  },
-  socialContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  socialBtn: {
-    width: 56,
-    height: 56,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
+  avatarBox: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  termsText: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 12,
-    color: '#7F8C8D',
-    lineHeight: 18,
-  },
-  termsLink: {
-    color: '#3498DB',
-    fontWeight: '500',
-  },
-  footer: {
-    paddingVertical: 24,
-  },
-  footerText: {
-    textAlign: 'center',
-    color: '#9CA3AF',
-    fontSize: 12,
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
 });

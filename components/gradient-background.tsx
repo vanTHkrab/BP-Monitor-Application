@@ -1,7 +1,12 @@
+import { useAppStore } from '@/store/useAppStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
+import { cssInterop } from 'react-native-css-interop';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+cssInterop(LinearGradient, { className: 'style' });
+cssInterop(SafeAreaView, { className: 'style' });
 
 interface GradientBackgroundProps {
   children: React.ReactNode;
@@ -13,28 +18,24 @@ export const GradientBackground: React.FC<GradientBackgroundProps> = ({
   safeArea = true,
 }) => {
   const Container = safeArea ? SafeAreaView : View;
+
+  const themePreference = useAppStore((s) => s.themePreference);
+
+  const colors: readonly [string, string, string] =
+    themePreference === 'dark'
+      ? ['#0B1220', '#0F172A', '#111827']
+      : ['#87CEEB', '#72C9F7', '#5DADE2'];
   
   return (
     <LinearGradient
-      colors={['#87CEEB', '#72C9F7', '#5DADE2']}
+      colors={colors}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
-      style={styles.gradient}
+      className="flex-1"
     >
-      <Container style={styles.container}>
-        {children}
-      </Container>
+      <Container className="flex-1">{children}</Container>
     </LinearGradient>
   );
 };
-
-const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-  },
-});
 
 export default GradientBackground;

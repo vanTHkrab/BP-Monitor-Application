@@ -10,7 +10,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Text, View } from 'react-native';
+import { cssInterop } from 'react-native-css-interop';
+
+cssInterop(LinearGradient, { className: 'style' });
+cssInterop(CameraView, { className: 'style' });
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -24,7 +28,11 @@ export default function CameraScreen() {
   const [cameraKey, setCameraKey] = useState(0);
   const [isCameraReady, setIsCameraReady] = useState(false);
 
-  const { createReading, isAuthenticated } = useAppStore();
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
+  const createReading = useAppStore((s) => s.createReading);
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const modalCloseIconColor = isDark ? '#E2E8F0' : '#374151';
   
   const cameraRef = useRef<CameraView>(null);
 
@@ -37,8 +45,8 @@ export default function CameraScreen() {
   if (!permission) {
     return (
       <GradientBackground>
-        <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>กำลังโหลด...</Text>
+        <View className="flex-1 items-center justify-center">
+          <Text className={isDark ? 'text-base text-slate-200' : 'text-base text-[#2C3E50]'}>กำลังโหลด...</Text>
         </View>
       </GradientBackground>
     );
@@ -48,12 +56,19 @@ export default function CameraScreen() {
     return (
       <GradientBackground>
         <FadeInView delay={200}>
-          <View style={styles.permissionContainer}>
-            <View style={styles.permissionIconContainer}>
+          <View className="flex-1 items-center justify-center px-8">
+            <View
+              className={
+                (isDark ? 'bg-[#0F172A] border border-[#1F2937]' : 'bg-[#EBF5FB]') +
+                ' w-[120px] h-[120px] rounded-full items-center justify-center mb-6'
+              }
+            >
               <Ionicons name="camera-outline" size={64} color={Colors.primary.blue} />
             </View>
-            <Text style={styles.permissionTitle}>ต้องการสิทธิ์เข้าถึงกล้อง</Text>
-            <Text style={styles.permissionDesc}>
+            <Text className={isDark ? 'text-[22px] font-bold text-slate-200 mb-3' : 'text-[22px] font-bold text-[#2C3E50] mb-3'}>
+              ต้องการสิทธิ์เข้าถึงกล้อง
+            </Text>
+            <Text className={isDark ? 'text-base text-slate-400 text-center leading-6 mb-8' : 'text-base text-[#7F8C8D] text-center leading-6 mb-8'}>
               แอปต้องการสิทธิ์ในการเข้าถึงกล้องเพื่อถ่ายภาพเครื่องวัดความดัน
             </Text>
             <CustomButton
@@ -67,19 +82,18 @@ export default function CameraScreen() {
   }
 
   const takePicture = async () => {
-    if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
-          base64: true,
-        });
-        if (photo) {
-          setCapturedImage(photo.uri);
-        }
-      } catch (error) {
-        console.error('Error taking picture:', error);
-        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
+    if (!cameraRef.current) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        base64: true,
+        quality: 0.8,
+      });
+      if (photo) {
+        setCapturedImage(photo.uri);
       }
+    } catch (error) {
+      console.error('Error taking picture:', error);
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
     }
   };
 
@@ -192,49 +206,56 @@ export default function CameraScreen() {
 
   return (
     <GradientBackground safeArea={false}>
-      <View style={styles.container}>
+      <View className="flex-1 relative">
         {/* Header */}
         <LinearGradient
           colors={['#F59E0B', '#D97706', '#B45309']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={styles.header}
+          className={(Platform.OS === 'ios' ? 'pt-14' : 'pt-10') + ' pb-4 px-4 flex-row items-center'}
         >
-          <AnimatedPressable onPress={() => router.back()} style={styles.backButton}>
+          <AnimatedPressable onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
             <Ionicons name="arrow-back" size={24} color="white" />
           </AnimatedPressable>
-          <Text style={styles.headerTitle}>ถ่ายรูปเครื่องวัดความดัน</Text>
-          <View style={{ width: 40 }} />
+          <Text className="flex-1 text-lg font-bold text-white text-center">ถ่ายรูปเครื่องวัดความดัน</Text>
+          <View className="w-10" />
         </LinearGradient>
 
         {/* Main Content */}
         {!capturedImage ? (
           <>
-            <View style={styles.cameraContainer}>
+            <View className="flex-1 relative">
               {cameraMountError ? (
-                <View style={styles.cameraErrorOverlay}>
-                  <View style={styles.cameraErrorCard}>
+                <View className="absolute inset-0 items-center justify-center px-5">
+                  <View
+                    className={
+                      (isDark ? 'bg-[#0F172A]/95 border border-[#1F2937]' : 'bg-white/95') +
+                      ' w-full rounded-2xl p-4 items-center'
+                    }
+                  >
                     <Ionicons name="alert-circle" size={26} color="#DC2626" />
-                    <Text style={styles.cameraErrorTitle}>กล้องใช้งานไม่ได้</Text>
-                    <Text style={styles.cameraErrorDesc} numberOfLines={3}>
+                    <Text className={isDark ? 'mt-2 text-base font-extrabold text-slate-200' : 'mt-2 text-base font-extrabold text-[#111827]'}>
+                      กล้องใช้งานไม่ได้
+                    </Text>
+                    <Text className={isDark ? 'mt-1.5 text-[13px] text-slate-400 text-center' : 'mt-1.5 text-[13px] text-gray-500 text-center'} numberOfLines={3}>
                       {cameraMountError}
                     </Text>
-                    <View style={styles.cameraErrorActions}>
-                      <AnimatedPressable onPress={retryCamera} style={styles.cameraErrorBtn}>
-                        <LinearGradient colors={['#3B82F6', '#2563EB']} style={styles.cameraErrorBtnGradient}>
+                    <View className="flex-row space-x-2.5 mt-3 w-full">
+                      <AnimatedPressable onPress={retryCamera} className="flex-1 rounded-[14px] overflow-hidden">
+                        <LinearGradient colors={['#3B82F6', '#2563EB']} className="flex-row items-center justify-center py-3">
                           <Ionicons name="refresh" size={18} color="white" />
-                          <Text style={styles.cameraErrorBtnText}>ลองใหม่</Text>
+                          <Text className="text-white font-bold text-sm ml-2">ลองใหม่</Text>
                         </LinearGradient>
                       </AnimatedPressable>
                       <AnimatedPressable
                         onPress={() => {
                           void Linking.openSettings();
                         }}
-                        style={styles.cameraErrorBtn}
+                        className="flex-1 rounded-[14px] overflow-hidden"
                       >
-                        <LinearGradient colors={['#9CA3AF', '#6B7280']} style={styles.cameraErrorBtnGradient}>
+                        <LinearGradient colors={['#9CA3AF', '#6B7280']} className="flex-row items-center justify-center py-3">
                           <Ionicons name="settings" size={18} color="white" />
-                          <Text style={styles.cameraErrorBtnText}>ตั้งค่า</Text>
+                          <Text className="text-white font-bold text-sm ml-2">ตั้งค่า</Text>
                         </LinearGradient>
                       </AnimatedPressable>
                     </View>
@@ -245,7 +266,7 @@ export default function CameraScreen() {
                   <CameraView
                     key={cameraKey}
                     ref={cameraRef}
-                    style={StyleSheet.absoluteFillObject}
+                    className="absolute inset-0"
                     facing="back"
                     onMountError={(e) => {
                       // Some devices fail to mount camera; show a friendly fallback.
@@ -255,10 +276,10 @@ export default function CameraScreen() {
                   />
 
                   {!isCameraReady && (
-                    <View style={styles.cameraLoadingOverlay}>
-                      <View style={styles.cameraLoadingPill}>
+                    <View className="absolute inset-0 items-center justify-center">
+                      <View className="flex-row items-center bg-black/55 px-3.5 py-2.5 rounded-full">
                         <Ionicons name="time-outline" size={16} color="white" />
-                        <Text style={styles.cameraLoadingText}>กำลังเปิดกล้อง...</Text>
+                        <Text className="text-white text-[13px] font-semibold ml-2">กำลังเปิดกล้อง...</Text>
                       </View>
                     </View>
                   )}
@@ -266,82 +287,82 @@ export default function CameraScreen() {
               )}
               
               {/* Guide Frame */}
-              <View style={styles.guideContainer}>
+              <View className="flex-1 items-center justify-center">
                 <ScaleOnMount delay={300}>
-                  <View style={styles.guideTextContainer}>
+                  <View className="flex-row items-center bg-black/60 px-4 py-2.5 rounded-2xl mb-5">
                     <Ionicons name="scan-outline" size={18} color="white" />
-                    <Text style={styles.guideText}>
+                    <Text className="text-white text-sm font-medium ml-2">
                       วางหน้าจอเครื่องวัดให้ตรงกรอบ
                     </Text>
                   </View>
                 </ScaleOnMount>
-                <View style={styles.guideFrame}>
-                  <View style={[styles.corner, styles.topLeft]} />
-                  <View style={[styles.corner, styles.topRight]} />
-                  <View style={[styles.corner, styles.bottomLeft]} />
-                  <View style={[styles.corner, styles.bottomRight]} />
+                <View className="w-[280px] h-[160px] relative">
+                  <View className="absolute top-0 left-0 w-10 h-10 border-[#22C55E] border-t-4 border-l-4 rounded-tl-xl" />
+                  <View className="absolute top-0 right-0 w-10 h-10 border-[#22C55E] border-t-4 border-r-4 rounded-tr-xl" />
+                  <View className="absolute bottom-0 left-0 w-10 h-10 border-[#22C55E] border-b-4 border-l-4 rounded-bl-xl" />
+                  <View className="absolute bottom-0 right-0 w-10 h-10 border-[#22C55E] border-b-4 border-r-4 rounded-br-xl" />
                 </View>
               </View>
             </View>
 
             {/* Camera Controls */}
-            <View style={styles.controlsWrapper}>
+            <View className="absolute bottom-0 left-0 right-0">
               <LinearGradient
                 colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']}
-                style={styles.controlsGradient}
+                className={(Platform.OS === 'ios' ? 'pb-10' : 'pb-6') + ' pt-10'}
               >
-                <View style={styles.controlsRow}>
+                <View className="flex-row justify-between items-center px-10">
                   {/* Gallery Button */}
-                  <AnimatedPressable onPress={pickImage} style={styles.sideButton}>
-                    <View style={styles.sideButtonInner}>
+                  <AnimatedPressable onPress={pickImage} className="w-[70px] items-center">
+                    <View className="w-[50px] h-[50px] rounded-full bg-white/20 items-center justify-center">
                       <Ionicons name="images" size={24} color="white" />
                     </View>
-                    <Text style={styles.sideButtonLabel}>แกลเลอรี่</Text>
+                    <Text className="text-white text-xs mt-1.5 font-medium">แกลเลอรี่</Text>
                   </AnimatedPressable>
                   
                   {/* Capture Button - Center */}
-                  <AnimatedPressable onPress={takePicture} style={styles.captureButton}>
-                    <View style={styles.captureOuter}>
-                      <View style={styles.captureInner}>
+                  <AnimatedPressable onPress={takePicture} className="items-center">
+                    <View className="w-[76px] h-[76px] bg-white/30 rounded-full items-center justify-center p-1">
+                      <View className="w-full h-full bg-white rounded-[34px] items-center justify-center">
                         <Ionicons name="camera" size={32} color="#D97706" />
                       </View>
                     </View>
                   </AnimatedPressable>
                   
                   {/* Manual Entry Button */}
-                  <AnimatedPressable onPress={openEntry} style={styles.sideButton}>
-                    <View style={styles.sideButtonInner}>
+                  <AnimatedPressable onPress={openEntry} className="w-[70px] items-center">
+                    <View className="w-[50px] h-[50px] rounded-full bg-white/20 items-center justify-center">
                       <Ionicons name="create" size={22} color="white" />
                     </View>
-                    <Text style={styles.sideButtonLabel}>กรอกค่า</Text>
+                    <Text className="text-white text-xs mt-1.5 font-medium">กรอกค่า</Text>
                   </AnimatedPressable>
                 </View>
               </LinearGradient>
             </View>
           </>
         ) : (
-          <View style={styles.previewContainer}>
+          <View className="flex-1">
             <Image
               source={{ uri: capturedImage }}
-              style={styles.previewImage}
+              className="flex-1"
               resizeMode="contain"
             />
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.8)']}
-              style={styles.previewControls}
+              className={(Platform.OS === 'ios' ? 'pb-10' : 'pb-6') + ' absolute bottom-0 left-0 right-0 px-4 py-6'}
             >
-              <View style={styles.previewButtonsRow}>
-                <AnimatedPressable onPress={resetState} style={styles.previewButton}>
-                  <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.previewButtonGradient}>
+              <View className="flex-row justify-center space-x-3">
+                <AnimatedPressable onPress={resetState} className="flex-1 rounded-2xl overflow-hidden shadow-lg">
+                  <LinearGradient colors={['#EF4444', '#DC2626']} className="flex-row items-center justify-center px-6 py-3.5">
                     <Ionicons name="refresh" size={20} color="white" />
-                    <Text style={styles.previewButtonText}>ถ่ายใหม่</Text>
+                    <Text className="text-white font-semibold text-[15px] ml-2">ถ่ายใหม่</Text>
                   </LinearGradient>
                 </AnimatedPressable>
 
-                <AnimatedPressable onPress={openEntry} style={styles.previewButton}>
-                  <LinearGradient colors={['#3B82F6', '#2563EB']} style={styles.previewButtonGradient}>
+                <AnimatedPressable onPress={openEntry} className="flex-1 rounded-2xl overflow-hidden shadow-lg">
+                  <LinearGradient colors={['#3B82F6', '#2563EB']} className="flex-row items-center justify-center px-6 py-3.5">
                     <Ionicons name="checkmark" size={22} color="white" />
-                    <Text style={styles.previewButtonText}>ยืนยันภาพ</Text>
+                    <Text className="text-white font-semibold text-[15px] ml-2">ยืนยันภาพ</Text>
                   </LinearGradient>
                 </AnimatedPressable>
               </View>
@@ -356,43 +377,54 @@ export default function CameraScreen() {
           animationType="slide"
           onRequestClose={() => setShowEntryModal(false)}
         >
-          <View style={styles.modalBackdrop}>
+          <View className="flex-1 bg-black/45 justify-end">
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-              style={styles.modalSheetWrapper}
+              className="flex-1 w-full justify-end"
             >
-              <View style={styles.modalSheet}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>กรอกค่าความดัน</Text>
-                  <View style={styles.modalHeaderRight}>
+              <View
+                className={
+                  (isDark ? 'bg-[#0B1220] border border-[#1F2937]' : 'bg-white') +
+                  ' rounded-t-[22px] px-4 pt-3.5 ' +
+                  (Platform.OS === 'ios' ? 'pb-7' : 'pb-4')
+                }
+              >
+                <View className="flex-row items-center justify-between mb-1.5">
+                  <Text className={isDark ? 'text-[17px] font-extrabold text-slate-200' : 'text-[17px] font-extrabold text-[#111827]'}>
+                    กรอกค่าความดัน
+                  </Text>
+                  <View className="flex-row items-center space-x-2.5">
                     <AnimatedPressable
                       onPress={saveManualReading}
                       disabled={isSaving || !canAttemptSave}
-                      style={styles.modalConfirmBtn}
+                      className="rounded-xl overflow-hidden"
                     >
                       <LinearGradient
                         colors={isSaving || !canAttemptSave ? ['#9CA3AF', '#6B7280'] : ['#22C55E', '#16A34A']}
-                        style={styles.modalConfirmGradient}
+                        className="flex-row items-center justify-center px-3.5 py-2.5"
                       >
                         <Ionicons name="checkmark" size={18} color="white" />
-                        <Text style={styles.modalConfirmText}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยัน'}</Text>
+                        <Text className="text-white font-extrabold text-sm ml-1.5">{isSaving ? 'กำลังบันทึก...' : 'ยืนยัน'}</Text>
                       </LinearGradient>
                     </AnimatedPressable>
 
-                    <AnimatedPressable onPress={() => setShowEntryModal(false)} style={styles.modalCloseBtn}>
-                      <Ionicons name="close" size={22} color="#374151" />
+                    <AnimatedPressable
+                      onPress={() => setShowEntryModal(false)}
+                      className={(isDark ? 'bg-[#111827]' : 'bg-gray-100') + ' w-9 h-9 items-center justify-center rounded-xl'}
+                    >
+                      <Ionicons name="close" size={22} color={modalCloseIconColor} />
                     </AnimatedPressable>
                   </View>
                 </View>
 
                 <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                  <Text style={styles.modalHint}>
+                  <Text className={isDark ? 'text-[13px] text-slate-400 mb-3' : 'text-[13px] text-gray-500 mb-3'}>
                     {capturedImage ? 'ตรวจสอบรูปแล้วกรอกค่า SYS / DIA / ชีพจร' : 'ยังไม่มีรูป (ถ่ายรูปหรือเลือกรูปก่อน แล้วค่อยบันทึก)'}
                   </Text>
 
-                  <View style={styles.entryRow}>
-                    <View style={styles.entryCol}>
+                  <View className="flex-row space-x-2.5">
+                    <View className="flex-1">
                       <CustomInput
                         placeholder="SYS"
                         value={systolic}
@@ -401,7 +433,7 @@ export default function CameraScreen() {
                         keyboardType="numeric"
                       />
                     </View>
-                    <View style={styles.entryCol}>
+                    <View className="flex-1">
                       <CustomInput
                         placeholder="DIA"
                         value={diastolic}
@@ -410,7 +442,7 @@ export default function CameraScreen() {
                         keyboardType="numeric"
                       />
                     </View>
-                    <View style={styles.entryCol}>
+                    <View className="flex-1">
                       <CustomInput
                         placeholder="ชีพจร"
                         value={pulse}
@@ -422,24 +454,24 @@ export default function CameraScreen() {
                   </View>
                 </ScrollView>
 
-                <View style={styles.modalActionsRow}>
-                  <AnimatedPressable onPress={() => setShowEntryModal(false)} style={styles.modalActionBtn}>
-                    <LinearGradient colors={['#9CA3AF', '#6B7280']} style={styles.modalActionGradient}>
-                      <Text style={styles.modalActionText}>ปิด</Text>
+                <View className="flex-row space-x-3 mt-2">
+                  <AnimatedPressable onPress={() => setShowEntryModal(false)} className="flex-1 rounded-2xl overflow-hidden">
+                    <LinearGradient colors={['#9CA3AF', '#6B7280']} className="flex-row items-center justify-center py-3.5">
+                      <Text className="text-white font-bold text-[15px]">ปิด</Text>
                     </LinearGradient>
                   </AnimatedPressable>
 
                   <AnimatedPressable
                     onPress={saveManualReading}
                     disabled={isSaving || !canAttemptSave}
-                    style={styles.modalActionBtn}
+                    className="flex-1 rounded-2xl overflow-hidden"
                   >
                     <LinearGradient
                       colors={isSaving || !canAttemptSave ? ['#9CA3AF', '#6B7280'] : ['#22C55E', '#16A34A']}
-                      style={styles.modalActionGradient}
+                      className="flex-row items-center justify-center py-3.5"
                     >
                       <Ionicons name="save" size={18} color="white" />
-                      <Text style={styles.modalActionText}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Text>
+                      <Text className="text-white font-bold text-[15px] ml-2">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Text>
                     </LinearGradient>
                   </AnimatedPressable>
                 </View>
@@ -451,388 +483,3 @@ export default function CameraScreen() {
     </GradientBackground>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    position: 'relative',
-  },
-  centerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: '#2C3E50',
-    fontSize: 16,
-  },
-  permissionContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  permissionIconContainer: {
-    width: 120,
-    height: 120,
-    backgroundColor: '#EBF5FB',
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  permissionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    marginBottom: 12,
-  },
-  permissionDesc: {
-    fontSize: 16,
-    color: '#7F8C8D',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 56 : 40,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
-  },
-  cameraContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  cameraLoadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraLoadingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  cameraLoadingText: {
-    color: 'white',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  cameraErrorOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  cameraErrorCard: {
-    width: '100%',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    padding: 16,
-    alignItems: 'center',
-  },
-  cameraErrorTitle: {
-    marginTop: 8,
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  cameraErrorDesc: {
-    marginTop: 6,
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  cameraErrorActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-    width: '100%',
-  },
-  cameraErrorBtn: {
-    flex: 1,
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  cameraErrorBtnGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 8,
-  },
-  cameraErrorBtnText: {
-    color: 'white',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  guideContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  guideTextContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginBottom: 20,
-  },
-  guideText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  guideFrame: {
-    width: 280,
-    height: 160,
-    position: 'relative',
-  },
-  corner: {
-    position: 'absolute',
-    width: 40,
-    height: 40,
-    borderColor: '#22C55E',
-  },
-  topLeft: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 12,
-  },
-  topRight: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 12,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 12,
-  },
-  bottomRight: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 12,
-  },
-  controlsWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  controlsGradient: {
-    paddingTop: 40,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-  },
-  controlsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  sideButton: {
-    width: 70,
-    alignItems: 'center',
-  },
-  sideButtonInner: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sideButtonLabel: {
-    color: 'white',
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: '500',
-  },
-  captureButton: {
-    alignItems: 'center',
-  },
-  captureOuter: {
-    width: 76,
-    height: 76,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,
-  },
-  captureInner: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'white',
-    borderRadius: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewContainer: {
-    flex: 1,
-  },
-  previewImage: {
-    flex: 1,
-  },
-  previewControls: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-  },
-  entryRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  entryCol: {
-    flex: 1,
-  },
-  previewButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'center',
-  },
-  previewButton: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  previewButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    gap: 8,
-  },
-  previewButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalSheetWrapper: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  modalHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  modalCloseBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-  },
-  modalConfirmBtn: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  modalConfirmGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  modalConfirmText: {
-    color: 'white',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  modalHint: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 12,
-  },
-  modalActionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  modalActionBtn: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  modalActionGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    gap: 8,
-  },
-  modalActionText: {
-    color: 'white',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-});

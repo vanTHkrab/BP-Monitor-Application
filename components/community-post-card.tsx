@@ -1,10 +1,16 @@
+import { useAppStore } from '@/store/useAppStore';
 import { CommunityPost } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Text, View, type ViewStyle } from 'react-native';
+import { cssInterop } from 'react-native-css-interop';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { AnimatedPressable } from './animated-components';
+
+cssInterop(LinearGradient, { className: 'style' });
+
+const DEFAULT_AVATAR = require('../assets/images/icon.png');
 
 type FirestoreTimestampLike = {
   toDate?: () => Date;
@@ -66,6 +72,12 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
   onComment,
   onMore,
 }) => {
+  const themePreference = useAppStore((s) => s.themePreference);
+  const isDark = themePreference === 'dark';
+
+  const [avatarFailed, setAvatarFailed] = React.useState(false);
+  const hasAvatarUri = Boolean(post.userAvatar) && !avatarFailed;
+
   const heartScale = useSharedValue(1);
 
   const handleLike = () => {
@@ -79,52 +91,64 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
     transform: [{ scale: heartScale.value }],
   }));
 
+  const cardShadowStyle: ViewStyle = {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  };
+
   return (
-    <AnimatedPressable onPress={onPress} style={styles.container}>
+    <AnimatedPressable onPress={onPress} className="mb-3 rounded-[20px] overflow-hidden" style={cardShadowStyle}>
       <LinearGradient
-        colors={['#FFFFFF', '#F0F7FF']}
-        style={styles.gradient}
+        colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F0F7FF']}
+        className="p-4 rounded-[20px] border"
+        style={{ borderColor: isDark ? '#334155' : '#E0E7FF' }}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.avatarContainer}>
-            {post.userAvatar ? (
-              <Image 
-                source={{ uri: post.userAvatar }} 
-                style={styles.avatar}
-              />
-            ) : (
-              <LinearGradient
-                colors={['#5DADE2', '#3498DB']}
-                style={styles.avatarPlaceholder}
-              >
-                <Ionicons name="person" size={18} color="white" />
-              </LinearGradient>
-            )}
+        <View className="flex-row items-center mb-3">
+          <View className="w-[42px] h-[42px] rounded-full overflow-hidden">
+            <Image
+              source={hasAvatarUri ? { uri: post.userAvatar! } : DEFAULT_AVATAR}
+              className="w-full h-full"
+              resizeMode="cover"
+              onError={() => setAvatarFailed(true)}
+            />
           </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{post.userName}</Text>
-            <Text style={styles.timeText}>{formatRelativeTimeTH(post.createdAt)}</Text>
+          <View className="flex-1 ml-2.5">
+            <Text className={(isDark ? 'text-slate-200' : 'text-[#2C3E50]') + ' text-[15px] font-semibold'}>
+              {post.userName}
+            </Text>
+            <Text className={(isDark ? 'text-slate-400' : 'text-gray-400') + ' text-xs mt-0.5'}>
+              {formatRelativeTimeTH(post.createdAt)}
+            </Text>
           </View>
-          <AnimatedPressable style={styles.moreButton} onPress={onMore}>
-            <Ionicons name="ellipsis-horizontal" size={18} color="#9CA3AF" />
+          <AnimatedPressable className="p-1" onPress={onMore}>
+            <Ionicons name="ellipsis-horizontal" size={18} color={isDark ? '#94A3B8' : '#9CA3AF'} />
           </AnimatedPressable>
         </View>
 
         {/* Content */}
-        <Text style={styles.content} numberOfLines={4}>
+        <Text
+          className={(isDark ? 'text-slate-300' : 'text-gray-600') + ' text-sm leading-[22px] mb-2'}
+          numberOfLines={4}
+        >
           {post.content}
         </Text>
         
         <AnimatedPressable onPress={onPress}>
-          <Text style={styles.readMore}>... อ่านต่อ</Text>
+          <Text className="text-sm text-[#3498DB] font-medium mb-3">... อ่านต่อ</Text>
         </AnimatedPressable>
 
         {/* Actions */}
-        <View style={styles.actionsContainer}>
+        <View
+          className="flex-row items-center pt-3 border-t gap-6"
+          style={{ borderTopColor: isDark ? '#334155' : '#E5E7EB' }}
+        >
           <AnimatedPressable 
             onPress={handleLike}
-            style={styles.actionButton}
+            className="flex-row items-center gap-1.5"
           >
             <Animated.View style={heartAnimatedStyle}>
               <Ionicons 
@@ -133,28 +157,36 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
                 color={post.isLiked ? '#E91E63' : '#9CA3AF'} 
               />
             </Animated.View>
-            <Text style={[styles.actionText, post.isLiked && styles.likedText]}>
+            <Text
+              className={
+                (post.isLiked
+                  ? 'text-[#E91E63]'
+                  : isDark
+                    ? 'text-slate-400'
+                    : 'text-gray-400') + ' text-sm font-medium'
+              }
+            >
               {post.likes}
             </Text>
           </AnimatedPressable>
           
           <AnimatedPressable 
             onPress={onComment}
-            style={styles.actionButton}
+            className="flex-row items-center gap-1.5"
           >
             <Ionicons 
               name="chatbubble-outline" 
               size={18} 
-              color="#9CA3AF"
+              color={isDark ? '#94A3B8' : '#9CA3AF'}
             />
-            <Text style={styles.actionText}>{post.comments}</Text>
+            <Text className={(isDark ? 'text-slate-400' : 'text-gray-400') + ' text-sm font-medium'}>{post.comments}</Text>
           </AnimatedPressable>
 
-          <AnimatedPressable style={styles.actionButton} onPress={() => {}}>
+          <AnimatedPressable className="flex-row items-center gap-1.5" onPress={() => {}}>
             <Ionicons 
               name="share-social-outline" 
               size={18} 
-              color="#9CA3AF"
+              color={isDark ? '#94A3B8' : '#9CA3AF'}
             />
           </AnimatedPressable>
         </View>
@@ -162,95 +194,5 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
     </AnimatedPressable>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 12,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  gradient: {
-    padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    overflow: 'hidden',
-  },
-  avatar: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  userInfo: {
-    flex: 1,
-    marginLeft: 10,
-  },
-  userName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#2C3E50',
-  },
-  timeText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 2,
-  },
-  moreButton: {
-    padding: 4,
-  },
-  content: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: '#4B5563',
-    marginBottom: 8,
-  },
-  readMore: {
-    fontSize: 14,
-    color: '#3498DB',
-    fontWeight: '500',
-    marginBottom: 12,
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    gap: 24,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  actionText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
-  likedText: {
-    color: '#E91E63',
-  },
-});
 
 export default CommunityPostCard;
