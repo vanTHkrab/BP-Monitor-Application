@@ -6,9 +6,9 @@ import { useAppStore } from '@/store/useAppStore';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
+import { cssInterop } from 'nativewind';
 import React from 'react';
 import { Alert, Image, ScrollView, Text, View } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
 
 cssInterop(LinearGradient, { className: 'style' });
 

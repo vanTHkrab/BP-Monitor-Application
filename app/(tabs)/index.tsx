@@ -1,14 +1,14 @@
 import { AnimatedPressable, FadeInView, PulseView, ScaleOnMount } from '@/components/animated-components';
 import { GradientBackground } from '@/components/gradient-background';
-import { Colors, getStatusColor, getStatusText } from '@/constants/colors';
+import { Colors, getStatusText, type BPStatus } from '@/constants/colors';
 import { formatThaiDate } from '@/data/mockData';
 import { useAppStore } from '@/store/useAppStore';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
+import { cssInterop } from 'nativewind';
 import React from 'react';
 import { Image, ScrollView, Text, View } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
 
 cssInterop(LinearGradient, { className: 'style' });
 
@@ -18,8 +18,16 @@ export default function HomeScreen() {
   const isDark = themePreference === 'dark';
   const latestReading = readings[0];
 
-  const textPrimary = isDark ? '#E2E8F0' : '#2C3E50';
-  const textSecondary = isDark ? '#94A3B8' : '#7F8C8D';
+  const textPrimaryClassName = isDark ? 'text-slate-200' : 'text-[#2C3E50]';
+  const textSecondaryClassName = isDark ? 'text-slate-400' : 'text-[#7F8C8D]';
+
+  const statusUi: Record<BPStatus, { pill: string; dot: string; text: string }> = {
+    low: { pill: 'bg-[#3498DB]/20', dot: 'bg-[#3498DB]', text: 'text-[#3498DB]' },
+    normal: { pill: 'bg-[#27AE60]/20', dot: 'bg-[#27AE60]', text: 'text-[#27AE60]' },
+    elevated: { pill: 'bg-[#F39C12]/20', dot: 'bg-[#F39C12]', text: 'text-[#F39C12]' },
+    high: { pill: 'bg-[#E74C3C]/20', dot: 'bg-[#E74C3C]', text: 'text-[#E74C3C]' },
+    critical: { pill: 'bg-[#8E44AD]/20', dot: 'bg-[#8E44AD]', text: 'text-[#8E44AD]' },
+  };
 
   return (
     <GradientBackground>
@@ -47,7 +55,7 @@ export default function HomeScreen() {
                   </View>
                 )}
               </View>
-              <Text className="text-lg font-semibold" style={{ color: textPrimary }}>
+              <Text className={'text-lg font-semibold ' + textPrimaryClassName}>
                 สวัสดี, คุณ {user?.name || 'ผู้ใช้'}
               </Text>
             </View>
@@ -67,7 +75,7 @@ export default function HomeScreen() {
               colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F8FAFC']}
               className="p-5 rounded-3xl"
             >
-              <Text className="text-center mb-3 text-sm font-medium" style={{ color: textSecondary }}>
+              <Text className={'text-center mb-3 text-sm font-medium ' + textSecondaryClassName}>
                 ผลการวัดล่าสุด {latestReading ? formatThaiDate(latestReading.measuredAt) : '-'}
               </Text>
               
@@ -84,7 +92,7 @@ export default function HomeScreen() {
                       <Text className={isDark ? 'text-[52px] font-bold text-slate-100' : 'text-[52px] font-bold text-[#1a1a1a]'}>
                         {latestReading.diastolic}
                       </Text>
-                      <Text className="text-lg font-semibold ml-2" style={{ color: textSecondary }}>
+                      <Text className={'text-lg font-semibold ml-2 ' + textSecondaryClassName}>
                         mmHg
                       </Text>
                     </View>
@@ -95,16 +103,21 @@ export default function HomeScreen() {
                       <Ionicons name="heart" size={20} color={Colors.heartRate.icon} />
                       <Text className="text-[#E91E63] ml-1.5 font-semibold">{latestReading.pulse} bpm</Text>
                     </View>
-                    <View className="flex-row items-center px-3 py-1.5 rounded-full ml-4" style={{ backgroundColor: getStatusColor(latestReading.status) + '20' }}>
-                      <View className="w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: getStatusColor(latestReading.status) }} />
-                      <Text className="font-semibold text-sm" style={{ color: getStatusColor(latestReading.status) }}>
+                    <View
+                      className={
+                        'flex-row items-center px-3 py-1.5 rounded-full ml-4 ' +
+                        statusUi[latestReading.status].pill
+                      }
+                    >
+                      <View className={'w-2 h-2 rounded-full mr-1.5 ' + statusUi[latestReading.status].dot} />
+                      <Text className={'font-semibold text-sm ' + statusUi[latestReading.status].text}>
                         สถานะ: {getStatusText(latestReading.status)}
                       </Text>
                     </View>
                   </View>
                 </>
               ) : (
-                <Text className="text-center text-base" style={{ color: textSecondary }}>
+                <Text className={'text-center text-base ' + textSecondaryClassName}>
                   ยังไม่มีข้อมูล
                 </Text>
               )}
@@ -135,7 +148,7 @@ export default function HomeScreen() {
         {/* Trends and Reports Section */}
         <FadeInView delay={400}>
           <View className="px-4 mt-6">
-            <Text className="text-xl font-bold mb-4" style={{ color: textPrimary }}>
+            <Text className={'text-xl font-bold mb-4 ' + textPrimaryClassName}>
               แนวโน้มและรายงาน
             </Text>
             
@@ -155,7 +168,7 @@ export default function HomeScreen() {
                     <Ionicons name="trending-up" size={32} color="#5DADE2" />
                   </View>
                   <View className="flex-row items-center justify-center mt-0.5">
-                    <Text className="text-[13px] mb-1" style={{ color: textSecondary }}>
+                    <Text className={'text-[13px] mb-1 ' + textSecondaryClassName}>
                       ดูประวัติทั้งหมด
                     </Text>
                     <Ionicons
@@ -178,7 +191,7 @@ export default function HomeScreen() {
                     ' rounded-2xl p-[18px] min-h-[170px] items-center shadow-md'
                   }
                 >
-                  <Text className="text-[11px] mb-1" style={{ color: textSecondary }}>
+                  <Text className={'text-[11px] mb-1 ' + textSecondaryClassName}>
                     สร้างรายงานสุขภาพ
                   </Text>
                   <LinearGradient
@@ -187,7 +200,7 @@ export default function HomeScreen() {
                   >
                     <Text className="text-white font-bold text-sm">PDF</Text>
                   </LinearGradient>
-                  <Text className="text-[13px] mb-1" style={{ color: textSecondary }}>
+                  <Text className={'text-[13px] mb-1 ' + textSecondaryClassName}>
                     กดเพื่อสร้าง
                   </Text>
                 </View>
@@ -199,7 +212,7 @@ export default function HomeScreen() {
         {/* Health Tips Section */}
         <FadeInView delay={500}>
           <View className="px-4 mt-6">
-            <Text className="text-xl font-bold mb-4" style={{ color: textPrimary }}>
+            <Text className={'text-xl font-bold mb-4 ' + textPrimaryClassName}>
               สุขภาพและการดูแลตัวเอง
             </Text>
             
@@ -214,10 +227,10 @@ export default function HomeScreen() {
                   <Ionicons name="leaf" size={22} color="#27AE60" />
                 </View>
                 <View className="flex-1">
-                  <Text className="font-semibold text-[15px]" style={{ color: textPrimary }}>
+                  <Text className={'font-semibold text-[15px] ' + textPrimaryClassName}>
                     เคล็ดลับการดูแลสุขภาพ
                   </Text>
-                  <Text className="text-[13px] mt-0.5" style={{ color: textSecondary }}>
+                  <Text className={'text-[13px] mt-0.5 ' + textSecondaryClassName}>
                     อ่านบทความเกี่ยวกับการดูแลความดันโลหิต
                   </Text>
                 </View>

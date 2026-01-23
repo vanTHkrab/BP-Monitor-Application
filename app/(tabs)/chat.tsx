@@ -5,14 +5,12 @@ import { TabButtons } from '@/components/tab-buttons';
 import { useAppStore } from '@/store/useAppStore';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { cssInterop } from 'nativewind';
 import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
-import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
-cssInterop(Animated.View, { className: 'style' });
 
 type CommunityTab = 'general' | 'experience' | 'qa';
 
@@ -34,24 +32,6 @@ export default function CommunityScreen() {
     setIsComposerOpen(false);
     setEditingPostId(null);
   };
-
-  // FAB animation
-  const fabScale = useSharedValue(1);
-
-  React.useEffect(() => {
-    fabScale.value = withRepeat(
-      withSequence(
-        withTiming(1.1, { duration: 1000 }),
-        withTiming(1, { duration: 1000 })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const fabAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: fabScale.value }],
-  }));
 
   const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
   const tabBarHeight = tabBarBaseHeight + insets.bottom;
@@ -281,16 +261,7 @@ export default function CommunityScreen() {
       </ScrollView>
 
       {/* Floating Action Button */}
-      <Animated.View
-        style={[
-          {
-            position: 'absolute',
-            right: 20,
-            bottom: fabBottom,
-          },
-          fabAnimatedStyle,
-        ]}
-      >
+      <View className="absolute right-5" style={{ bottom: fabBottom }}>
         <AnimatedPressable onPress={openComposer}>
           <LinearGradient
             colors={['#9B59B6', '#8E44AD', '#6C3483']}
@@ -299,13 +270,13 @@ export default function CommunityScreen() {
             <Ionicons name="add" size={28} color="white" />
           </LinearGradient>
         </AnimatedPressable>
-      </Animated.View>
+      </View>
 
       {/* Create Post Modal */}
       <Modal
         visible={isComposerOpen}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => {
           closeComposer();
         }}

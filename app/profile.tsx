@@ -84,7 +84,7 @@ export default function ProfileScreen() {
         <View className="relative flex-row items-center justify-center px-4 py-4">
           <TouchableOpacity
             onPress={() => router.back()}
-            style={{ position: 'absolute', left: 16, padding: 4 }}
+            className="absolute left-4 p-1"
           >
             <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
@@ -93,7 +93,7 @@ export default function ProfileScreen() {
 
           <TouchableOpacity
             onPress={() => setIsEditing(!isEditing)}
-            style={{ position: 'absolute', right: 16, padding: 4 }}
+            className="absolute right-4 p-1"
           >
             <Text className="text-blue-500 font-medium">{isEditing ? 'ยกเลิก' : 'แก้ไข'}</Text>
           </TouchableOpacity>

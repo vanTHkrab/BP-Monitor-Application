@@ -1,19 +1,11 @@
+import { cssInterop } from 'nativewind';
 import type { PropsWithChildren, ReactElement } from 'react';
-import { cssInterop } from 'react-native-css-interop';
-import Animated, {
-    interpolate,
-    useAnimatedRef,
-    useAnimatedStyle,
-    useScrollOffset,
-} from 'react-native-reanimated';
+import { ScrollView, View } from 'react-native';
 
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeColor } from '@/hooks/use-theme-color';
 
-const HEADER_HEIGHT = 250;
-
-cssInterop(Animated.View, { className: 'style' });
+cssInterop(View, { className: 'style' });
 
 type Props = PropsWithChildren<{
   headerImage: ReactElement;
@@ -25,38 +17,19 @@ export default function ParallaxScrollView({
   headerImage,
   headerBackgroundColor,
 }: Props) {
-  const backgroundColor = useThemeColor({}, 'background');
   const colorScheme = useColorScheme() ?? 'light';
-  const scrollRef = useAnimatedRef<Animated.ScrollView>();
-  const scrollOffset = useScrollOffset(scrollRef);
-  const headerAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        {
-          translateY: interpolate(
-            scrollOffset.value,
-            [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
-            [-HEADER_HEIGHT / 2, 0, HEADER_HEIGHT * 0.75]
-          ),
-        },
-        {
-          scale: interpolate(scrollOffset.value, [-HEADER_HEIGHT, 0, HEADER_HEIGHT], [2, 1, 1]),
-        },
-      ],
-    };
-  });
 
   return (
-    <Animated.ScrollView
-      ref={scrollRef}
-      style={{ backgroundColor, flex: 1 }}
+    <ScrollView
+      className="flex-1 bg-white dark:bg-[#0B1220]"
       scrollEventThrottle={16}>
-      <Animated.View
+      <View
         className="h-[250px] overflow-hidden"
-        style={[{ backgroundColor: headerBackgroundColor[colorScheme] }, headerAnimatedStyle]}>
+        style={{ backgroundColor: headerBackgroundColor[colorScheme] }}
+      >
         {headerImage}
-      </Animated.View>
+      </View>
       <ThemedView className="flex-1 p-8 gap-4 overflow-hidden">{children}</ThemedView>
-    </Animated.ScrollView>
+    </ScrollView>
   );
 }

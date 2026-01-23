@@ -9,9 +9,9 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { cssInterop } from 'nativewind';
 import React, { useRef, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Text, View } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
 
 cssInterop(LinearGradient, { className: 'style' });
 cssInterop(CameraView, { className: 'style' });
@@ -374,7 +374,7 @@ export default function CameraScreen() {
         <Modal
           visible={showEntryModal}
           transparent
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setShowEntryModal(false)}
         >
           <View className="flex-1 bg-black/45 justify-end">

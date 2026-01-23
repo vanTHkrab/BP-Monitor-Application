@@ -53,12 +53,12 @@ export default function HistoryListScreen() {
         <View className="flex-row items-center justify-center px-4 py-4">
           <TouchableOpacity
             onPress={() => router.back()}
-            style={{ position: 'absolute', left: 16, padding: 4 }}
+            className="absolute left-4 p-1"
           >
             <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
           <Text className="text-xl font-bold text-gray-800 dark:text-slate-100 text-center">ประวัติความดัน</Text>
-          <TouchableOpacity style={{ position: 'absolute', right: 16, padding: 4 }}>
+          <TouchableOpacity className="absolute right-4 p-1">
             <Ionicons name="information-circle-outline" size={26} color={headerIconColor} />
           </TouchableOpacity>
         </View>
