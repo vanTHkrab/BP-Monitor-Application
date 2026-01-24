@@ -2,10 +2,9 @@ import { useAppStore } from '@/store/useAppStore';
 import { CommunityPost } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { cssInterop } from 'nativewind';
 import React from 'react';
-import { Image, Text, View, type ViewStyle } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { Image, Text, View } from 'react-native';
 import { AnimatedPressable } from './animated-components';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -78,33 +77,18 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
   const [avatarFailed, setAvatarFailed] = React.useState(false);
   const hasAvatarUri = Boolean(post.userAvatar) && !avatarFailed;
 
-  const heartScale = useSharedValue(1);
-
   const handleLike = () => {
-    heartScale.value = withSpring(1.3, { damping: 10 }, () => {
-      heartScale.value = withSpring(1);
-    });
     onLike?.();
   };
 
-  const heartAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: heartScale.value }],
-  }));
-
-  const cardShadowStyle: ViewStyle = {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  };
-
   return (
-    <AnimatedPressable onPress={onPress} className="mb-3 rounded-[20px] overflow-hidden" style={cardShadowStyle}>
+    <AnimatedPressable onPress={onPress} className="mb-3 rounded-[20px] overflow-hidden shadow-lg shadow-black/10">
       <LinearGradient
         colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F0F7FF']}
-        className="p-4 rounded-[20px] border"
-        style={{ borderColor: isDark ? '#334155' : '#E0E7FF' }}
+        className={
+          'p-4 rounded-[20px] border ' +
+          (isDark ? 'border-[#334155]' : 'border-[#E0E7FF]')
+        }
       >
         {/* Header */}
         <View className="flex-row items-center mb-3">
@@ -143,20 +127,22 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
 
         {/* Actions */}
         <View
-          className="flex-row items-center pt-3 border-t gap-6"
-          style={{ borderTopColor: isDark ? '#334155' : '#E5E7EB' }}
+          className={
+            'flex-row items-center pt-3 border-t gap-6 ' +
+            (isDark ? 'border-[#334155]' : 'border-[#E5E7EB]')
+          }
         >
           <AnimatedPressable 
             onPress={handleLike}
             className="flex-row items-center gap-1.5"
           >
-            <Animated.View style={heartAnimatedStyle}>
+            <View>
               <Ionicons 
                 name={post.isLiked ? 'heart' : 'heart-outline'} 
                 size={20} 
                 color={post.isLiked ? '#E91E63' : '#9CA3AF'} 
               />
-            </Animated.View>
+            </View>
             <Text
               className={
                 (post.isLiked

@@ -1,12 +1,12 @@
-import { Colors, getStatusColor } from '@/constants/colors';
+import { Colors, type BPStatus } from '@/constants/colors';
 import { formatShortDate, getRelativeTime } from '@/data/mockData';
 import { useAppStore } from '@/store/useAppStore';
 import { BloodPressureReading } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { cssInterop } from 'nativewind';
 import React from 'react';
-import { Text, View, type ViewStyle } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
+import { Text, View } from 'react-native';
 import { AnimatedPressable } from './animated-components';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -27,7 +27,16 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
 
-  const statusColor = getStatusColor(reading.status);
+  const statusColor = Colors.status[reading.status as BPStatus];
+  const statusClass: Record<BPStatus, { solid: string; soft: string; border: string }> = {
+    low: { solid: 'bg-[#3498DB]', soft: 'bg-[#3498DB]/30', border: 'border-[#64B5F6]' },
+    normal: { solid: 'bg-[#27AE60]', soft: 'bg-[#27AE60]/30', border: 'border-[#81C784]' },
+    elevated: { solid: 'bg-[#F39C12]', soft: 'bg-[#F39C12]/30', border: 'border-[#FFD54F]' },
+    high: { solid: 'bg-[#E74C3C]', soft: 'bg-[#E74C3C]/30', border: 'border-[#FFB74D]' },
+    critical: { solid: 'bg-[#8E44AD]', soft: 'bg-[#8E44AD]/30', border: 'border-[#E57373]' },
+  };
+
+  const borderClassName = isDark ? 'border-[#334155]' : statusClass[reading.status as BPStatus].border;
   
   const getStatusIcon = () => {
     switch (reading.status) {
@@ -66,43 +75,9 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
     }
   };
 
-  const getBorderColor = () => {
-    if (isDark) return '#334155';
-    switch (reading.status) {
-      case 'normal':
-        return '#81C784';
-      case 'low':
-        return '#64B5F6';
-      case 'elevated':
-        return '#FFD54F';
-      case 'high':
-        return '#FFB74D';
-      case 'critical':
-        return '#E57373';
-      default:
-        return '#E0E0E0';
-    }
-  };
-
   const dateText = showFullDate 
     ? formatShortDate(reading.measuredAt)
     : getRelativeTime(reading.measuredAt);
-
-  const cardShadowStyle: ViewStyle = {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-  };
-
-  const badgeShadowStyle: ViewStyle = {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  };
 
   return (
     <AnimatedPressable onPress={onPress} className="mb-3">
@@ -110,8 +85,12 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
         colors={getCardColors()}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        className="rounded-[20px] p-4 border-2"
-        style={[cardShadowStyle, { borderColor: getBorderColor() }]}
+        className={
+          'rounded-[20px] p-4 border-2 shadow-lg ' +
+          borderClassName +
+          ' ' +
+          (isDark ? 'shadow-black/40' : 'shadow-black/15')
+        }
       >
         <View className="flex-row justify-between items-start">
           <View className="flex-1">
@@ -133,10 +112,20 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
           </View>
           
           <View className="items-end gap-2">
-            <View className="w-8 h-8 rounded-full items-center justify-center" style={[badgeShadowStyle, { backgroundColor: statusColor }]}>
+            <View
+              className={
+                'w-8 h-8 rounded-full items-center justify-center shadow-md shadow-black/20 ' +
+                statusClass[reading.status as BPStatus].solid
+              }
+            >
               <Ionicons name={getStatusIcon()} size={16} color="white" />
             </View>
-            <View className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: statusColor + '30' }}>
+            <View
+              className={
+                'w-8 h-8 rounded-full items-center justify-center ' +
+                statusClass[reading.status as BPStatus].soft
+              }
+            >
               <Ionicons 
                 name={reading.status === 'normal' ? 'checkmark-circle' : 'alert-circle'} 
                 size={18} 

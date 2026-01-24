@@ -7,18 +7,21 @@ import { TimeFilter } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
+import { cssInterop } from 'nativewind';
 import React, { useMemo, useState } from 'react';
 import { Dimensions, ScrollView, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
 const screenWidth = Dimensions.get('window').width;
 
+cssInterop(LinearGradient, { className: 'style' });
+
 export default function HistoryScreen() {
   const { readings } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
-  const [showChart, setShowChart] = useState(true);
+  const showChart = true;
 
   const timeFilterTabs = [
     { key: '7days', label: '7 วัน' },
@@ -113,13 +116,9 @@ export default function HistoryScreen() {
               colors={['#5DADE2', '#3498DB']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={{
-                paddingHorizontal: 24,
-                paddingVertical: 10,
-                borderRadius: 12,
-              }}
+              className="px-6 py-2.5 rounded-xl"
             >
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white' }}>ประวัติความดัน</Text>
+              <Text className="text-[18px] font-bold text-white">ประวัติความดัน</Text>
             </LinearGradient>
             {/* <AnimatedPressable className="absolute right-4 p-2" onPress={() => {}}>
               <Ionicons name="refresh" size={24} color={Colors.primary.blue} />
@@ -145,7 +144,7 @@ export default function HistoryScreen() {
             <View className="mx-4 rounded-3xl overflow-hidden shadow-lg mb-5 bg-white dark:bg-slate-900 border border-transparent dark:border-slate-700">
               <LinearGradient
                 colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F8FAFC']}
-                style={{ padding: 16, borderRadius: 24 }}
+                className="p-4 rounded-3xl"
               >
                 {/* Legend */}
                 <View className="flex-row justify-center gap-6 mb-2">
@@ -159,23 +158,24 @@ export default function HistoryScreen() {
                   </View>
                 </View>
 
-                <LineChart
-                  data={chartData}
-                  width={screenWidth - 64}
-                  height={180}
-                  chartConfig={chartConfig}
-                  bezier
-                  style={{ marginVertical: 8, borderRadius: 16 }}
-                  withInnerLines={true}
-                  withOuterLines={false}
-                  withVerticalLines={false}
-                  withHorizontalLines={true}
-                  withVerticalLabels={true}
-                  withHorizontalLabels={true}
-                  fromZero={false}
-                  yAxisSuffix=""
-                  yAxisInterval={1}
-                />
+                <View className="my-2 rounded-2xl overflow-hidden">
+                  <LineChart
+                    data={chartData}
+                    width={screenWidth - 64}
+                    height={180}
+                    chartConfig={chartConfig}
+                    bezier
+                    withInnerLines={true}
+                    withOuterLines={false}
+                    withVerticalLines={false}
+                    withHorizontalLines={true}
+                    withVerticalLabels={true}
+                    withHorizontalLabels={true}
+                    fromZero={false}
+                    yAxisSuffix=""
+                    yAxisInterval={1}
+                  />
+                </View>
 
                 {/* Latest reading tooltip */}
                 {filteredReadings.length > 0 && (
@@ -208,20 +208,16 @@ export default function HistoryScreen() {
             <View className="px-4 mb-3">
               <AnimatedPressable
                 onPress={() => router.push('/history-list' as Href)}
-                style={{ borderRadius: 16, overflow: 'hidden' }}
+                className="rounded-2xl overflow-hidden"
               >
                 <LinearGradient
                   colors={['#EBF5FB', '#D4E6F1']}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    paddingVertical: 14,
-                    borderRadius: 16,
-                  }}
+                  className="flex-row items-center justify-center py-3.5 rounded-2xl"
                 >
-                  <Ionicons name="list" size={20} color="#3498DB" style={{ marginRight: 8 }} />
-                  <Text style={{ color: '#3498DB', fontWeight: '600', fontSize: 15 }}>
+                  <View className="mr-2">
+                    <Ionicons name="list" size={20} color="#3498DB" />
+                  </View>
+                  <Text className="text-[#3498DB] font-semibold text-[15px]">
                     ดูทั้งหมด ({filteredReadings.length} รายการ)
                   </Text>
                 </LinearGradient>
@@ -235,31 +231,16 @@ export default function HistoryScreen() {
           <View className="px-4 mb-3">
             <AnimatedPressable
               onPress={() => {}}
-              style={{
-                borderRadius: 16,
-                overflow: 'hidden',
-                shadowColor: '#2C3E50',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 6,
-              }}
+              className="rounded-2xl overflow-hidden shadow-lg shadow-black/20"
             >
               <LinearGradient
                 colors={['#2C3E50', '#1a1a2e']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  paddingVertical: 16,
-                  borderRadius: 16,
-                  gap: 8,
-                }}
+                className="flex-row items-center justify-center py-4 rounded-2xl gap-2"
               >
                 <Ionicons name="download-outline" size={22} color="white" />
-                <Text style={{ color: 'white', fontWeight: '600', fontSize: 15 }}>ส่งออกรายงาน PDF/CSV</Text>
+                <Text className="text-white font-semibold text-[15px]">ส่งออกรายงาน PDF/CSV</Text>
               </LinearGradient>
             </AnimatedPressable>
           </View>

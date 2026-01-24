@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/useAppStore';
 import { LinearGradient } from 'expo-linear-gradient';
+import { cssInterop } from 'nativewind';
 import React from 'react';
 import {
     ActivityIndicator,
@@ -10,12 +11,6 @@ import {
     View,
     ViewStyle,
 } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
-import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-} from 'react-native-reanimated';
 
 interface CustomButtonProps {
   title: string;
@@ -31,10 +26,8 @@ interface CustomButtonProps {
   fullWidth?: boolean;
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 cssInterop(LinearGradient, { className: 'style' });
-cssInterop(AnimatedPressable, { className: 'style' });
+cssInterop(Pressable, { className: 'style' });
 
 export const CustomButton: React.FC<CustomButtonProps> = ({
   title,
@@ -51,20 +44,6 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
-
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
-  };
-
-  const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-  };
 
   const getGradientColors = (): [string, string, string] => {
     if (disabled) return ['#BDC3C7', '#BDC3C7', '#BDC3C7'];
@@ -131,14 +110,11 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   );
 
   return (
-    <AnimatedPressable
+    <Pressable
       onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
       disabled={disabled || loading}
       className={(fullWidth ? 'w-full' : '') + (className ? ` ${className}` : '')}
       style={[
-        animatedStyle,
         style,
       ]}
     >
@@ -166,7 +142,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
           {buttonContent}
         </LinearGradient>
       )}
-    </AnimatedPressable>
+    </Pressable>
   );
 };
 

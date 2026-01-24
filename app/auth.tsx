@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
+import { cssInterop } from 'nativewind';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -16,12 +17,9 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
-  type ViewStyle,
 } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
 
 type AuthTab = 'login' | 'register';
 
@@ -154,27 +152,13 @@ export default function AuthScreen() {
     { key: 'register', label: 'ลงทะเบียน' },
   ];
 
-  const authCardStyle: ViewStyle = {
-    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-    borderColor: isDark ? '#334155' : '#E2E8F0',
-    borderWidth: Platform.OS === 'web' ? 1 : 2,
-  };
+  const authCardClassName =
+    'rounded-3xl p-6 border shadow-xl ' +
+    (isDark ? 'bg-[#1E293B] border-[#334155] shadow-black/40' : 'bg-white border-[#E2E8F0] shadow-black/10');
 
-  const authCardShadowStyle: ViewStyle | undefined = Platform.OS !== 'web'
-    ? {
-        shadowColor: isDark ? '#000' : '#0F172A',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: isDark ? 0.4 : 0.15,
-        shadowRadius: 20,
-        elevation: 15,
-      }
-    : undefined;
-
-  const avatarBoxStyle: ViewStyle = {
-    backgroundColor: isDark ? '#0F172A' : '#F9FAFB',
-    borderColor: isDark ? '#334155' : '#E2E8F0',
-    borderWidth: 4,
-  };
+  const avatarBoxClassName =
+    'w-[90px] h-[90px] rounded-full overflow-hidden items-center justify-center border-4 shadow-md ' +
+    (isDark ? 'bg-[#0F172A] border-[#334155] shadow-black/40' : 'bg-[#F9FAFB] border-[#E2E8F0] shadow-black/10');
 
   return (
     <GradientBackground>
@@ -185,7 +169,6 @@ export default function AuthScreen() {
         <ScrollView 
           className="flex-1"
           contentContainerClassName="flex-grow"
-          contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -195,14 +178,10 @@ export default function AuthScreen() {
               <View className="items-center mb-8">
                 <LinearGradient
                   colors={isDark ? ['#1E293B', '#0F172A'] : ['#FFFFFF', '#F0F7FF']}
-                  className="w-[120px] h-[120px] rounded-full items-center justify-center mb-4"
-                  style={{
-                    shadowColor: isDark ? '#5DADE2' : '#000',
-                    shadowOffset: { width: 0, height: 8 },
-                    shadowOpacity: isDark ? 0.3 : 0.15,
-                    shadowRadius: 20,
-                    elevation: 12,
-                  }}
+                  className={
+                    'w-[120px] h-[120px] rounded-full items-center justify-center mb-4 shadow-xl ' +
+                    (isDark ? 'shadow-[#5DADE2]/30' : 'shadow-black/15')
+                  }
                 >
                   <View className="items-center justify-center relative">
                     <Ionicons name="heart-circle" size={64} color="#E91E63" />
@@ -222,7 +201,7 @@ export default function AuthScreen() {
             
             {/* Auth Card */}
             <FadeInView delay={200}>
-              <View style={[styles.authCard, authCardStyle, authCardShadowStyle]}>
+              <View className={authCardClassName}>
                 {/* Tabs */}
                 <View className="mb-6">
                   <TabButtons
@@ -253,7 +232,7 @@ export default function AuthScreen() {
                         secureTextEntry
                       />
                       
-                      <Pressable onPress={() => {}} style={styles.forgotPassword}>
+                      <Pressable onPress={() => {}} className="self-end mb-5 -mt-2">
                         <Text className="text-[#3498DB] text-sm font-semibold">ลืมรหัสผ่าน?</Text>
                       </Pressable>
                       
@@ -272,10 +251,10 @@ export default function AuthScreen() {
                   <FadeInView delay={100}>
                     <View className="pt-2">
                       <View className="items-center mb-4">
-                        <Pressable onPress={pickRegisterAvatar} style={styles.avatarPressable}>
-                          <View style={[styles.avatarBox, avatarBoxStyle]}>
+                        <Pressable onPress={pickRegisterAvatar} className="items-center">
+                          <View className={avatarBoxClassName}>
                             {registerAvatarUri ? (
-                              <Image source={{ uri: registerAvatarUri }} style={styles.avatarImage} />
+                              <Image source={{ uri: registerAvatarUri }} className="w-full h-full" />
                             ) : (
                               <Ionicons name="person" size={40} color={isDark ? '#64748B' : '#94A3B8'} />
                             )}
@@ -349,14 +328,9 @@ export default function AuthScreen() {
           {/* Footer */}
           <FadeInView delay={400}>
             <View className="py-6">
-              <Text className={isDark ? 'text-center text-slate-400 text-xs' : 'text-center text-gray-400 text-xs'}>
+              <Text className={isDark ? 'text-center text-white text-xs' : 'text-center text-white text-xs'}>
                 Copyright©2025 BP Monitor App
               </Text>
-              {__DEV__ && (
-                <Text className={isDark ? 'text-center text-slate-500 text-[10px] mt-1' : 'text-center text-gray-500 text-[10px] mt-1'}>
-                  DEV {DEV_BUILD_ID} ({Platform.OS})
-                </Text>
-              )}
             </View>
           </FadeInView>
         </ScrollView>
@@ -364,35 +338,3 @@ export default function AuthScreen() {
     </GradientBackground>
   );
 }
-
-const styles = StyleSheet.create({
-  authCard: {
-    borderRadius: 24,
-    padding: 24,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-    marginTop: -8,
-  },
-  avatarPressable: {
-    alignItems: 'center',
-  },
-  avatarBox: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-});

@@ -1,4 +1,3 @@
-import { Colors } from "@/constants/colors";
 import { useAppStore } from "@/store/useAppStore";
 import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
@@ -9,10 +8,7 @@ export default function IndexPage() {
   // ยังไม่รู้สถานะ auth → แสดง loading
   if (!authInitialized) {
     return (
-      <View
-        className="flex-1 items-center justify-center"
-        style={{ backgroundColor: Colors.primary.skyBlue }}
-      >
+      <View className="flex-1 items-center justify-center bg-[#72C9F7]">
         <ActivityIndicator size="large" color="white" />
       </View>
     );

@@ -1,9 +1,9 @@
 import { useAppStore } from '@/store/useAppStore';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { cssInterop } from 'nativewind';
 import React from 'react';
-import { Text, View, type ViewStyle } from 'react-native';
-import { cssInterop } from 'react-native-css-interop';
+import { Text, View } from 'react-native';
 import { AnimatedPressable } from './animated-components';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -37,37 +37,24 @@ export const MenuItem: React.FC<MenuItemProps> = ({
       ? ['#0F172A', '#111827']
       : ['#FFFFFF', '#F8FAFC'];
 
-  const borderColor = isDanger
-    ? isDark
-      ? '#7F1D1D'
-      : '#FECACA'
-    : isDark
-      ? '#334155'
-      : '#E5E7EB';
+  const borderClassName = isDanger
+    ? (isDark ? 'border-[#7F1D1D]' : 'border-[#FECACA]')
+    : (isDark ? 'border-[#334155]' : 'border-[#E5E7EB]');
 
-  const titleColor = isDanger ? '#EF4444' : isDark ? '#E2E8F0' : '#2C3E50';
-  const arrowBg = isDark ? '#1F2937' : '#F3F4F6';
+  const titleClassName = isDanger ? 'text-red-500' : (isDark ? 'text-slate-200' : 'text-[#2C3E50]');
+  const arrowBgClassName = isDark ? 'bg-[#1F2937]' : 'bg-[#F3F4F6]';
   const arrowColor = isDanger ? '#EF4444' : isDark ? '#94A3B8' : '#9CA3AF';
-
-  const containerShadowStyle: ViewStyle = {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  };
   
   return (
-    <AnimatedPressable onPress={onPress} className="mb-2.5 rounded-2xl overflow-hidden" style={containerShadowStyle}>
+    <AnimatedPressable onPress={onPress} className="mb-2.5 rounded-2xl overflow-hidden shadow-md shadow-black/10">
       <LinearGradient
         colors={gradientColors}
-        className="flex-row items-center p-[14px] rounded-2xl border"
-        style={{ borderColor }}
+        className={'flex-row items-center p-[14px] rounded-2xl border ' + borderClassName}
       >
         <View
           className={
             'w-[42px] h-[42px] rounded-[12px] items-center justify-center overflow-hidden' +
-            (isDanger ? ' bg-[#FEE2E2]' : '')
+            (isDanger ? (isDark ? ' bg-[#2A0A0A]' : ' bg-[#FEE2E2]') : '')
           }
         >
           {isDanger ? (
@@ -89,11 +76,11 @@ export const MenuItem: React.FC<MenuItemProps> = ({
             </LinearGradient>
           )}
         </View>
-        <Text className="flex-1 ml-3.5 text-[15px] font-semibold" style={{ color: titleColor }}>
+        <Text className={'flex-1 ml-3.5 text-[15px] font-semibold ' + titleClassName}>
           {title}
         </Text>
         {showArrow && (
-          <View className="w-7 h-7 rounded-full items-center justify-center" style={{ backgroundColor: arrowBg }}>
+          <View className={'w-7 h-7 rounded-full items-center justify-center ' + arrowBgClassName}>
             <Ionicons 
               name="chevron-forward" 
               size={20} 
