@@ -4,12 +4,14 @@ import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/tab-buttons';
 import { useAppStore } from '@/store/useAppStore';
 import { TimeFilter } from '@/types';
+import { createExportFileWithRetry, ExportDataType, ExportFormat } from '@/utils/export-data';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { cssInterop } from 'nativewind';
 import React, { useMemo, useState } from 'react';
-import { Dimensions, ScrollView, Text, View } from 'react-native';
+import { Alert, Dimensions, Platform, ScrollView, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
 const screenWidth = Dimensions.get('window').width;
@@ -17,11 +19,16 @@ const screenWidth = Dimensions.get('window').width;
 cssInterop(LinearGradient, { className: 'style' });
 
 export default function HistoryScreen() {
-  const { readings } = useAppStore();
+  const readings = useAppStore((s) => s.readings);
+  const posts = useAppStore((s) => s.posts);
+  const user = useAppStore((s) => s.user);
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
+  const [isExporting, setIsExporting] = useState(false);
   const showChart = true;
+  const maxExportAttempts = 3;
+  type ExportRangeKey = TimeFilter | 'all';
 
   const timeFilterTabs = [
     { key: '7days', label: '7 วัน' },
@@ -30,12 +37,22 @@ export default function HistoryScreen() {
     { key: '1year', label: '1 ปี' },
   ];
 
-  // Filter readings based on time filter
-  const filteredReadings = useMemo(() => {
-    const now = new Date();
-    let cutoffDate = new Date();
+  const exportRangeOptions: Array<{ key: ExportRangeKey; label: string }> = [
+    { key: '7days', label: '7 วัน' },
+    { key: '30days', label: '30 วัน' },
+    { key: '3months', label: '3 เดือน' },
+    { key: '1year', label: '1 ปี' },
+    { key: 'all', label: 'ทั้งหมด' },
+  ];
 
-    switch (timeFilter) {
+  // Filter readings based on time filter
+  const filterReadingsByRange = (rangeKey: ExportRangeKey, source: typeof readings) => {
+    if (rangeKey === 'all') return source;
+
+    const now = new Date();
+    const cutoffDate = new Date();
+
+    switch (rangeKey) {
       case '7days':
         cutoffDate.setDate(now.getDate() - 7);
         break;
@@ -48,9 +65,15 @@ export default function HistoryScreen() {
       case '1year':
         cutoffDate.setFullYear(now.getFullYear() - 1);
         break;
+      default:
+        break;
     }
 
-    return readings.filter(r => new Date(r.measuredAt) >= cutoffDate);
+    return source.filter((r) => new Date(r.measuredAt) >= cutoffDate);
+  };
+
+  const filteredReadings = useMemo(() => {
+    return filterReadingsByRange(timeFilter, readings);
   }, [readings, timeFilter]);
 
   // Prepare chart data
@@ -104,6 +127,87 @@ export default function HistoryScreen() {
       stroke: isDark ? '#334155' : '#E8E8E8',
       strokeWidth: 1,
     },
+  };
+
+  const handleExport = async (dataType: ExportDataType, format: ExportFormat, rangeKey: ExportRangeKey) => {
+    if (isExporting) {
+      Alert.alert('กำลังส่งออก', 'กรุณารอสักครู่');
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      Alert.alert('ไม่รองรับ', 'การส่งออกไฟล์ยังไม่รองรับบนเวอร์ชันเว็บ');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const readingsForExport = dataType === 'readings' ? filterReadingsByRange(rangeKey, readings) : [];
+      const fileUri = await createExportFileWithRetry(
+        {
+          dataType,
+          format,
+          readings: readingsForExport,
+          posts,
+          userName: user?.name,
+        },
+        maxExportAttempts
+      );
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert('ไม่รองรับ', 'อุปกรณ์นี้ไม่รองรับการแชร์ไฟล์');
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'ไม่สามารถส่งออกข้อมูลได้';
+      Alert.alert('เกิดข้อผิดพลาด', message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const selectExportFormat = (dataType: ExportDataType, rangeKey: ExportRangeKey) => {
+    Alert.alert('เลือก Format', 'กรุณาเลือกประเภทไฟล์ที่ต้องการ', [
+      { text: 'PDF', onPress: () => void handleExport(dataType, 'pdf', rangeKey) },
+      { text: 'CSV', onPress: () => void handleExport(dataType, 'csv', rangeKey) },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
+  const selectExportRange = (dataType: ExportDataType) => {
+    if (dataType !== 'readings') {
+      selectExportFormat(dataType, 'all');
+      return;
+    }
+
+    Alert.alert('เลือกช่วงเวลา', 'กรุณาเลือกช่วงเวลาที่ต้องการส่งออก', [
+      ...exportRangeOptions.map((option) => ({
+        text: option.label,
+        onPress: () => {
+          if (option.key !== 'all') {
+            setTimeFilter(option.key);
+          }
+          selectExportFormat('readings', option.key);
+        },
+      })),
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
+  const startExportFlow = () => {
+    if (isExporting) {
+      Alert.alert('กำลังส่งออก', 'กรุณารอสักครู่');
+      return;
+    }
+
+    Alert.alert('เลือกข้อมูลที่ต้องการส่งออก', 'กรุณาเลือกประเภทข้อมูล', [
+      { text: 'ค่าความดัน', onPress: () => selectExportRange('readings') },
+      { text: 'โพสต์ชุมชน', onPress: () => selectExportRange('posts') },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
   };
 
   return (
@@ -230,7 +334,7 @@ export default function HistoryScreen() {
         <FadeInView delay={700}>
           <View className="px-4 mb-3">
             <AnimatedPressable
-              onPress={() => {}}
+              onPress={startExportFlow}
               className="rounded-2xl overflow-hidden shadow-lg shadow-black/20"
             >
               <LinearGradient

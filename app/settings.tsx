@@ -1,19 +1,137 @@
 import { GradientBackground } from '@/components/gradient-background';
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/useAppStore';
+import { createExportFileWithRetry, ExportDataType, ExportFormat } from '@/utils/export-data';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
-import { ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 
 export default function SettingsScreen() {
   const [notifications, setNotifications] = useState(true);
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [autoBackup, setAutoBackup] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   const themePreference = useAppStore((s) => s.themePreference);
   const setThemePreference = useAppStore((s) => s.setThemePreference);
+  const readings = useAppStore((s) => s.readings);
+  const posts = useAppStore((s) => s.posts);
+  const user = useAppStore((s) => s.user);
   const headerIconColor = themePreference === 'dark' ? '#E2E8F0' : Colors.text.primary;
+  const maxExportAttempts = 3;
+  type ExportRangeKey = '7days' | '30days' | '3months' | '1year' | 'all';
+
+  const exportRangeOptions: Array<{ key: ExportRangeKey; label: string }> = [
+    { key: '7days', label: '7 วัน' },
+    { key: '30days', label: '30 วัน' },
+    { key: '3months', label: '3 เดือน' },
+    { key: '1year', label: '1 ปี' },
+    { key: 'all', label: 'ทั้งหมด' },
+  ];
+
+  const filterReadingsByRange = (rangeKey: ExportRangeKey) => {
+    if (rangeKey === 'all') return readings;
+
+    const now = new Date();
+    const cutoffDate = new Date();
+
+    switch (rangeKey) {
+      case '7days':
+        cutoffDate.setDate(now.getDate() - 7);
+        break;
+      case '30days':
+        cutoffDate.setDate(now.getDate() - 30);
+        break;
+      case '3months':
+        cutoffDate.setMonth(now.getMonth() - 3);
+        break;
+      case '1year':
+        cutoffDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        break;
+    }
+
+    return readings.filter((r) => new Date(r.measuredAt) >= cutoffDate);
+  };
+
+  const handleExport = async (dataType: ExportDataType, format: ExportFormat, rangeKey: ExportRangeKey) => {
+    if (isExporting) {
+      Alert.alert('กำลังส่งออก', 'กรุณารอสักครู่');
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      Alert.alert('ไม่รองรับ', 'การส่งออกไฟล์ยังไม่รองรับบนเวอร์ชันเว็บ');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const readingsForExport = dataType === 'readings' ? filterReadingsByRange(rangeKey) : [];
+      const fileUri = await createExportFileWithRetry(
+        {
+          dataType,
+          format,
+          readings: readingsForExport,
+          posts,
+          userName: user?.name,
+        },
+        maxExportAttempts
+      );
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert('ไม่รองรับ', 'อุปกรณ์นี้ไม่รองรับการแชร์ไฟล์');
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'ไม่สามารถส่งออกข้อมูลได้';
+      Alert.alert('เกิดข้อผิดพลาด', message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const selectExportFormat = (dataType: ExportDataType, rangeKey: ExportRangeKey) => {
+    Alert.alert('เลือก Format', 'กรุณาเลือกประเภทไฟล์ที่ต้องการ', [
+      { text: 'PDF', onPress: () => void handleExport(dataType, 'pdf', rangeKey) },
+      { text: 'CSV', onPress: () => void handleExport(dataType, 'csv', rangeKey) },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
+  const selectExportRange = (dataType: ExportDataType) => {
+    if (dataType !== 'readings') {
+      selectExportFormat(dataType, 'all');
+      return;
+    }
+
+    Alert.alert('เลือกช่วงเวลา', 'กรุณาเลือกช่วงเวลาที่ต้องการส่งออก', [
+      ...exportRangeOptions.map((option) => ({
+        text: option.label,
+        onPress: () => selectExportFormat('readings', option.key),
+      })),
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
+  const startExportFlow = () => {
+    if (isExporting) {
+      Alert.alert('กำลังส่งออก', 'กรุณารอสักครู่');
+      return;
+    }
+
+    Alert.alert('เลือกข้อมูลที่ต้องการส่งออก', 'กรุณาเลือกประเภทข้อมูล', [
+      { text: 'ค่าความดัน', onPress: () => selectExportRange('readings') },
+      { text: 'โพสต์ชุมชน', onPress: () => selectExportRange('posts') },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
 
   const SettingItem = ({
     icon,
@@ -104,7 +222,10 @@ export default function SettingsScreen() {
             onValueChange={setAutoBackup}
           />
           
-          <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700">
+          <TouchableOpacity
+            className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700"
+            onPress={startExportFlow}
+          >
             <View className="w-10 h-10 bg-sky-100 dark:bg-slate-800 rounded-full items-center justify-center mr-3">
               <Ionicons name="download-outline" size={22} color={Colors.primary.blue} />
             </View>

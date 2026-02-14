@@ -296,7 +296,7 @@ export default function CameraScreen() {
                     </Text>
                   </View>
                 </ScaleOnMount>
-                <View className="w-[280px] h-[160px] relative">
+                <View className="w-[280px] h-[260px] relative">
                   <View className="absolute top-0 left-0 w-10 h-10 border-[#22C55E] border-t-4 border-l-4 rounded-tl-xl" />
                   <View className="absolute top-0 right-0 w-10 h-10 border-[#22C55E] border-t-4 border-r-4 rounded-tr-xl" />
                   <View className="absolute bottom-0 left-0 w-10 h-10 border-[#22C55E] border-b-4 border-l-4 rounded-bl-xl" />
@@ -395,19 +395,6 @@ export default function CameraScreen() {
                     กรอกค่าความดัน
                   </Text>
                   <View className="flex-row items-center space-x-2.5">
-                    <AnimatedPressable
-                      onPress={saveManualReading}
-                      disabled={isSaving || !canAttemptSave}
-                      className="rounded-xl overflow-hidden"
-                    >
-                      <LinearGradient
-                        colors={isSaving || !canAttemptSave ? ['#9CA3AF', '#6B7280'] : ['#22C55E', '#16A34A']}
-                        className="flex-row items-center justify-center px-3.5 py-2.5"
-                      >
-                        <Ionicons name="checkmark" size={18} color="white" />
-                        <Text className="text-white font-extrabold text-sm ml-1.5">{isSaving ? 'กำลังบันทึก...' : 'ยืนยัน'}</Text>
-                      </LinearGradient>
-                    </AnimatedPressable>
 
                     <AnimatedPressable
                       onPress={() => setShowEntryModal(false)}
