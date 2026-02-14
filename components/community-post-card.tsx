@@ -73,6 +73,8 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
+  const syncLabel = post.syncStatus === 'local' ? 'บันทึกในเครื่อง' : post.syncStatus === 'pending-update' ? 'รอซิงก์' : null;
+  const syncBadgeColor = post.syncStatus === 'local' ? '#F59E0B' : '#3B82F6';
 
   const [avatarFailed, setAvatarFailed] = React.useState(false);
   const hasAvatarUri = Boolean(post.userAvatar) && !avatarFailed;
@@ -108,6 +110,13 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
               {formatRelativeTimeTH(post.createdAt)}
             </Text>
           </View>
+          {syncLabel ? (
+            <View className="px-2 py-1 rounded-full mr-2" style={{ backgroundColor: isDark ? '#0B1220' : '#EEF2FF', borderWidth: 1, borderColor: syncBadgeColor }}>
+              <Text style={{ color: syncBadgeColor }} className="text-[10px] font-bold">
+                {syncLabel}
+              </Text>
+            </View>
+          ) : null}
           <AnimatedPressable className="p-1" onPress={onMore}>
             <Ionicons name="ellipsis-horizontal" size={18} color={isDark ? '#94A3B8' : '#9CA3AF'} />
           </AnimatedPressable>

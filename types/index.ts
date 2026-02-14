@@ -19,6 +19,7 @@ export interface BloodPressureReading {
   imageUri?: string;     // รูปถ่ายเครื่องวัด
   notes?: string;
   status: BPStatus;
+  clientId?: string;
 }
 
 export type BPStatus = 'low' | 'normal' | 'elevated' | 'high' | 'critical';
@@ -40,6 +41,8 @@ export interface CommunityPost {
   comments: number;
   createdAt: Date;
   isLiked?: boolean;
+  syncStatus?: 'local' | 'pending-update';
+  clientId?: string;
 }
 
 export interface Comment {

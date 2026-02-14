@@ -1,5 +1,17 @@
 import { getBPStatus } from '@/constants/colors';
 import { auth, db } from '@/constants/firebase';
+import {
+    deleteLocalPost,
+    deletePendingPostAction,
+    deletePendingReading,
+    insertLocalPost,
+    insertPendingReading,
+    listLocalPosts,
+    listPendingPostActions,
+    listPendingReadings,
+    queuePendingPostAction,
+    updateLocalPost,
+} from '@/data/local-db';
 import { BloodPressureReading, CommunityPost, User } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
@@ -41,6 +53,7 @@ interface AppState {
   
   // Blood Pressure
   readings: BloodPressureReading[];
+  isOnline: boolean;
   
   // Community
   posts: CommunityPost[];
@@ -69,6 +82,12 @@ interface AppState {
   }) => Promise<boolean>;
 
   deleteReading: (id: string) => Promise<void>;
+
+  setNetworkStatus: (isOnline: boolean) => void;
+  hydratePendingReadings: () => Promise<void>;
+  syncPendingReadings: () => Promise<void>;
+  hydratePendingPosts: () => Promise<void>;
+  syncPendingPosts: () => Promise<void>;
   
   toggleLike: (postId: string) => Promise<void>;
 
@@ -153,6 +172,20 @@ const stringifyErrorSafe = (error: any): string => {
 
 const isRemoteUrl = (uri: string) => /^https?:\/\//i.test(uri);
 const isDataUrl = (uri: string) => /^data:/i.test(uri);
+const isLocalReadingId = (id: string) => id.startsWith('local-');
+const toLocalReadingId = (localId: number) => `local-${localId}`;
+const parseLocalReadingId = (id: string) => Number(id.replace('local-', ''));
+const toLocalReadingDocId = (userId: string, localId: number) => `local-${userId}-${localId}`;
+const isLocalPostId = (id: string) => id.startsWith('local-post-');
+const toLocalPostId = (localId: number) => `local-post-${localId}`;
+const parseLocalPostId = (id: string) => Number(id.replace('local-post-', ''));
+const toLocalPostDocId = (userId: string, localId: number) => `local-post-${userId}-${localId}`;
+
+const createClientId = (prefix: string, userId: string) =>
+  `${prefix}-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+let syncReadingsInFlight = false;
+let syncPostsInFlight = false;
 
 const getDataUrlContentType = (dataUrl: string): string => {
   const match = dataUrl.match(/^data:([^;]+);base64,/i);
@@ -247,6 +280,90 @@ const readingFromFirestore = (uid: string, id: string, data: DocumentData): Bloo
   };
 };
 
+const readingFromPending = (row: {
+  id: number;
+  userId: string;
+  clientId: string | null;
+  systolic: number;
+  diastolic: number;
+  pulse: number;
+  measuredAt: string;
+  imageUri: string | null;
+  notes: string | null;
+  status: string;
+}): BloodPressureReading => {
+  return {
+    id: toLocalReadingId(row.id),
+    userId: row.userId,
+    clientId: row.clientId ?? undefined,
+    systolic: Number(row.systolic),
+    diastolic: Number(row.diastolic),
+    pulse: Number(row.pulse),
+    measuredAt: new Date(row.measuredAt),
+    imageUri: row.imageUri ?? undefined,
+    notes: row.notes ?? undefined,
+    status: row.status as BloodPressureReading['status'],
+  };
+};
+
+const sortReadingsDesc = (items: BloodPressureReading[]) => {
+  return [...items].sort((a, b) => b.measuredAt.getTime() - a.measuredAt.getTime());
+};
+
+const postFromLocal = (row: {
+  id: number;
+  userId: string;
+  clientId: string | null;
+  userName: string;
+  userAvatar: string | null;
+  content: string;
+  category: string;
+  createdAt: string;
+}): CommunityPost => {
+  return {
+    id: toLocalPostId(row.id),
+    userId: row.userId,
+    clientId: row.clientId ?? undefined,
+    userName: row.userName,
+    userAvatar: row.userAvatar ?? undefined,
+    content: row.content,
+    category: (row.category as CommunityPost['category']) || 'general',
+    likes: 0,
+    comments: 0,
+    createdAt: new Date(row.createdAt),
+    isLiked: false,
+    syncStatus: 'local',
+  };
+};
+
+const sortPostsDesc = (items: CommunityPost[]) => {
+  return [...items].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+};
+
+const applyPendingPostActions = (
+  posts: CommunityPost[],
+  actions: Array<{ postId: string; action: 'update' | 'delete'; content?: string | null; category?: string | null }>
+) => {
+  let next = [...posts];
+  for (const action of actions) {
+    if (action.action === 'delete') {
+      next = next.filter((p) => p.id !== action.postId);
+    } else if (action.action === 'update') {
+      next = next.map((p) =>
+        p.id === action.postId
+          ? {
+              ...p,
+              ...(typeof action.content === 'string' ? { content: action.content } : null),
+              ...(typeof action.category === 'string' ? { category: action.category as CommunityPost['category'] } : null),
+              syncStatus: 'pending-update',
+            }
+          : p
+      );
+    }
+  }
+  return next;
+};
+
 const postFromFirestore = (currentUid: string | null, id: string, data: DocumentData): CommunityPost => {
   const createdAtRaw = data.createdAt;
   const createdAt =
@@ -271,6 +388,38 @@ const postFromFirestore = (currentUid: string | null, id: string, data: Document
   };
 };
 
+const buildUniqueReadingsFromSnapshot = (
+  userId: string,
+  docs: Array<{ id: string; data: () => DocumentData }>
+): { readings: BloodPressureReading[]; keys: Set<string> } => {
+  const readings: BloodPressureReading[] = [];
+  const keys = new Set<string>();
+  for (const docSnap of docs) {
+    const data = docSnap.data();
+    const key = typeof data?.clientId === 'string' ? data.clientId : docSnap.id;
+    if (keys.has(key)) continue;
+    keys.add(key);
+    readings.push(readingFromFirestore(userId, docSnap.id, data));
+  }
+  return { readings, keys };
+};
+
+const buildUniquePostsFromSnapshot = (
+  currentUid: string | null,
+  docs: Array<{ id: string; data: () => DocumentData }>
+): { posts: CommunityPost[]; keys: Set<string> } => {
+  const posts: CommunityPost[] = [];
+  const keys = new Set<string>();
+  for (const docSnap of docs) {
+    const data = docSnap.data();
+    const key = typeof data?.clientId === 'string' ? data.clientId : docSnap.id;
+    if (keys.has(key)) continue;
+    keys.add(key);
+    posts.push(postFromFirestore(currentUid, docSnap.id, data));
+  }
+  return { posts, keys };
+};
+
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
   isAuthenticated: false,
@@ -280,6 +429,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   authErrorMessage: null,
   authErrorRawMessage: null,
   readings: [],
+  isOnline: true,
   posts: [],
 
   themePreference: 'light',
@@ -462,33 +612,207 @@ export const useAppStore = create<AppState>((set, get) => ({
     const pulse = Number(input.pulse);
     const status = getBPStatus(systolic, diastolic);
 
-    try {
-      await addDoc(collection(db, 'users', currentUser.id, 'readings'), {
+    const createdAt = new Date();
+    const clientId = createClientId('reading', currentUser.id);
+    const pendingId = await insertPendingReading({
+      userId: currentUser.id,
+      clientId,
+      systolic,
+      diastolic,
+      pulse,
+      measuredAt: measuredAt.toISOString(),
+      imageUri: input.imageUri ?? null,
+      notes: input.notes ?? null,
+      status,
+      createdAt: createdAt.toISOString(),
+    });
+
+    if (pendingId) {
+      const localReading: BloodPressureReading = {
+        id: toLocalReadingId(pendingId),
+        userId: currentUser.id,
+        clientId,
         systolic,
         diastolic,
         pulse,
+        measuredAt,
+        imageUri: input.imageUri,
+        notes: input.notes,
         status,
-        measuredAt: Timestamp.fromDate(measuredAt),
-        imageUri: input.imageUri ?? null,
-        notes: input.notes ?? null,
-        createdAt: serverTimestamp(),
-      });
+      };
+      set((state) => ({ readings: sortReadingsDesc([localReading, ...state.readings]) }));
+    }
+
+    if (!get().isOnline) {
+      return Boolean(pendingId);
+    }
+
+    try {
+      if (pendingId) {
+        await setDoc(doc(db, 'users', currentUser.id, 'readings', clientId), {
+          systolic,
+          diastolic,
+          pulse,
+          status,
+          measuredAt: Timestamp.fromDate(measuredAt),
+          imageUri: input.imageUri ?? null,
+          notes: input.notes ?? null,
+          createdAt: serverTimestamp(),
+          clientId,
+        });
+        await deletePendingReading(pendingId);
+        set((state) => ({ readings: state.readings.filter((r) => r.id !== toLocalReadingId(pendingId)) }));
+      } else {
+        await addDoc(collection(db, 'users', currentUser.id, 'readings'), {
+          systolic,
+          diastolic,
+          pulse,
+          status,
+          measuredAt: Timestamp.fromDate(measuredAt),
+          imageUri: input.imageUri ?? null,
+          notes: input.notes ?? null,
+          createdAt: serverTimestamp(),
+        });
+      }
       return true;
     } catch {
-      return false;
+      return Boolean(pendingId);
     }
   },
 
   deleteReading: async (id: string) => {
     const currentUser = get().user;
     if (!currentUser) return;
+    if (isLocalReadingId(id)) {
+      const localId = parseLocalReadingId(id);
+      if (!Number.isNaN(localId)) {
+        await deletePendingReading(localId);
+      }
+      set((state) => ({ readings: state.readings.filter((r) => r.id !== id) }));
+      return;
+    }
     await deleteDoc(doc(db, 'users', currentUser.id, 'readings', id));
+  },
+
+  setNetworkStatus: (isOnline: boolean) => {
+    set({ isOnline });
+  },
+
+  hydratePendingReadings: async () => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    const pending = await listPendingReadings(currentUser.id);
+    const pendingReadings = pending.map(readingFromPending);
+    set((state) => {
+      const nonLocal = state.readings.filter((r) => !isLocalReadingId(r.id));
+      return { readings: sortReadingsDesc([...pendingReadings, ...nonLocal]) };
+    });
+  },
+
+  syncPendingReadings: async () => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    if (!get().isOnline) return;
+
+    if (syncReadingsInFlight) return;
+    syncReadingsInFlight = true;
+    try {
+      const pending = await listPendingReadings(currentUser.id);
+      for (const row of pending) {
+        try {
+          const docId = row.clientId || toLocalReadingDocId(currentUser.id, row.id);
+          await setDoc(doc(db, 'users', currentUser.id, 'readings', docId), {
+            systolic: row.systolic,
+            diastolic: row.diastolic,
+            pulse: row.pulse,
+            status: row.status,
+            measuredAt: Timestamp.fromDate(new Date(row.measuredAt)),
+            imageUri: row.imageUri ?? null,
+            notes: row.notes ?? null,
+            createdAt: serverTimestamp(),
+            clientId: docId,
+          });
+          await deletePendingReading(row.id);
+          set((state) => ({ readings: state.readings.filter((r) => r.id !== toLocalReadingId(row.id)) }));
+        } catch {
+          // keep pending for retry
+        }
+      }
+    } finally {
+      syncReadingsInFlight = false;
+    }
+  },
+
+  hydratePendingPosts: async () => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    const localRows = await listLocalPosts(currentUser.id);
+    const localPosts = localRows.map(postFromLocal);
+    const pendingActions = await listPendingPostActions(currentUser.id);
+    set((state) => {
+      const remotePosts = state.posts.filter((p) => !isLocalPostId(p.id));
+      const applied = applyPendingPostActions(remotePosts, pendingActions);
+      return { posts: sortPostsDesc([...localPosts, ...applied]) };
+    });
+  },
+
+  syncPendingPosts: async () => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    if (!get().isOnline) return;
+
+    if (syncPostsInFlight) return;
+    syncPostsInFlight = true;
+    try {
+      const localRows = await listLocalPosts(currentUser.id);
+      for (const row of localRows) {
+        try {
+          const docId = row.clientId || toLocalPostDocId(row.userId, row.id);
+          await setDoc(doc(db, 'posts', docId), {
+            userId: row.userId,
+            userName: row.userName,
+            userAvatar: row.userAvatar ?? null,
+            content: row.content,
+            category: row.category,
+            likedBy: [],
+            comments: 0,
+            createdAt: serverTimestamp(),
+            clientId: docId,
+          });
+          await deleteLocalPost(row.id);
+          set((state) => ({ posts: state.posts.filter((p) => p.id !== toLocalPostId(row.id)) }));
+        } catch {
+          // keep local post for retry
+        }
+      }
+
+      const pendingActions = await listPendingPostActions(currentUser.id);
+      for (const action of pendingActions) {
+        try {
+          if (action.action === 'delete') {
+            await deleteDoc(doc(db, 'posts', action.postId));
+          } else {
+            await updateDoc(doc(db, 'posts', action.postId), {
+              ...(typeof action.content === 'string' ? { content: action.content } : null),
+              ...(typeof action.category === 'string' ? { category: action.category } : null),
+              updatedAt: serverTimestamp(),
+            });
+          }
+          await deletePendingPostAction(action.id);
+        } catch {
+          // keep pending action for retry
+        }
+      }
+    } finally {
+      syncPostsInFlight = false;
+    }
   },
 
   // Community actions
   toggleLike: async (postId: string) => {
     const currentUser = get().user;
     if (!currentUser) return;
+    if (!get().isOnline) return;
 
     const currentPosts = get().posts;
     const post = currentPosts.find((p) => p.id === postId);
@@ -507,8 +831,40 @@ export const useAppStore = create<AppState>((set, get) => ({
     const trimmed = content.trim();
     if (!trimmed) return false;
 
+    const createdAt = new Date();
+    const clientId = createClientId('post', currentUser.id);
+    const localId = await insertLocalPost({
+      userId: currentUser.id,
+      clientId,
+      userName: currentUser.name || 'ผู้ใช้',
+      userAvatar: currentUser.avatar || null,
+      content: trimmed,
+      category,
+      createdAt: createdAt.toISOString(),
+    });
+
+    if (localId) {
+      const localPost = postFromLocal({
+        id: localId,
+        userId: currentUser.id,
+        clientId,
+        userName: currentUser.name || 'ผู้ใช้',
+        userAvatar: currentUser.avatar || null,
+        content: trimmed,
+        category,
+        createdAt: createdAt.toISOString(),
+      });
+      set((state) => ({ posts: sortPostsDesc([localPost, ...state.posts]) }));
+    }
+
+    if (!get().isOnline) {
+      return Boolean(localId);
+    }
+
+    if (!localId) return false;
+
     try {
-      await addDoc(collection(db, 'posts'), {
+      await setDoc(doc(db, 'posts', clientId), {
         userId: currentUser.id,
         userName: currentUser.name || 'ผู้ใช้',
         userAvatar: currentUser.avatar || null,
@@ -517,10 +873,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         likedBy: [],
         comments: 0,
         createdAt: serverTimestamp(),
+        clientId,
       });
+      await deleteLocalPost(localId);
+      set((state) => ({ posts: state.posts.filter((p) => p.id !== toLocalPostId(localId)) }));
       return true;
     } catch {
-      return false;
+      return true;
     }
   },
 
@@ -534,6 +893,36 @@ export const useAppStore = create<AppState>((set, get) => ({
     const post = get().posts.find((p) => p.id === postId);
     if (!post) return false;
     if (post.userId !== currentUser.id) return false;
+
+    if (isLocalPostId(postId)) {
+      const localId = parseLocalPostId(postId);
+      if (!Number.isNaN(localId)) {
+        await updateLocalPost(localId, { content: trimmed, category });
+      }
+      set((state) => ({
+        posts: state.posts.map((p) =>
+          p.id === postId ? { ...p, content: trimmed, category, syncStatus: 'local' } : p
+        ),
+      }));
+      return true;
+    }
+
+    if (!get().isOnline) {
+      await queuePendingPostAction({
+        userId: currentUser.id,
+        postId,
+        action: 'update',
+        content: trimmed,
+        category,
+        updatedAt: new Date().toISOString(),
+      });
+      set((state) => ({
+        posts: state.posts.map((p) =>
+          p.id === postId ? { ...p, content: trimmed, category, syncStatus: 'pending-update' } : p
+        ),
+      }));
+      return true;
+    }
 
     try {
       await updateDoc(doc(db, 'posts', postId), {
@@ -554,6 +943,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     const post = get().posts.find((p) => p.id === postId);
     if (!post) return false;
     if (post.userId !== currentUser.id) return false;
+
+    if (isLocalPostId(postId)) {
+      const localId = parseLocalPostId(postId);
+      if (!Number.isNaN(localId)) {
+        await deleteLocalPost(localId);
+      }
+      set((state) => ({ posts: state.posts.filter((p) => p.id !== postId) }));
+      return true;
+    }
+
+    if (!get().isOnline) {
+      await queuePendingPostAction({
+        userId: currentUser.id,
+        postId,
+        action: 'delete',
+        content: null,
+        category: null,
+        updatedAt: new Date().toISOString(),
+      });
+      set((state) => ({ posts: state.posts.filter((p) => p.id !== postId) }));
+      return true;
+    }
 
     try {
       await deleteDoc(doc(db, 'posts', postId));
@@ -595,9 +1006,26 @@ const startPostsSubscription = () => {
 
   const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(100));
   unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
-    const currentUid = useAppStore.getState().user?.id ?? null;
-    const posts = snapshot.docs.map((d) => postFromFirestore(currentUid, d.id, d.data()));
-    useAppStore.setState({ posts });
+    void (async () => {
+      const currentUid = useAppStore.getState().user?.id ?? null;
+      const { posts, keys: remoteKeys } = buildUniquePostsFromSnapshot(currentUid, snapshot.docs);
+      const currentUser = useAppStore.getState().user;
+      if (!currentUser) {
+        useAppStore.setState({ posts });
+        return;
+      }
+
+      const localRows = await listLocalPosts(currentUser.id);
+      const localPosts = localRows
+        .filter((row) => {
+          const key = row.clientId ?? toLocalPostDocId(currentUser.id, row.id);
+          return !remoteKeys.has(key);
+        })
+        .map(postFromLocal);
+      const pendingActions = await listPendingPostActions(currentUser.id);
+      const applied = applyPendingPostActions(posts, pendingActions);
+      useAppStore.setState({ posts: sortPostsDesc([...localPosts, ...applied]) });
+    })();
   });
 };
 
@@ -653,6 +1081,11 @@ onAuthStateChanged(auth, async (firebaseUser) => {
     user,
   });
 
+  void useAppStore.getState().hydratePendingReadings();
+  void useAppStore.getState().syncPendingReadings();
+  void useAppStore.getState().hydratePendingPosts();
+  void useAppStore.getState().syncPendingPosts();
+
   // Subscribe readings for this user
   if (unsubscribeReadings) {
     unsubscribeReadings();
@@ -661,7 +1094,17 @@ onAuthStateChanged(auth, async (firebaseUser) => {
 
   const readingsQuery = query(collection(db, 'users', firebaseUser.uid, 'readings'), orderBy('measuredAt', 'desc'), limit(200));
   unsubscribeReadings = onSnapshot(readingsQuery, (snapshot) => {
-    const readings = snapshot.docs.map((d) => readingFromFirestore(firebaseUser.uid, d.id, d.data()));
-    useAppStore.setState({ readings });
+    const { readings, keys: remoteKeys } = buildUniqueReadingsFromSnapshot(firebaseUser.uid, snapshot.docs);
+    const localPending = useAppStore
+      .getState()
+      .readings
+      .filter((r) => isLocalReadingId(r.id))
+      .filter((r) => {
+        if (r.clientId) return !remoteKeys.has(r.clientId);
+        const localId = parseLocalReadingId(r.id);
+        if (Number.isNaN(localId)) return true;
+        return !remoteKeys.has(toLocalReadingDocId(firebaseUser.uid, localId));
+      });
+    useAppStore.setState({ readings: sortReadingsDesc([...localPending, ...readings]) });
   });
 });

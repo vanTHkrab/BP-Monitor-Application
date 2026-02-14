@@ -38,6 +38,32 @@ export default function ProfileScreen() {
     }
   };
 
+  const captureImage = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('ต้องการสิทธิ์', 'กรุณาอนุญาตการเข้าถึงกล้องเพื่อถ่ายรูปโปรไฟล์');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setAvatar(result.assets[0].uri);
+    }
+  };
+
+  const openAvatarOptions = () => {
+    Alert.alert('เลือกรูปโปรไฟล์', 'กรุณาเลือกวิธีการ', [
+      { text: 'ถ่ายภาพ', onPress: () => void captureImage() },
+      { text: 'เลือกรูปจากแกลเลอรี', onPress: () => void pickImage() },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
   const handleSave = async () => {
     if (!user) {
       Alert.alert('กรุณาเข้าสู่ระบบ', 'ต้องเข้าสู่ระบบก่อนแก้ไขโปรไฟล์');
@@ -101,7 +127,7 @@ export default function ProfileScreen() {
 
         {/* Avatar */}
         <View className="items-center py-6">
-          <TouchableOpacity onPress={isEditing ? pickImage : undefined} activeOpacity={isEditing ? 0.7 : 1}>
+          <TouchableOpacity onPress={isEditing ? openAvatarOptions : undefined} activeOpacity={isEditing ? 0.7 : 1}>
             <View className="w-28 h-28 rounded-full bg-white dark:bg-slate-900 overflow-hidden border-4 border-white dark:border-slate-700 shadow-lg">
               {avatar ? (
                 <Image source={{ uri: avatar }} className="w-full h-full" />

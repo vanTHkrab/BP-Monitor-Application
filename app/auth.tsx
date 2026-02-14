@@ -63,6 +63,32 @@ export default function AuthScreen() {
       setRegisterAvatarUri(result.assets[0].uri);
     }
   };
+
+  const captureRegisterAvatar = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('ต้องการสิทธิ์', 'กรุณาอนุญาตการเข้าถึงกล้องเพื่อถ่ายรูปโปรไฟล์');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setRegisterAvatarUri(result.assets[0].uri);
+    }
+  };
+
+  const openRegisterAvatarOptions = () => {
+    Alert.alert('เลือกรูปโปรไฟล์', 'กรุณาเลือกวิธีการ', [
+      { text: 'ถ่ายภาพ', onPress: () => void captureRegisterAvatar() },
+      { text: 'เลือกรูปจากแกลเลอรี', onPress: () => void pickRegisterAvatar() },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
   
   const handleLogin = async () => {
     if (!loginPhone || !loginPassword) {
@@ -217,7 +243,7 @@ export default function AuthScreen() {
                   <FadeInView delay={100}>
                     <View className="pt-2">
                       <CustomInput
-                        placeholder="ชื่อ หรือ เบอร์โทรศัพท์"
+                        placeholder="เบอร์โทรศัพท์"
                         value={loginPhone}
                         onChangeText={setLoginPhone}
                         icon="person-outline"
@@ -232,9 +258,9 @@ export default function AuthScreen() {
                         secureTextEntry
                       />
                       
-                      <Pressable onPress={() => {}} className="self-end mb-5 -mt-2">
+                      {/* <Pressable onPress={() => {}} className="self-end mb-5 -mt-2">
                         <Text className="text-[#3498DB] text-sm font-semibold">ลืมรหัสผ่าน?</Text>
-                      </Pressable>
+                      </Pressable> */}
                       
                       <CustomButton
                         title="เข้าสู่ระบบ"
@@ -251,7 +277,7 @@ export default function AuthScreen() {
                   <FadeInView delay={100}>
                     <View className="pt-2">
                       <View className="items-center mb-4">
-                        <Pressable onPress={pickRegisterAvatar} className="items-center">
+                        <Pressable onPress={openRegisterAvatarOptions} className="items-center">
                           <View className={avatarBoxClassName}>
                             {registerAvatarUri ? (
                               <Image source={{ uri: registerAvatarUri }} className="w-full h-full" />
