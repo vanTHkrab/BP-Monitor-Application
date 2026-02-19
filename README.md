@@ -1,57 +1,124 @@
-# Welcome to your Expo app 👋
+# BP-Mobile 🩺
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A **Blood Pressure Monitor** mobile application built with [Expo](https://expo.dev) & [React Native](https://reactnative.dev).  
+Track, visualize, and export your blood pressure readings — all from your phone.
 
-## Get started (pnpm)
+## ✨ Features
 
-This project uses [pnpm](https://pnpm.io/) (recommended via [`corepack`](https://nodejs.org/api/corepack.html)). If you don't have it enabled yet:
+- 📊 **Dashboard** — overview of recent readings with charts ([react-native-chart-kit](https://github.com/indiespirit/react-native-chart-kit))
+- � **Camera** — scan / capture BP readings via the device camera
+- 💬 **Chat / Community** — share and discuss with other users
+- 📜 **History** — full log of past measurements with search & filters
+- 📤 **Export** — generate and share PDF reports ([expo-print](https://docs.expo.dev/versions/latest/sdk/print/) + [expo-sharing](https://docs.expo.dev/versions/latest/sdk/sharing/))
+- 🔐 **Authentication** — email / password sign-in via [Firebase](https://firebase.google.com/)
+- 🗄️ **Local Storage** — offline-first with [expo-sqlite](https://docs.expo.dev/versions/latest/sdk/sqlite/)
+- ⚙️ **Settings** — profile, security, help, and about screens
 
-```bash
-corepack enable
+## 🛠 Tech Stack
+
+| Layer | Technology |
+| ----- | --------- |
+| Framework | Expo SDK 54 / React Native 0.81 |
+| Navigation | Expo Router (file-based) + React Navigation 7 |
+| Styling | [NativeWind](https://www.nativewind.dev/) (Tailwind CSS for RN) |
+| State | [Zustand](https://zustand-demo.pmnd.rs/) |
+| Animations | [Reanimated](https://docs.swmansion.com/react-native-reanimated/) + [Moti](https://moti.fyi/) |
+| Backend | Firebase (Auth & more) |
+| Local DB | expo-sqlite |
+| Build / CI | [EAS Build](https://docs.expo.dev/build/introduction/) |
+
+## 📁 Project Structure
+
+```text
+app/               # Screens (file-based routing)
+├── (tabs)/         #   ├── index (Home / Dashboard)
+│                   #   ├── history, explore, camera, chat, menu
+├── auth, profile, settings, security, help, about …
+components/         # Reusable UI components
+constants/          # Theme & design tokens
+data/               # Local DB helpers & mock data
+hooks/              # Custom React hooks
+store/              # Zustand store (useAppStore)
+types/              # TypeScript type definitions
+utils/              # Utility functions (export-data, etc.)
+assets/             # Images, icons, splash
+scripts/            # Maintenance scripts (reset-project)
 ```
 
-1. Install dependencies
+## 🚀 Getting Started
 
-   ```bash
-   pnpm install
-   ```
+> This project uses **[pnpm](https://pnpm.io/)**.  
+> Enable it via [Corepack](https://nodejs.org/api/corepack.html) if you haven't already:
+>
+> ```bash
+> corepack enable
+> ```
 
-2. Start the app
+### 1. Install dependencies
 
-   ```bash
-   pnpm start
-   ```
+```bash
+pnpm install
+```
 
-In the output, you'll find options to open the app in a
+### 2. Start the dev server
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+```bash
+pnpm start
+```
+
+From there you can open the app in:
+
+- [Development build](https://docs.expo.dev/develop/development-builds/introduction/)
 - [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
 - [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- [Expo Go](https://expo.dev/go) (limited sandbox)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Platform shortcuts
 
-## Get a fresh project
+```bash
+pnpm run android   # start on Android
+pnpm run ios       # start on iOS
+pnpm run web       # start on Web
+```
 
-When you're ready, run:
+### Linting
+
+```bash
+pnpm run lint
+```
+
+## 🏗 EAS Build
+
+The project is configured with [EAS](https://docs.expo.dev/build/introduction/) for cloud builds.
+
+```bash
+# Development (internal distribution)
+eas build --profile development --platform android
+
+# Preview (internal distribution)
+eas build --profile preview --platform android
+
+# Production
+eas build --profile production --platform android
+```
+
+## 🔄 Reset Project
+
+Move starter code to **app-example** and get a blank **app** directory:
 
 ```bash
 pnpm run reset-project
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 📚 Learn More
 
-## Learn more
+- [Expo documentation](https://docs.expo.dev/)
+- [Expo Router docs](https://docs.expo.dev/router/introduction/)
+- [NativeWind docs](https://www.nativewind.dev/)
+- [Zustand docs](https://zustand-demo.pmnd.rs/)
+- [Firebase docs](https://firebase.google.com/docs)
 
-To learn more about developing your project with Expo, look at the following resources:
+## 🤝 Community
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-# BP-Mobile
+- [Expo on GitHub](https://github.com/expo/expo)
+- [Expo Discord](https://chat.expo.dev)
