@@ -1,0 +1,42 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "expo start (client)",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"client",
+				"expo",
+				"start"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "expo start (client --dir)",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"--dir",
+				"client",
+				"expo",
+				"start"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "expo start (client cmd)",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d client && pnpm expo start"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}
