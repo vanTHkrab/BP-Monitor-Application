@@ -1,6 +1,0 @@
-nodeLinker: hoisted
-
-onlyBuiltDependencies:
-  - '@firebase/util'
-  - protobufjs
-  - unrs-resolver
