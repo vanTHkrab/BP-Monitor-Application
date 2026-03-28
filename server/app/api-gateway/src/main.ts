@@ -18,6 +18,8 @@ async function bootstrap() {
   const PORT: number = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   await app.listen(PORT, '0.0.0.0');
+  console.log(`API Gateway is running on port ${PORT}`);
+  console.log(`GraphQL endpoint available at http://localhost:${PORT}/graphql`);
 }
 
 bootstrap().catch((err) => {

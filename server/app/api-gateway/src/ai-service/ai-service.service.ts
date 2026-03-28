@@ -1,12 +1,36 @@
-import { Inject, Injectable } from '@nestjs/common';
-import UUID from 'crypto';
+import {
+  GatewayTimeoutException,
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import Redis from 'ioredis';
-import { BpAnalysisResult } from './bp-result.type';
+import { randomUUID } from 'node:crypto';
+import { BpAnalysisResult } from './ai-service.result';
+
+const ANALYZE_CHANNEL = 'analyze_bp_image';
+const DEFAULT_ANALYSIS_TIMEOUT_MS = 15000;
+
+type AnalyzeImagePayload = {
+  id: string;
+  data: string;
+};
+
+type WorkerBpAnalysisResponse = {
+  id: string;
+  systolic: number;
+  diastolic: number;
+  heartRate: number;
+  confidence?: number;
+};
 
 const toError = (value: unknown): Error =>
   value instanceof Error ? value : new Error(String(value));
 
-const isBpAnalysisResult = (value: unknown): value is BpAnalysisResult => {
+const isWorkerBpAnalysisResponse = (
+  value: unknown,
+): value is WorkerBpAnalysisResponse => {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -21,61 +45,116 @@ const isBpAnalysisResult = (value: unknown): value is BpAnalysisResult => {
   );
 };
 
+const mapToBpAnalysisResult = (
+  response: WorkerBpAnalysisResponse,
+): BpAnalysisResult => ({
+  id: response.id,
+  systolic: response.systolic,
+  diastolic: response.diastolic,
+  pulse: response.heartRate,
+  confidence: response.confidence,
+});
+
+const getAnalysisTimeoutMs = (): number => {
+  const rawTimeout = process.env.AI_ANALYSIS_TIMEOUT_MS;
+  if (!rawTimeout) {
+    return DEFAULT_ANALYSIS_TIMEOUT_MS;
+  }
+
+  const parsedTimeout = Number(rawTimeout);
+  if (!Number.isFinite(parsedTimeout) || parsedTimeout <= 0) {
+    return DEFAULT_ANALYSIS_TIMEOUT_MS;
+  }
+
+  return Math.floor(parsedTimeout);
+};
+
 @Injectable()
 export class AiServiceService {
+  private readonly logger = new Logger(AiServiceService.name);
+
   constructor(@Inject('REDIS_CLIENT') private readonly redisClient: Redis) {}
 
   async analyzeImage(imageData: string): Promise<BpAnalysisResult> {
-    // Create a unique job ID for this analysis task
-    const jobId = UUID.randomUUID();
-
-    // Prepare the payload to send to the AI Service
-    const payload = {
+    const jobId = randomUUID();
+    const replyChannel = `reply_${jobId}`;
+    const timeoutMs = getAnalysisTimeoutMs();
+    const payload: AnalyzeImagePayload = {
       id: jobId,
       data: imageData,
     };
 
-    // Publish the job to the Redis channel that the AI Service is subscribed to
-    await this.redisClient.publish('analyze_bp_image', JSON.stringify(payload));
-    console.log(
-      `Published job with ID: ${jobId} to Redis channel 'analyze_bp_image'`,
-    );
+    const subscriberClient = this.redisClient.duplicate();
 
-    // Wait for the AI Service to process the image and publish the results back to a reply channel
-    return new Promise((resolve, reject) => {
-      const replyChannel = `reply_${jobId}`;
+    try {
+      await subscriberClient.subscribe(replyChannel);
+      await this.redisClient.publish(ANALYZE_CHANNEL, JSON.stringify(payload));
 
-      const handleMessage = (message: string) => {
-        try {
-          const parsed: unknown = JSON.parse(message);
+      this.logger.debug(
+        `Published analysis job ${jobId} to channel ${ANALYZE_CHANNEL}`,
+      );
 
-          if (!isBpAnalysisResult(parsed)) {
-            reject(new Error('Invalid analyze image response payload'));
+      return await new Promise<BpAnalysisResult>((resolve, reject) => {
+        let settled = false;
+        const timeoutId = setTimeout(() => {
+          if (settled) {
             return;
           }
 
-          const response = parsed;
-          if (response.id === jobId) {
-            this.redisClient.removeListener('message', onMessage);
-            void this.redisClient.unsubscribe(replyChannel);
-            resolve(response);
+          settled = true;
+          subscriberClient.removeListener('message', onMessage);
+          reject(
+            new GatewayTimeoutException(
+              `Timed out waiting for AI analysis response for job ${jobId}`,
+            ),
+          );
+        }, timeoutMs);
+
+        const onMessage = (channel: string, message: string) => {
+          if (channel !== replyChannel || settled) {
+            return;
           }
-        } catch (error) {
-          reject(toError(error));
-        }
-      };
 
-      const onMessage = (channel: string, message: string) => {
-        if (channel === replyChannel) {
-          handleMessage(message);
-        }
-      };
+          settled = true;
+          clearTimeout(timeoutId);
+          subscriberClient.removeListener('message', onMessage);
 
-      this.redisClient.on('message', onMessage);
-      void this.redisClient.subscribe(replyChannel).catch((error: unknown) => {
-        this.redisClient.removeListener('message', onMessage);
-        reject(toError(error));
+          try {
+            const parsed: unknown = JSON.parse(message);
+
+            if (!isWorkerBpAnalysisResponse(parsed)) {
+              reject(new Error('Invalid analyze image response payload'));
+              return;
+            }
+
+            if (parsed.id !== jobId) {
+              reject(
+                new Error(`Mismatched job ID in AI response: ${parsed.id}`),
+              );
+              return;
+            }
+
+            resolve(mapToBpAnalysisResult(parsed));
+          } catch (error) {
+            reject(toError(error));
+          }
+        };
+
+        subscriberClient.on('message', onMessage);
       });
-    });
+    } catch (error) {
+      this.logger.error(
+        `Failed to process AI analysis request for job ${jobId}`,
+        toError(error).stack,
+      );
+
+      throw new ServiceUnavailableException(
+        'AI analysis service is temporarily unavailable',
+      );
+    } finally {
+      subscriberClient.removeAllListeners('message');
+      void subscriberClient.unsubscribe(replyChannel).catch(() => undefined);
+      void subscriberClient.quit().catch(() => undefined);
+    }
   }
 }

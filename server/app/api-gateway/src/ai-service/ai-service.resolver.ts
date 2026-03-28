@@ -1,9 +1,10 @@
 import { Args, Mutation, Resolver } from '@nestjs/graphql';
 import { AnalyzeImageInput } from './ai-service.input';
+import { BpAnalysisResult } from './ai-service.result';
 import { AiServiceService } from './ai-service.service';
-import { BpAnalysisResult } from './bp-result.type';
+import { AIJob } from './ai-service.type';
 
-@Resolver()
+@Resolver(() => AIJob)
 export class AiServiceResolver {
   constructor(private readonly aiServiceService: AiServiceService) {}
 
@@ -11,8 +12,6 @@ export class AiServiceResolver {
   async analyzeImage(
     @Args('input') input: AnalyzeImageInput,
   ): Promise<BpAnalysisResult> {
-    const { imageData } = input;
-    const result = await this.aiServiceService.analyzeImage(imageData);
-    return result;
+    return this.aiServiceService.analyzeImage(input.imageData);
   }
 }
