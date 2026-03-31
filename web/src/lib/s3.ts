@@ -48,36 +48,41 @@ class StorageService {
             credentials: { accessKeyId, secretAccessKey },
         };
 
-        switch (provider) {
-            case 'cloudflare':
-                if (!endpoint) throw new Error('[StorageService] S3_ENDPOINT is required for Cloudflare R2');
-                return new S3Client({
-                    ...baseConfig,
-                    endpoint,
-                });
+        try {
+            switch (provider) {
+                case 'cloudflare':
+                    if (!endpoint) throw new Error('[StorageService] S3_ENDPOINT is required for Cloudflare R2');
+                    return new S3Client({
+                        ...baseConfig,
+                        endpoint,
+                    });
 
-            case 'aws':
-                // AWS usually doesn't need a custom endpoint, just the region is sufficient
-                return new S3Client(baseConfig); 
+                case 'aws':
+                    // AWS usually doesn't need a custom endpoint, just the region is sufficient
+                    return new S3Client(baseConfig); 
 
-            case 'minio':
-                if (!endpoint) throw new Error('[StorageService] S3_ENDPOINT is required for MinIO');
-                return new S3Client({
-                    ...baseConfig,
-                    endpoint,
-                    // Crucial for MinIO or local storage emulators
-                    forcePathStyle: true, 
-                });
+                case 'minio':
+                    if (!endpoint) throw new Error('[StorageService] S3_ENDPOINT is required for MinIO');
+                    return new S3Client({
+                        ...baseConfig,
+                        endpoint,
+                        // Crucial for MinIO or local storage emulators
+                        forcePathStyle: true, 
+                    });
 
-            case 'digitalocean':
-                 if (!endpoint) throw new Error('[StorageService] S3_ENDPOINT is required for DigitalOcean Spaces');
-                 return new S3Client({
-                     ...baseConfig,
-                     endpoint,
-                 });
+                case 'digitalocean':
+                    if (!endpoint) throw new Error('[StorageService] S3_ENDPOINT is required for DigitalOcean Spaces');
+                    return new S3Client({
+                        ...baseConfig,
+                        endpoint,
+                    });
 
-            default:
-                throw new Error(`[StorageService] Unsupported S3 provider: ${provider}`);
+                default:
+                    throw new Error(`[StorageService] Unsupported S3 provider: ${provider}`);
+            }
+        } catch (error) {
+            console.error('[StorageService] Error creating S3 client:', error);
+            throw error; // Re-throw to prevent application from running with an invalid client
         }
     }
 
