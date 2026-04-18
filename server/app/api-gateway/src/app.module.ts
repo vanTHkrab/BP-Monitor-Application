@@ -10,6 +10,9 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AiServiceResolver } from './ai-service/ai-service.resolver';
 import { AiServiceService } from './ai-service/ai-service.service';
+import { AuthModule } from './auth/auth.module';
+import { ReadingModule } from './reading/reading.module';
+import { PostModule } from './post/post.module';
 
 @Module({
   imports: [
@@ -33,17 +36,27 @@ import { AiServiceService } from './ai-service/ai-service.service';
     ]),
     // == Database Module ==
     PrismaModule,
+    // == Feature Modules ==
+    AuthModule,
+    ReadingModule,
+    PostModule,
   ],
   providers: [
-    // == Infrastructure Providers ==
     {
       // Create a Redis client instance and provide it for injection
+      // lazyConnect: won't throw if Redis is unavailable (AI Service is optional)
       provide: 'REDIS_CLIENT',
       useFactory: () => {
-        return new Redis({
+        const redis = new Redis({
           host: 'localhost',
           port: 6379,
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+          retryStrategy: () => null, // don't retry — Redis is optional
         });
+        redis.on('error', () => {}); // suppress connection errors
+        redis.connect().catch(() => {}); // attempt connect but don't fail
+        return redis;
       },
     },
     // == Core App Providers ==
@@ -55,3 +68,4 @@ import { AiServiceService } from './ai-service/ai-service.service';
   ],
 })
 export class AppModule {}
+

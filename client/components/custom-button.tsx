@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/useAppStore';
+import { getFontClass } from '@/utils/font-scale';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import React from 'react';
@@ -43,6 +44,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   fullWidth = true,
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
 
   const getGradientColors = (): [string, string, string] => {
@@ -78,7 +80,23 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
         ? 'py-[18px] px-8'
         : 'py-4 px-7';
 
-  const textSizeClassName = size === 'small' ? 'text-sm' : size === 'large' ? 'text-xl' : 'text-lg';
+  const textSizeClassName = size === 'small'
+    ? getFontClass(fontSizePreference, {
+        small: 'text-xs',
+        medium: 'text-sm',
+        large: 'text-base',
+      })
+    : size === 'large'
+      ? getFontClass(fontSizePreference, {
+          small: 'text-lg',
+          medium: 'text-xl',
+          large: 'text-2xl',
+        })
+      : getFontClass(fontSizePreference, {
+          small: 'text-base',
+          medium: 'text-lg',
+          large: 'text-xl',
+        });
 
   const shadowStyle: ViewStyle = {
     shadowColor: '#000',

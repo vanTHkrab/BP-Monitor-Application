@@ -9,4 +9,12 @@
  * 🟢 You can import this file directly.
  */
 export type * from './models/User.js'
+export type * from './models/UserSession.js'
+export type * from './models/CaregiverPatient.js'
+export type * from './models/Image.js'
+export type * from './models/AnalysisResult.js'
+export type * from './models/Alert.js'
+export type * from './models/BloodPressureReading.js'
+export type * from './models/Post.js'
+export type * from './models/PostLike.js'
 export type * from './commonInputTypes.js'

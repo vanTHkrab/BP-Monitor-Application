@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store/useAppStore';
+import { getFontNumber } from '@/utils/font-scale';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -17,7 +18,22 @@ export const TabButtons: React.FC<TabButtonProps> = ({
   variant = 'default',
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const smallLabelSize = getFontNumber(fontSizePreference, {
+    xsmall: 11,
+    small: 12,
+    medium: 13,
+    large: 14,
+    xlarge: 15,
+  });
+  const mediumLabelSize = getFontNumber(fontSizePreference, {
+    xsmall: 13,
+    small: 14,
+    medium: 15,
+    large: 16,
+    xlarge: 17,
+  });
 
   const containerBaseStyle = [
     styles.containerBase,
@@ -39,18 +55,18 @@ export const TabButtons: React.FC<TabButtonProps> = ({
             >
               {isActive ? (
                 <LinearGradient
-                  colors={['#9B59B6', '#8E44AD']}
+                  colors={isDark ? ['#2563EB', '#1D4ED8'] : ['#9B59B6', '#8E44AD']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.pillGradient}
                 >
-                  <Text numberOfLines={1} style={styles.pillActiveText}>
+                  <Text numberOfLines={1} style={[styles.pillActiveText, { fontSize: smallLabelSize }]}>
                     {tab.label}
                   </Text>
                 </LinearGradient>
               ) : (
                 <View style={styles.pillInactiveContainer}>
-                  <Text numberOfLines={1} style={[styles.pillInactiveText, inactiveTextStyle]}>
+                  <Text numberOfLines={1} style={[styles.pillInactiveText, inactiveTextStyle, { fontSize: smallLabelSize }]}>
                     {tab.label}
                   </Text>
                 </View>
@@ -76,6 +92,7 @@ export const TabButtons: React.FC<TabButtonProps> = ({
               <Text
                 style={[
                   styles.underlineText,
+                  { fontSize: mediumLabelSize },
                   isActive ? styles.underlineTextActive : styles.underlineTextInactive,
                 ]}
               >
@@ -109,13 +126,13 @@ export const TabButtons: React.FC<TabButtonProps> = ({
                 end={{ x: 1, y: 0 }}
                 style={styles.defaultGradient}
               >
-                <Text numberOfLines={1} style={styles.defaultActiveText}>
+                <Text numberOfLines={1} style={[styles.defaultActiveText, { fontSize: smallLabelSize }]}>
                   {tab.label}
                 </Text>
               </LinearGradient>
             ) : (
               <View style={styles.defaultInactiveContainer}>
-                <Text numberOfLines={1} style={[styles.defaultInactiveText, inactiveTextStyle]}>
+                <Text numberOfLines={1} style={[styles.defaultInactiveText, inactiveTextStyle, { fontSize: smallLabelSize }]}>
                   {tab.label}
                 </Text>
               </View>

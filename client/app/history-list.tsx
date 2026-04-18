@@ -4,6 +4,7 @@ import { TabButtons } from '@/components/tab-buttons';
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/useAppStore';
 import { TimeFilter } from '@/types';
+import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -12,8 +13,23 @@ import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 export default function HistoryListScreen() {
   const readings = useAppStore((s) => s.readings);
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
   const headerIconColor = isDark ? '#E2E8F0' : Colors.text.primary;
+  const titleClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-lg',
+    small: 'text-xl',
+    medium: 'text-2xl',
+    large: 'text-[28px]',
+    xlarge: 'text-[32px]',
+  });
+  const bodyClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-xs',
+    small: 'text-sm',
+    medium: 'text-base',
+    large: 'text-lg',
+    xlarge: 'text-xl',
+  });
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
 
   const timeFilterTabs = [
@@ -57,7 +73,7 @@ export default function HistoryListScreen() {
           >
             <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-800 dark:text-slate-100 text-center">ประวัติความดัน</Text>
+          <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 text-center"}>ประวัติความดัน</Text>
           <TouchableOpacity className="absolute right-4 p-1">
             <Ionicons name="information-circle-outline" size={26} color={headerIconColor} />
           </TouchableOpacity>
@@ -91,8 +107,8 @@ export default function HistoryListScreen() {
                 size={48}
                 color={isDark ? '#94A3B8' : Colors.text.secondary}
               />
-              <Text className="text-lg font-bold text-gray-800 dark:text-slate-100 mt-4">ยังไม่มีประวัติการวัด</Text>
-              <Text className="text-gray-500 dark:text-slate-300 text-center mt-2">
+              <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 mt-4"}>ยังไม่มีประวัติการวัด</Text>
+              <Text className={bodyClassName + " text-gray-500 dark:text-slate-300 text-center mt-2"}>
                 เริ่มต้นบันทึกค่าความดันของคุณ
               </Text>
             </View>

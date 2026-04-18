@@ -51,7 +51,15 @@ export const AnyNull = runtime.AnyNull
 
 
 export const ModelName = {
-  User: 'User'
+  User: 'User',
+  UserSession: 'UserSession',
+  CaregiverPatient: 'CaregiverPatient',
+  Image: 'Image',
+  AnalysisResult: 'AnalysisResult',
+  Alert: 'Alert',
+  BloodPressureReading: 'BloodPressureReading',
+  Post: 'Post',
+  PostLike: 'PostLike'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -73,10 +81,124 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
-  name: 'name'
+  firstname: 'firstname',
+  lastname: 'lastname',
+  phone: 'phone',
+  passwordHash: 'passwordHash',
+  role: 'role',
+  dob: 'dob',
+  gender: 'gender',
+  weight: 'weight',
+  height: 'height',
+  congenitalDisease: 'congenitalDisease',
+  avatar: 'avatar',
+  createdAt: 'createdAt'
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const UserSessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  deviceLabel: 'deviceLabel',
+  userAgent: 'userAgent',
+  isActive: 'isActive',
+  revokedAt: 'revokedAt',
+  lastActiveAt: 'lastActiveAt',
+  createdAt: 'createdAt'
+} as const
+
+export type UserSessionScalarFieldEnum = (typeof UserSessionScalarFieldEnum)[keyof typeof UserSessionScalarFieldEnum]
+
+
+export const CaregiverPatientScalarFieldEnum = {
+  caregiverId: 'caregiverId',
+  patientId: 'patientId',
+  relationship: 'relationship'
+} as const
+
+export type CaregiverPatientScalarFieldEnum = (typeof CaregiverPatientScalarFieldEnum)[keyof typeof CaregiverPatientScalarFieldEnum]
+
+
+export const ImageScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  imageUrl: 'imageUrl',
+  deviceName: 'deviceName',
+  imageQualityScore: 'imageQualityScore',
+  syncStatus: 'syncStatus',
+  syncedAt: 'syncedAt',
+  uploadedAt: 'uploadedAt'
+} as const
+
+export type ImageScalarFieldEnum = (typeof ImageScalarFieldEnum)[keyof typeof ImageScalarFieldEnum]
+
+
+export const AnalysisResultScalarFieldEnum = {
+  id: 'id',
+  imageId: 'imageId',
+  systolic: 'systolic',
+  diastolic: 'diastolic',
+  pulseRate: 'pulseRate',
+  confidenceScore: 'confidenceScore',
+  bpLevel: 'bpLevel',
+  analysisNote: 'analysisNote',
+  analyzedAt: 'analyzedAt'
+} as const
+
+export type AnalysisResultScalarFieldEnum = (typeof AnalysisResultScalarFieldEnum)[keyof typeof AnalysisResultScalarFieldEnum]
+
+
+export const AlertScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  analysisId: 'analysisId',
+  alertMessage: 'alertMessage',
+  alertLevel: 'alertLevel',
+  isRead: 'isRead',
+  createdAt: 'createdAt'
+} as const
+
+export type AlertScalarFieldEnum = (typeof AlertScalarFieldEnum)[keyof typeof AlertScalarFieldEnum]
+
+
+export const BloodPressureReadingScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  clientId: 'clientId',
+  systolic: 'systolic',
+  diastolic: 'diastolic',
+  pulse: 'pulse',
+  status: 'status',
+  measuredAt: 'measuredAt',
+  imageUri: 'imageUri',
+  notes: 'notes',
+  createdAt: 'createdAt'
+} as const
+
+export type BloodPressureReadingScalarFieldEnum = (typeof BloodPressureReadingScalarFieldEnum)[keyof typeof BloodPressureReadingScalarFieldEnum]
+
+
+export const PostScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  clientId: 'clientId',
+  content: 'content',
+  category: 'category',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PostScalarFieldEnum = (typeof PostScalarFieldEnum)[keyof typeof PostScalarFieldEnum]
+
+
+export const PostLikeScalarFieldEnum = {
+  userId: 'userId',
+  postId: 'postId'
+} as const
+
+export type PostLikeScalarFieldEnum = (typeof PostLikeScalarFieldEnum)[keyof typeof PostLikeScalarFieldEnum]
 
 
 export const SortOrder = {

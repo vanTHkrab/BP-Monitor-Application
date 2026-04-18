@@ -5,6 +5,7 @@ import { TabButtons } from '@/components/tab-buttons';
 import { useAppStore } from '@/store/useAppStore';
 import { TimeFilter } from '@/types';
 import { createExportFileWithRetry, ExportDataType, ExportFormat } from '@/utils/export-data';
+import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
@@ -23,7 +24,22 @@ export default function HistoryScreen() {
   const posts = useAppStore((s) => s.posts);
   const user = useAppStore((s) => s.user);
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const titleClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-lg',
+    small: 'text-xl',
+    medium: 'text-[22px]',
+    large: 'text-2xl',
+    xlarge: 'text-[28px]',
+  });
+  const bodyClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-xs',
+    small: 'text-sm',
+    medium: 'text-base',
+    large: 'text-lg',
+    xlarge: 'text-xl',
+  });
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
   const [isExporting, setIsExporting] = useState(false);
   const showChart = true;
@@ -149,7 +165,7 @@ export default function HistoryScreen() {
           format,
           readings: readingsForExport,
           posts,
-          userName: user?.name,
+          userName: user ? `${user.firstname} ${user.lastname}`.trim() : undefined,
         },
         maxExportAttempts
       );
@@ -222,7 +238,7 @@ export default function HistoryScreen() {
               end={{ x: 1, y: 0 }}
               className="px-6 py-2.5 rounded-xl"
             >
-              <Text className="text-[18px] font-bold text-white">ประวัติความดัน</Text>
+              <Text className={titleClassName + " font-bold text-white"}>ประวัติความดัน</Text>
             </LinearGradient>
             {/* <AnimatedPressable className="absolute right-4 p-2" onPress={() => {}}>
               <Ionicons name="refresh" size={24} color={Colors.primary.blue} />
@@ -254,11 +270,11 @@ export default function HistoryScreen() {
                 <View className="flex-row justify-center gap-6 mb-2">
                   <View className="flex-row items-center">
                     <View className="w-2.5 h-2.5 rounded-full bg-[#5DADE2] mr-1.5" />
-                    <Text className="text-xs text-gray-500 dark:text-slate-300 font-medium">ค่าบน (SYS)</Text>
+                    <Text className={bodyClassName + " text-gray-500 dark:text-slate-300 font-medium"}>ค่าบน (SYS)</Text>
                   </View>
                   <View className="flex-row items-center">
                     <View className="w-2.5 h-2.5 rounded-full bg-[#8E44AD] mr-1.5" />
-                    <Text className="text-xs text-gray-500 dark:text-slate-300 font-medium">ค่าล่าง (DIA)</Text>
+                    <Text className={bodyClassName + " text-gray-500 dark:text-slate-300 font-medium"}>ค่าล่าง (DIA)</Text>
                   </View>
                 </View>
 

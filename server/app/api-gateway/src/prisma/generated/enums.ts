@@ -9,7 +9,65 @@
 * 🟢 You can import this file directly.
 */
 
+export const UserRole = {
+  caregiver: 'caregiver',
+  developer: 'developer',
+  patient: 'patient'
+} as const
+
+export type UserRole = (typeof UserRole)[keyof typeof UserRole]
 
 
-// This file is empty because there are no enums in the schema.
-export {}
+export const Gender = {
+  male: 'male',
+  female: 'female',
+  other: 'other'
+} as const
+
+export type Gender = (typeof Gender)[keyof typeof Gender]
+
+
+export const ImageSyncStatus = {
+  pending: 'pending',
+  synced: 'synced',
+  failed: 'failed'
+} as const
+
+export type ImageSyncStatus = (typeof ImageSyncStatus)[keyof typeof ImageSyncStatus]
+
+
+export const BpLevel = {
+  normal: 'normal',
+  elevated: 'elevated',
+  highRisk: 'highRisk'
+} as const
+
+export type BpLevel = (typeof BpLevel)[keyof typeof BpLevel]
+
+
+export const AlertLevel = {
+  warning: 'warning',
+  critical: 'critical'
+} as const
+
+export type AlertLevel = (typeof AlertLevel)[keyof typeof AlertLevel]
+
+
+export const BpStatus = {
+  low: 'low',
+  normal: 'normal',
+  elevated: 'elevated',
+  high: 'high',
+  critical: 'critical'
+} as const
+
+export type BpStatus = (typeof BpStatus)[keyof typeof BpStatus]
+
+
+export const PostCategory = {
+  general: 'general',
+  experience: 'experience',
+  qa: 'qa'
+} as const
+
+export type PostCategory = (typeof PostCategory)[keyof typeof PostCategory]

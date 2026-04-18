@@ -19,16 +19,189 @@ type BpAnalysisResult {
   confidence: Float
 }
 
+type UserType {
+  id: String!
+  email: String
+  firstname: String!
+  lastname: String!
+  phone: String!
+  avatar: String
+  role: String!
+  createdAt: DateTime!
+  dob: DateTime
+  gender: String
+  weight: Float
+  height: Float
+  congenitalDisease: String
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type AuthPayload {
+  token: String!
+  user: UserType!
+}
+
+type SessionType {
+  id: String!
+  deviceLabel: String
+  userAgent: String
+  isActive: Boolean!
+  revokedAt: DateTime
+  lastActiveAt: DateTime!
+  createdAt: DateTime!
+}
+
+type ReadingType {
+  id: Int!
+  userId: String!
+  clientId: String
+  systolic: Int!
+  diastolic: Int!
+  pulse: Int!
+  status: String!
+  measuredAt: DateTime!
+  imageUri: String
+  notes: String
+  createdAt: DateTime!
+}
+
+type PostType {
+  id: Int!
+  userId: String!
+  clientId: String
+  userName: String!
+  userAvatar: String
+  content: String!
+  category: String!
+  likes: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime
+  isLiked: Boolean!
+}
+
 type Query {
   hello: String!
+
+  """ดึงข้อมูลผู้ใช้ปัจจุบัน"""
+  me: UserType!
+
+  """ประวัติการเข้าสู่ระบบ"""
+  loginSessions: [SessionType!]!
+
+  """รายการค่าความดันของผู้ใช้"""
+  readings(limit: Int! = 200, offset: Int! = 0): [ReadingType!]!
+
+  """รายการโพสต์ชุมชน (สาธารณะ)"""
+  posts(category: String, limit: Int! = 100, offset: Int! = 0): [PostType!]!
 }
 
 type Mutation {
   """วิเคราะห์ภาพความดันโลหิต"""
   analyzeImage(input: AnalyzeImageInput!): BpAnalysisResult!
+
+  """ลงทะเบียนผู้ใช้ใหม่"""
+  register(input: RegisterInput!): AuthPayload!
+
+  """เข้าสู่ระบบ"""
+  login(input: LoginInput!): AuthPayload!
+
+  """แก้ไขโปรไฟล์"""
+  updateProfile(input: UpdateProfileInput!): UserType!
+
+  """เปลี่ยนรหัสผ่านผู้ใช้"""
+  changePassword(input: ChangePasswordInput!): Boolean!
+
+  """ออกจากระบบทุกอุปกรณ์"""
+  logoutAllDevices: Boolean!
+
+  """ลบข้อมูลผู้ใช้ทั้งหมด"""
+  deleteMyData: Boolean!
+
+  """บันทึกค่าความดันโลหิต"""
+  createReading(input: CreateReadingInput!): ReadingType!
+
+  """ลบค่าความดัน"""
+  deleteReading(id: Int!): Boolean!
+
+  """สร้างโพสต์ใหม่"""
+  createPost(input: CreatePostInput!): PostType!
+
+  """แก้ไขโพสต์"""
+  updatePost(input: UpdatePostInput!): Boolean!
+
+  """ลบโพสต์"""
+  deletePost(id: Int!): Boolean!
+
+  """กดถูกใจ/ยกเลิกถูกใจโพสต์"""
+  toggleLike(postId: Int!): Boolean!
 }
 
 input AnalyzeImageInput {
   """ข้อมูลภาพที่เข้ารหัสเป็น Base64"""
   imageData: String!
+}
+
+input RegisterInput {
+  firstname: String!
+  lastname: String!
+  phone: String!
+  password: String!
+  email: String
+  avatar: String
+  dob: DateTime
+  gender: String
+  weight: Float
+  height: Float
+  congenitalDisease: String
+}
+
+input LoginInput {
+  phone: String!
+  password: String!
+  deviceLabel: String
+}
+
+input UpdateProfileInput {
+  firstname: String
+  lastname: String
+  phone: String
+  email: String
+  dob: DateTime
+  gender: String
+  weight: Float
+  height: Float
+  congenitalDisease: String
+  avatar: String
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+input CreateReadingInput {
+  systolic: Int!
+  diastolic: Int!
+  pulse: Int!
+  status: String!
+  measuredAt: DateTime!
+  clientId: String
+  imageUri: String
+  notes: String
+}
+
+input CreatePostInput {
+  content: String!
+  category: String!
+  clientId: String
+}
+
+input UpdatePostInput {
+  id: Int!
+  content: String
+  category: String
 }
