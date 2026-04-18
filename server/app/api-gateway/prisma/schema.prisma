@@ -79,10 +79,12 @@ model User {
   caregiverLinks CaregiverPatient[] @relation("CaregiverUser")
   patientLinks   CaregiverPatient[] @relation("PatientUser")
   // เพิ่มเติม
-  readings       BloodPressureReading[]
-  posts          Post[]
-  postLikes      PostLike[]
-  sessions       UserSession[]
+  readings          BloodPressureReading[]
+  posts             Post[]
+  postComments      PostComment[]
+  postCommentLikes  PostCommentLike[]
+  postLikes         PostLike[]
+  sessions          UserSession[]
 
   @@map("users")
 }
@@ -204,13 +206,46 @@ model Post {
   createdAt DateTime     @default(now()) @map("created_at")
   updatedAt DateTime?    @map("updated_at")
 
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes PostLike[]
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes    PostLike[]
+  comments PostComment[]
 
   @@index([userId])
   @@index([category])
   @@index([createdAt])
   @@map("posts")
+}
+
+model PostComment {
+  id        Int       @id @default(autoincrement())
+  postId    Int       @map("post_id")
+  userId    String    @map("user_id") @db.Uuid
+  parentId  Int?      @map("parent_id")        // null = top-level comment
+  content   String    @db.Text
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @map("updated_at")
+
+  post     Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   PostComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  PostComment[] @relation("CommentReplies")
+  likes    PostCommentLike[]
+
+  @@index([postId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("post_comments")
+}
+
+model PostCommentLike {
+  userId    String @map("user_id") @db.Uuid
+  commentId Int    @map("comment_id")
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, commentId])
+  @@map("post_comment_likes")
 }
 
 model PostLike {
