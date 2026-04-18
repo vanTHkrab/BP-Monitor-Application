@@ -1,6 +1,8 @@
 import { Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useAppStore } from '@/store/useAppStore';
+import { getFontNumber } from '@/utils/font-scale';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
@@ -18,17 +20,30 @@ export function ThemedText({
   ...rest
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
+
+  const fontSize =
+    type === 'title'
+      ? getFontNumber(fontSizePreference, { small: 28, medium: 32, large: 38 })
+      : type === 'subtitle'
+        ? getFontNumber(fontSizePreference, { small: 18, medium: 20, large: 24 })
+        : getFontNumber(fontSizePreference, { small: 14, medium: 16, large: 18 });
+
+  const lineHeight =
+    type === 'title'
+      ? getFontNumber(fontSizePreference, { small: 34, medium: 38, large: 44 })
+      : type === 'link'
+        ? getFontNumber(fontSizePreference, { small: 24, medium: 30, large: 34 })
+        : getFontNumber(fontSizePreference, { small: 22, medium: 24, large: 28 });
 
   const typeClassName =
     type === 'title'
-      ? 'text-[32px] font-bold leading-8'
+      ? 'font-bold'
       : type === 'defaultSemiBold'
-        ? 'text-base leading-6 font-semibold'
+        ? 'font-semibold'
         : type === 'subtitle'
-          ? 'text-xl font-bold'
-          : type === 'link'
-            ? 'text-base leading-[30px]'
-            : 'text-base leading-6';
+          ? 'font-bold'
+          : '';
 
   const linkColorStyle = type === 'link' ? { color: '#0a7ea4' } : undefined;
 
@@ -36,6 +51,7 @@ export function ThemedText({
     <Text
       style={[
         { color },
+        { fontSize, lineHeight },
         linkColorStyle,
         style,
       ]}

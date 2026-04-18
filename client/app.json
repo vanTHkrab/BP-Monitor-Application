@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "ใช้ Face ID เพื่อปลดล็อกข้อมูลส่วนตัวและยืนยันการเข้าถึง"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -29,6 +32,14 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "ใช้ Face ID เพื่อปลดล็อกข้อมูลส่วนตัวและยืนยันการเข้าถึง"
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -40,7 +51,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,

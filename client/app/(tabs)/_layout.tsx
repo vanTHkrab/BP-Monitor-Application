@@ -1,5 +1,6 @@
 import { HapticTab } from '@/components/haptic-tab';
 import { useAppStore } from '@/store/useAppStore';
+import { getFontNumber } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
@@ -12,12 +13,20 @@ cssInterop(LinearGradient, { className: 'style' });
 
 export default function TabLayout() {
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
   const insets = useSafeAreaInsets();
 
   const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
   const tabBarHeight = tabBarBaseHeight + insets.bottom;
   const tabBarPaddingBottom = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
+  const tabLabelSize = getFontNumber(fontSizePreference, {
+    xsmall: 10,
+    small: 11,
+    medium: 11,
+    large: 12,
+    xlarge: 13,
+  });
 
   return (
     <Tabs
@@ -39,7 +48,7 @@ export default function TabLayout() {
           elevation: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: tabLabelSize,
           fontWeight: '500',
           marginTop: 2,
         },

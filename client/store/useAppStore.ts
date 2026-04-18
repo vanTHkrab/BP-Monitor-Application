@@ -1,75 +1,108 @@
-import { getBPStatus } from '@/constants/colors';
-import { auth, db } from '@/constants/firebase';
+import { getBPStatus } from "@/constants/colors";
 import {
-    deleteLocalPost,
-    deletePendingPostAction,
-    deletePendingReading,
-    insertLocalPost,
-    insertPendingReading,
-    listLocalPosts,
-    listPendingPostActions,
-    listPendingReadings,
-    queuePendingPostAction,
-    updateLocalPost,
-} from '@/data/local-db';
-import { BloodPressureReading, CommunityPost, User } from '@/types';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
+  clearAuthToken,
+  GQL_CHANGE_PASSWORD,
+  GQL_DELETE_MY_DATA,
+  getAuthToken,
+  graphqlRequest,
+  GQL_CREATE_POST,
+  GQL_CREATE_READING,
+  GQL_DELETE_POST,
+  GQL_DELETE_READING,
+  GQL_LOGIN,
+  GQL_LOGIN_SESSIONS,
+  GQL_LOGOUT_ALL_DEVICES,
+  GQL_ME,
+  GQL_POSTS,
+  GQL_READINGS,
+  GQL_REGISTER,
+  GQL_TOGGLE_LIKE,
+  GQL_UPDATE_POST,
+  GQL_UPDATE_PROFILE,
+  setAuthToken,
+} from "@/constants/api";
 import {
-    createUserWithEmailAndPassword,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    signOut,
-    updateProfile,
-} from 'firebase/auth';
+  clearUserLocalData,
+  deleteLocalPost,
+  deletePendingPostAction,
+  deletePendingReading,
+  insertLocalPost,
+  insertPendingReading,
+  listLocalPosts,
+  listPendingPostActions,
+  listPendingReadings,
+  queuePendingPostAction,
+  updateLocalPost,
+} from "@/data/local-db";
 import {
-    addDoc,
-    arrayRemove,
-    arrayUnion,
-    collection,
-    deleteDoc,
-    doc,
-    DocumentData,
-    getDoc,
-    limit,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    setDoc,
-    Timestamp,
-    updateDoc,
-} from 'firebase/firestore';
-import { create } from 'zustand';
+  BloodPressureReading,
+  CommunityPost,
+  FontSizePreference,
+  LoginSession,
+  User,
+} from "@/types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
+import { create } from "zustand";
 
 interface AppState {
   // Auth
   isAuthenticated: boolean;
   user: User | null;
   authInitialized: boolean;
+  authToken: string | null;
   authErrorCode: string | null;
   authErrorMessage: string | null;
   authErrorRawMessage: string | null;
-  
+
   // Blood Pressure
   readings: BloodPressureReading[];
   isOnline: boolean;
-  
+
   // Community
   posts: CommunityPost[];
+  sessions: LoginSession[];
 
   // Theme
-  themePreference: 'light' | 'dark';
+  themePreference: "light" | "dark";
   themeHydrated: boolean;
-  
+  fontSizePreference: FontSizePreference;
+
+  // Security
+  hideSensitiveData: boolean;
+  sensitiveDataUnlocked: boolean;
+
   // Actions
+  initAuth: () => Promise<void>;
   login: (phone: string, password: string) => Promise<boolean>;
-  register: (name: string, phone: string, password: string, avatarUri?: string | null) => Promise<boolean>;
+  register: (input: {
+    firstname: string;
+    lastname: string;
+    phone: string;
+    password: string;
+    email?: string;
+    dob?: string;
+    gender?: User["gender"];
+    weight?: number;
+    height?: number;
+    congenitalDisease?: string;
+    avatarUri?: string | null;
+  }) => Promise<boolean>;
   logout: () => void;
   clearAuthError: () => void;
 
-  updateMyProfile: (input: { name?: string; phone?: string }) => Promise<boolean>;
-
+  updateMyProfile: (input: {
+    firstname?: string;
+    lastname?: string;
+    phone?: string;
+    email?: string;
+    dob?: string;
+    gender?: User["gender"];
+    weight?: number;
+    height?: number;
+    congenitalDisease?: string;
+    avatar?: string;
+  }) => Promise<boolean>;
   uploadMyAvatar: (avatarUri: string) => Promise<boolean>;
 
   createReading: (input: {
@@ -88,197 +121,76 @@ interface AppState {
   syncPendingReadings: () => Promise<void>;
   hydratePendingPosts: () => Promise<void>;
   syncPendingPosts: () => Promise<void>;
-  
+
+  fetchReadings: () => Promise<void>;
+  fetchPosts: () => Promise<void>;
+
   toggleLike: (postId: string) => Promise<void>;
-
-  createPost: (input: { content: string; category: CommunityPost['category'] }) => Promise<boolean>;
-
-  updatePost: (input: { postId: string; content: string; category: CommunityPost['category'] }) => Promise<boolean>;
-
+  createPost: (input: {
+    content: string;
+    category: CommunityPost["category"];
+  }) => Promise<boolean>;
+  updatePost: (input: {
+    postId: string;
+    content: string;
+    category: CommunityPost["category"];
+  }) => Promise<boolean>;
   deletePost: (postId: string) => Promise<boolean>;
+  fetchSessions: () => Promise<void>;
+  logoutAllDevices: () => Promise<boolean>;
+  deleteAllMyData: () => Promise<boolean>;
 
   hydrateTheme: () => Promise<void>;
-  setThemePreference: (pref: 'light' | 'dark') => Promise<void>;
+  setThemePreference: (pref: "light" | "dark") => Promise<void>;
+  hydrateAccessibilityPreferences: () => Promise<void>;
+  setFontSizePreference: (pref: FontSizePreference) => Promise<void>;
+  hydrateSecurityPreferences: () => Promise<void>;
+  setHideSensitiveData: (enabled: boolean) => Promise<void>;
+  unlockSensitiveData: (password: string) => Promise<boolean>;
+  lockSensitiveData: () => void;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<boolean>;
 }
 
-const THEME_STORAGE_KEY = 'bp:theme-preference';
+const THEME_STORAGE_KEY = "bp:theme-preference";
+const FONT_SIZE_PREFERENCE_KEY = "bp:font-size-preference";
+const HIDE_SENSITIVE_DATA_KEY = "bp:hide-sensitive-data";
 
-const normalizePhone = (value: string) => value.replace(/\D/g, '');
-
-const phoneToEmail = (value: string) => {
-  const trimmed = value.trim();
-  if (trimmed.includes('@')) return trimmed.toLowerCase();
-  const digits = normalizePhone(trimmed);
-  return `${digits || 'user'}@bp.local`;
-};
-
-const authErrorToThai = (code?: string): string => {
-  switch (code) {
-    case 'auth/configuration-not-found':
-      return 'Firebase Auth ยังไม่ได้ตั้งค่า/เปิดใช้งานสำหรับโปรเจกต์นี้ (ไปที่ Firebase Console → Authentication → Get started และเปิด Email/Password)';
-    case 'auth/email-already-in-use':
-      return 'เบอร์/อีเมลนี้ถูกใช้งานแล้ว';
-    case 'auth/missing-email':
-      return 'กรุณากรอกอีเมล/เบอร์โทรศัพท์';
-    case 'auth/invalid-email':
-      return 'รูปแบบอีเมลไม่ถูกต้อง';
-    case 'auth/weak-password':
-      return 'รหัสผ่านอ่อนเกินไป (อย่างน้อย 6 ตัวอักษร)';
-    case 'auth/user-not-found':
-    case 'auth/wrong-password':
-    case 'auth/invalid-credential':
-      return 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-    case 'auth/network-request-failed':
-      return 'เครือข่ายมีปัญหา กรุณาลองใหม่';
-    case 'auth/operation-not-allowed':
-      return 'ยังไม่ได้เปิดใช้งานผู้ให้บริการเข้าสู่ระบบ (Email/Password) ใน Firebase Console';
-    case 'auth/too-many-requests':
-      return 'ถูกจำกัดการลองหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่';
-    case 'auth/invalid-api-key':
-      return 'Firebase API key ไม่ถูกต้อง/ตั้งค่าไม่ครบ';
-    case 'auth/app-not-authorized':
-      return 'แอปนี้ยังไม่ได้รับอนุญาต (ตรวจสอบ Bundle ID/Package name ใน Firebase Console)';
-    case 'auth/unauthorized-domain':
-      return 'โดเมน/แอปยังไม่ได้รับอนุญาตใน Firebase';
-    default:
-      return 'เกิดข้อผิดพลาด กรุณาลองใหม่';
-  }
-};
-
-const extractFirebaseAuthError = (error: any): { code: string | null; rawMessage: string | null } => {
-  const code = typeof error?.code === 'string' ? error.code : null;
-  const rawMessage =
-    typeof error?.message === 'string'
-      ? error.message
-      : error
-        ? JSON.stringify(error)
-        : null;
-  return { code, rawMessage };
-};
-
-const stringifyErrorSafe = (error: any): string => {
-  if (!error) return '';
-  try {
-    const props = Array.from(new Set([...Object.getOwnPropertyNames(error), ...Object.keys(error)]));
-    return JSON.stringify(error, props);
-  } catch {
-    try {
-      return String(error);
-    } catch {
-      return '[unstringifiable error]';
-    }
-  }
-};
-
-const isRemoteUrl = (uri: string) => /^https?:\/\//i.test(uri);
-const isDataUrl = (uri: string) => /^data:/i.test(uri);
-const isLocalReadingId = (id: string) => id.startsWith('local-');
+const isLocalReadingId = (id: string) => id.startsWith("local-");
 const toLocalReadingId = (localId: number) => `local-${localId}`;
-const parseLocalReadingId = (id: string) => Number(id.replace('local-', ''));
-const toLocalReadingDocId = (userId: string, localId: number) => `local-${userId}-${localId}`;
-const isLocalPostId = (id: string) => id.startsWith('local-post-');
+const parseLocalReadingId = (id: string) => Number(id.replace("local-", ""));
+
+const isLocalPostId = (id: string) => id.startsWith("local-post-");
 const toLocalPostId = (localId: number) => `local-post-${localId}`;
-const parseLocalPostId = (id: string) => Number(id.replace('local-post-', ''));
-const toLocalPostDocId = (userId: string, localId: number) => `local-post-${userId}-${localId}`;
+const parseLocalPostId = (id: string) => Number(id.replace("local-post-", ""));
 
 const createClientId = (prefix: string, userId: string) =>
   `${prefix}-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const getDeviceLabel = () =>
+  `${
+    Platform.OS === "ios"
+      ? "iPhone"
+      : Platform.OS === "android"
+        ? "Android"
+        : "Web"
+  } App`;
+
 let syncReadingsInFlight = false;
 let syncPostsInFlight = false;
 
-const getDataUrlContentType = (dataUrl: string): string => {
-  const match = dataUrl.match(/^data:([^;]+);base64,/i);
-  return match?.[1] || 'image/jpeg';
-};
+const sortReadingsDesc = (items: BloodPressureReading[]) =>
+  [...items].sort(
+    (a, b) =>
+      new Date(b.measuredAt).getTime() - new Date(a.measuredAt).getTime(),
+  );
 
-const ensureDirAsync = async (dirUri: string) => {
-  try {
-    await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true } as any);
-  } catch {
-    // ignore (already exists)
-  }
-};
-
-const getAppDocumentDir = (): string | null => {
-  return ((FileSystem as any).documentDirectory as string | undefined) ?? null;
-};
-
-const saveAvatarToAppStorage = async (uid: string, inputUri: string): Promise<string> => {
-  if (!inputUri) return inputUri;
-  if (isRemoteUrl(inputUri)) return inputUri;
-
-  const baseDir = getAppDocumentDir();
-  if (!baseDir) {
-    // Fallback: keep original uri (still works in-session, may not persist forever)
-    return inputUri;
-  }
-
-  const avatarDir = `${baseDir}avatars/`;
-  await ensureDirAsync(avatarDir);
-
-  const contentType = isDataUrl(inputUri) ? getDataUrlContentType(inputUri) : 'image/jpeg';
-  const ext =
-    contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : contentType.includes('heic') ? 'heic' : 'jpg';
-
-  const fileUri = `${avatarDir}${uid}_${Date.now()}.${ext}`;
-
-  if (isDataUrl(inputUri)) {
-    const match = inputUri.match(/^data:[^;]+;base64,(.*)$/i);
-    const base64 = match?.[1] || '';
-    await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: 'base64' as any });
-    return fileUri;
-  }
-
-  // Best-effort copy for file:// URIs
-  try {
-    await FileSystem.copyAsync({ from: inputUri, to: fileUri } as any);
-    return fileUri;
-  } catch {
-    return inputUri;
-  }
-};
-
-
-
-const userFromFirestore = (uid: string, data: DocumentData | undefined): User => {
-  const createdAt = data?.createdAt;
-  return {
-    id: uid,
-    name: (data?.name as string) || 'ผู้ใช้',
-    phone: (data?.phone as string) || '',
-    email: data?.email as string | undefined,
-    avatar: data?.avatar as string | undefined,
-    createdAt:
-      createdAt instanceof Timestamp
-        ? createdAt.toDate()
-        : createdAt instanceof Date
-          ? createdAt
-          : new Date(),
-  };
-};
-
-const readingFromFirestore = (uid: string, id: string, data: DocumentData): BloodPressureReading => {
-  const measuredAtRaw = data.measuredAt;
-  const measuredAt =
-    measuredAtRaw instanceof Timestamp
-      ? measuredAtRaw.toDate()
-      : measuredAtRaw instanceof Date
-        ? measuredAtRaw
-        : new Date();
-
-  return {
-    id,
-    userId: uid,
-    systolic: Number(data.systolic ?? 0),
-    diastolic: Number(data.diastolic ?? 0),
-    pulse: Number(data.pulse ?? 0),
-    measuredAt,
-    imageUri: data.imageUri as string | undefined,
-    notes: data.notes as string | undefined,
-    status: (data.status as BloodPressureReading['status']) || getBPStatus(Number(data.systolic ?? 0), Number(data.diastolic ?? 0)),
-  };
-};
+const sortPostsDesc = (items: CommunityPost[]) =>
+  [...items].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 
 const readingFromPending = (row: {
   id: number;
@@ -291,24 +203,18 @@ const readingFromPending = (row: {
   imageUri: string | null;
   notes: string | null;
   status: string;
-}): BloodPressureReading => {
-  return {
-    id: toLocalReadingId(row.id),
-    userId: row.userId,
-    clientId: row.clientId ?? undefined,
-    systolic: Number(row.systolic),
-    diastolic: Number(row.diastolic),
-    pulse: Number(row.pulse),
-    measuredAt: new Date(row.measuredAt),
-    imageUri: row.imageUri ?? undefined,
-    notes: row.notes ?? undefined,
-    status: row.status as BloodPressureReading['status'],
-  };
-};
-
-const sortReadingsDesc = (items: BloodPressureReading[]) => {
-  return [...items].sort((a, b) => b.measuredAt.getTime() - a.measuredAt.getTime());
-};
+}): BloodPressureReading => ({
+  id: toLocalReadingId(row.id),
+  userId: row.userId,
+  clientId: row.clientId ?? undefined,
+  systolic: Number(row.systolic),
+  diastolic: Number(row.diastolic),
+  pulse: Number(row.pulse),
+  measuredAt: new Date(row.measuredAt),
+  imageUri: row.imageUri ?? undefined,
+  notes: row.notes ?? undefined,
+  status: row.status as BloodPressureReading["status"],
+});
 
 const postFromLocal = (row: {
   id: number;
@@ -319,105 +225,78 @@ const postFromLocal = (row: {
   content: string;
   category: string;
   createdAt: string;
-}): CommunityPost => {
-  return {
-    id: toLocalPostId(row.id),
-    userId: row.userId,
-    clientId: row.clientId ?? undefined,
-    userName: row.userName,
-    userAvatar: row.userAvatar ?? undefined,
-    content: row.content,
-    category: (row.category as CommunityPost['category']) || 'general',
-    likes: 0,
-    comments: 0,
-    createdAt: new Date(row.createdAt),
-    isLiked: false,
-    syncStatus: 'local',
-  };
-};
+}): CommunityPost => ({
+  id: toLocalPostId(row.id),
+  userId: row.userId,
+  clientId: row.clientId ?? undefined,
+  userName: row.userName,
+  userAvatar: row.userAvatar ?? undefined,
+  content: row.content,
+  category: (row.category as CommunityPost["category"]) || "general",
+  likes: 0,
+  comments: 0,
+  createdAt: new Date(row.createdAt),
+  isLiked: false,
+  syncStatus: "local",
+});
 
-const sortPostsDesc = (items: CommunityPost[]) => {
-  return [...items].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-};
+const userFromGql = (u: any): User => ({
+  id: u.id,
+  firstname: u.firstname,
+  lastname: u.lastname,
+  phone: u.phone,
+  email: u.email ?? undefined,
+  avatar: u.avatar ?? undefined,
+  role: u.role ?? undefined,
+  createdAt: new Date(u.createdAt),
+  dob: u.dob ? new Date(u.dob) : undefined,
+  gender: u.gender ?? undefined,
+  weight: typeof u.weight === "number" ? u.weight : undefined,
+  height: typeof u.height === "number" ? u.height : undefined,
+  congenitalDisease: u.congenitalDisease ?? undefined,
+});
 
-const applyPendingPostActions = (
-  posts: CommunityPost[],
-  actions: Array<{ postId: string; action: 'update' | 'delete'; content?: string | null; category?: string | null }>
-) => {
-  let next = [...posts];
-  for (const action of actions) {
-    if (action.action === 'delete') {
-      next = next.filter((p) => p.id !== action.postId);
-    } else if (action.action === 'update') {
-      next = next.map((p) =>
-        p.id === action.postId
-          ? {
-              ...p,
-              ...(typeof action.content === 'string' ? { content: action.content } : null),
-              ...(typeof action.category === 'string' ? { category: action.category as CommunityPost['category'] } : null),
-              syncStatus: 'pending-update',
-            }
-          : p
-      );
-    }
+const readingFromGql = (r: any): BloodPressureReading => ({
+  id: String(r.id),
+  userId: r.userId,
+  clientId: r.clientId ?? undefined,
+  systolic: r.systolic,
+  diastolic: r.diastolic,
+  pulse: r.pulse,
+  status: r.status as BloodPressureReading["status"],
+  measuredAt: new Date(r.measuredAt),
+  imageUri: r.imageUri ?? undefined,
+  notes: r.notes ?? undefined,
+});
+
+const postFromGql = (p: any): CommunityPost => ({
+  id: String(p.id),
+  userId: p.userId,
+  clientId: p.clientId ?? undefined,
+  userName: p.userName,
+  userAvatar: p.userAvatar ?? undefined,
+  content: p.content,
+  category: p.category as CommunityPost["category"],
+  likes: p.likes ?? 0,
+  comments: 0,
+  createdAt: new Date(p.createdAt),
+  isLiked: p.isLiked ?? false,
+});
+
+const authErrorToThai = (msg?: string): string => {
+  if (!msg) return "เกิดข้อผิดพลาด กรุณาลองใหม่";
+  if (msg.includes("Network request timed out")) {
+    return "เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จภายในเวลาที่กำหนด กรุณาตรวจสอบว่าโทรศัพท์เข้าถึงเครื่องที่รัน Nest ได้";
   }
-  return next;
-};
-
-const postFromFirestore = (currentUid: string | null, id: string, data: DocumentData): CommunityPost => {
-  const createdAtRaw = data.createdAt;
-  const createdAt =
-    createdAtRaw instanceof Timestamp
-      ? createdAtRaw.toDate()
-      : createdAtRaw instanceof Date
-        ? createdAtRaw
-        : new Date();
-
-  const likedBy = Array.isArray(data.likedBy) ? (data.likedBy as string[]) : [];
-  return {
-    id,
-    userId: String(data.userId ?? ''),
-    userName: String(data.userName ?? 'ผู้ใช้'),
-    userAvatar: (data.userAvatar as string | undefined) ?? undefined,
-    content: String(data.content ?? ''),
-    category: (data.category as CommunityPost['category']) || 'general',
-    likes: likedBy.length,
-    comments: Number(data.comments ?? 0),
-    createdAt,
-    isLiked: currentUid ? likedBy.includes(currentUid) : false,
-  };
-};
-
-const buildUniqueReadingsFromSnapshot = (
-  userId: string,
-  docs: Array<{ id: string; data: () => DocumentData }>
-): { readings: BloodPressureReading[]; keys: Set<string> } => {
-  const readings: BloodPressureReading[] = [];
-  const keys = new Set<string>();
-  for (const docSnap of docs) {
-    const data = docSnap.data();
-    const key = typeof data?.clientId === 'string' ? data.clientId : docSnap.id;
-    if (keys.has(key)) continue;
-    keys.add(key);
-    readings.push(readingFromFirestore(userId, docSnap.id, data));
+  if (msg.includes("Network request failed")) {
+    return "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบ IP, Wi-Fi และพอร์ตของ Nest GraphQL";
   }
-  return { readings, keys };
-};
-
-const buildUniquePostsFromSnapshot = (
-  currentUid: string | null,
-  docs: Array<{ id: string; data: () => DocumentData }>
-): { posts: CommunityPost[]; keys: Set<string> } => {
-  const posts: CommunityPost[] = [];
-  const keys = new Set<string>();
-  for (const docSnap of docs) {
-    const data = docSnap.data();
-    const key = typeof data?.clientId === 'string' ? data.clientId : docSnap.id;
-    if (keys.has(key)) continue;
-    keys.add(key);
-    posts.push(postFromFirestore(currentUid, docSnap.id, data));
-  }
-  return { posts, keys };
+  if (msg.includes("ถูกใช้งานแล้ว")) return msg;
+  if (msg.includes("ไม่ถูกต้อง")) return msg;
+  if (msg.includes("ไม่พบผู้ใช้")) return msg;
+  if (msg.includes("อีเมล")) return msg;
+  if (msg.includes("รหัสผ่านปัจจุบัน")) return msg;
+  return msg;
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -425,142 +304,173 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAuthenticated: false,
   user: null,
   authInitialized: false,
+  authToken: null,
   authErrorCode: null,
   authErrorMessage: null,
   authErrorRawMessage: null,
   readings: [],
   isOnline: true,
   posts: [],
-
-  themePreference: 'light',
+  sessions: [],
+  themePreference: "light",
   themeHydrated: false,
-  
-  // Auth actions
+  fontSizePreference: "medium",
+  hideSensitiveData: false,
+  sensitiveDataUnlocked: false,
+
+  // ── Auth ──
+
+  initAuth: async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        set({ authInitialized: true });
+        return;
+      }
+
+      const data = await graphqlRequest<{ me: any }>(GQL_ME, undefined, token);
+      const user = userFromGql(data.me);
+      set({
+        isAuthenticated: true,
+        user,
+        authToken: token,
+        authInitialized: true,
+        sensitiveDataUnlocked: false,
+      });
+
+      // Fetch data
+      void get().fetchReadings();
+      void get().fetchPosts();
+      void get().fetchSessions();
+      void get().hydratePendingReadings();
+      void get().hydratePendingPosts();
+    } catch {
+      // Token invalid or expired
+      await clearAuthToken();
+      set({ authInitialized: true, authToken: null });
+    }
+  },
+
   login: async (phone: string, password: string) => {
     try {
-      set({ authErrorCode: null, authErrorMessage: null, authErrorRawMessage: null });
-      const email = phoneToEmail(phone);
-      await signInWithEmailAndPassword(auth, email, password);
+      set({
+        authErrorCode: null,
+        authErrorMessage: null,
+        authErrorRawMessage: null,
+      });
+      const data = await graphqlRequest<{
+        login: { token: string; user: any };
+      }>(GQL_LOGIN, {
+        input: { phone, password, deviceLabel: getDeviceLabel() },
+      });
+      const { token, user } = data.login;
+      await setAuthToken(token);
+      set({
+        isAuthenticated: true,
+        user: userFromGql(user),
+        authToken: token,
+        sensitiveDataUnlocked: false,
+      });
+
+      void get().fetchReadings();
+      void get().fetchPosts();
+      void get().fetchSessions();
       return true;
     } catch (error: any) {
-      const { code, rawMessage } = extractFirebaseAuthError(error);
+      const msg = error?.message || "";
       set({
-        authErrorCode: code,
-        authErrorMessage: authErrorToThai(code ?? undefined),
-        authErrorRawMessage: rawMessage,
+        authErrorCode: "auth/login-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
       });
       return false;
     }
   },
-  
-  register: async (name: string, phone: string, password: string, avatarUri?: string | null) => {
+
+  register: async (input) => {
     try {
-      set({ authErrorCode: null, authErrorMessage: null, authErrorRawMessage: null });
+      set({
+        authErrorCode: null,
+        authErrorMessage: null,
+        authErrorRawMessage: null,
+      });
 
-      const trimmed = phone.trim();
-      if (!trimmed.includes('@')) {
-        const digits = normalizePhone(trimmed);
-        if (digits.length < 9) {
-          set({
-            authErrorCode: 'bp/invalid-phone',
-            authErrorMessage: 'กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง',
-            authErrorRawMessage: null,
-          });
-          return false;
-        }
-      }
-
-      const email = phoneToEmail(phone);
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(credential.user, { displayName: name });
-
-      await setDoc(
-        doc(db, 'users', credential.user.uid),
-        {
-          name,
-          phone: normalizePhone(phone),
-          email,
-          createdAt: serverTimestamp(),
-          avatar: credential.user.photoURL || null,
+      const data = await graphqlRequest<{
+        register: { token: string; user: any };
+      }>(GQL_REGISTER, {
+        input: {
+          firstname: input.firstname,
+          lastname: input.lastname,
+          phone: input.phone,
+          password: input.password,
+          email: input.email || undefined,
+          dob: input.dob || undefined,
+          gender: input.gender || undefined,
+          weight: input.weight,
+          height: input.height,
+          congenitalDisease: input.congenitalDisease || undefined,
+          avatar: input.avatarUri || undefined,
         },
-        { merge: true }
-      );
+      });
 
-      if (avatarUri && !isRemoteUrl(avatarUri)) {
-        try {
-          const localPath = await saveAvatarToAppStorage(credential.user.uid, avatarUri);
-          await Promise.all([
-            updateProfile(credential.user, { photoURL: localPath }),
-            updateDoc(doc(db, 'users', credential.user.uid), {
-              avatar: localPath,
-              updatedAt: serverTimestamp(),
-            }),
-          ]);
-          set((state) => ({
-            user: state.user ? { ...state.user, avatar: localPath } : state.user,
-          }));
-        } catch (error: any) {
-          const code = 'avatar/local-save-failed';
-          const rawMessage = [typeof error?.message === 'string' ? error.message : null, stringifyErrorSafe(error)]
-            .filter(Boolean)
-            .join('\n');
-          console.error('Avatar local save failed:', code, rawMessage);
-          set({
-            authErrorCode: code,
-            authErrorMessage: 'บันทึกรูปโปรไฟล์ในเครื่องไม่สำเร็จ',
-            authErrorRawMessage: rawMessage,
-          });
-        }
-      }
+      const { token, user } = data.register;
+      await setAuthToken(token);
+      set({
+        isAuthenticated: true,
+        user: userFromGql(user),
+        authToken: token,
+        sensitiveDataUnlocked: false,
+      });
 
+      void get().fetchReadings();
+      void get().fetchPosts();
+      void get().fetchSessions();
       return true;
     } catch (error: any) {
-      const { code, rawMessage } = extractFirebaseAuthError(error);
+      const msg = error?.message || "";
       set({
-        authErrorCode: code,
-        authErrorMessage: authErrorToThai(code ?? undefined),
-        authErrorRawMessage: rawMessage,
+        authErrorCode: "auth/register-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
       });
       return false;
     }
   },
-  
+
   logout: () => {
-    void signOut(auth);
+    void clearAuthToken();
+    set({
+      isAuthenticated: false,
+      user: null,
+      authToken: null,
+      readings: [],
+      posts: [],
+      sessions: [],
+      sensitiveDataUnlocked: false,
+    });
   },
 
   clearAuthError: () => {
-    set({ authErrorCode: null, authErrorMessage: null, authErrorRawMessage: null });
+    set({
+      authErrorCode: null,
+      authErrorMessage: null,
+      authErrorRawMessage: null,
+    });
   },
 
-  updateMyProfile: async (input) => {
-    const currentUser = get().user;
-    if (!currentUser) return false;
+  // ── Profile ──
 
-    const patch: Record<string, any> = {};
-    if (typeof input.name === 'string' && input.name.trim()) patch.name = input.name.trim();
-    if (typeof input.phone === 'string') patch.phone = normalizePhone(input.phone);
-    if (Object.keys(patch).length === 0) return true;
+  updateMyProfile: async (input) => {
+    const token = get().authToken;
+    if (!token || !get().user) return false;
 
     try {
-      await updateDoc(doc(db, 'users', currentUser.id), {
-        ...patch,
-        updatedAt: serverTimestamp(),
-      });
-
-      if (patch.name && auth.currentUser) {
-        await updateProfile(auth.currentUser, { displayName: patch.name });
-      }
-
-      set((state) => ({
-        user: state.user
-          ? {
-              ...state.user,
-              ...(patch.name ? { name: patch.name } : null),
-              ...(typeof patch.phone === 'string' ? { phone: patch.phone } : null),
-            }
-          : state.user,
-      }));
+      const data = await graphqlRequest<{ updateProfile: any }>(
+        GQL_UPDATE_PROFILE,
+        { input },
+        token,
+      );
+      set({ user: userFromGql(data.updateProfile) });
       return true;
     } catch {
       return false;
@@ -568,42 +478,68 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   uploadMyAvatar: async (avatarUri: string) => {
-    const currentUser = get().user;
-    if (!currentUser) return false;
-    if (!avatarUri) return false;
+    const token = get().authToken;
+    if (!token || !get().user) return false;
 
     try {
-      const url = isRemoteUrl(avatarUri) ? avatarUri : await saveAvatarToAppStorage(currentUser.id, avatarUri);
-      await Promise.all([
-        updateDoc(doc(db, 'users', currentUser.id), {
-          avatar: url,
-          updatedAt: serverTimestamp(),
-        }),
-        auth.currentUser ? updateProfile(auth.currentUser, { photoURL: url }) : Promise.resolve(),
-      ]);
+      // For now, store avatar URL directly (local URI)
+      const data = await graphqlRequest<{ updateProfile: any }>(
+        GQL_UPDATE_PROFILE,
+        { input: { avatar: avatarUri } },
+        token,
+      );
+      set({ user: userFromGql(data.updateProfile) });
+      return true;
+    } catch {
+      return false;
+    }
+  },
 
-      set((state) => ({
-        user: state.user ? { ...state.user, avatar: url } : state.user,
-      }));
+  changePassword: async (currentPassword, newPassword) => {
+    const token = get().authToken;
+    if (!token) return false;
+
+    try {
+      await graphqlRequest<{ changePassword: boolean }>(
+        GQL_CHANGE_PASSWORD,
+        { input: { currentPassword, newPassword } },
+        token,
+      );
       return true;
     } catch (error: any) {
-      const code = 'avatar/local-save-failed';
-      const rawMessage = [typeof error?.message === 'string' ? error.message : null, stringifyErrorSafe(error)]
-        .filter(Boolean)
-        .join('\n');
-      console.error('uploadMyAvatar failed:', code, rawMessage);
+      const msg = error?.message || "";
       set({
-        authErrorCode: code,
-        authErrorMessage: 'บันทึกรูปโปรไฟล์ในเครื่องไม่สำเร็จ',
-        authErrorRawMessage: rawMessage,
+        authErrorCode: "auth/change-password-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
       });
       return false;
     }
   },
 
-  // Blood Pressure actions
+  // ── Readings ──
+
+  fetchReadings: async () => {
+    const token = get().authToken;
+    if (!token) return;
+
+    try {
+      const data = await graphqlRequest<{ readings: any[] }>(
+        GQL_READINGS,
+        { limit: 200, offset: 0 },
+        token,
+      );
+      const remote = data.readings.map(readingFromGql);
+      const pending = get().readings.filter((r) => isLocalReadingId(r.id));
+      set({ readings: sortReadingsDesc([...pending, ...remote]) });
+    } catch {
+      // silently fail
+    }
+  },
+
   createReading: async (input) => {
     const currentUser = get().user;
+    const token = get().authToken;
     if (!currentUser) return false;
 
     const measuredAt = input.measuredAt ?? new Date();
@@ -611,9 +547,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     const diastolic = Number(input.diastolic);
     const pulse = Number(input.pulse);
     const status = getBPStatus(systolic, diastolic);
+    const clientId = createClientId("reading", currentUser.id);
 
-    const createdAt = new Date();
-    const clientId = createClientId('reading', currentUser.id);
+    // Always insert into local pending first
     const pendingId = await insertPendingReading({
       userId: currentUser.id,
       clientId,
@@ -624,7 +560,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       imageUri: input.imageUri ?? null,
       notes: input.notes ?? null,
       status,
-      createdAt: createdAt.toISOString(),
+      createdAt: new Date().toISOString(),
     });
 
     if (pendingId) {
@@ -640,40 +576,39 @@ export const useAppStore = create<AppState>((set, get) => ({
         notes: input.notes,
         status,
       };
-      set((state) => ({ readings: sortReadingsDesc([localReading, ...state.readings]) }));
+      set((state) => ({
+        readings: sortReadingsDesc([localReading, ...state.readings]),
+      }));
     }
 
-    if (!get().isOnline) {
-      return Boolean(pendingId);
-    }
+    if (!get().isOnline || !token) return Boolean(pendingId);
 
     try {
+      await graphqlRequest(
+        GQL_CREATE_READING,
+        {
+          input: {
+            systolic,
+            diastolic,
+            pulse,
+            status,
+            measuredAt: measuredAt.toISOString(),
+            clientId,
+            imageUri: input.imageUri ?? null,
+            notes: input.notes ?? null,
+          },
+        },
+        token,
+      );
       if (pendingId) {
-        await setDoc(doc(db, 'users', currentUser.id, 'readings', clientId), {
-          systolic,
-          diastolic,
-          pulse,
-          status,
-          measuredAt: Timestamp.fromDate(measuredAt),
-          imageUri: input.imageUri ?? null,
-          notes: input.notes ?? null,
-          createdAt: serverTimestamp(),
-          clientId,
-        });
         await deletePendingReading(pendingId);
-        set((state) => ({ readings: state.readings.filter((r) => r.id !== toLocalReadingId(pendingId)) }));
-      } else {
-        await addDoc(collection(db, 'users', currentUser.id, 'readings'), {
-          systolic,
-          diastolic,
-          pulse,
-          status,
-          measuredAt: Timestamp.fromDate(measuredAt),
-          imageUri: input.imageUri ?? null,
-          notes: input.notes ?? null,
-          createdAt: serverTimestamp(),
-        });
+        set((state) => ({
+          readings: state.readings.filter(
+            (r) => r.id !== toLocalReadingId(pendingId),
+          ),
+        }));
       }
+      void get().fetchReadings();
       return true;
     } catch {
       return Boolean(pendingId);
@@ -682,16 +617,28 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deleteReading: async (id: string) => {
     const currentUser = get().user;
+    const token = get().authToken;
     if (!currentUser) return;
+
     if (isLocalReadingId(id)) {
       const localId = parseLocalReadingId(id);
-      if (!Number.isNaN(localId)) {
-        await deletePendingReading(localId);
-      }
-      set((state) => ({ readings: state.readings.filter((r) => r.id !== id) }));
+      if (!Number.isNaN(localId)) await deletePendingReading(localId);
+      set((state) => ({
+        readings: state.readings.filter((r) => r.id !== id),
+      }));
       return;
     }
-    await deleteDoc(doc(db, 'users', currentUser.id, 'readings', id));
+
+    if (token) {
+      try {
+        await graphqlRequest(GQL_DELETE_READING, { id: Number(id) }, token);
+      } catch {
+        // ignore
+      }
+    }
+    set((state) => ({
+      readings: state.readings.filter((r) => r.id !== id),
+    }));
   },
 
   setNetworkStatus: (isOnline: boolean) => {
@@ -705,41 +652,70 @@ export const useAppStore = create<AppState>((set, get) => ({
     const pendingReadings = pending.map(readingFromPending);
     set((state) => {
       const nonLocal = state.readings.filter((r) => !isLocalReadingId(r.id));
-      return { readings: sortReadingsDesc([...pendingReadings, ...nonLocal]) };
+      return {
+        readings: sortReadingsDesc([...pendingReadings, ...nonLocal]),
+      };
     });
   },
 
   syncPendingReadings: async () => {
     const currentUser = get().user;
-    if (!currentUser) return;
-    if (!get().isOnline) return;
-
+    const token = get().authToken;
+    if (!currentUser || !token || !get().isOnline) return;
     if (syncReadingsInFlight) return;
     syncReadingsInFlight = true;
+
     try {
       const pending = await listPendingReadings(currentUser.id);
       for (const row of pending) {
         try {
-          const docId = row.clientId || toLocalReadingDocId(currentUser.id, row.id);
-          await setDoc(doc(db, 'users', currentUser.id, 'readings', docId), {
-            systolic: row.systolic,
-            diastolic: row.diastolic,
-            pulse: row.pulse,
-            status: row.status,
-            measuredAt: Timestamp.fromDate(new Date(row.measuredAt)),
-            imageUri: row.imageUri ?? null,
-            notes: row.notes ?? null,
-            createdAt: serverTimestamp(),
-            clientId: docId,
-          });
+          await graphqlRequest(
+            GQL_CREATE_READING,
+            {
+              input: {
+                systolic: row.systolic,
+                diastolic: row.diastolic,
+                pulse: row.pulse,
+                status: row.status,
+                measuredAt: row.measuredAt,
+                clientId: row.clientId || `local-${currentUser.id}-${row.id}`,
+                imageUri: row.imageUri ?? null,
+                notes: row.notes ?? null,
+              },
+            },
+            token,
+          );
           await deletePendingReading(row.id);
-          set((state) => ({ readings: state.readings.filter((r) => r.id !== toLocalReadingId(row.id)) }));
+          set((state) => ({
+            readings: state.readings.filter(
+              (r) => r.id !== toLocalReadingId(row.id),
+            ),
+          }));
         } catch {
           // keep pending for retry
         }
       }
+      void get().fetchReadings();
     } finally {
       syncReadingsInFlight = false;
+    }
+  },
+
+  // ── Posts ──
+
+  fetchPosts: async () => {
+    try {
+      const token = get().authToken;
+      const data = await graphqlRequest<{ posts: any[] }>(
+        GQL_POSTS,
+        { limit: 100, offset: 0 },
+        token,
+      );
+      const remotePosts = data.posts.map(postFromGql);
+      const localPosts = get().posts.filter((p) => isLocalPostId(p.id));
+      set({ posts: sortPostsDesc([...localPosts, ...remotePosts]) });
+    } catch {
+      // silently fail
     }
   },
 
@@ -748,39 +724,39 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!currentUser) return;
     const localRows = await listLocalPosts(currentUser.id);
     const localPosts = localRows.map(postFromLocal);
-    const pendingActions = await listPendingPostActions(currentUser.id);
     set((state) => {
       const remotePosts = state.posts.filter((p) => !isLocalPostId(p.id));
-      const applied = applyPendingPostActions(remotePosts, pendingActions);
-      return { posts: sortPostsDesc([...localPosts, ...applied]) };
+      return { posts: sortPostsDesc([...localPosts, ...remotePosts]) };
     });
   },
 
   syncPendingPosts: async () => {
     const currentUser = get().user;
-    if (!currentUser) return;
-    if (!get().isOnline) return;
-
+    const token = get().authToken;
+    if (!currentUser || !token || !get().isOnline) return;
     if (syncPostsInFlight) return;
     syncPostsInFlight = true;
+
     try {
       const localRows = await listLocalPosts(currentUser.id);
       for (const row of localRows) {
         try {
-          const docId = row.clientId || toLocalPostDocId(row.userId, row.id);
-          await setDoc(doc(db, 'posts', docId), {
-            userId: row.userId,
-            userName: row.userName,
-            userAvatar: row.userAvatar ?? null,
-            content: row.content,
-            category: row.category,
-            likedBy: [],
-            comments: 0,
-            createdAt: serverTimestamp(),
-            clientId: docId,
-          });
+          const docId = row.clientId || `local-post-${row.userId}-${row.id}`;
+          await graphqlRequest(
+            GQL_CREATE_POST,
+            {
+              input: {
+                content: row.content,
+                category: row.category,
+                clientId: docId,
+              },
+            },
+            token,
+          );
           await deleteLocalPost(row.id);
-          set((state) => ({ posts: state.posts.filter((p) => p.id !== toLocalPostId(row.id)) }));
+          set((state) => ({
+            posts: state.posts.filter((p) => p.id !== toLocalPostId(row.id)),
+          }));
         } catch {
           // keep local post for retry
         }
@@ -789,54 +765,79 @@ export const useAppStore = create<AppState>((set, get) => ({
       const pendingActions = await listPendingPostActions(currentUser.id);
       for (const action of pendingActions) {
         try {
-          if (action.action === 'delete') {
-            await deleteDoc(doc(db, 'posts', action.postId));
+          if (action.action === "delete") {
+            await graphqlRequest(
+              GQL_DELETE_POST,
+              { id: Number(action.postId) },
+              token,
+            );
           } else {
-            await updateDoc(doc(db, 'posts', action.postId), {
-              ...(typeof action.content === 'string' ? { content: action.content } : null),
-              ...(typeof action.category === 'string' ? { category: action.category } : null),
-              updatedAt: serverTimestamp(),
-            });
+            await graphqlRequest(
+              GQL_UPDATE_POST,
+              {
+                input: {
+                  id: Number(action.postId),
+                  ...(typeof action.content === "string"
+                    ? { content: action.content }
+                    : null),
+                  ...(typeof action.category === "string"
+                    ? { category: action.category }
+                    : null),
+                },
+              },
+              token,
+            );
           }
           await deletePendingPostAction(action.id);
         } catch {
           // keep pending action for retry
         }
       }
+
+      void get().fetchPosts();
     } finally {
       syncPostsInFlight = false;
     }
   },
 
-  // Community actions
   toggleLike: async (postId: string) => {
-    const currentUser = get().user;
-    if (!currentUser) return;
-    if (!get().isOnline) return;
+    const token = get().authToken;
+    if (!token || !get().isOnline) return;
 
-    const currentPosts = get().posts;
-    const post = currentPosts.find((p) => p.id === postId);
-    const currentlyLiked = Boolean(post?.isLiked);
-
-    const postRef = doc(db, 'posts', postId);
-    await updateDoc(postRef, {
-      likedBy: currentlyLiked ? arrayRemove(currentUser.id) : arrayUnion(currentUser.id),
-    });
+    try {
+      await graphqlRequest(GQL_TOGGLE_LIKE, { postId: Number(postId) }, token);
+      // Optimistic update
+      set((state) => ({
+        posts: state.posts.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                isLiked: !p.isLiked,
+                likes: p.isLiked ? p.likes - 1 : p.likes + 1,
+              }
+            : p,
+        ),
+      }));
+    } catch {
+      // ignore
+    }
   },
 
   createPost: async ({ content, category }) => {
     const currentUser = get().user;
+    const token = get().authToken;
     if (!currentUser) return false;
 
     const trimmed = content.trim();
     if (!trimmed) return false;
 
     const createdAt = new Date();
-    const clientId = createClientId('post', currentUser.id);
+    const clientId = createClientId("post", currentUser.id);
     const localId = await insertLocalPost({
       userId: currentUser.id,
       clientId,
-      userName: currentUser.name || 'ผู้ใช้',
+      userName:
+        `${currentUser.firstname} ${currentUser.lastname}`.trim() || "ผู้ใช้",
       userAvatar: currentUser.avatar || null,
       content: trimmed,
       category,
@@ -848,35 +849,32 @@ export const useAppStore = create<AppState>((set, get) => ({
         id: localId,
         userId: currentUser.id,
         clientId,
-        userName: currentUser.name || 'ผู้ใช้',
+        userName:
+          `${currentUser.firstname} ${currentUser.lastname}`.trim() || "ผู้ใช้",
         userAvatar: currentUser.avatar || null,
         content: trimmed,
         category,
         createdAt: createdAt.toISOString(),
       });
-      set((state) => ({ posts: sortPostsDesc([localPost, ...state.posts]) }));
+      set((state) => ({
+        posts: sortPostsDesc([localPost, ...state.posts]),
+      }));
     }
 
-    if (!get().isOnline) {
-      return Boolean(localId);
-    }
-
+    if (!get().isOnline || !token) return Boolean(localId);
     if (!localId) return false;
 
     try {
-      await setDoc(doc(db, 'posts', clientId), {
-        userId: currentUser.id,
-        userName: currentUser.name || 'ผู้ใช้',
-        userAvatar: currentUser.avatar || null,
-        content: trimmed,
-        category,
-        likedBy: [],
-        comments: 0,
-        createdAt: serverTimestamp(),
-        clientId,
-      });
+      await graphqlRequest(
+        GQL_CREATE_POST,
+        { input: { content: trimmed, category, clientId } },
+        token,
+      );
       await deleteLocalPost(localId);
-      set((state) => ({ posts: state.posts.filter((p) => p.id !== toLocalPostId(localId)) }));
+      set((state) => ({
+        posts: state.posts.filter((p) => p.id !== toLocalPostId(localId)),
+      }));
+      void get().fetchPosts();
       return true;
     } catch {
       return true;
@@ -885,14 +883,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updatePost: async ({ postId, content, category }) => {
     const currentUser = get().user;
+    const token = get().authToken;
     if (!currentUser) return false;
 
     const trimmed = content.trim();
     if (!trimmed) return false;
 
     const post = get().posts.find((p) => p.id === postId);
-    if (!post) return false;
-    if (post.userId !== currentUser.id) return false;
+    if (!post || post.userId !== currentUser.id) return false;
 
     if (isLocalPostId(postId)) {
       const localId = parseLocalPostId(postId);
@@ -901,35 +899,45 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       set((state) => ({
         posts: state.posts.map((p) =>
-          p.id === postId ? { ...p, content: trimmed, category, syncStatus: 'local' } : p
+          p.id === postId
+            ? { ...p, content: trimmed, category, syncStatus: "local" as const }
+            : p,
         ),
       }));
       return true;
     }
 
-    if (!get().isOnline) {
+    if (!get().isOnline || !token) {
       await queuePendingPostAction({
         userId: currentUser.id,
         postId,
-        action: 'update',
+        action: "update",
         content: trimmed,
         category,
         updatedAt: new Date().toISOString(),
       });
       set((state) => ({
         posts: state.posts.map((p) =>
-          p.id === postId ? { ...p, content: trimmed, category, syncStatus: 'pending-update' } : p
+          p.id === postId
+            ? {
+                ...p,
+                content: trimmed,
+                category,
+                syncStatus: "pending-update" as const,
+              }
+            : p,
         ),
       }));
       return true;
     }
 
     try {
-      await updateDoc(doc(db, 'posts', postId), {
-        content: trimmed,
-        category,
-        updatedAt: serverTimestamp(),
-      });
+      await graphqlRequest(
+        GQL_UPDATE_POST,
+        { input: { id: Number(postId), content: trimmed, category } },
+        token,
+      );
+      void get().fetchPosts();
       return true;
     } catch {
       return false;
@@ -938,47 +946,130 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deletePost: async (postId: string) => {
     const currentUser = get().user;
+    const token = get().authToken;
     if (!currentUser) return false;
 
     const post = get().posts.find((p) => p.id === postId);
-    if (!post) return false;
-    if (post.userId !== currentUser.id) return false;
+    if (!post || post.userId !== currentUser.id) return false;
 
     if (isLocalPostId(postId)) {
       const localId = parseLocalPostId(postId);
-      if (!Number.isNaN(localId)) {
-        await deleteLocalPost(localId);
-      }
-      set((state) => ({ posts: state.posts.filter((p) => p.id !== postId) }));
+      if (!Number.isNaN(localId)) await deleteLocalPost(localId);
+      set((state) => ({
+        posts: state.posts.filter((p) => p.id !== postId),
+      }));
       return true;
     }
 
-    if (!get().isOnline) {
+    if (!get().isOnline || !token) {
       await queuePendingPostAction({
         userId: currentUser.id,
         postId,
-        action: 'delete',
+        action: "delete",
         content: null,
         category: null,
         updatedAt: new Date().toISOString(),
       });
-      set((state) => ({ posts: state.posts.filter((p) => p.id !== postId) }));
+      set((state) => ({
+        posts: state.posts.filter((p) => p.id !== postId),
+      }));
       return true;
     }
 
     try {
-      await deleteDoc(doc(db, 'posts', postId));
+      await graphqlRequest(GQL_DELETE_POST, { id: Number(postId) }, token);
+      set((state) => ({
+        posts: state.posts.filter((p) => p.id !== postId),
+      }));
       return true;
     } catch {
       return false;
     }
   },
 
+  fetchSessions: async () => {
+    const token = get().authToken;
+    if (!token) return;
+
+    try {
+      const data = await graphqlRequest<{ loginSessions: any[] }>(
+        GQL_LOGIN_SESSIONS,
+        undefined,
+        token,
+      );
+      set({
+        sessions: data.loginSessions.map((session) => ({
+          id: session.id,
+          deviceLabel: session.deviceLabel ?? undefined,
+          userAgent: session.userAgent ?? undefined,
+          isActive: Boolean(session.isActive),
+          revokedAt: session.revokedAt
+            ? new Date(session.revokedAt)
+            : undefined,
+          lastActiveAt: new Date(session.lastActiveAt),
+          createdAt: new Date(session.createdAt),
+        })),
+      });
+    } catch {
+      // ignore
+    }
+  },
+
+  logoutAllDevices: async () => {
+    const token = get().authToken;
+    if (!token) return false;
+
+    try {
+      await graphqlRequest<{ logoutAllDevices: boolean }>(
+        GQL_LOGOUT_ALL_DEVICES,
+        undefined,
+        token,
+      );
+      void get().fetchSessions();
+      return true;
+    } catch (error: any) {
+      const msg = error?.message || "";
+      set({
+        authErrorCode: "auth/logout-all-devices-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
+      });
+      return false;
+    }
+  },
+
+  deleteAllMyData: async () => {
+    const token = get().authToken;
+    const currentUser = get().user;
+    if (!token || !currentUser) return false;
+
+    try {
+      await graphqlRequest<{ deleteMyData: boolean }>(
+        GQL_DELETE_MY_DATA,
+        undefined,
+        token,
+      );
+      await clearUserLocalData(currentUser.id);
+      set({ readings: [], posts: [] });
+      return true;
+    } catch (error: any) {
+      const msg = error?.message || "";
+      set({
+        authErrorCode: "data/delete-all-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
+      });
+      return false;
+    }
+  },
+
+  // ── Theme ──
+
   hydrateTheme: async () => {
     try {
       const raw = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      const pref = raw === 'dark' ? 'dark' : raw === 'light' ? 'light' : null;
-      set({ themePreference: pref ?? 'light', themeHydrated: true });
+      const pref = raw === "dark" ? "dark" : raw === "light" ? "light" : null;
+      set({ themePreference: pref ?? "light", themeHydrated: true });
     } catch {
       set({ themeHydrated: true });
     }
@@ -992,119 +1083,88 @@ export const useAppStore = create<AppState>((set, get) => ({
       // ignore
     }
   },
-}));
 
-// --- Realtime subscriptions (module-level singleton behavior) ---
-let unsubscribeReadings: (() => void) | null = null;
-let unsubscribePosts: (() => void) | null = null;
-
-const startPostsSubscription = () => {
-  if (unsubscribePosts) {
-    unsubscribePosts();
-    unsubscribePosts = null;
-  }
-
-  const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(100));
-  unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
-    void (async () => {
-      const currentUid = useAppStore.getState().user?.id ?? null;
-      const { posts, keys: remoteKeys } = buildUniquePostsFromSnapshot(currentUid, snapshot.docs);
-      const currentUser = useAppStore.getState().user;
-      if (!currentUser) {
-        useAppStore.setState({ posts });
-        return;
-      }
-
-      const localRows = await listLocalPosts(currentUser.id);
-      const localPosts = localRows
-        .filter((row) => {
-          const key = row.clientId ?? toLocalPostDocId(currentUser.id, row.id);
-          return !remoteKeys.has(key);
-        })
-        .map(postFromLocal);
-      const pendingActions = await listPendingPostActions(currentUser.id);
-      const applied = applyPendingPostActions(posts, pendingActions);
-      useAppStore.setState({ posts: sortPostsDesc([...localPosts, ...applied]) });
-    })();
-  });
-};
-
-startPostsSubscription();
-
-onAuthStateChanged(auth, async (firebaseUser) => {
-  // Mark auth ready the first time we get called.
-  if (!useAppStore.getState().authInitialized) {
-    useAppStore.setState({ authInitialized: true });
-  }
-
-  // Restart posts subscription so initial snapshot recomputes isLiked.
-  startPostsSubscription();
-
-  if (!firebaseUser) {
-    if (unsubscribeReadings) {
-      unsubscribeReadings();
-      unsubscribeReadings = null;
+  hydrateAccessibilityPreferences: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(FONT_SIZE_PREFERENCE_KEY);
+      set({
+        fontSizePreference:
+          raw === "xsmall" ||
+          raw === "small" ||
+          raw === "large" ||
+          raw === "xlarge"
+            ? raw
+            : "medium",
+      });
+    } catch {
+      set({ fontSizePreference: "medium" });
     }
+  },
 
-    useAppStore.setState({
-      isAuthenticated: false,
-      user: null,
-      readings: [],
+  setFontSizePreference: async (pref) => {
+    set({ fontSizePreference: pref });
+    try {
+      await AsyncStorage.setItem(FONT_SIZE_PREFERENCE_KEY, pref);
+    } catch {
+      // ignore
+    }
+  },
+
+  hydrateSecurityPreferences: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(HIDE_SENSITIVE_DATA_KEY);
+      set({
+        hideSensitiveData: raw === "true",
+        sensitiveDataUnlocked: false,
+      });
+    } catch {
+      set({ sensitiveDataUnlocked: false });
+    }
+  },
+
+  setHideSensitiveData: async (enabled) => {
+    set({
+      hideSensitiveData: enabled,
+      sensitiveDataUnlocked: enabled ? false : true,
     });
 
-    return;
-  }
+    try {
+      await AsyncStorage.setItem(
+        HIDE_SENSITIVE_DATA_KEY,
+        enabled ? "true" : "false",
+      );
+    } catch {
+      // ignore
+    }
+  },
 
-  // Load/create user profile
-  const userRef = doc(db, 'users', firebaseUser.uid);
-  const snap = await getDoc(userRef);
+  unlockSensitiveData: async (password) => {
+    const currentUser = get().user;
+    if (!currentUser) return false;
 
-  if (!snap.exists()) {
-    await setDoc(
-      userRef,
-      {
-        name: firebaseUser.displayName || 'ผู้ใช้',
-        phone: '',
-        email: firebaseUser.email || null,
-        avatar: firebaseUser.photoURL || null,
-        createdAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-  }
-
-  const latestSnap = snap.exists() ? snap : await getDoc(userRef);
-  const user = userFromFirestore(firebaseUser.uid, latestSnap.data());
-
-  useAppStore.setState({
-    isAuthenticated: true,
-    user,
-  });
-
-  void useAppStore.getState().hydratePendingReadings();
-  void useAppStore.getState().syncPendingReadings();
-  void useAppStore.getState().hydratePendingPosts();
-  void useAppStore.getState().syncPendingPosts();
-
-  // Subscribe readings for this user
-  if (unsubscribeReadings) {
-    unsubscribeReadings();
-    unsubscribeReadings = null;
-  }
-
-  const readingsQuery = query(collection(db, 'users', firebaseUser.uid, 'readings'), orderBy('measuredAt', 'desc'), limit(200));
-  unsubscribeReadings = onSnapshot(readingsQuery, (snapshot) => {
-    const { readings, keys: remoteKeys } = buildUniqueReadingsFromSnapshot(firebaseUser.uid, snapshot.docs);
-    const localPending = useAppStore
-      .getState()
-      .readings
-      .filter((r) => isLocalReadingId(r.id))
-      .filter((r) => {
-        if (r.clientId) return !remoteKeys.has(r.clientId);
-        const localId = parseLocalReadingId(r.id);
-        if (Number.isNaN(localId)) return true;
-        return !remoteKeys.has(toLocalReadingDocId(firebaseUser.uid, localId));
+    try {
+      await graphqlRequest<{ login: { token: string; user: any } }>(GQL_LOGIN, {
+        input: {
+          phone: currentUser.phone,
+          password,
+        },
       });
-    useAppStore.setState({ readings: sortReadingsDesc([...localPending, ...readings]) });
-  });
-});
+      set({ sensitiveDataUnlocked: true });
+      return true;
+    } catch (error: any) {
+      const msg = error?.message || "";
+      set({
+        authErrorCode: "auth/unlock-sensitive-data-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
+      });
+      return false;
+    }
+  },
+
+  lockSensitiveData: () => {
+    if (get().hideSensitiveData) {
+      set({ sensitiveDataUnlocked: false });
+    }
+  },
+}));

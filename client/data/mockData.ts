@@ -4,7 +4,8 @@ import { BloodPressureReading, ChartDataPoint, CommunityPost, HealthTip, User } 
 // Mock user data
 export const mockUser: User = {
   id: '1',
-  name: 'intira',
+  firstname: 'intira',
+  lastname: '',
   phone: '0891234567',
   avatar: 'https://i.pravatar.cc/150?img=5',
   createdAt: new Date('2024-01-15'),
