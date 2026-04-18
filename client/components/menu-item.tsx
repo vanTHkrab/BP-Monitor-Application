@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store/useAppStore';
+import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
@@ -27,6 +28,7 @@ export const MenuItem: React.FC<MenuItemProps> = ({
 }) => {
   const isDanger = variant === 'danger';
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
 
   const gradientColors: [string, string] = isDanger
@@ -42,6 +44,11 @@ export const MenuItem: React.FC<MenuItemProps> = ({
     : (isDark ? 'border-[#334155]' : 'border-[#E5E7EB]');
 
   const titleClassName = isDanger ? 'text-red-500' : (isDark ? 'text-slate-200' : 'text-[#2C3E50]');
+  const titleSizeClassName = getFontClass(fontSizePreference, {
+    small: 'text-[14px]',
+    medium: 'text-[15px]',
+    large: 'text-[18px]',
+  });
   const arrowBgClassName = isDark ? 'bg-[#1F2937]' : 'bg-[#F3F4F6]';
   const arrowColor = isDanger ? '#EF4444' : isDark ? '#94A3B8' : '#9CA3AF';
   
@@ -76,7 +83,7 @@ export const MenuItem: React.FC<MenuItemProps> = ({
             </LinearGradient>
           )}
         </View>
-        <Text className={'flex-1 ml-3.5 text-[15px] font-semibold ' + titleClassName}>
+        <Text className={'flex-1 ml-3.5 font-semibold ' + titleSizeClassName + ' ' + titleClassName}>
           {title}
         </Text>
         {showArrow && (

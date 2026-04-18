@@ -3,6 +3,7 @@ import { CustomButton } from '@/components/custom-button';
 import { GradientBackground } from '@/components/gradient-background';
 import { MenuItem } from '@/components/menu-item';
 import { useAppStore } from '@/store/useAppStore';
+import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
@@ -15,7 +16,18 @@ cssInterop(LinearGradient, { className: 'style' });
 export default function MenuScreen() {
   const { logout, user } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const headingClassName = getFontClass(fontSizePreference, {
+    small: 'text-base',
+    medium: 'text-lg',
+    large: 'text-xl',
+  });
+  const bodyClassName = getFontClass(fontSizePreference, {
+    small: 'text-sm',
+    medium: 'text-base',
+    large: 'text-lg',
+  });
 
   const handleLogout = () => {
     Alert.alert(
@@ -78,10 +90,10 @@ export default function MenuScreen() {
                 )}
               </View>
               <View className="flex-1">
-                <Text className={isDark ? 'text-lg font-bold text-slate-200 mb-1' : 'text-lg font-bold text-[#2C3E50] mb-1'}>
-                  {user?.name || 'ผู้ใช้'}
+                <Text className={(isDark ? `${headingClassName} font-bold text-slate-200 mb-1` : `${headingClassName} font-bold text-[#2C3E50] mb-1`)}>
+                  {user?.firstname || 'ผู้ใช้'}
                 </Text>
-                <Text className={isDark ? 'text-sm text-slate-400' : 'text-sm text-[#7F8C8D]'}>
+                <Text className={(isDark ? `${bodyClassName} text-slate-400` : `${bodyClassName} text-[#7F8C8D]`)}>
                   {user?.email || 'user@example.com'}
                 </Text>
               </View>

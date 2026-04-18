@@ -1,6 +1,7 @@
 import { GradientBackground } from '@/components/gradient-background';
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/useAppStore';
+import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
@@ -8,8 +9,19 @@ import { Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 export default function HelpScreen() {
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const headerIconColor = themePreference === 'dark' ? '#E2E8F0' : Colors.text.primary;
   const isDark = themePreference === 'dark';
+  const titleClassName = getFontClass(fontSizePreference, {
+    small: 'text-lg',
+    medium: 'text-xl',
+    large: 'text-2xl',
+  });
+  const bodyClassName = getFontClass(fontSizePreference, {
+    small: 'text-sm',
+    medium: 'text-base',
+    large: 'text-lg',
+  });
 
   const contactDeveloper = async () => {
     const url = 'mailto:support@bpapp.com?subject=BP%20Mobile%20-%20ติดต่อผู้พัฒนา';
@@ -20,6 +32,7 @@ export default function HelpScreen() {
     const url = 'mailto:support@bpapp.com?subject=BP%20Mobile%20-%20รายงานปัญหา&body=อธิบายปัญหา:%0A%0Aรุ่นแอป:%0Aรุ่นเครื่อง/OS:%0Aแนบรูปหรือขั้นตอนที่ทำให้เกิดปัญหา:%0A';
     await Linking.openURL(url);
   };
+
   const faqItems = [
     {
       question: 'วิธีการถ่ายภาพเครื่องวัดความดัน?',
@@ -53,25 +66,25 @@ export default function HelpScreen() {
 
         {/* Contact Section */}
         <View className="px-4 mb-6">
-          <Text className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-3">ติดต่อเรา</Text>
-          
-          <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700">
+          <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 mb-3"}>ติดต่อเรา</Text>
+
+          <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700" onPress={() => void contactDeveloper()}>
             <View className="w-10 h-10 bg-sky-100 dark:bg-slate-800 rounded-full items-center justify-center mr-3">
               <Ionicons name="mail-outline" size={22} color={Colors.primary.blue} />
             </View>
             <View className="flex-1">
               <Text className="text-gray-800 dark:text-slate-100 font-medium">อีเมล</Text>
-              <Text className="text-gray-500 dark:text-slate-300 text-sm">support@bpapp.com</Text>
+              <Text className={"text-gray-500 dark:text-slate-300 " + bodyClassName}>support@bpapp.com</Text>
             </View>
           </TouchableOpacity>
           
-          <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700">
+          <TouchableOpacity className="flex-row items-center bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700" onPress={() => void Linking.openURL('tel:02-123-4567')}>
             <View className="w-10 h-10 bg-sky-100 dark:bg-slate-800 rounded-full items-center justify-center mr-3">
               <Ionicons name="call-outline" size={22} color={Colors.primary.blue} />
             </View>
             <View className="flex-1">
               <Text className="text-gray-800 dark:text-slate-100 font-medium">โทรศัพท์</Text>
-              <Text className="text-gray-500 dark:text-slate-300 text-sm">02-123-4567</Text>
+              <Text className={"text-gray-500 dark:text-slate-300 " + bodyClassName}>02-123-4567</Text>
             </View>
           </TouchableOpacity>
           
@@ -81,22 +94,22 @@ export default function HelpScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-gray-800 dark:text-slate-100 font-medium">Line Official</Text>
-              <Text className="text-gray-500 dark:text-slate-300 text-sm">@bpapp</Text>
+              <Text className={"text-gray-500 dark:text-slate-300 " + bodyClassName}>@bpapp</Text>
             </View>
           </TouchableOpacity>
         </View>
 
         {/* FAQ Section */}
         <View className="px-4">
-          <Text className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-3">คำถามที่พบบ่อย</Text>
+          <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 mb-3"}>คำถามที่พบบ่อย</Text>
           
           {faqItems.map((item, index) => (
             <View key={index} className="bg-white dark:bg-slate-900 rounded-xl p-4 mb-3 border border-sky-200 dark:border-slate-700">
               <View className="flex-row items-start mb-2">
                 <Ionicons name="help-circle" size={20} color={Colors.primary.blue} />
-                <Text className="text-gray-800 dark:text-slate-100 font-medium ml-2 flex-1">{item.question}</Text>
+                <Text className={"text-gray-800 dark:text-slate-100 font-medium ml-2 flex-1 " + bodyClassName}>{item.question}</Text>
               </View>
-              <Text className="text-gray-600 dark:text-slate-300 text-sm ml-7">{item.answer}</Text>
+              <Text className={"text-gray-600 dark:text-slate-300 ml-7 " + bodyClassName}>{item.answer}</Text>
             </View>
           ))}
         </View>

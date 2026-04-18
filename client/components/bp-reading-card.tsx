@@ -2,6 +2,7 @@ import { Colors, type BPStatus } from '@/constants/colors';
 import { formatShortDate, getRelativeTime } from '@/data/mockData';
 import { useAppStore } from '@/store/useAppStore';
 import { BloodPressureReading } from '@/types';
+import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
@@ -25,7 +26,22 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
   index = 0,
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const titleSizeClass = getFontClass(fontSizePreference, {
+    xsmall: 'text-[30px]',
+    small: 'text-[34px]',
+    medium: 'text-[38px]',
+    large: 'text-[42px]',
+    xlarge: 'text-[46px]',
+  });
+  const metaSizeClass = getFontClass(fontSizePreference, {
+    xsmall: 'text-xs',
+    small: 'text-[13px]',
+    medium: 'text-sm',
+    large: 'text-base',
+    xlarge: 'text-[17px]',
+  });
 
   const statusColor = Colors.status[reading.status as BPStatus];
   const statusClass: Record<BPStatus, { solid: string; soft: string; border: string }> = {
@@ -57,7 +73,7 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
 
   const getCardColors = (): [string, string] => {
     if (isDark) {
-      return ['#0F172A', '#111827'];
+      return ['#0B1830', '#12243D'];
     }
     switch (reading.status) {
       case 'normal':
@@ -94,18 +110,18 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
       >
         <View className="flex-row justify-between items-start">
           <View className="flex-1">
-            <Text className={(isDark ? 'text-slate-400' : 'text-gray-600') + ' text-sm mb-1.5 font-medium min-h-[20px]'}>
+            <Text className={(isDark ? 'text-slate-400' : 'text-gray-600') + ' ' + metaSizeClass + ' mb-1.5 font-medium min-h-[20px]'}>
               {dateText}
             </Text>
             <View className="flex-row items-baseline">
-              <Text className={(isDark ? 'text-slate-200' : 'text-[#1a1a1a]') + ' text-[38px] font-bold'}>{reading.systolic}</Text>
-              <Text className={(isDark ? 'text-slate-200' : 'text-[#1a1a1a]') + ' text-[38px] font-bold mx-0.5'}>/</Text>
-              <Text className={(isDark ? 'text-slate-200' : 'text-[#1a1a1a]') + ' text-[38px] font-bold'}>{reading.diastolic}</Text>
-              <Text className={(isDark ? 'text-slate-400' : 'text-gray-600') + ' text-base ml-2 font-medium'}>mmHg</Text>
+              <Text className={(isDark ? 'text-slate-100' : 'text-[#1a1a1a]') + ' ' + titleSizeClass + ' font-bold'}>{reading.systolic}</Text>
+              <Text className={(isDark ? 'text-slate-100' : 'text-[#1a1a1a]') + ' ' + titleSizeClass + ' font-bold mx-0.5'}>/</Text>
+              <Text className={(isDark ? 'text-slate-100' : 'text-[#1a1a1a]') + ' ' + titleSizeClass + ' font-bold'}>{reading.diastolic}</Text>
+              <Text className={(isDark ? 'text-slate-400' : 'text-gray-600') + ' ' + metaSizeClass + ' ml-2 font-medium'}>mmHg</Text>
             </View>
             <View className="flex-row items-center mt-2">
               <Ionicons name="heart" size={18} color={Colors.heartRate.icon} />
-              <Text className={(isDark ? 'text-slate-400' : 'text-gray-600') + ' ml-1.5 text-sm font-medium'}>
+              <Text className={(isDark ? 'text-slate-400' : 'text-gray-600') + ' ml-1.5 ' + metaSizeClass + ' font-medium'}>
                 {reading.pulse} bpm
               </Text>
             </View>

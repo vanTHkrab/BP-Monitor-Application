@@ -2,27 +2,34 @@
 
 export interface User {
   id: string;
-  name: string;
+  firstname: string;
+  lastname: string;
   phone: string;
   email?: string;
   avatar?: string;
+  role?: string;
   createdAt: Date;
+  dob?: Date;
+  gender?: "male" | "female" | "other";
+  weight?: number;
+  height?: number;
+  congenitalDisease?: string;
 }
 
 export interface BloodPressureReading {
   id: string;
   userId: string;
-  systolic: number;      // ค่าบน (SYS)
-  diastolic: number;     // ค่าล่าง (DIA)
-  pulse: number;         // ชีพจร
+  systolic: number; // ค่าบน (SYS)
+  diastolic: number; // ค่าล่าง (DIA)
+  pulse: number; // ชีพจร
   measuredAt: Date;
-  imageUri?: string;     // รูปถ่ายเครื่องวัด
+  imageUri?: string; // รูปถ่ายเครื่องวัด
   notes?: string;
   status: BPStatus;
   clientId?: string;
 }
 
-export type BPStatus = 'low' | 'normal' | 'elevated' | 'high' | 'critical';
+export type BPStatus = "low" | "normal" | "elevated" | "high" | "critical";
 
 export interface ChartDataPoint {
   date: string;
@@ -36,12 +43,12 @@ export interface CommunityPost {
   userName: string;
   userAvatar?: string;
   content: string;
-  category: 'general' | 'experience' | 'qa';
+  category: "general" | "experience" | "qa";
   likes: number;
   comments: number;
   createdAt: Date;
   isLiked?: boolean;
-  syncStatus?: 'local' | 'pending-update';
+  syncStatus?: "local" | "pending-update";
   clientId?: string;
 }
 
@@ -54,7 +61,24 @@ export interface Comment {
   createdAt: Date;
 }
 
-export type TimeFilter = '7days' | '30days' | '3months' | '1year';
+export interface LoginSession {
+  id: string;
+  deviceLabel?: string;
+  userAgent?: string;
+  isActive: boolean;
+  revokedAt?: Date;
+  lastActiveAt: Date;
+  createdAt: Date;
+}
+
+export type FontSizePreference =
+  | "xsmall"
+  | "small"
+  | "medium"
+  | "large"
+  | "xlarge";
+
+export type TimeFilter = "7days" | "30days" | "3months" | "1year";
 
 export interface AuthState {
   isAuthenticated: boolean;

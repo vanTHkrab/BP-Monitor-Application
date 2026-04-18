@@ -36,6 +36,48 @@ export default function CameraScreen() {
   
   const cameraRef = useRef<CameraView>(null);
 
+  const handleRequestCameraPermission = async () => {
+    try {
+      if (permission?.granted) return;
+
+      if (permission && permission.canAskAgain === false) {
+        Alert.alert(
+          'ต้องเปิดสิทธิ์กล้องจากการตั้งค่า',
+          'คุณเคยปฏิเสธสิทธิ์กล้องไว้ กรุณาเปิดสิทธิ์กล้องให้แอปจากหน้าการตั้งค่า',
+          [
+            { text: 'ยกเลิก', style: 'cancel' },
+            {
+              text: 'เปิดการตั้งค่า',
+              onPress: () => {
+                void Linking.openSettings();
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      const result = await requestPermission();
+      if (!result.granted && result.canAskAgain === false) {
+        Alert.alert(
+          'ยังไม่ได้รับสิทธิ์กล้อง',
+          'หากต้องการใช้งานกล้อง กรุณาอนุญาตสิทธิ์จากหน้าการตั้งค่า',
+          [
+            { text: 'ยกเลิก', style: 'cancel' },
+            {
+              text: 'เปิดการตั้งค่า',
+              onPress: () => {
+                void Linking.openSettings();
+              },
+            },
+          ],
+        );
+      }
+    } catch {
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถขอสิทธิ์กล้องได้ในขณะนี้');
+    }
+  };
+
   const retryCamera = () => {
     setCameraMountError(null);
     setIsCameraReady(false);
@@ -55,7 +97,7 @@ export default function CameraScreen() {
   if (!permission.granted) {
     return (
       <GradientBackground>
-        <FadeInView delay={200}>
+        <FadeInView delay={200} className="flex-1">
           <View className="flex-1 items-center justify-center px-8">
             <View
               className={
@@ -69,11 +111,13 @@ export default function CameraScreen() {
               ต้องการสิทธิ์เข้าถึงกล้อง
             </Text>
             <Text className={isDark ? 'text-base text-slate-400 text-center leading-6 mb-8' : 'text-base text-[#7F8C8D] text-center leading-6 mb-8'}>
-              แอปต้องการสิทธิ์ในการเข้าถึงกล้องเพื่อถ่ายภาพเครื่องวัดความดัน
+              {permission.canAskAgain === false
+                ? 'ตอนนี้แอปยังใช้กล้องไม่ได้ กรุณาเปิดสิทธิ์กล้องจากหน้าการตั้งค่า'
+                : 'แอปต้องการสิทธิ์ในการเข้าถึงกล้องเพื่อถ่ายภาพเครื่องวัดความดัน'}
             </Text>
             <CustomButton
-              title="อนุญาตใช้กล้อง"
-              onPress={requestPermission}
+              title={permission.canAskAgain === false ? 'เปิดการตั้งค่า' : 'อนุญาตใช้กล้อง'}
+              onPress={handleRequestCameraPermission}
             />
           </View>
         </FadeInView>

@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store/useAppStore';
+import { getFontNumber } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
@@ -27,6 +28,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   error,
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
 
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -62,8 +64,18 @@ export const CustomInput: React.FC<CustomInputProps> = ({
         ? '#94A3B8'
         : '#9CA3AF';
 
-  const inputClassName = 'flex-1 text-[15px] font-semibold py-3 ' + (isDark ? 'text-slate-200' : 'text-slate-800');
+  const inputClassName = 'flex-1 font-semibold py-3 ' + (isDark ? 'text-slate-200' : 'text-slate-800');
   const placeholderTextColor = isDark ? '#94A3B8' : '#9CA3AF';
+  const inputFontSize = getFontNumber(fontSizePreference, {
+    small: 14,
+    medium: 15,
+    large: 18,
+  });
+  const errorFontSize = getFontNumber(fontSizePreference, {
+    small: 12,
+    medium: 13,
+    large: 15,
+  });
 
   return (
     <View className="mb-4">
@@ -79,6 +91,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
         )}
         <TextInput
           className={inputClassName}
+          style={{ fontSize: inputFontSize }}
           placeholder={placeholder}
           placeholderTextColor={placeholderTextColor}
           value={value}
@@ -100,7 +113,11 @@ export const CustomInput: React.FC<CustomInputProps> = ({
           </Pressable>
         )}
       </View>
-      {error && <Text className="text-red-500 text-[13px] mt-1.5 ml-1 font-semibold">{error}</Text>}
+      {error && (
+        <Text className="text-red-500 mt-1.5 ml-1 font-semibold" style={{ fontSize: errorFontSize }}>
+          {error}
+        </Text>
+      )}
     </View>
   );
 };

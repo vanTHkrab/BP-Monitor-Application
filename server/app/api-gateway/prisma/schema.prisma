@@ -1,20 +1,225 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  moduleFormat    = "cjs"
-  output          = "../src/prisma/generated"
+  provider     = "prisma-client"
+  moduleFormat = "cjs"
+  output       = "../src/prisma/generated"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+// ──────────────────────── Enums ────────────────────────
+
+enum UserRole {
+  caregiver
+  developer
+  patient
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum ImageSyncStatus {
+  pending
+  synced
+  failed
+}
+
+enum BpLevel {
+  normal
+  elevated
+  highRisk @map("high risk")
+}
+
+enum AlertLevel {
+  warning
+  critical
+}
+
+enum BpStatus {
+  low
+  normal
+  elevated
+  high
+  critical
+}
+
+enum PostCategory {
+  general
+  experience
+  qa
+}
+
+// ──────────────────────── Models ────────────────────────
+
 model User {
-  id    Int     @default(autoincrement()) @id
-  email String  @unique
-  name  String?
+  id                String   @id @default(uuid()) @db.Uuid
+  email             String?  @unique @db.VarChar(255)
+  firstname         String   @db.VarChar(100)
+  lastname          String   @db.VarChar(100)
+  phone             String   @unique @db.VarChar(30)
+  passwordHash      String   @map("password") @db.VarChar(255)
+  role              UserRole @default(patient)
+  dob               DateTime? @db.Date
+  gender            Gender?
+  weight            Float?
+  height            Float?
+  congenitalDisease String?  @map("congenital_disease") @db.VarChar(255)
+  avatar            String?  @db.VarChar(512)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  images         Image[]
+  alerts         Alert[]
+  caregiverLinks CaregiverPatient[] @relation("CaregiverUser")
+  patientLinks   CaregiverPatient[] @relation("PatientUser")
+  // เพิ่มเติม
+  readings       BloodPressureReading[]
+  posts          Post[]
+  postLikes      PostLike[]
+  sessions       UserSession[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  deviceLabel  String?  @map("device_label") @db.VarChar(255)
+  userAgent    String?  @map("user_agent") @db.VarChar(1024)
+  isActive     Boolean  @default(true) @map("is_active")
+  revokedAt    DateTime? @map("revoked_at")
+  lastActiveAt DateTime @default(now()) @map("last_active_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([createdAt])
+  @@map("user_sessions")
+}
+
+model CaregiverPatient {
+  caregiverId  String @map("caregiver_id") @db.Uuid
+  patientId    String @map("patient_id") @db.Uuid
+  relationship String @db.VarChar(100)
+
+  caregiver User @relation("CaregiverUser", fields: [caregiverId], references: [id], onDelete: Cascade)
+  patient   User @relation("PatientUser", fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@id([caregiverId, patientId])
+  @@index([patientId])
+  @@map("caregiver_patient")
+}
+
+model Image {
+  id                Int             @id @default(autoincrement())
+  userId            String          @map("user_id") @db.Uuid
+  imageUrl          String          @map("image_url") @db.VarChar(2048)
+  deviceName        String          @map("device_name") @db.VarChar(255)
+  imageQualityScore Float?          @map("image_quality_score")
+  syncStatus        ImageSyncStatus @default(pending) @map("sync_status")
+  syncedAt          DateTime?       @map("synced_at")
+  uploadedAt        DateTime        @default(now()) @map("uploaded_at")
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysisResult AnalysisResult?
+
+  @@index([userId])
+  @@index([syncStatus])
+  @@map("images")
+}
+
+model AnalysisResult {
+  id              Int      @id @default(autoincrement())
+  imageId         Int      @unique @map("image_id")
+  systolic        Int
+  diastolic       Int
+  pulseRate       Int      @map("pulse_rate")
+  confidenceScore Float    @map("confidence_score")
+  bpLevel         BpLevel  @map("bp_level")
+  analysisNote    String?  @map("analysis_note") @db.VarChar(500)
+  analyzedAt      DateTime @default(now()) @map("analyzed_at")
+
+  image  Image   @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  alerts Alert[]
+
+  @@index([bpLevel])
+  @@index([analyzedAt])
+  @@map("analysis_results")
+}
+
+model Alert {
+  id           Int        @id @default(autoincrement())
+  userId       String     @map("user_id") @db.Uuid
+  analysisId   Int        @map("analysis_id")
+  alertMessage String     @map("alert_message") @db.VarChar(500)
+  alertLevel   AlertLevel @map("alert_level")
+  isRead       Boolean    @default(false) @map("is_read")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis AnalysisResult @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("alerts")
+}
+// table นอกเหนือจากที่กำหนด
+
+// ──────────────────────── New Models ────────────────────────
+
+model BloodPressureReading {
+  id         Int      @id @default(autoincrement())
+  userId     String   @map("user_id") @db.Uuid
+  clientId   String?  @unique @map("client_id") @db.VarChar(255)
+  systolic   Int
+  diastolic  Int
+  pulse      Int
+  status     BpStatus
+  measuredAt DateTime @map("measured_at")
+  imageUri   String?  @map("image_uri") @db.VarChar(2048)
+  notes      String?  @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([measuredAt])
+  @@map("blood_pressure_readings")
+}
+
+model Post {
+  id        Int          @id @default(autoincrement())
+  userId    String       @map("user_id") @db.Uuid
+  clientId  String?      @unique @map("client_id") @db.VarChar(255)
+  content   String       @db.Text
+  category  PostCategory @default(general)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime?    @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes PostLike[]
+
+  @@index([userId])
+  @@index([category])
+  @@index([createdAt])
+  @@map("posts")
+}
+
+model PostLike {
+  userId String @map("user_id") @db.Uuid
+  postId Int    @map("post_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@map("post_likes")
 }

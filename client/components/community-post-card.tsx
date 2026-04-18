@@ -1,5 +1,6 @@
 import { useAppStore } from '@/store/useAppStore';
 import { CommunityPost } from '@/types';
+import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
@@ -72,7 +73,22 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
   onMore,
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const titleClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-[14px]',
+    small: 'text-[15px]',
+    medium: 'text-[16px]',
+    large: 'text-[17px]',
+    xlarge: 'text-[18px]',
+  });
+  const bodyClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-[13px]',
+    small: 'text-sm',
+    medium: 'text-[15px]',
+    large: 'text-base',
+    xlarge: 'text-[17px]',
+  });
   const syncLabel = post.syncStatus === 'local' ? 'บันทึกในเครื่อง' : post.syncStatus === 'pending-update' ? 'รอซิงก์' : null;
   const syncBadgeColor = post.syncStatus === 'local' ? '#F59E0B' : '#3B82F6';
 
@@ -86,7 +102,7 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
   return (
     <AnimatedPressable onPress={onPress} className="mb-3 rounded-[20px] overflow-hidden shadow-lg shadow-black/10">
       <LinearGradient
-        colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F0F7FF']}
+        colors={isDark ? ['#0B1830', '#12243D'] : ['#FFFFFF', '#F0F7FF']}
         className={
           'p-4 rounded-[20px] border ' +
           (isDark ? 'border-[#334155]' : 'border-[#E0E7FF]')
@@ -103,7 +119,7 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
             />
           </View>
           <View className="flex-1 ml-2.5">
-            <Text className={(isDark ? 'text-slate-200' : 'text-[#2C3E50]') + ' text-[15px] font-semibold'}>
+            <Text className={(isDark ? 'text-slate-100' : 'text-[#2C3E50]') + ' ' + titleClassName + ' font-semibold'}>
               {post.userName}
             </Text>
             <Text className={(isDark ? 'text-slate-400' : 'text-gray-400') + ' text-xs mt-0.5'}>
@@ -124,14 +140,14 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
 
         {/* Content */}
         <Text
-          className={(isDark ? 'text-slate-300' : 'text-gray-600') + ' text-sm leading-[22px] mb-2'}
+          className={(isDark ? 'text-slate-200' : 'text-gray-600') + ' ' + bodyClassName + ' leading-[22px] mb-2'}
           numberOfLines={4}
         >
           {post.content}
         </Text>
         
         <AnimatedPressable onPress={onPress}>
-          <Text className="text-sm text-[#3498DB] font-medium mb-3">... อ่านต่อ</Text>
+          <Text className={bodyClassName + " text-[#3498DB] font-medium mb-3"}>... อ่านต่อ</Text>
         </AnimatedPressable>
 
         {/* Actions */}

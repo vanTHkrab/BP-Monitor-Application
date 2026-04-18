@@ -44,3 +44,43 @@ export { Prisma }
  * 
  */
 export type User = Prisma.UserModel
+/**
+ * Model UserSession
+ * 
+ */
+export type UserSession = Prisma.UserSessionModel
+/**
+ * Model CaregiverPatient
+ * 
+ */
+export type CaregiverPatient = Prisma.CaregiverPatientModel
+/**
+ * Model Image
+ * 
+ */
+export type Image = Prisma.ImageModel
+/**
+ * Model AnalysisResult
+ * 
+ */
+export type AnalysisResult = Prisma.AnalysisResultModel
+/**
+ * Model Alert
+ * 
+ */
+export type Alert = Prisma.AlertModel
+/**
+ * Model BloodPressureReading
+ * 
+ */
+export type BloodPressureReading = Prisma.BloodPressureReadingModel
+/**
+ * Model Post
+ * 
+ */
+export type Post = Prisma.PostModel
+/**
+ * Model PostLike
+ * 
+ */
+export type PostLike = Prisma.PostLikeModel
