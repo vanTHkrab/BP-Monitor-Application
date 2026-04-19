@@ -1,21 +1,24 @@
 import { Field, InputType, Int } from '@nestjs/graphql';
 import {
-  IsDateString,
-  IsString,
-  IsInt,
-  Max,
-  Min,
+    IsDateString,
+    IsInt,
+    IsOptional,
+    IsString,
+    Max,
+    Min,
 } from 'class-validator';
 
 @InputType()
 export class SubmitBPReadingInput {
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
+  @IsOptional()
   @IsString()
-  jobId: string;
+  jobId?: string;
 
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
+  @IsOptional()
   @IsString()
-  imageUri: string;
+  imageUri?: string;
 
   @Field(() => Int)
   @IsInt()

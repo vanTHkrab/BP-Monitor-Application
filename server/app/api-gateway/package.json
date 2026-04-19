@@ -36,6 +36,7 @@
     "class-validator": "^0.14.1",
     "fastify": "^5.8.4",
     "graphql": "^16.13.2",
+    "graphql-upload": "^17.0.0",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
     "mercurius": "^16.8.0",

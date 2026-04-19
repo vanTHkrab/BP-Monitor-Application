@@ -1,110 +1,220 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Queue } from 'bull';
-import { Repository } from 'typeorm';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { Job, Queue } from 'bullmq';
+import { randomUUID } from 'node:crypto';
+import type { BpStatus } from '../prisma/generated/enums';
+import { PrismaService } from '../prisma/prisma.service';
 import { AnalysisJobObject } from './dto/analysis-job.object';
 import { SubmitBPReadingInput } from './dto/submit-bp-reading.input';
-import { AnalysisJobPayload, AnalysisJobStatus, AnalysisResult } from './types/ai.types';
-import { BpReading } from '../readings/entities/bp-reading.entity';
-import { StorageService } from '../storage/storage.service';
+import { AnalysisJobPayload, AnalysisResult } from './types/ai.types';
 
 export const AI_QUEUE = 'ai-analysis';
 export const AI_JOB_ANALYZE = 'analyze-bp-image';
 
-// Redis key helpers
-const jobKey = (jobId: string) => `ai:job:${jobId}`;
-const TTL_SECONDS = 60 * 60; // 1 hour
+const RETAIN_COMPLETED_SECONDS = 60 * 60; // 1 hour
+const RETAIN_FAILED_SECONDS = 24 * 60 * 60; // 24 hours
+
+// Keep thresholds in sync with client status labeling to avoid mismatched badges.
+function toBpStatus(systolic: number, diastolic: number): BpStatus {
+  if (systolic < 90 || diastolic < 60) {
+    return 'low';
+  }
+  if (systolic >= 180 || diastolic >= 120) {
+    return 'critical';
+  }
+  if (systolic >= 140 || diastolic >= 90) {
+    return 'high';
+  }
+  if (systolic >= 130 || diastolic >= 85) {
+    return 'elevated';
+  }
+  return 'normal';
+}
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
 
   constructor(
-    @InjectQueue(AI_QUEUE) private readonly aiQueue: Queue,
-    @InjectRepository(BpReading) private readonly readingRepo: Repository<BpReading>,
-    private readonly storageService: StorageService,
+    @InjectQueue(AI_QUEUE)
+    private readonly aiQueue: Queue<AnalysisJobPayload, AnalysisResult>,
+    private readonly prisma: PrismaService,
   ) {}
-
-  // ─── Upload & enqueue ──────────────────────────────────────────────────────
 
   async enqueueImageAnalysis(
     file: { buffer: Buffer; mimetype: string; originalname: string },
     userId: string,
   ): Promise<AnalysisJobObject> {
-    // 1. Upload image to object storage (S3 / GCS / MinIO)
-    const imageUrl = await this.storageService.uploadBuffer({
-      buffer: file.buffer,
+    const jobId = randomUUID();
+    const payload: AnalysisJobPayload = {
+      jobId,
+      userId,
       mimetype: file.mimetype,
-      folder: 'bp-images',
-      filename: `${userId}_${Date.now()}_${file.originalname}`,
-    });
+      filename: file.originalname,
+      imageBase64: file.buffer.toString('base64'),
+    };
 
-    // 2. Create job record in Redis
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const initialJob: AnalysisJobObject = { jobId, status: 'pending', result: null };
-    await this.setJobState(jobId, initialJob);
-
-    // 3. Push to Bull queue → processor picks up → calls FastAPI
-    const payload: AnalysisJobPayload = { jobId, imageUrl, userId };
     await this.aiQueue.add(AI_JOB_ANALYZE, payload, {
+      jobId,
       attempts: 3,
       backoff: { type: 'exponential', delay: 2000 },
-      removeOnComplete: true,
-      removeOnFail: false,
+      removeOnComplete: { age: RETAIN_COMPLETED_SECONDS },
+      removeOnFail: { age: RETAIN_FAILED_SECONDS },
     });
 
     this.logger.log(`Enqueued analysis job ${jobId} for user ${userId}`);
-    return initialJob;
+    return {
+      jobId,
+      status: 'pending',
+      result: null,
+      error: null,
+    };
   }
 
-  // ─── Poll job state ────────────────────────────────────────────────────────
+  async getJobState(jobId: string, userId: string): Promise<AnalysisJobObject> {
+    const job = await this.getOwnedJob(jobId, userId);
+    const state = await job.getState();
 
-  async getJobState(jobId: string): Promise<AnalysisJobObject> {
-    const raw = await this.aiQueue.client.get(jobKey(jobId));
-    if (!raw) throw new NotFoundException(`Job ${jobId} not found`);
-    return JSON.parse(raw) as AnalysisJobObject;
-  }
-
-  // ─── Called by processor ──────────────────────────────────────────────────
-
-  async setJobState(jobId: string, state: Partial<AnalysisJobObject>): Promise<void> {
-    const existing = await this.aiQueue.client
-      .get(jobKey(jobId))
-      .then((r) => (r ? (JSON.parse(r) as AnalysisJobObject) : null))
-      .catch(() => null);
-
-    const merged: AnalysisJobObject = { ...existing, ...state, jobId };
-    await this.aiQueue.client.setex(jobKey(jobId), TTL_SECONDS, JSON.stringify(merged));
-  }
-
-  // ─── Persist confirmed reading ─────────────────────────────────────────────
-
-  async submitReading(input: SubmitBPReadingInput, userId: string): Promise<BpReading> {
-    // Resolve imageUrl — jobId may point to an already-uploaded image
-    let imageUrl: string | null = null;
-    try {
-      const job = await this.getJobState(input.jobId);
-      // Pull imageUrl from result if available, else re-upload from imageUri
-      imageUrl = job.result?.roiImageUrl ?? null;
-    } catch {
-      // manual entry without AI — imageUri is the local path, upload it
+    if (state === 'completed') {
+      return {
+        jobId,
+        status: 'done',
+        result: this.asAnalysisResult(job.returnvalue),
+        error: null,
+      };
     }
 
-    if (!imageUrl && input.imageUri) {
-      imageUrl = await this.storageService.uploadFromUri(input.imageUri, userId);
+    if (state === 'failed') {
+      return {
+        jobId,
+        status: 'failed',
+        result: null,
+        error: job.failedReason ?? 'Analysis failed',
+      };
     }
 
-    const reading = this.readingRepo.create({
-      userId,
-      systolic: input.systolic,
-      diastolic: input.diastolic,
-      pulse: input.pulse,
-      measuredAt: new Date(input.measuredAt),
-      imageUrl,
-      jobId: input.jobId,
+    if (state === 'active') {
+      return {
+        jobId,
+        status: 'processing',
+        result: null,
+        error: null,
+      };
+    }
+
+    return {
+      jobId,
+      status: 'pending',
+      result: null,
+      error: null,
+    };
+  }
+
+  async submitReading(
+    input: SubmitBPReadingInput,
+    userId: string,
+  ): Promise<{
+    id: number;
+    systolic: number;
+    diastolic: number;
+    pulse: number;
+    measuredAt: Date;
+    imageUri: string | null;
+  }> {
+    let fallbackImageUri: string | null = null;
+
+    if (input.jobId) {
+      const job = await this.getOwnedJob(input.jobId, userId);
+      const state = await job.getState();
+      if (state === 'completed') {
+        fallbackImageUri =
+          this.asAnalysisResult(job.returnvalue)?.roiImageUrl ?? null;
+      }
+    }
+
+    const reading = await this.prisma.bloodPressureReading.create({
+      data: {
+        userId,
+        systolic: input.systolic,
+        diastolic: input.diastolic,
+        pulse: input.pulse,
+        measuredAt: new Date(input.measuredAt),
+        status: toBpStatus(input.systolic, input.diastolic),
+        imageUri: input.imageUri ?? fallbackImageUri,
+      },
     });
 
-    return this.readingRepo.save(reading);
+    return {
+      id: reading.id,
+      systolic: reading.systolic,
+      diastolic: reading.diastolic,
+      pulse: reading.pulse,
+      measuredAt: reading.measuredAt,
+      imageUri: reading.imageUri,
+    };
+  }
+
+  private async getOwnedJob(
+    jobId: string,
+    userId: string,
+  ): Promise<Job<AnalysisJobPayload, AnalysisResult>> {
+    const job = await this.aiQueue.getJob(jobId);
+    if (!job) {
+      throw new NotFoundException(`Job ${jobId} not found`);
+    }
+
+    // Prevent users from polling or submitting against another user's job ID.
+    if (job.data.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have access to this analysis job',
+      );
+    }
+
+    return job;
+  }
+
+  private asAnalysisResult(value: unknown): AnalysisResult | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const parsed = value as Partial<AnalysisResult>;
+    const status = parsed.status;
+    const confidence = parsed.confidence;
+
+    if (
+      (status !== 'success' &&
+        status !== 'low_confidence' &&
+        status !== 'unreadable') ||
+      typeof confidence !== 'number'
+    ) {
+      return null;
+    }
+
+    const readings = parsed.readings;
+    const normalizedReadings =
+      readings &&
+      typeof readings.systolic === 'number' &&
+      typeof readings.diastolic === 'number' &&
+      typeof readings.pulse === 'number'
+        ? {
+            systolic: readings.systolic,
+            diastolic: readings.diastolic,
+            pulse: readings.pulse,
+          }
+        : null;
+
+    return {
+      readings: normalizedReadings,
+      confidence,
+      roiImageUrl: parsed.roiImageUrl ?? null,
+      rawText: parsed.rawText ?? null,
+      status,
+    };
   }
 }

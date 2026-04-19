@@ -1,74 +1,151 @@
-import { Process, Processor } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bull';
-import { AiService, AI_JOB_ANALYZE, AI_QUEUE } from './ai.service';
-import { AnalysisJobPayload, FastApiAnalysisResponse } from './types/ai.types';
-import { ConfigService } from '@nestjs/config';
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Inject, Logger } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { Job } from 'bullmq';
+import { firstValueFrom, timeout } from 'rxjs';
+import { AI_JOB_ANALYZE, AI_QUEUE } from './ai.service';
+import {
+  AiServiceAnalysisResponse,
+  AnalysisJobPayload,
+  AnalysisResult,
+  BPReadingStatus,
+} from './types/ai.types';
 
 @Processor(AI_QUEUE)
-export class AiProcessor {
+export class AiProcessor extends WorkerHost {
   private readonly logger = new Logger(AiProcessor.name);
-  private readonly fastApiUrl: string;
 
-  constructor(
-    private readonly aiService: AiService,
-    private readonly configService: ConfigService,
-  ) {
-    this.fastApiUrl = this.configService.getOrThrow<string>('FASTAPI_URL');
+  constructor(@Inject('AI_SERVICE') private readonly aiClient: ClientProxy) {
+    super();
   }
 
-  @Process(AI_JOB_ANALYZE)
-  async handleAnalyze(job: Job<AnalysisJobPayload>): Promise<void> {
-    const { jobId, imageUrl, userId } = job.data;
-    this.logger.log(`Processing job ${jobId} — user ${userId}`);
+  // BullMQ stores this return value on the job, which the resolver reads while polling.
+  async process(job: Job): Promise<AnalysisResult> {
+    if (job.name !== AI_JOB_ANALYZE) {
+      throw new Error(`Unsupported AI job type: ${job.name}`);
+    }
 
-    // Mark as processing
-    await this.aiService.setJobState(jobId, { status: 'processing' });
+    const payload = this.parseJobPayload(job.data as unknown);
+    const { jobId, userId, filename, mimetype, imageBase64 } = payload;
+    this.logger.log(`Processing job ${jobId} for user ${userId}`);
 
     try {
-      // Call FastAPI YOLO service
-      const response = await fetch(`${this.fastApiUrl}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: jobId, image_url: imageUrl }),
-        signal: AbortSignal.timeout(55_000), // stay within Bull's 60s default
-      });
+      const response = await firstValueFrom(
+        this.aiClient
+          .send<unknown>('analyze_bp_image', {
+            jobId,
+            userId,
+            filename,
+            mimetype,
+            imageBase64,
+          })
+          .pipe(timeout(55_000)),
+      );
 
-      if (!response.ok) {
-        throw new Error(`FastAPI responded with ${response.status}: ${response.statusText}`);
+      const data = this.parseAiResponse(response);
+
+      if (data.error) {
+        throw new Error(data.error);
       }
 
-      const data = (await response.json()) as FastApiAnalysisResponse;
+      const readings =
+        Number.isFinite(data.systolic) &&
+        Number.isFinite(data.diastolic) &&
+        Number.isFinite(data.pulse)
+          ? {
+              systolic: data.systolic,
+              diastolic: data.diastolic,
+              pulse: data.pulse,
+            }
+          : null;
 
-      await this.aiService.setJobState(jobId, {
-        status: 'done',
-        result: {
-          readings: data.readings
-            ? {
-                systolic: data.readings.systolic,
-                diastolic: data.readings.diastolic,
-                pulse: data.readings.pulse,
-              }
-            : null,
-          confidence: data.confidence,
-          roiImageUrl: data.roi_image_url,
-          rawText: data.raw_text,
-          status: data.status,
-        },
-      });
+      const confidence = Number.isFinite(data.confidence) ? data.confidence : 0;
 
-      this.logger.log(`Job ${jobId} done — confidence ${data.confidence}`);
+      const result: AnalysisResult = {
+        readings,
+        confidence,
+        roiImageUrl: data.roi_image_url ?? null,
+        rawText: data.raw_text ?? null,
+        status: this.toAnalysisStatus(readings, confidence),
+      };
+
+      this.logger.log(`Job ${jobId} done with confidence ${confidence}`);
+      return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Job ${jobId} failed: ${message}`);
-
-      await this.aiService.setJobState(jobId, {
-        status: 'failed',
-        error: message,
-      });
-
-      // Re-throw so Bull registers the attempt as failed and retries
       throw err;
     }
+  }
+
+  private toAnalysisStatus(
+    readings: AnalysisResult['readings'],
+    confidence: number,
+  ): BPReadingStatus {
+    if (!readings) {
+      return 'unreadable';
+    }
+
+    if (confidence < 0.75) {
+      return 'low_confidence';
+    }
+
+    return 'success';
+  }
+
+  private parseAiResponse(value: unknown): AiServiceAnalysisResponse {
+    if (!value || typeof value !== 'object') {
+      throw new Error('AI service returned an invalid response payload');
+    }
+
+    const payload = value as Record<string, unknown>;
+
+    return {
+      confidence:
+        typeof payload.confidence === 'number' ? payload.confidence : 0,
+      systolic:
+        typeof payload.systolic === 'number' ? payload.systolic : Number.NaN,
+      diastolic:
+        typeof payload.diastolic === 'number' ? payload.diastolic : Number.NaN,
+      pulse: typeof payload.pulse === 'number' ? payload.pulse : Number.NaN,
+      roi_image_url:
+        typeof payload.roi_image_url === 'string'
+          ? payload.roi_image_url
+          : null,
+      raw_text: typeof payload.raw_text === 'string' ? payload.raw_text : null,
+      error: typeof payload.error === 'string' ? payload.error : undefined,
+    };
+  }
+
+  private parseJobPayload(value: unknown): AnalysisJobPayload {
+    if (!value || typeof value !== 'object') {
+      throw new Error('AI queue payload is invalid');
+    }
+
+    const payload = value as Record<string, unknown>;
+    const jobId = payload.jobId;
+    const userId = payload.userId;
+    const filename = payload.filename;
+    const mimetype = payload.mimetype;
+    const imageBase64 = payload.imageBase64;
+
+    if (
+      typeof jobId !== 'string' ||
+      typeof userId !== 'string' ||
+      typeof filename !== 'string' ||
+      typeof mimetype !== 'string' ||
+      typeof imageBase64 !== 'string'
+    ) {
+      throw new Error('AI queue payload is missing required fields');
+    }
+
+    return {
+      jobId,
+      userId,
+      filename,
+      mimetype,
+      imageBase64,
+    };
   }
 }

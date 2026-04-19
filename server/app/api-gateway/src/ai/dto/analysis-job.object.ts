@@ -1,6 +1,6 @@
 import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
 
-@ObjectType()
+@ObjectType('BPReading')
 export class BPReadingObject {
   @Field(() => Int)
   systolic: number;
@@ -12,7 +12,7 @@ export class BPReadingObject {
   pulse: number;
 }
 
-@ObjectType()
+@ObjectType('AnalysisResult')
 export class AnalysisResultObject {
   @Field(() => BPReadingObject, { nullable: true })
   readings: BPReadingObject | null;
@@ -30,7 +30,7 @@ export class AnalysisResultObject {
   status: string; // 'success' | 'low_confidence' | 'unreadable'
 }
 
-@ObjectType()
+@ObjectType('AnalysisJob')
 export class AnalysisJobObject {
   @Field(() => String)
   jobId: string;

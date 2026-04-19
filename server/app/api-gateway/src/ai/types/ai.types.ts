@@ -18,21 +18,19 @@ export interface AnalysisResult {
 
 export interface AnalysisJobPayload {
   jobId: string;
-  imageUrl: string; // S3 / storage URL — FastAPI fetches this
   userId: string;
+  filename: string;
+  mimetype: string;
+  imageBase64: string;
 }
 
-// Shape FastAPI returns
-export interface FastApiAnalysisResponse {
-  job_id: string;
-  status: BPReadingStatus;
+// Shape returned by the current Redis-backed AI service.
+export interface AiServiceAnalysisResponse {
   confidence: number;
-  roi_image_url: string | null;
-  raw_text: string | null;
-  readings: {
-    systolic: number;
-    diastolic: number;
-    pulse: number;
-  } | null;
+  systolic: number;
+  diastolic: number;
+  pulse: number;
+  roi_image_url?: string | null;
+  raw_text?: string | null;
   error?: string;
 }
