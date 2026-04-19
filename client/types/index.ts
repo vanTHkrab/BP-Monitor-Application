@@ -92,3 +92,5 @@ export interface HealthTip {
   description: string;
   icon: string;
 }
+
+export * from './camera';

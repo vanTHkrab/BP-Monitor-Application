@@ -2,23 +2,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-type BpAnalysisResult {
-  """id ของผลการวิเคราะห์"""
-  id: String!
-
-  """ค่าความดันตัวบน"""
-  systolic: Int!
-
-  """ค่าความดันตัวล่าง"""
-  diastolic: Int!
-
-  """อัตราการเต้นของหัวใจ"""
-  pulse: Int!
-
-  """ความมั่นใจของ AI"""
-  confidence: Float
-}
-
 type UserType {
   id: String!
   email: String
@@ -100,9 +83,6 @@ type Query {
 }
 
 type Mutation {
-  """วิเคราะห์ภาพความดันโลหิต"""
-  analyzeImage(input: AnalyzeImageInput!): BpAnalysisResult!
-
   """ลงทะเบียนผู้ใช้ใหม่"""
   register(input: RegisterInput!): AuthPayload!
 
@@ -138,11 +118,6 @@ type Mutation {
 
   """กดถูกใจ/ยกเลิกถูกใจโพสต์"""
   toggleLike(postId: Int!): Boolean!
-}
-
-input AnalyzeImageInput {
-  """ข้อมูลภาพที่เข้ารหัสเป็น Base64"""
-  imageData: String!
 }
 
 input RegisterInput {
