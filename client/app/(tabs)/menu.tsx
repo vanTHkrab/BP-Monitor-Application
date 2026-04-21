@@ -10,6 +10,7 @@ import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React from 'react';
 import { Alert, Image, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
 
@@ -18,6 +19,7 @@ export default function MenuScreen() {
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const insets = useSafeAreaInsets();
   const headingClassName = getFontClass(fontSizePreference, {
     small: 'text-base',
     medium: 'text-lg',
@@ -48,11 +50,18 @@ export default function MenuScreen() {
   };
 
   return (
-    <GradientBackground>
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <GradientBackground safeArea={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: Math.max(insets.top + 4, 18),
+          paddingBottom: insets.bottom + 128,
+        }}
+      >
         {/* Header */}
         <FadeInView delay={100}>
-          <View className="items-center py-4">
+          <View className="items-center pb-4">
             <LinearGradient
               colors={['#5DADE2', '#3498DB']}
               start={{ x: 0, y: 0 }}
@@ -158,7 +167,7 @@ export default function MenuScreen() {
 
         {/* App Version */}
         <FadeInView delay={600}>
-          <View className="items-center py-6 pb-[100px]">
+          <View className="items-center py-6">
             <Text className={isDark ? 'text-xs text-slate-400' : 'text-xs text-gray-400'}>BP Monitor v1.0.0</Text>
           </View>
         </FadeInView>

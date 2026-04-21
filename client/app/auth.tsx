@@ -428,7 +428,7 @@ export default function AuthScreen() {
                               />
                             )}
                           </View>
-                          <Text className="text-[13px] text-[#3498DB] font-bold mt-3">
+                          <Text className={captionClassName + " text-[#3498DB] font-bold mt-3"}>
                             {registerAvatarUri
                               ? "เปลี่ยนรูปโปรไฟล์"
                               : "เพิ่มรูปโปรไฟล์"}
@@ -502,11 +502,12 @@ export default function AuthScreen() {
                               >
                                 <Text
                                   className={
-                                    active
+                                    `${captionClassName} ` +
+                                    (active
                                       ? "text-[#3498DB] font-bold"
                                       : isDark
                                         ? "text-slate-300 font-semibold"
-                                        : "text-slate-600 font-semibold"
+                                        : "text-slate-600 font-semibold")
                                   }
                                 >
                                   {option.label}
@@ -580,11 +581,11 @@ export default function AuthScreen() {
                         }
                       >
                         การลงทะเบียนหมายความว่าคุณยอมรับ{" "}
-                        <Text className="text-[#3498DB] font-semibold">
+                        <Text className={captionClassName + " text-[#3498DB] font-semibold"}>
                           เงื่อนไขการใช้งาน
                         </Text>{" "}
                         และ{" "}
-                        <Text className="text-[#3498DB] font-semibold">
+                        <Text className={captionClassName + " text-[#3498DB] font-semibold"}>
                           นโยบายความเป็นส่วนตัว
                         </Text>
                       </Text>

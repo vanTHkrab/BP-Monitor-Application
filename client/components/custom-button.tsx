@@ -82,20 +82,26 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
 
   const textSizeClassName = size === 'small'
     ? getFontClass(fontSizePreference, {
+        xsmall: 'text-[11px]',
         small: 'text-xs',
         medium: 'text-sm',
         large: 'text-base',
+        xlarge: 'text-lg',
       })
     : size === 'large'
       ? getFontClass(fontSizePreference, {
+          xsmall: 'text-base',
           small: 'text-lg',
           medium: 'text-xl',
           large: 'text-2xl',
+          xlarge: 'text-[28px]',
         })
       : getFontClass(fontSizePreference, {
+          xsmall: 'text-sm',
           small: 'text-base',
           medium: 'text-lg',
           large: 'text-xl',
+          xlarge: 'text-2xl',
         });
 
   const shadowStyle: ViewStyle = {
@@ -107,7 +113,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   };
 
   const buttonContent = (
-    <View className="flex-row items-center justify-center">
+    <View className="flex-row items-center justify-center px-1">
       {loading ? (
         <ActivityIndicator color={getTextColor()} />
       ) : (
@@ -118,6 +124,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
               `font-bold text-center tracking-wide ${textSizeClassName}` +
               (icon ? ' ml-2' : '')
             }
+            numberOfLines={2}
             style={[{ color: getTextColor() }, textStyle]}
           >
             {title}

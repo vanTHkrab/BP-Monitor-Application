@@ -51,7 +51,11 @@ export const TabButtons: React.FC<TabButtonProps> = ({
             <Pressable
               key={tab.key}
               onPress={() => onTabChange(tab.key)}
-              style={[styles.pillButton, isActive ? styles.pillButtonActiveShadow : undefined]}
+              style={[
+                styles.pillButton,
+                { minHeight: fontSizePreference === 'xlarge' ? 54 : fontSizePreference === 'large' ? 50 : 44 },
+                isActive ? styles.pillButtonActiveShadow : undefined,
+              ]}
             >
               {isActive ? (
                 <LinearGradient
@@ -60,13 +64,13 @@ export const TabButtons: React.FC<TabButtonProps> = ({
                   end={{ x: 1, y: 0 }}
                   style={styles.pillGradient}
                 >
-                  <Text numberOfLines={1} style={[styles.pillActiveText, { fontSize: smallLabelSize }]}>
+                  <Text numberOfLines={2} style={[styles.pillActiveText, { fontSize: smallLabelSize, lineHeight: smallLabelSize + 4 }]}>
                     {tab.label}
                   </Text>
                 </LinearGradient>
               ) : (
                 <View style={styles.pillInactiveContainer}>
-                  <Text numberOfLines={1} style={[styles.pillInactiveText, inactiveTextStyle, { fontSize: smallLabelSize }]}>
+                  <Text numberOfLines={2} style={[styles.pillInactiveText, inactiveTextStyle, { fontSize: smallLabelSize, lineHeight: smallLabelSize + 4 }]}>
                     {tab.label}
                   </Text>
                 </View>
@@ -87,7 +91,10 @@ export const TabButtons: React.FC<TabButtonProps> = ({
             <Pressable
               key={tab.key}
               onPress={() => onTabChange(tab.key)}
-              style={styles.underlineButton}
+              style={[
+                styles.underlineButton,
+                { paddingVertical: fontSizePreference === 'xlarge' ? 14 : 12 },
+              ]}
             >
               <Text
                 style={[
@@ -114,11 +121,14 @@ export const TabButtons: React.FC<TabButtonProps> = ({
         const isActive = activeTab === tab.key;
 
         return (
-          <Pressable
-            key={tab.key}
-            onPress={() => onTabChange(tab.key)}
-            style={styles.defaultButton}
-          >
+            <Pressable
+              key={tab.key}
+              onPress={() => onTabChange(tab.key)}
+              style={[
+                styles.defaultButton,
+                { minHeight: fontSizePreference === 'xlarge' ? 54 : fontSizePreference === 'large' ? 50 : 44 },
+              ]}
+            >
             {isActive ? (
               <LinearGradient
                 colors={['#5DADE2', '#3498DB']}
@@ -126,13 +136,13 @@ export const TabButtons: React.FC<TabButtonProps> = ({
                 end={{ x: 1, y: 0 }}
                 style={styles.defaultGradient}
               >
-                <Text numberOfLines={1} style={[styles.defaultActiveText, { fontSize: smallLabelSize }]}>
+                <Text numberOfLines={2} style={[styles.defaultActiveText, { fontSize: smallLabelSize, lineHeight: smallLabelSize + 4 }]}>
                   {tab.label}
                 </Text>
               </LinearGradient>
             ) : (
               <View style={styles.defaultInactiveContainer}>
-                <Text numberOfLines={1} style={[styles.defaultInactiveText, inactiveTextStyle, { fontSize: smallLabelSize }]}>
+                <Text numberOfLines={2} style={[styles.defaultInactiveText, inactiveTextStyle, { fontSize: smallLabelSize, lineHeight: smallLabelSize + 4 }]}>
                   {tab.label}
                 </Text>
               </View>

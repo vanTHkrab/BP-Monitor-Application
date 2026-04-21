@@ -3,6 +3,7 @@ import { CommunityPostCard } from '@/components/community-post-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/tab-buttons';
 import { useAppStore } from '@/store/useAppStore';
+import { getFontClass, getFontNumber } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
@@ -17,6 +18,7 @@ type CommunityTab = 'general' | 'experience' | 'qa';
 export default function CommunityScreen() {
   const { posts, toggleLike, createPost, updatePost, deletePost, isAuthenticated, user } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<CommunityTab>('general');
@@ -36,6 +38,34 @@ export default function CommunityScreen() {
   const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
   const tabBarHeight = tabBarBaseHeight + insets.bottom;
   const fabBottom = tabBarHeight + 16;
+  const titleClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-base',
+    small: 'text-lg',
+    medium: 'text-xl',
+    large: 'text-2xl',
+    xlarge: 'text-[28px]',
+  });
+  const bodyClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-xs',
+    small: 'text-sm',
+    medium: 'text-base',
+    large: 'text-lg',
+    xlarge: 'text-xl',
+  });
+  const captionClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-[11px]',
+    small: 'text-xs',
+    medium: 'text-sm',
+    large: 'text-base',
+    xlarge: 'text-lg',
+  });
+  const composerFontSize = getFontNumber(fontSizePreference, {
+    xsmall: 13,
+    small: 14,
+    medium: 15,
+    large: 17,
+    xlarge: 19,
+  });
 
   const communityTabs = [
     { key: 'general', label: 'พูดคุยทั่วไป' },
@@ -180,10 +210,14 @@ export default function CommunityScreen() {
   };
 
   return (
-    <GradientBackground>
+    <GradientBackground safeArea={false}>
       <ScrollView 
         className="flex-1"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 108,
+        }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -200,7 +234,7 @@ export default function CommunityScreen() {
               <View className="mr-2">
                 <Ionicons name="people" size={20} color="white" />
               </View>
-              <Text className="text-lg font-bold text-white">ชุมชนสุขภาพ</Text>
+              <Text className={titleClassName + " font-bold text-white"}>ชุมชนสุขภาพ</Text>
             </LinearGradient>
             {/* <AnimatedPressable style={styles.notificationBtn} onPress={() => {}}>
               <Ionicons name="notifications-outline" size={24} color={Colors.primary.blue} />
@@ -245,19 +279,16 @@ export default function CommunityScreen() {
                 <View className={(isDark ? 'bg-[#1F2937]' : 'bg-[#F3E5F5]') + ' w-20 h-20 rounded-full items-center justify-center mb-4'}>
                   <Ionicons name="chatbubbles-outline" size={48} color="#8E44AD" />
                 </View>
-                <Text className={isDark ? 'text-base font-semibold text-slate-200 mb-1' : 'text-base font-semibold text-[#2C3E50] mb-1'}>
+                <Text className={(isDark ? 'text-slate-200' : 'text-[#2C3E50]') + ' ' + bodyClassName + ' font-semibold mb-1 text-center'}>
                   ยังไม่มีโพสต์ในหมวดหมู่นี้
                 </Text>
-                <Text className={isDark ? 'text-sm text-slate-400' : 'text-sm text-[#7F8C8D]'}>
+                <Text className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' ' + captionClassName + ' text-center'}>
                   เป็นคนแรกที่แชร์ประสบการณ์
                 </Text>
               </View>
             </ScaleOnMount>
           )}
         </View>
-
-        {/* Bottom Spacing */}
-        <View className="h-[100px]" />
       </ScrollView>
 
       {/* Floating Action Button */}
@@ -295,7 +326,7 @@ export default function CommunityScreen() {
               }
             >
               <View className="flex-row items-center justify-between mb-2.5">
-                <Text className={isDark ? 'text-[17px] font-extrabold text-slate-200' : 'text-[17px] font-extrabold text-[#111827]'}>
+                <Text className={(isDark ? 'text-slate-200' : 'text-[#111827]') + ' ' + titleClassName + ' font-extrabold flex-1 pr-3'}>
                   {editingPostId ? 'แก้ไขโพสต์' : 'สร้างโพสต์'}
                 </Text>
                 <View className="flex-row items-center space-x-2.5">
@@ -309,7 +340,7 @@ export default function CommunityScreen() {
                       className="flex-row items-center justify-center px-3.5 py-2.5"
                     >
                       <Ionicons name="checkmark" size={18} color="white" />
-                      <Text className="text-white font-extrabold text-sm ml-1.5">{isPosting ? 'กำลังทำ...' : 'ยืนยัน'}</Text>
+                      <Text className={"text-white font-extrabold ml-1.5 " + captionClassName}>{isPosting ? 'กำลังทำ...' : 'ยืนยัน'}</Text>
                     </LinearGradient>
                   </AnimatedPressable>
 
@@ -322,66 +353,78 @@ export default function CommunityScreen() {
                 </View>
               </View>
 
-              <View className="flex-row space-x-2 mb-2.5">
+              <View className="flex-row flex-wrap mb-2.5">
                 <AnimatedPressable
                   onPress={() => setActiveTab('general')}
-                  className={
-                    'px-2.5 py-2 rounded-full border ' +
-                    (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
-                    (activeTab === 'general'
-                      ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
-                      : '')
-                  }
+                  className="mr-2 mb-2"
                 >
-                  <Text
+                  <View
                     className={
-                      'text-xs font-bold ' +
-                      (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
-                      (activeTab === 'general' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                      'px-2.5 py-2 rounded-full border ' +
+                      (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
+                      (activeTab === 'general'
+                        ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
+                        : '')
                     }
                   >
-                    พูดคุยทั่วไป
-                  </Text>
+                    <Text
+                      className={
+                        `${captionClassName} font-bold ` +
+                        (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
+                        (activeTab === 'general' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                      }
+                    >
+                      พูดคุยทั่วไป
+                    </Text>
+                  </View>
                 </AnimatedPressable>
                 <AnimatedPressable
                   onPress={() => setActiveTab('experience')}
-                  className={
-                    'px-2.5 py-2 rounded-full border ' +
-                    (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
-                    (activeTab === 'experience'
-                      ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
-                      : '')
-                  }
+                  className="mr-2 mb-2"
                 >
-                  <Text
+                  <View
                     className={
-                      'text-xs font-bold ' +
-                      (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
-                      (activeTab === 'experience' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                      'px-2.5 py-2 rounded-full border ' +
+                      (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
+                      (activeTab === 'experience'
+                        ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
+                        : '')
                     }
                   >
-                    แชร์ประสบการณ์
-                  </Text>
+                    <Text
+                      className={
+                        `${captionClassName} font-bold ` +
+                        (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
+                        (activeTab === 'experience' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                      }
+                    >
+                      แชร์ประสบการณ์
+                    </Text>
+                  </View>
                 </AnimatedPressable>
                 <AnimatedPressable
                   onPress={() => setActiveTab('qa')}
-                  className={
-                    'px-2.5 py-2 rounded-full border ' +
-                    (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
-                    (activeTab === 'qa'
-                      ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
-                      : '')
-                  }
+                  className="mr-2 mb-2"
                 >
-                  <Text
+                  <View
                     className={
-                      'text-xs font-bold ' +
-                      (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
-                      (activeTab === 'qa' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                      'px-2.5 py-2 rounded-full border ' +
+                      (isDark ? 'bg-[#111827] border-[#334155] ' : 'bg-gray-100 border-gray-200 ') +
+                      (activeTab === 'qa'
+                        ? (isDark ? 'bg-[#1F2937] border-[#7C3AED]' : 'bg-violet-50 border-violet-300')
+                        : '')
                     }
                   >
-                    Q&A
-                  </Text>
+                    <Text
+                      className={
+                        `${captionClassName} font-bold ` +
+                        (isDark ? 'text-slate-400 ' : 'text-gray-500 ') +
+                        (activeTab === 'qa' ? (isDark ? 'text-violet-200' : 'text-violet-700') : '')
+                      }
+                    >
+                      Q&A
+                    </Text>
+                  </View>
                 </AnimatedPressable>
               </View>
 
@@ -395,15 +438,16 @@ export default function CommunityScreen() {
                   (isDark
                     ? 'border border-[#334155] bg-[#111827] text-slate-200'
                     : 'border border-gray-200 bg-gray-50 text-[#111827]') +
-                  ' min-h-[120px] max-h-[220px] rounded-2xl px-3.5 py-3 text-[15px]'
+                  ' min-h-[120px] max-h-[220px] rounded-2xl px-3.5 py-3'
                 }
+                style={{ fontSize: composerFontSize, lineHeight: composerFontSize + 8 }}
                 textAlignVertical="top"
               />
 
               <View className="flex-row space-x-3 mt-3">
                 <AnimatedPressable onPress={closeComposer} className="flex-1 rounded-2xl overflow-hidden">
                   <LinearGradient colors={['#9CA3AF', '#6B7280']} className="flex-row items-center justify-center py-3.5">
-                    <Text className="text-white font-bold text-[15px]">ยกเลิก</Text>
+                    <Text className={"text-white font-bold " + bodyClassName}>ยกเลิก</Text>
                   </LinearGradient>
                 </AnimatedPressable>
                 <AnimatedPressable onPress={submitPost} disabled={!canSubmit} className="flex-1 rounded-2xl overflow-hidden">
@@ -412,7 +456,7 @@ export default function CommunityScreen() {
                     className="flex-row items-center justify-center py-3.5"
                   >
                     <Ionicons name="send" size={18} color="white" />
-                    <Text className="text-white font-bold text-[15px] ml-2">{isPosting ? 'กำลังทำ...' : editingPostId ? 'ยืนยัน' : 'โพสต์'}</Text>
+                    <Text className={"text-white font-bold ml-2 " + bodyClassName}>{isPosting ? 'กำลังทำ...' : editingPostId ? 'ยืนยัน' : 'โพสต์'}</Text>
                   </LinearGradient>
                 </AnimatedPressable>
               </View>

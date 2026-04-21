@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import type { BloodPressureReading } from "@/types";
 
 export interface ReminderSettings {
   enabled: boolean;
@@ -16,6 +17,17 @@ export interface ReminderDiagnostics {
   canAskAgain: boolean;
   scheduledCount: number;
   reason: string;
+}
+
+export type ReminderTimelineStatus = "completed" | "missed" | "upcoming";
+
+export interface ReminderTimelineSlot {
+  occurrenceKey: string;
+  scheduledAt: Date;
+  label: string;
+  status: ReminderTimelineStatus;
+  matchedReadingAt?: Date;
+  minutesLate?: number;
 }
 
 export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
@@ -140,6 +152,103 @@ export const getReminderPreview = (settings: ReminderSettings) =>
   buildReminderHours(settings).map(
     (hour) => `${String(hour).padStart(2, "0")}:00`,
   );
+
+export const buildReminderSlotsForDate = (
+  settings: ReminderSettings,
+  date: Date,
+) => {
+  const base = new Date(date);
+  base.setHours(0, 0, 0, 0);
+
+  if (
+    !settings.enabled ||
+    settings.selectedDays.length === 0 ||
+    !settings.selectedDays.includes(base.getDay())
+  ) {
+    return [] as Date[];
+  }
+
+  return buildReminderHours(settings).map((hour) => {
+    const slot = new Date(base);
+    slot.setHours(hour, 0, 0, 0);
+    return slot;
+  });
+};
+
+export const buildReminderTimelineForDate = ({
+  settings,
+  readings,
+  date = new Date(),
+}: {
+  settings: ReminderSettings;
+  readings: BloodPressureReading[];
+  date?: Date;
+}): ReminderTimelineSlot[] => {
+  const now = new Date();
+  const slots = buildReminderSlotsForDate(settings, date);
+  if (slots.length === 0) return [];
+
+  const dayStart = new Date(date);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const readingsForDay = [...readings]
+    .filter((reading) => {
+      const measuredAt = new Date(reading.measuredAt);
+      return measuredAt >= dayStart && measuredAt < dayEnd;
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.measuredAt).getTime() - new Date(b.measuredAt).getTime(),
+    );
+
+  const usedReadingIds = new Set<string>();
+
+  return slots.map((slot, index) => {
+    const nextSlot = slots[index + 1];
+    const matchedReading = readingsForDay.find((reading) => {
+      if (usedReadingIds.has(reading.id)) return false;
+      const measuredAt = new Date(reading.measuredAt);
+      return (
+        measuredAt.getTime() >= slot.getTime() &&
+        (!nextSlot || measuredAt.getTime() < nextSlot.getTime())
+      );
+    });
+
+    if (matchedReading) {
+      usedReadingIds.add(matchedReading.id);
+    }
+
+    const status: ReminderTimelineStatus = matchedReading
+      ? "completed"
+      : now.getTime() < slot.getTime()
+        ? "upcoming"
+        : "missed";
+
+    return {
+      occurrenceKey: getOccurrenceKey(slot),
+      scheduledAt: slot,
+      label: `${String(slot.getHours()).padStart(2, "0")}:${String(
+        slot.getMinutes(),
+      ).padStart(2, "0")}`,
+      status,
+      matchedReadingAt: matchedReading
+        ? new Date(matchedReading.measuredAt)
+        : undefined,
+      minutesLate: matchedReading
+        ? Math.max(
+            0,
+            Math.round(
+              (new Date(matchedReading.measuredAt).getTime() -
+                slot.getTime()) /
+                60000,
+            ),
+          )
+        : undefined,
+    };
+  });
+};
 
 export const requestReminderPermissions = async () => {
   const Notifications = await getNotificationsModule();

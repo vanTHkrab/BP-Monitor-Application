@@ -13,14 +13,25 @@ export default function HelpScreen() {
   const headerIconColor = themePreference === 'dark' ? '#E2E8F0' : Colors.text.primary;
   const isDark = themePreference === 'dark';
   const titleClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-base',
     small: 'text-lg',
     medium: 'text-xl',
     large: 'text-2xl',
+    xlarge: 'text-[28px]',
   });
   const bodyClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-xs',
     small: 'text-sm',
     medium: 'text-base',
     large: 'text-lg',
+    xlarge: 'text-xl',
+  });
+  const captionClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-[11px]',
+    small: 'text-xs',
+    medium: 'text-sm',
+    large: 'text-base',
+    xlarge: 'text-lg',
   });
 
   const contactDeveloper = async () => {
@@ -60,7 +71,9 @@ export default function HelpScreen() {
           <TouchableOpacity onPress={() => router.back()} className="mr-4">
             <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-800 dark:text-slate-100 flex-1 text-center">ช่วยเหลือและคำแนะนำ</Text>
+          <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 flex-1 text-center"}>
+            ช่วยเหลือและคำแนะนำ
+          </Text>
           <View className="w-7" />
         </View>
 
@@ -73,7 +86,7 @@ export default function HelpScreen() {
               <Ionicons name="mail-outline" size={22} color={Colors.primary.blue} />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-800 dark:text-slate-100 font-medium">อีเมล</Text>
+              <Text className={bodyClassName + " text-gray-800 dark:text-slate-100 font-medium"}>อีเมล</Text>
               <Text className={"text-gray-500 dark:text-slate-300 " + bodyClassName}>support@bpapp.com</Text>
             </View>
           </TouchableOpacity>
@@ -83,7 +96,7 @@ export default function HelpScreen() {
               <Ionicons name="call-outline" size={22} color={Colors.primary.blue} />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-800 dark:text-slate-100 font-medium">โทรศัพท์</Text>
+              <Text className={bodyClassName + " text-gray-800 dark:text-slate-100 font-medium"}>โทรศัพท์</Text>
               <Text className={"text-gray-500 dark:text-slate-300 " + bodyClassName}>02-123-4567</Text>
             </View>
           </TouchableOpacity>
@@ -93,7 +106,7 @@ export default function HelpScreen() {
               <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-800 dark:text-slate-100 font-medium">Line Official</Text>
+              <Text className={bodyClassName + " text-gray-800 dark:text-slate-100 font-medium"}>Line Official</Text>
               <Text className={"text-gray-500 dark:text-slate-300 " + bodyClassName}>@bpapp</Text>
             </View>
           </TouchableOpacity>
@@ -109,7 +122,7 @@ export default function HelpScreen() {
                 <Ionicons name="help-circle" size={20} color={Colors.primary.blue} />
                 <Text className={"text-gray-800 dark:text-slate-100 font-medium ml-2 flex-1 " + bodyClassName}>{item.question}</Text>
               </View>
-              <Text className={"text-gray-600 dark:text-slate-300 ml-7 " + bodyClassName}>{item.answer}</Text>
+              <Text className={"text-gray-600 dark:text-slate-300 ml-7 leading-6 " + bodyClassName}>{item.answer}</Text>
             </View>
           ))}
         </View>
@@ -124,7 +137,7 @@ export default function HelpScreen() {
             >
               <View className="bg-teal-700 dark:bg-teal-800 p-6 items-center justify-center min-h-[140px]">
                 <Ionicons name="mail-outline" size={40} color="white" />
-                <Text className="text-white font-bold text-lg mt-3 text-center">ติดต่อผู้พัฒนา</Text>
+                <Text className={"text-white font-bold mt-3 text-center " + titleClassName}>ติดต่อผู้พัฒนา</Text>
               </View>
             </TouchableOpacity>
 
@@ -135,12 +148,12 @@ export default function HelpScreen() {
             >
               <View className="bg-cyan-700 dark:bg-cyan-800 p-6 items-center justify-center min-h-[140px]">
                 <Ionicons name="megaphone-outline" size={40} color="white" />
-                <Text className="text-white font-bold text-lg mt-3 text-center">ส่งรายงานปัญหา</Text>
+                <Text className={"text-white font-bold mt-3 text-center " + titleClassName}>ส่งรายงานปัญหา</Text>
               </View>
             </TouchableOpacity>
           </View>
 
-          <Text className="text-gray-600 dark:text-slate-300 text-sm mt-3">
+          <Text className={"text-gray-600 dark:text-slate-300 mt-3 leading-6 " + bodyClassName}>
             {isDark
               ? 'หากพบปัญหาในการใช้งาน สามารถส่งอีเมลถึงผู้พัฒนาได้'
               : 'หากพบปัญหาในการใช้งาน สามารถส่งอีเมลถึงผู้พัฒนาได้'}
@@ -152,8 +165,8 @@ export default function HelpScreen() {
           <TouchableOpacity className="bg-purple-500 rounded-xl p-4 flex-row items-center">
             <Ionicons name="play-circle" size={32} color="white" />
             <View className="ml-3 flex-1">
-              <Text className="text-white font-bold">ดูวิดีโอสอนการใช้งาน</Text>
-              <Text className="text-white/80 text-sm">เรียนรู้วิธีใช้แอปอย่างละเอียด</Text>
+              <Text className={"text-white font-bold " + bodyClassName}>ดูวิดีโอสอนการใช้งาน</Text>
+              <Text className={"text-white/80 " + captionClassName}>เรียนรู้วิธีใช้แอปอย่างละเอียด</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color="white" />
           </TouchableOpacity>

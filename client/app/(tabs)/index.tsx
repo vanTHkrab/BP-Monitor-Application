@@ -4,12 +4,19 @@ import { Colors, getStatusText, type BPStatus } from '@/constants/colors';
 import { formatThaiDate } from '@/data/mockData';
 import { useAppStore } from '@/store/useAppStore';
 import { getFontClass } from '@/utils/font-scale';
+import {
+  getInAppNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  type InAppNotificationItem,
+} from '@/utils/app-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import React from 'react';
-import { Alert, Image, Linking, ScrollView, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, Image, Linking, Modal, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
 
@@ -17,20 +24,58 @@ export default function HomeScreen() {
   const { user, readings, fontSizePreference } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
+  const insets = useSafeAreaInsets();
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [notifications, setNotifications] = useState<InAppNotificationItem[]>([]);
   const latestReading = readings[0];
   const titleClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-lg',
     small: 'text-xl',
     medium: 'text-2xl',
     large: 'text-[28px]',
+    xlarge: 'text-[32px]',
   });
   const sectionBodyClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-xs',
     small: 'text-[13px]',
     medium: 'text-[15px]',
     large: 'text-[17px]',
+    xlarge: 'text-[19px]',
   });
 
   const textPrimaryClassName = isDark ? 'text-slate-200' : 'text-[#2C3E50]';
   const textSecondaryClassName = isDark ? 'text-slate-400' : 'text-[#7F8C8D]';
+  const captionClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-[11px]',
+    small: 'text-xs',
+    medium: 'text-sm',
+    large: 'text-base',
+    xlarge: 'text-lg',
+  });
+  const unreadNotificationsCount = useMemo(
+    () => notifications.filter((item) => !item.readAt).length,
+    [notifications],
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    const hydrateNotifications = async () => {
+      const items = await getInAppNotifications({
+        userId: user?.id,
+        readings,
+      });
+      if (active) {
+        setNotifications(items);
+      }
+    };
+
+    void hydrateNotifications();
+
+    return () => {
+      active = false;
+    };
+  }, [readings, user?.id]);
 
   const statusUi: Record<BPStatus, { pill: string; dot: string; text: string }> = {
     low: { pill: 'bg-[#3498DB]/20', dot: 'bg-[#3498DB]', text: 'text-[#3498DB]' },
@@ -86,9 +131,43 @@ export default function HomeScreen() {
     }
   };
 
+  const handleNotificationPress = async (notificationId: string) => {
+    await markNotificationAsRead({
+      userId: user?.id,
+      notificationId,
+    });
+    setNotifications((current) =>
+      current.map((item) =>
+        item.id === notificationId ? { ...item, readAt: new Date() } : item,
+      ),
+    );
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    const unreadIds = notifications
+      .filter((item) => !item.readAt)
+      .map((item) => item.id);
+    if (unreadIds.length === 0) return;
+
+    await markAllNotificationsAsRead({
+      userId: user?.id,
+      notificationIds: unreadIds,
+    });
+    setNotifications((current) =>
+      current.map((item) => ({ ...item, readAt: item.readAt ?? new Date() })),
+    );
+  };
+
   return (
-    <GradientBackground>
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <GradientBackground safeArea={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 108,
+        }}
+      >
         {/* Header */}
         <FadeInView delay={100}>
           <View className="flex-row justify-between items-center px-4 py-4">
@@ -117,10 +196,17 @@ export default function HomeScreen() {
               </Text>
             </View>
             <AnimatedPressable
-              onPress={() => {}}
-              className={(isDark ? 'bg-[#0F172A]' : 'bg-white') + ' p-2 rounded-xl shadow-md'}
+              onPress={() => setShowNotificationsModal(true)}
+              className={(isDark ? 'bg-[#0F172A]' : 'bg-white') + ' p-2 rounded-xl shadow-md relative'}
             >
               <Ionicons name="notifications-outline" size={26} color={isDark ? '#E2E8F0' : Colors.text.primary} />
+              {unreadNotificationsCount > 0 ? (
+                <View className="absolute -top-1 -right-1 min-w-[20px] h-5 rounded-full bg-red-500 items-center justify-center px-1">
+                  <Text className="text-white text-[11px] font-bold">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </Text>
+                </View>
+              ) : null}
             </AnimatedPressable>
           </View>
         </FadeInView>
@@ -369,6 +455,121 @@ export default function HomeScreen() {
 
         <View className="h-[100px]" />
       </ScrollView>
+
+      <Modal
+        visible={showNotificationsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNotificationsModal(false)}
+      >
+        <View className="flex-1 bg-black/45 justify-end">
+          <View
+            className={
+              (isDark ? 'bg-[#0B1220] border border-[#1F2937]' : 'bg-white') +
+              ' rounded-t-[28px] px-4 pt-4 pb-6 max-h-[80%]'
+            }
+          >
+            <View className="flex-row items-center justify-between mb-3">
+              <View className="flex-1 pr-3">
+                <Text className={titleClassName + ' font-bold ' + textPrimaryClassName}>
+                  รายการแจ้งเตือน
+                </Text>
+                <Text className={sectionBodyClassName + ' mt-1 ' + textSecondaryClassName}>
+                  จุดแดงคือรายการที่ยังไม่ได้อ่าน
+                </Text>
+              </View>
+              <AnimatedPressable
+                onPress={() => setShowNotificationsModal(false)}
+                className={(isDark ? 'bg-[#111827]' : 'bg-[#F3F4F6]') + ' w-10 h-10 rounded-xl items-center justify-center'}
+              >
+                <Ionicons name="close" size={22} color={isDark ? '#E2E8F0' : '#374151'} />
+              </AnimatedPressable>
+            </View>
+
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className={sectionBodyClassName + ' font-semibold ' + textSecondaryClassName}>
+                ยังไม่อ่าน {unreadNotificationsCount} รายการ
+              </Text>
+              <AnimatedPressable onPress={() => void handleMarkAllNotificationsRead()}>
+                <Text className={sectionBodyClassName + ' font-semibold text-[#2563EB]'}>
+                  อ่านทั้งหมด
+                </Text>
+              </AnimatedPressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {notifications.length > 0 ? (
+                notifications.map((item) => {
+                  const isUnread = !item.readAt;
+
+                  return (
+                    <AnimatedPressable
+                      key={item.id}
+                      onPress={() => void handleNotificationPress(item.id)}
+                      className={
+                        (isUnread
+                          ? isDark
+                            ? 'bg-[#111827] border-[#334155]'
+                            : 'bg-[#F8FAFC] border-[#D6EAF8]'
+                          : isDark
+                            ? 'bg-[#0F172A] border-[#1F2937]'
+                            : 'bg-white border-[#E5E7EB]') +
+                        ' rounded-2xl border p-4 mb-3'
+                      }
+                    >
+                      <View className="flex-row items-start">
+                        <View className="mr-3 mt-1">
+                          <View className="w-10 h-10 rounded-xl items-center justify-center bg-[#EBF5FB]">
+                            <Ionicons
+                              name="heart-outline"
+                              size={20}
+                              color="#3498DB"
+                            />
+                          </View>
+                        </View>
+                        <View className="flex-1 pr-2">
+                          <View className="flex-row items-center justify-between">
+                            <Text className={sectionBodyClassName + ' font-bold ' + textPrimaryClassName}>
+                              {item.title}
+                            </Text>
+                            {isUnread ? <View className="w-3 h-3 rounded-full bg-red-500" /> : null}
+                          </View>
+                          <Text className={sectionBodyClassName + ' mt-1 leading-6 ' + textSecondaryClassName}>
+                            {item.body}
+                          </Text>
+                          <Text className={captionClassName + ' mt-2 ' + (isUnread ? 'text-[#2563EB]' : textSecondaryClassName)}>
+                            {item.createdAt.toLocaleString('th-TH', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {item.readAt ? ' • อ่านแล้ว' : ' • ยังไม่อ่าน'}
+                          </Text>
+                        </View>
+                      </View>
+                    </AnimatedPressable>
+                  );
+                })
+              ) : (
+                <View
+                  className={
+                    (isDark ? 'bg-[#111827] border border-[#334155]' : 'bg-[#F8FAFC] border border-[#E5E7EB]') +
+                    ' rounded-2xl p-5'
+                  }
+                >
+                  <Text className={sectionBodyClassName + ' font-semibold ' + textPrimaryClassName}>
+                    ยังไม่มีแจ้งเตือน
+                  </Text>
+                  <Text className={sectionBodyClassName + ' mt-1 leading-6 ' + textSecondaryClassName}>
+                    เมื่อมีการวัดใหม่หรือเหตุการณ์สำคัญในแอป รายการจะแสดงที่นี่
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </GradientBackground>
   );
 }

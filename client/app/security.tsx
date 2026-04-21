@@ -77,6 +77,13 @@ export default function SecurityScreen() {
     large: "text-lg",
     xlarge: "text-xl",
   });
+  const captionClassName = getFontClass(fontSizePreference, {
+    xsmall: "text-[11px]",
+    small: "text-xs",
+    medium: "text-sm",
+    large: "text-base",
+    xlarge: "text-lg",
+  });
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -336,7 +343,7 @@ export default function SecurityScreen() {
 
           <View className="bg-white dark:bg-slate-900 rounded-xl p-4 mt-3 border border-sky-200 dark:border-slate-700">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-base font-bold text-gray-800 dark:text-slate-100">
+              <Text className={bodyClassName + " font-bold text-gray-800 dark:text-slate-100"}>
                 ประวัติการเข้าสู่ระบบล่าสุด
               </Text>
               <TouchableOpacity onPress={() => void fetchSessions()}>
@@ -354,20 +361,20 @@ export default function SecurityScreen() {
                   key={session.id}
                   className="py-3 border-b border-gray-100 dark:border-slate-700"
                 >
-                  <Text className="font-semibold text-gray-800 dark:text-slate-100">
+                  <Text className={bodyClassName + " font-semibold text-gray-800 dark:text-slate-100"}>
                     {session.deviceLabel || "Unknown Device"}
                   </Text>
-                  <Text className="text-xs text-gray-500 dark:text-slate-300 mt-1">
+                  <Text className={captionClassName + " text-gray-500 dark:text-slate-300 mt-1"}>
                     เข้าใช้ล่าสุด:{" "}
                     {new Date(session.lastActiveAt).toLocaleString("th-TH")}
                   </Text>
-                  <Text className="text-xs text-gray-500 dark:text-slate-300 mt-1">
+                  <Text className={captionClassName + " text-gray-500 dark:text-slate-300 mt-1"}>
                     สถานะ: {session.isActive ? "กำลังใช้งาน" : "ออกจากระบบแล้ว"}
                   </Text>
                 </View>
               ))
             ) : (
-              <Text className="text-sm text-gray-500 dark:text-slate-300">
+              <Text className={bodyClassName + " text-gray-500 dark:text-slate-300"}>
                 ยังไม่มีข้อมูล session
               </Text>
             )}
@@ -380,11 +387,11 @@ export default function SecurityScreen() {
                 size={24}
                 color={Colors.primary.blue}
               />
-              <Text className="text-blue-800 dark:text-slate-100 font-bold ml-2">
+              <Text className={bodyClassName + " text-blue-800 dark:text-slate-100 font-bold ml-2"}>
                 สถานะความปลอดภัย
               </Text>
             </View>
-            <Text className="text-blue-700 dark:text-slate-300 text-sm leading-6">
+            <Text className={bodyClassName + " text-blue-700 dark:text-slate-300 leading-6"}>
               หน้านี้รองรับการซ่อนข้อมูลส่วนตัว, เปลี่ยนรหัสผ่าน, biometric
               unlock, ดู session ล่าสุด และสั่งออกจากทุกอุปกรณ์อื่นแล้ว
             </Text>

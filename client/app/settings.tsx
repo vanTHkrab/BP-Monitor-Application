@@ -420,7 +420,7 @@ export default function SettingsScreen() {
           <TouchableOpacity onPress={() => router.back()} className="mr-4">
             <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-800 dark:text-slate-100 flex-1 text-center">
+          <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 flex-1 text-center"}>
             ตั้งค่าแอปพลิเคชั่น
           </Text>
           <View className="w-7" />
@@ -548,17 +548,17 @@ export default function SettingsScreen() {
             </Text>
             <View className="flex-row flex-wrap mt-3">
               <View className="rounded-full px-3 py-1 bg-sky-100 dark:bg-slate-800 mr-2 mb-2">
-                <Text className="text-sky-700 dark:text-sky-300 font-semibold text-xs">
+                <Text className={captionClassName + " text-sky-700 dark:text-sky-300 font-semibold"}>
                   รองรับ: {reminderDiagnostics?.supported ? "ใช่" : "ไม่"}
                 </Text>
               </View>
               <View className="rounded-full px-3 py-1 bg-emerald-100 dark:bg-slate-800 mr-2 mb-2">
-                <Text className="text-emerald-700 dark:text-emerald-300 font-semibold text-xs">
+                <Text className={captionClassName + " text-emerald-700 dark:text-emerald-300 font-semibold"}>
                   สิทธิ์: {reminderDiagnostics?.permissionGranted ? "อนุญาตแล้ว" : "ยังไม่อนุญาต"}
                 </Text>
               </View>
               <View className="rounded-full px-3 py-1 bg-amber-100 dark:bg-slate-800 mr-2 mb-2">
-                <Text className="text-amber-700 dark:text-amber-300 font-semibold text-xs">
+                <Text className={captionClassName + " text-amber-700 dark:text-amber-300 font-semibold"}>
                   รายการเตือน: {reminderDiagnostics?.scheduledCount ?? 0}
                 </Text>
               </View>
@@ -796,7 +796,7 @@ export default function SettingsScreen() {
                       key={day.value}
                       onPress={() => void toggleReminderDay(day.value)}
                       className={
-                        "w-[48px] h-[48px] rounded-2xl border items-center justify-center mr-2 mb-2 " +
+                        "min-w-[52px] px-3 h-[48px] rounded-2xl border items-center justify-center mr-2 mb-2 " +
                         (active
                           ? "bg-sky-500 border-sky-500"
                           : isDark

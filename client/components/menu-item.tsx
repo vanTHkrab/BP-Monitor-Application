@@ -45,9 +45,11 @@ export const MenuItem: React.FC<MenuItemProps> = ({
 
   const titleClassName = isDanger ? 'text-red-500' : (isDark ? 'text-slate-200' : 'text-[#2C3E50]');
   const titleSizeClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-[13px]',
     small: 'text-[14px]',
     medium: 'text-[15px]',
     large: 'text-[18px]',
+    xlarge: 'text-[20px]',
   });
   const arrowBgClassName = isDark ? 'bg-[#1F2937]' : 'bg-[#F3F4F6]';
   const arrowColor = isDanger ? '#EF4444' : isDark ? '#94A3B8' : '#9CA3AF';
@@ -83,7 +85,7 @@ export const MenuItem: React.FC<MenuItemProps> = ({
             </LinearGradient>
           )}
         </View>
-        <Text className={'flex-1 ml-3.5 font-semibold ' + titleSizeClassName + ' ' + titleClassName}>
+        <Text className={'flex-1 ml-3.5 font-semibold pr-2 ' + titleSizeClassName + ' ' + titleClassName}>
           {title}
         </Text>
         {showArrow && (
