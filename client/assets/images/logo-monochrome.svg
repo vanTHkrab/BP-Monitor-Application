@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <g transform="translate(512, 512)">
+    <path
+      d="M0,180
+         C-160,80 -280,-30 -215,-145
+         C-160,-235 -70,-215 0,-115
+         C70,-215 160,-235 215,-145
+         C280,-30 160,80 0,180 Z"
+      fill="white"
+    />
+  </g>
+
+  <g
+    transform="translate(0, 525)"
+    fill="none"
+    stroke="black"
+    stroke-width="34"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <polyline points="220,0 380,0 425,-80 480,135 555,-135 615,80 670,0 804,0"/>
+  </g>
+</svg>

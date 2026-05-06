@@ -24,17 +24,17 @@ export function ThemedText({
 
   const fontSize =
     type === 'title'
-      ? getFontNumber(fontSizePreference, { small: 28, medium: 32, large: 38 })
+      ? getFontNumber(fontSizePreference, { xsmall: 24, small: 28, medium: 32, large: 38, xlarge: 42 })
       : type === 'subtitle'
-        ? getFontNumber(fontSizePreference, { small: 18, medium: 20, large: 24 })
-        : getFontNumber(fontSizePreference, { small: 14, medium: 16, large: 18 });
+        ? getFontNumber(fontSizePreference, { xsmall: 16, small: 18, medium: 20, large: 24, xlarge: 28 })
+        : getFontNumber(fontSizePreference, { xsmall: 12, small: 14, medium: 16, large: 18, xlarge: 20 });
 
   const lineHeight =
     type === 'title'
-      ? getFontNumber(fontSizePreference, { small: 34, medium: 38, large: 44 })
+      ? getFontNumber(fontSizePreference, { xsmall: 30, small: 34, medium: 38, large: 44, xlarge: 48 })
       : type === 'link'
-        ? getFontNumber(fontSizePreference, { small: 24, medium: 30, large: 34 })
-        : getFontNumber(fontSizePreference, { small: 22, medium: 24, large: 28 });
+        ? getFontNumber(fontSizePreference, { xsmall: 20, small: 24, medium: 30, large: 34, xlarge: 38 })
+        : getFontNumber(fontSizePreference, { xsmall: 18, small: 22, medium: 24, large: 28, xlarge: 32 });
 
   const typeClassName =
     type === 'title'

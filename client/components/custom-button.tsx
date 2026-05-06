@@ -51,15 +51,15 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
     if (disabled) return ['#BDC3C7', '#BDC3C7', '#BDC3C7'];
     switch (variant) {
       case 'primary':
-        return ['#72C9F7', '#5DADE2', '#3498DB'];
+        return ['#9575CD', '#7E57C2', '#5E35B1'];
       case 'secondary':
-        return ['#A569BD', '#8E44AD', '#6B3FA0'];
+        return ['#72DDF4', '#35B8E8', '#1898D4'];
       case 'danger':
-        return ['#F1948A', '#E57373', '#C0392B'];
+        return ['#FF8A8A', '#F46D6D', '#E05555'];
       case 'outline':
         return ['transparent', 'transparent', 'transparent'];
       default:
-        return ['#72C9F7', '#5DADE2', '#3498DB'];
+        return ['#9575CD', '#7E57C2', '#5E35B1'];
     }
   };
 
@@ -82,20 +82,26 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
 
   const textSizeClassName = size === 'small'
     ? getFontClass(fontSizePreference, {
+        xsmall: 'text-[11px]',
         small: 'text-xs',
         medium: 'text-sm',
         large: 'text-base',
+        xlarge: 'text-lg',
       })
     : size === 'large'
       ? getFontClass(fontSizePreference, {
+          xsmall: 'text-base',
           small: 'text-lg',
           medium: 'text-xl',
           large: 'text-2xl',
+          xlarge: 'text-[28px]',
         })
       : getFontClass(fontSizePreference, {
+          xsmall: 'text-sm',
           small: 'text-base',
           medium: 'text-lg',
           large: 'text-xl',
+          xlarge: 'text-2xl',
         });
 
   const shadowStyle: ViewStyle = {
@@ -107,7 +113,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   };
 
   const buttonContent = (
-    <View className="flex-row items-center justify-center">
+    <View className="flex-row items-center justify-center px-1">
       {loading ? (
         <ActivityIndicator color={getTextColor()} />
       ) : (
@@ -118,6 +124,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
               `font-bold text-center tracking-wide ${textSizeClassName}` +
               (icon ? ' ml-2' : '')
             }
+            numberOfLines={2}
             style={[{ color: getTextColor() }, textStyle]}
           >
             {title}

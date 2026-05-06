@@ -22,8 +22,8 @@ export const GradientBackground: React.FC<GradientBackgroundProps> = ({
 
   const colors: readonly [string, string, string] =
     themePreference === 'dark'
-      ? ['#07111F', '#0B1830', '#12243D']
-      : ['#87CEEB', '#72C9F7', '#5DADE2'];
+      ? ['#0E0B1E', '#15112E', '#1C1840']
+      : ['#BFE8F0', '#A8DEE8', '#90D2DF'];
   
   return (
     <LinearGradient

@@ -27,7 +27,6 @@ type AuthTab = "login" | "register";
 cssInterop(LinearGradient, { className: "style" });
 
 export default function AuthScreen() {
-  const DEV_BUILD_ID = "auth-layout-2026-01-22-1";
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -94,7 +93,7 @@ export default function AuthScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.65,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -115,7 +114,7 @@ export default function AuthScreen() {
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.65,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -286,10 +285,10 @@ export default function AuthScreen() {
     { key: "register", label: "ลงทะเบียน" },
   ];
 
-  const genderOptions: Array<{
+  const genderOptions: {
     key: "male" | "female" | "other";
     label: string;
-  }> = [
+  }[] = [
     { key: "male", label: "ชาย" },
     { key: "female", label: "หญิง" },
     { key: "other", label: "อื่นๆ" },
@@ -428,7 +427,7 @@ export default function AuthScreen() {
                               />
                             )}
                           </View>
-                          <Text className="text-[13px] text-[#3498DB] font-bold mt-3">
+                          <Text className={captionClassName + " text-[#3498DB] font-bold mt-3"}>
                             {registerAvatarUri
                               ? "เปลี่ยนรูปโปรไฟล์"
                               : "เพิ่มรูปโปรไฟล์"}
@@ -502,11 +501,12 @@ export default function AuthScreen() {
                               >
                                 <Text
                                   className={
-                                    active
+                                    `${captionClassName} ` +
+                                    (active
                                       ? "text-[#3498DB] font-bold"
                                       : isDark
                                         ? "text-slate-300 font-semibold"
-                                        : "text-slate-600 font-semibold"
+                                        : "text-slate-600 font-semibold")
                                   }
                                 >
                                   {option.label}
@@ -580,11 +580,11 @@ export default function AuthScreen() {
                         }
                       >
                         การลงทะเบียนหมายความว่าคุณยอมรับ{" "}
-                        <Text className="text-[#3498DB] font-semibold">
+                        <Text className={captionClassName + " text-[#3498DB] font-semibold"}>
                           เงื่อนไขการใช้งาน
                         </Text>{" "}
                         และ{" "}
-                        <Text className="text-[#3498DB] font-semibold">
+                        <Text className={captionClassName + " text-[#3498DB] font-semibold"}>
                           นโยบายความเป็นส่วนตัว
                         </Text>
                       </Text>

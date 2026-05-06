@@ -78,9 +78,72 @@ type PostType {
   content: String!
   category: String!
   likes: Int!
+  comments: Int!
   createdAt: DateTime!
   updatedAt: DateTime
   isLiked: Boolean!
+}
+
+type UploadedImageType {
+  key: String!
+  url: String!
+  bucket: String!
+  imageId: Float
+}
+
+type SyncStorageImagesType {
+  prefix: String!
+  scanned: Float!
+  inserted: Float!
+  skipped: Float!
+}
+
+type CommentType {
+  id: Int!
+  postId: Int!
+  userId: String!
+  parentId: Int
+  userName: String!
+  userAvatar: String
+  content: String!
+  likes: Int!
+  replies: Int!
+  isLiked: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type AlertAnalysisType {
+  id: Int!
+  systolic: Int!
+  diastolic: Int!
+  pulse: Int!
+  confidence: Float!
+  bpLevel: String!
+  analysisNote: String
+  analyzedAt: DateTime!
+  imageUrl: String
+}
+
+type AlertType {
+  id: Int!
+  userId: String!
+  analysisId: Int!
+  alertMessage: String!
+  alertLevel: String!
+  isRead: Boolean!
+  createdAt: DateTime!
+  analysis: AlertAnalysisType
+}
+
+type CaregiverLinkType {
+  caregiverId: String!
+  patientId: String!
+  relationship: String!
+  caregiverName: String!
+  caregiverPhone: String!
+  patientName: String!
+  patientPhone: String!
 }
 
 type Query {
@@ -97,6 +160,15 @@ type Query {
 
   """รายการโพสต์ชุมชน (สาธารณะ)"""
   posts(category: String, limit: Int! = 100, offset: Int! = 0): [PostType!]!
+
+  """รายการความคิดเห็นของโพสต์"""
+  postComments(postId: Int!, parentId: Int): [CommentType!]!
+
+  """รายการแจ้งเตือนของผู้ใช้"""
+  alerts(limit: Int! = 100, offset: Int! = 0, unreadOnly: Boolean! = false): [AlertType!]!
+
+  """รายการผู้ดูแล/ผู้ป่วยที่เชื่อมกับบัญชี"""
+  caregiverLinks: [CaregiverLinkType!]!
 }
 
 type Mutation {
@@ -138,6 +210,39 @@ type Mutation {
 
   """กดถูกใจ/ยกเลิกถูกใจโพสต์"""
   toggleLike(postId: Int!): Boolean!
+
+  """อัปโหลดรูปโปรไฟล์เข้า S3"""
+  uploadProfileImage(input: UploadImageInput!): UploadedImageType!
+
+  """อัปโหลดรูปเครื่องวัดความดันเข้า S3"""
+  uploadBloodPressureImage(input: UploadImageInput!): UploadedImageType!
+
+  """ซิงก์รูปเครื่องวัดความดันจาก S3 prefix เข้า table images"""
+  syncBloodPressureImagesFromStorage(prefix: String): SyncStorageImagesType!
+
+  """สร้างความคิดเห็นใหม่"""
+  createComment(input: CreateCommentInput!): CommentType!
+
+  """แก้ไขความคิดเห็น"""
+  updateComment(input: UpdateCommentInput!): CommentType!
+
+  """ลบความคิดเห็น"""
+  deleteComment(id: Int!): Boolean!
+
+  """กดถูกใจ/ยกเลิกถูกใจความคิดเห็น"""
+  toggleCommentLike(commentId: Int!): Boolean!
+
+  """ทำเครื่องหมายว่าอ่านแจ้งเตือนแล้ว"""
+  markAlertRead(id: Int!): Boolean!
+
+  """ทำเครื่องหมายว่าอ่านแจ้งเตือนทั้งหมดแล้ว"""
+  markAllAlertsRead: Boolean!
+
+  """เพิ่มผู้ป่วยด้วยเบอร์โทรศัพท์"""
+  addCaregiverPatient(patientPhone: String!, relationship: String! = "caregiver"): CaregiverLinkType!
+
+  """ลบความสัมพันธ์ผู้ดูแล/ผู้ป่วย"""
+  removeCaregiverPatient(caregiverId: String!, patientId: String!): Boolean!
 }
 
 input AnalyzeImageInput {
@@ -204,4 +309,21 @@ input UpdatePostInput {
   id: Int!
   content: String
   category: String
+}
+
+input UploadImageInput {
+  base64: String!
+  mimeType: String!
+  fileName: String
+}
+
+input CreateCommentInput {
+  postId: Int!
+  content: String!
+  parentId: Int
+}
+
+input UpdateCommentInput {
+  id: Int!
+  content: String!
 }

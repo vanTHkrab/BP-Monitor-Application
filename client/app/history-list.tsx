@@ -1,9 +1,10 @@
 import { BPReadingCard } from '@/components/bp-reading-card';
 import { GradientBackground } from '@/components/gradient-background';
+import { ReadingDetailModal } from '@/components/reading-detail-modal';
 import { TabButtons } from '@/components/tab-buttons';
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/useAppStore';
-import { TimeFilter } from '@/types';
+import { BloodPressureReading, TimeFilter } from '@/types';
 import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -31,6 +32,8 @@ export default function HistoryListScreen() {
     xlarge: 'text-xl',
   });
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
+  const [selectedReading, setSelectedReading] =
+    useState<BloodPressureReading | null>(null);
 
   const timeFilterTabs = [
     { key: '7days', label: '7 วัน' },
@@ -97,7 +100,7 @@ export default function HistoryListScreen() {
                 key={reading.id}
                 reading={reading}
                 showFullDate
-                onPress={() => {/* TODO: Navigate to detail */}}
+                onPress={() => setSelectedReading(reading)}
               />
             ))
           ) : (
@@ -118,6 +121,11 @@ export default function HistoryListScreen() {
         {/* Bottom Spacing */}
         <View className="h-8" />
       </ScrollView>
+      <ReadingDetailModal
+        visible={Boolean(selectedReading)}
+        reading={selectedReading}
+        onClose={() => setSelectedReading(null)}
+      />
     </GradientBackground>
   );
 }

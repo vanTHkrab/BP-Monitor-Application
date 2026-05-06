@@ -7,12 +7,14 @@ import {
   ExportDataType,
   ExportFormat,
 } from "@/utils/export-data";
-import { getFontClass } from "@/utils/font-scale";
+import { getFontClass, getFontNumber } from "@/utils/font-scale";
 import {
   DEFAULT_REMINDER_SETTINGS,
+  getReminderSoundOption,
   getReminderDiagnostics,
   getReminderPreview,
   loadReminderSettings,
+  REMINDER_SOUND_OPTIONS,
   type ReminderDiagnostics,
   ReminderSettings,
   requestReminderPermissions,
@@ -45,12 +47,11 @@ const DAY_OPTIONS = [
   { label: "ส", value: 6 },
 ];
 
-const FONT_OPTIONS: Array<{ label: string; value: FontSizePreference }> = [
-  { label: "เล็กมาก", value: "xsmall" },
-  { label: "เล็ก", value: "small" },
-  { label: "มาตรฐาน", value: "medium" },
-  { label: "ใหญ่", value: "large" },
-  { label: "ใหญ่มาก", value: "xlarge" },
+const FONT_OPTIONS: { label: string; sample: string; value: FontSizePreference }[] = [
+  { label: "เล็ก", sample: "Aa", value: "small" },
+  { label: "มาตรฐาน", sample: "Aa", value: "medium" },
+  { label: "ใหญ่", sample: "Aa", value: "large" },
+  { label: "ใหญ่มาก", sample: "Aa", value: "xlarge" },
 ];
 
 const INTERVAL_OPTIONS = [2, 3, 4, 6, 8, 12];
@@ -101,10 +102,25 @@ export default function SettingsScreen() {
     large: "text-base",
     xlarge: "text-lg",
   });
+  const fontOptionPreviewSize = (value: FontSizePreference) =>
+    getFontNumber(value, {
+      xsmall: 12,
+      small: 14,
+      medium: 18,
+      large: 21,
+      xlarge: 24,
+    });
+  const fontOptionLabelSize = getFontNumber(fontSizePreference, {
+    xsmall: 13,
+    small: 14,
+    medium: 15,
+    large: 16,
+    xlarge: 17,
+  });
 
   type ExportRangeKey = "7days" | "30days" | "3months" | "1year" | "all";
 
-  const exportRangeOptions: Array<{ key: ExportRangeKey; label: string }> = [
+  const exportRangeOptions: { key: ExportRangeKey; label: string }[] = [
     { key: "7days", label: "7 วัน" },
     { key: "30days", label: "30 วัน" },
     { key: "3months", label: "3 เดือน" },
@@ -127,6 +143,10 @@ export default function SettingsScreen() {
   const reminderPreview = useMemo(
     () => getReminderPreview(reminderSettings),
     [reminderSettings],
+  );
+  const selectedReminderSound = useMemo(
+    () => getReminderSoundOption(reminderSettings.soundId),
+    [reminderSettings.soundId],
   );
 
   const persistReminderSettings = async (next: ReminderSettings) => {
@@ -354,7 +374,7 @@ export default function SettingsScreen() {
       ).padStart(2, "0")}:00 - ${String(reminderSettings.endHour).padStart(
         2,
         "0",
-      )}:00`;
+      )}:00 • ${selectedReminderSound.label}`;
 
   const refreshReminderDiagnostics = async () => {
     setReminderDiagnostics(await getReminderDiagnostics(user?.id));
@@ -366,7 +386,7 @@ export default function SettingsScreen() {
     if (!ok) {
       Alert.alert(
         "ทดสอบไม่สำเร็จ",
-        "ระบบยังไม่พร้อมสำหรับการแจ้งเตือน อาจยังไม่ได้รับสิทธิ์หรือกำลังรันใน Expo Go",
+        "ระบบยังไม่พร้อมสำหรับการแจ้งเตือน อาจยังไม่ได้รับสิทธิ์ กรุณาตรวจสอบสิทธิ์การแจ้งเตือนในการตั้งค่าเครื่อง",
       );
       return;
     }
@@ -420,7 +440,7 @@ export default function SettingsScreen() {
           <TouchableOpacity onPress={() => router.back()} className="mr-4">
             <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-800 dark:text-slate-100 flex-1 text-center">
+          <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 flex-1 text-center"}>
             ตั้งค่าแอปพลิเคชั่น
           </Text>
           <View className="w-7" />
@@ -441,13 +461,13 @@ export default function SettingsScreen() {
             }
           />
 
-          <View className="bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-sky-200 dark:border-slate-700">
+          <View className="bg-white dark:bg-slate-900 p-4 rounded-xl mb-3 border border-white/80 dark:border-slate-700">
             <View className="flex-row items-center mb-3">
-              <View className="w-10 h-10 bg-sky-100 dark:bg-slate-800 rounded-full items-center justify-center mr-3">
+              <View className="w-10 h-10 bg-[#F3E5F5] dark:bg-slate-800 rounded-full items-center justify-center mr-3">
                 <Ionicons
                   name="text-outline"
                   size={22}
-                  color={Colors.primary.blue}
+                  color={Colors.secondary.purple}
                 />
               </View>
               <View className="flex-1">
@@ -460,7 +480,7 @@ export default function SettingsScreen() {
               </View>
             </View>
 
-            <View className="flex-row flex-wrap">
+            <View className="flex-row flex-wrap justify-between">
               {FONT_OPTIONS.map((option, index) => {
                 const active = option.value === fontSizePreference;
                 return (
@@ -468,28 +488,66 @@ export default function SettingsScreen() {
                     key={option.value}
                     onPress={() => void setFontSizePreference(option.value)}
                     className={
-                      "rounded-2xl py-3 items-center border px-3 mb-2 " +
+                      "rounded-2xl border px-3 py-3 mb-2 " +
                       (active
-                        ? "bg-sky-500 border-sky-500"
+                        ? "bg-[#7E57C2] border-[#7E57C2]"
                         : isDark
                           ? "bg-[#0F172A] border-[#334155]"
-                          : "bg-[#F8FAFC] border-[#CBD5E1]") +
-                      (index < FONT_OPTIONS.length - 1 ? " mr-2" : "")
+                          : "bg-[#F9F7FC] border-white")
                     }
-                    style={{ minWidth: "30%" }}
+                    style={{
+                      width: "48.5%",
+                      minHeight: 74,
+                    }}
                   >
+                    <View className="flex-row items-center justify-between">
+                      <Text
+                        className={
+                          "font-bold " +
+                          (active
+                            ? "text-white"
+                            : isDark
+                              ? "text-slate-100"
+                              : "text-[#2C3E50]")
+                        }
+                        style={{
+                          fontSize: fontOptionPreviewSize(option.value),
+                          lineHeight: fontOptionPreviewSize(option.value) + 5,
+                        }}
+                      >
+                        {option.sample}
+                      </Text>
+                      {active ? (
+                        <Ionicons name="checkmark-circle" size={22} color="white" />
+                      ) : (
+                        <View className="w-[22px] h-[22px] rounded-full border border-[#D7C7EB]" />
+                      )}
+                    </View>
                     <Text
                       className={
-                        bodyClassName +
-                        " font-semibold " +
-                        (active ? "text-white" : isDark ? "text-slate-100" : "text-[#2C3E50]")
+                        "font-semibold mt-1 " +
+                        (active
+                          ? "text-white/95"
+                          : isDark
+                            ? "text-slate-300"
+                            : "text-[#5F4B75]")
                       }
+                      style={{ fontSize: fontOptionLabelSize, lineHeight: fontOptionLabelSize + 5 }}
                     >
                       {option.label}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
+            </View>
+
+            <View className="rounded-2xl bg-[#F3E5F5] dark:bg-slate-800/70 px-4 py-3 mt-1">
+              <Text className={bodyClassName + " font-bold text-[#5E35B1] dark:text-violet-200"}>
+                ตัวอย่างข้อความ
+              </Text>
+              <Text className={bodyClassName + " text-[#2C3E50] dark:text-slate-200 mt-1 leading-6"}>
+                ขนาดตัวอักษรนี้จะใช้กับหน้าหลัก ประวัติ ชุมชน และเมนูต่าง ๆ
+              </Text>
             </View>
           </View>
 
@@ -548,17 +606,17 @@ export default function SettingsScreen() {
             </Text>
             <View className="flex-row flex-wrap mt-3">
               <View className="rounded-full px-3 py-1 bg-sky-100 dark:bg-slate-800 mr-2 mb-2">
-                <Text className="text-sky-700 dark:text-sky-300 font-semibold text-xs">
+                <Text className={captionClassName + " text-sky-700 dark:text-sky-300 font-semibold"}>
                   รองรับ: {reminderDiagnostics?.supported ? "ใช่" : "ไม่"}
                 </Text>
               </View>
               <View className="rounded-full px-3 py-1 bg-emerald-100 dark:bg-slate-800 mr-2 mb-2">
-                <Text className="text-emerald-700 dark:text-emerald-300 font-semibold text-xs">
+                <Text className={captionClassName + " text-emerald-700 dark:text-emerald-300 font-semibold"}>
                   สิทธิ์: {reminderDiagnostics?.permissionGranted ? "อนุญาตแล้ว" : "ยังไม่อนุญาต"}
                 </Text>
               </View>
               <View className="rounded-full px-3 py-1 bg-amber-100 dark:bg-slate-800 mr-2 mb-2">
-                <Text className="text-amber-700 dark:text-amber-300 font-semibold text-xs">
+                <Text className={captionClassName + " text-amber-700 dark:text-amber-300 font-semibold"}>
                   รายการเตือน: {reminderDiagnostics?.scheduledCount ?? 0}
                 </Text>
               </View>
@@ -685,6 +743,87 @@ export default function SettingsScreen() {
               </View>
 
               <Text className={bodyClassName + " font-semibold text-gray-700 dark:text-slate-200 mb-2"}>
+                เสียงแจ้งเตือน
+              </Text>
+              <View className="mb-4">
+                {REMINDER_SOUND_OPTIONS.map((option) => {
+                  const active = reminderSettings.soundId === option.id;
+                  return (
+                    <TouchableOpacity
+                      key={option.id}
+                      onPress={() =>
+                        void updateReminderSettings({ soundId: option.id })
+                      }
+                      className={
+                        "flex-row items-center rounded-2xl border p-3 mb-2 " +
+                        (active
+                          ? "bg-sky-500 border-sky-500"
+                          : isDark
+                            ? "bg-[#0F172A] border-[#334155]"
+                            : "bg-[#F8FAFC] border-[#CBD5E1]")
+                      }
+                    >
+                      <View
+                        className={
+                          "w-10 h-10 rounded-full items-center justify-center mr-3 " +
+                          (active
+                            ? "bg-white/20"
+                            : isDark
+                              ? "bg-slate-800"
+                              : "bg-sky-100")
+                        }
+                      >
+                        <Ionicons
+                          name={active ? "volume-high" : "volume-medium-outline"}
+                          size={20}
+                          color={active ? "white" : Colors.primary.blue}
+                        />
+                      </View>
+                      <View className="flex-1">
+                        <Text
+                          className={
+                            bodyClassName +
+                            " font-semibold " +
+                            (active
+                              ? "text-white"
+                              : isDark
+                                ? "text-slate-100"
+                                : "text-[#2C3E50]")
+                          }
+                        >
+                          {option.label}
+                        </Text>
+                        <Text
+                          className={
+                            captionClassName +
+                            " mt-0.5 " +
+                            (active
+                              ? "text-white/85"
+                              : isDark
+                                ? "text-slate-300"
+                                : "text-gray-500")
+                          }
+                        >
+                          {option.description}
+                        </Text>
+                      </View>
+                      {active ? (
+                        <Ionicons name="checkmark-circle" size={22} color="white" />
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity
+                  onPress={() => void handleTestReminder()}
+                  className="rounded-2xl bg-sky-100 dark:bg-slate-800 py-3 items-center mt-1"
+                >
+                  <Text className={bodyClassName + " font-semibold text-sky-700 dark:text-sky-300"}>
+                    ทดสอบเสียงที่เลือก 10 วิ
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text className={bodyClassName + " font-semibold text-gray-700 dark:text-slate-200 mb-2"}>
                 ความถี่ในการเตือน
               </Text>
               <View className="flex-row flex-wrap mb-4">
@@ -796,7 +935,7 @@ export default function SettingsScreen() {
                       key={day.value}
                       onPress={() => void toggleReminderDay(day.value)}
                       className={
-                        "w-[48px] h-[48px] rounded-2xl border items-center justify-center mr-2 mb-2 " +
+                        "min-w-[52px] px-3 h-[48px] rounded-2xl border items-center justify-center mr-2 mb-2 " +
                         (active
                           ? "bg-sky-500 border-sky-500"
                           : isDark

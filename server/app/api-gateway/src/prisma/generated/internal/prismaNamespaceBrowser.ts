@@ -59,6 +59,8 @@ export const ModelName = {
   Alert: 'Alert',
   BloodPressureReading: 'BloodPressureReading',
   Post: 'Post',
+  PostComment: 'PostComment',
+  PostCommentLike: 'PostCommentLike',
   PostLike: 'PostLike'
 } as const
 
@@ -191,6 +193,27 @@ export const PostScalarFieldEnum = {
 } as const
 
 export type PostScalarFieldEnum = (typeof PostScalarFieldEnum)[keyof typeof PostScalarFieldEnum]
+
+
+export const PostCommentScalarFieldEnum = {
+  id: 'id',
+  postId: 'postId',
+  userId: 'userId',
+  parentId: 'parentId',
+  content: 'content',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PostCommentScalarFieldEnum = (typeof PostCommentScalarFieldEnum)[keyof typeof PostCommentScalarFieldEnum]
+
+
+export const PostCommentLikeScalarFieldEnum = {
+  userId: 'userId',
+  commentId: 'commentId'
+} as const
+
+export type PostCommentLikeScalarFieldEnum = (typeof PostCommentLikeScalarFieldEnum)[keyof typeof PostCommentLikeScalarFieldEnum]
 
 
 export const PostLikeScalarFieldEnum = {

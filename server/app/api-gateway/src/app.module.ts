@@ -13,6 +13,10 @@ import { AiServiceService } from './ai-service/ai-service.service';
 import { AuthModule } from './auth/auth.module';
 import { ReadingModule } from './reading/reading.module';
 import { PostModule } from './post/post.module';
+import { StorageModule } from './storage/storage.module';
+import { CommentModule } from './comment/comment.module';
+import { AlertModule } from './alert/alert.module';
+import { CaregiverModule } from './caregiver/caregiver.module';
 
 @Module({
   imports: [
@@ -40,6 +44,10 @@ import { PostModule } from './post/post.module';
     AuthModule,
     ReadingModule,
     PostModule,
+    StorageModule,
+    CommentModule,
+    AlertModule,
+    CaregiverModule,
   ],
   providers: [
     {
@@ -68,4 +76,3 @@ import { PostModule } from './post/post.module';
   ],
 })
 export class AppModule {}
-
