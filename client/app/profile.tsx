@@ -4,6 +4,7 @@ import { GradientBackground } from "@/components/gradient-background";
 import { Colors } from "@/constants/colors";
 import { useAppStore } from "@/store/useAppStore";
 import { getFontClass } from "@/utils/font-scale";
+import { toDisplayImageUri } from "@/utils/storage-image";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -74,6 +75,7 @@ export default function ProfileScreen() {
     user,
     readings,
     updateMyProfile,
+    fetchMyProfile,
     uploadMyAvatar,
     hideSensitiveData,
     sensitiveDataUnlocked,
@@ -153,6 +155,8 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      void fetchMyProfile();
+
       if (
         hideSensitiveData &&
         lastProfileLeaveAt &&
@@ -164,7 +168,7 @@ export default function ProfileScreen() {
       return () => {
         lastProfileLeaveAt = Date.now();
       };
-    }, [hideSensitiveData]),
+    }, [fetchMyProfile, hideSensitiveData]),
   );
 
   const stats = useMemo(() => {
@@ -208,7 +212,7 @@ export default function ProfileScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.65,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -229,7 +233,7 @@ export default function ProfileScreen() {
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.65,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -451,7 +455,10 @@ export default function ProfileScreen() {
               >
                 <View className="w-28 h-28 rounded-full bg-white dark:bg-slate-900 overflow-hidden border-4 border-white dark:border-slate-700 shadow-lg">
                   {avatar ? (
-                    <Image source={{ uri: avatar }} className="w-full h-full" />
+                    <Image
+                      source={{ uri: toDisplayImageUri(avatar) }}
+                      className="w-full h-full"
+                    />
                   ) : (
                     <View className="w-full h-full items-center justify-center bg-gray-200 dark:bg-slate-800">
                       <Ionicons

@@ -34,14 +34,14 @@ export const MenuItem: React.FC<MenuItemProps> = ({
   const gradientColors: [string, string] = isDanger
     ? isDark
       ? ['#3B0A0A', '#2A0A0A']
-      : ['#FEE2E2', '#FECACA']
+      : ['#FFF2F2', '#FFE2E2']
     : isDark
       ? ['#0F172A', '#111827']
-      : ['#FFFFFF', '#F8FAFC'];
+      : ['#FFFFFF', '#F9F7FC'];
 
   const borderClassName = isDanger
     ? (isDark ? 'border-[#7F1D1D]' : 'border-[#FECACA]')
-    : (isDark ? 'border-[#334155]' : 'border-[#E5E7EB]');
+    : (isDark ? 'border-[#334155]' : 'border-white');
 
   const titleClassName = isDanger ? 'text-red-500' : (isDark ? 'text-slate-200' : 'text-[#2C3E50]');
   const titleSizeClassName = getFontClass(fontSizePreference, {
@@ -51,8 +51,8 @@ export const MenuItem: React.FC<MenuItemProps> = ({
     large: 'text-[18px]',
     xlarge: 'text-[20px]',
   });
-  const arrowBgClassName = isDark ? 'bg-[#1F2937]' : 'bg-[#F3F4F6]';
-  const arrowColor = isDanger ? '#EF4444' : isDark ? '#94A3B8' : '#9CA3AF';
+  const arrowBgClassName = isDark ? 'bg-[#1F2937]' : 'bg-[#F4F1F8]';
+  const arrowColor = isDanger ? '#EF4444' : isDark ? '#94A3B8' : '#7E57C2';
   
   return (
     <AnimatedPressable onPress={onPress} className="mb-2.5 rounded-2xl overflow-hidden shadow-md shadow-black/10">
@@ -74,7 +74,7 @@ export const MenuItem: React.FC<MenuItemProps> = ({
             />
           ) : (
             <LinearGradient
-              colors={['#5DADE2', '#3498DB']}
+              colors={['#7E57C2', '#5E35B1']}
               className="w-full h-full items-center justify-center rounded-[12px]"
             >
               <Ionicons

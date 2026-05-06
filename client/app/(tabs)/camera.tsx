@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React, { useRef, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
 cssInterop(CameraView, { className: 'style' });
@@ -66,6 +67,11 @@ export default function CameraScreen() {
   });
   
   const cameraRef = useRef<CameraView>(null);
+
+  const insets = useSafeAreaInsets();
+  const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
+  const tabBarMarginBottom = Platform.OS === 'ios' ? 2 : 4;
+  const tabBarTotalHeight = tabBarBaseHeight + insets.bottom + tabBarMarginBottom;
 
   const handleRequestCameraPermission = async () => {
     try {
@@ -161,7 +167,7 @@ export default function CameraScreen() {
     setIsCapturing(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.45,
         skipProcessing: true,
       });
       if (photo) {
@@ -179,7 +185,7 @@ export default function CameraScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      quality: 0.8,
+      quality: 0.55,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -287,7 +293,7 @@ export default function CameraScreen() {
       <View className="flex-1 relative">
         {/* Header */}
         <LinearGradient
-          colors={['#F59E0B', '#D97706', '#B45309']}
+          colors={['#72DDF4', '#35B8E8']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           className={(Platform.OS === 'ios' ? 'pt-14' : 'pt-10') + ' pb-4 px-4 flex-row items-center'}
@@ -322,7 +328,7 @@ export default function CameraScreen() {
                     </Text>
                     <View className="flex-row space-x-2.5 mt-3 w-full">
                       <AnimatedPressable onPress={retryCamera} className="flex-1 rounded-[14px] overflow-hidden">
-                        <LinearGradient colors={['#3B82F6', '#2563EB']} className="flex-row items-center justify-center py-3">
+                        <LinearGradient colors={['#7E57C2', '#5E35B1']} className="flex-row items-center justify-center py-3">
                           <Ionicons name="refresh" size={18} color="white" />
                           <Text className={"text-white font-bold ml-2 " + captionClassName}>ลองใหม่</Text>
                         </LinearGradient>
@@ -389,7 +395,8 @@ export default function CameraScreen() {
             <View className="absolute bottom-0 left-0 right-0">
               <LinearGradient
                 colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']}
-                className={(Platform.OS === 'ios' ? 'pb-10' : 'pb-6') + ' pt-10'}
+                className="pt-10"
+                style={{ paddingBottom: tabBarTotalHeight + 16 }}
               >
                 <View className="flex-row justify-between items-center px-10">
                   {/* Gallery Button */}
@@ -432,7 +439,8 @@ export default function CameraScreen() {
             />
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.8)']}
-              className={(Platform.OS === 'ios' ? 'pb-10' : 'pb-6') + ' absolute bottom-0 left-0 right-0 px-4 py-6'}
+              className="absolute bottom-0 left-0 right-0 px-4 pt-6"
+              style={{ paddingBottom: tabBarTotalHeight + 16 }}
             >
               <View className="flex-row justify-center space-x-3">
                 <AnimatedPressable onPress={resetState} className="flex-1 rounded-2xl overflow-hidden shadow-lg">
@@ -443,7 +451,7 @@ export default function CameraScreen() {
                 </AnimatedPressable>
 
                 <AnimatedPressable onPress={openEntry} className="flex-1 rounded-2xl overflow-hidden shadow-lg">
-                  <LinearGradient colors={['#3B82F6', '#2563EB']} className="flex-row items-center justify-center px-6 py-3.5">
+                  <LinearGradient colors={['#7E57C2', '#5E35B1']} className="flex-row items-center justify-center px-6 py-3.5">
                     <Ionicons name="checkmark" size={22} color="white" />
                     <Text className={"text-white font-semibold ml-2 " + bodyClassName}>ยืนยันภาพ</Text>
                   </LinearGradient>

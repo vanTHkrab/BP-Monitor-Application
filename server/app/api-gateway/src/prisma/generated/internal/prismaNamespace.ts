@@ -392,6 +392,8 @@ export const ModelName = {
   Alert: 'Alert',
   BloodPressureReading: 'BloodPressureReading',
   Post: 'Post',
+  PostComment: 'PostComment',
+  PostCommentLike: 'PostCommentLike',
   PostLike: 'PostLike'
 } as const
 
@@ -408,7 +410,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "userSession" | "caregiverPatient" | "image" | "analysisResult" | "alert" | "bloodPressureReading" | "post" | "postLike"
+    modelProps: "user" | "userSession" | "caregiverPatient" | "image" | "analysisResult" | "alert" | "bloodPressureReading" | "post" | "postComment" | "postCommentLike" | "postLike"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1004,6 +1006,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    PostComment: {
+      payload: Prisma.$PostCommentPayload<ExtArgs>
+      fields: Prisma.PostCommentFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PostCommentFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PostCommentFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>
+        }
+        findFirst: {
+          args: Prisma.PostCommentFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PostCommentFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>
+        }
+        findMany: {
+          args: Prisma.PostCommentFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>[]
+        }
+        create: {
+          args: Prisma.PostCommentCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>
+        }
+        createMany: {
+          args: Prisma.PostCommentCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PostCommentCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>[]
+        }
+        delete: {
+          args: Prisma.PostCommentDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>
+        }
+        update: {
+          args: Prisma.PostCommentUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>
+        }
+        deleteMany: {
+          args: Prisma.PostCommentDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PostCommentUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PostCommentUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>[]
+        }
+        upsert: {
+          args: Prisma.PostCommentUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentPayload>
+        }
+        aggregate: {
+          args: Prisma.PostCommentAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePostComment>
+        }
+        groupBy: {
+          args: Prisma.PostCommentGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PostCommentGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PostCommentCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PostCommentCountAggregateOutputType> | number
+        }
+      }
+    }
+    PostCommentLike: {
+      payload: Prisma.$PostCommentLikePayload<ExtArgs>
+      fields: Prisma.PostCommentLikeFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PostCommentLikeFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PostCommentLikeFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>
+        }
+        findFirst: {
+          args: Prisma.PostCommentLikeFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PostCommentLikeFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>
+        }
+        findMany: {
+          args: Prisma.PostCommentLikeFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>[]
+        }
+        create: {
+          args: Prisma.PostCommentLikeCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>
+        }
+        createMany: {
+          args: Prisma.PostCommentLikeCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PostCommentLikeCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>[]
+        }
+        delete: {
+          args: Prisma.PostCommentLikeDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>
+        }
+        update: {
+          args: Prisma.PostCommentLikeUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>
+        }
+        deleteMany: {
+          args: Prisma.PostCommentLikeDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PostCommentLikeUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PostCommentLikeUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>[]
+        }
+        upsert: {
+          args: Prisma.PostCommentLikeUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCommentLikePayload>
+        }
+        aggregate: {
+          args: Prisma.PostCommentLikeAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePostCommentLike>
+        }
+        groupBy: {
+          args: Prisma.PostCommentLikeGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PostCommentLikeGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PostCommentLikeCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PostCommentLikeCountAggregateOutputType> | number
+        }
+      }
+    }
     PostLike: {
       payload: Prisma.$PostLikePayload<ExtArgs>
       fields: Prisma.PostLikeFieldRefs
@@ -1230,6 +1380,27 @@ export const PostScalarFieldEnum = {
 } as const
 
 export type PostScalarFieldEnum = (typeof PostScalarFieldEnum)[keyof typeof PostScalarFieldEnum]
+
+
+export const PostCommentScalarFieldEnum = {
+  id: 'id',
+  postId: 'postId',
+  userId: 'userId',
+  parentId: 'parentId',
+  content: 'content',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PostCommentScalarFieldEnum = (typeof PostCommentScalarFieldEnum)[keyof typeof PostCommentScalarFieldEnum]
+
+
+export const PostCommentLikeScalarFieldEnum = {
+  userId: 'userId',
+  commentId: 'commentId'
+} as const
+
+export type PostCommentLikeScalarFieldEnum = (typeof PostCommentLikeScalarFieldEnum)[keyof typeof PostCommentLikeScalarFieldEnum]
 
 
 export const PostLikeScalarFieldEnum = {
@@ -1533,6 +1704,8 @@ export type GlobalOmitConfig = {
   alert?: Prisma.AlertOmit
   bloodPressureReading?: Prisma.BloodPressureReadingOmit
   post?: Prisma.PostOmit
+  postComment?: Prisma.PostCommentOmit
+  postCommentLike?: Prisma.PostCommentLikeOmit
   postLike?: Prisma.PostLikeOmit
 }
 

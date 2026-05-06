@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSFaceIDUsageDescription": "ใช้ Face ID เพื่อปลดล็อกข้อมูลส่วนตัวและยืนยันการเข้าถึง"
-      }
+      },
+      "bundleIdentifier": "com.ok999p.bpmonitor"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +24,13 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.ok999p.bpmonitor"
+      "package": "com.ok999p.bpmonitor",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -33,7 +40,18 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/bp_voice_1.wav",
+            "./assets/sounds/bp_voice_2.wav",
+            "./assets/sounds/bp_voice_3.wav",
+            "./assets/sounds/bp_voice_4.wav",
+            "./assets/sounds/bp_voice_5.wav"
+          ]
+        }
+      ],
       [
         "expo-local-authentication",
         {
@@ -46,9 +64,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#BFE8F0",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#0E0B1E"
           }
         }
       ],

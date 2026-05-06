@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Constants from "expo-constants";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform } from "react-native";
 import type { BloodPressureReading } from "@/types";
 
@@ -9,6 +9,7 @@ export interface ReminderSettings {
   startHour: number;
   endHour: number;
   selectedDays: number[];
+  soundId: ReminderSoundId;
 }
 
 export interface ReminderDiagnostics {
@@ -30,12 +31,66 @@ export interface ReminderTimelineSlot {
   minutesLate?: number;
 }
 
+export type ReminderSoundId =
+  | "voice1"
+  | "voice2"
+  | "voice3"
+  | "voice4"
+  | "voice5";
+
+export interface ReminderSoundOption {
+  id: ReminderSoundId;
+  label: string;
+  description: string;
+  fileName: string;
+  channelId: string;
+}
+
+export const REMINDER_SOUND_OPTIONS: ReminderSoundOption[] = [
+  {
+    id: "voice1",
+    label: "เสียง 1",
+    description: "สั้น นุ่ม เป็นกันเอง",
+    fileName: "bp_voice_1.wav",
+    channelId: "bp-reminders-voice-1",
+  },
+  {
+    id: "voice2",
+    label: "เสียง 2",
+    description: "สุภาพ ช้า เหมาะกับผู้สูงอายุ",
+    fileName: "bp_voice_2.wav",
+    channelId: "bp-reminders-voice-2",
+  },
+  {
+    id: "voice3",
+    label: "เสียง 3",
+    description: "ชัดเจน พร้อมบอกให้บันทึกค่า",
+    fileName: "bp_voice_3.wav",
+    channelId: "bp-reminders-voice-3",
+  },
+  {
+    id: "voice4",
+    label: "เสียง 4",
+    description: "เตือนเบา ๆ ฟังสบาย",
+    fileName: "bp_voice_4.wav",
+    channelId: "bp-reminders-voice-4",
+  },
+  {
+    id: "voice5",
+    label: "เสียง 5",
+    description: "อบอุ่น ให้กำลังใจ",
+    fileName: "bp_voice_5.wav",
+    channelId: "bp-reminders-voice-5",
+  },
+];
+
 export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
   enabled: false,
   intervalHours: 4,
   startHour: 7,
   endHour: 19,
   selectedDays: [0, 1, 2, 3, 4, 5, 6],
+  soundId: "voice1",
 };
 
 const REMINDER_KIND = "bp_flex_reminder";
@@ -47,11 +102,22 @@ export const REMINDER_DONE_ACTION_ID = "bp_reminder_done";
 export const REMINDER_SNOOZE_5_ACTION_ID = "bp_reminder_snooze_5";
 export const REMINDER_BUSY_ACTION_ID = "bp_reminder_busy_30";
 
-const isExpoGo = Constants.appOwnership === "expo";
+// Expo Go on Android dropped remote-push support in SDK 53. Importing
+// expo-notifications there triggers a noisy warning from the auto push-token
+// registration side-effect — even when we only schedule local notifications.
+// Skip the module on Android Expo Go and surface a clearer message in the UI.
+// iOS Expo Go still supports local notifications, so it loads as usual.
+const isExpoGo =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+const isExpoGoAndroid = isExpoGo && Platform.OS === "android";
 
 const getNotificationsModule = async () => {
-  if (isExpoGo) return null;
-  return import("expo-notifications");
+  if (isExpoGoAndroid) return null;
+  try {
+    return await import("expo-notifications");
+  } catch {
+    return null;
+  }
 };
 
 const getReminderSettingsStorageKey = (userId?: string) =>
@@ -59,6 +125,15 @@ const getReminderSettingsStorageKey = (userId?: string) =>
 
 const isReminderNotification = (data: Record<string, unknown> | undefined) =>
   data?.kind === REMINDER_KIND || data?.kind === FOLLOW_UP_KIND;
+
+const isReminderSoundId = (value: unknown): value is ReminderSoundId =>
+  REMINDER_SOUND_OPTIONS.some((option) => option.id === value);
+
+export const getReminderSoundOption = (
+  soundId?: ReminderSoundId,
+): ReminderSoundOption =>
+  REMINDER_SOUND_OPTIONS.find((option) => option.id === soundId) ??
+  REMINDER_SOUND_OPTIONS[0];
 
 const isSameUserReminder = (
   data: Record<string, unknown> | undefined,
@@ -123,6 +198,9 @@ export const loadReminderSettings = async (userId?: string) => {
               (day) => Number.isInteger(day) && day >= 0 && day <= 6,
             )
           : DEFAULT_REMINDER_SETTINGS.selectedDays,
+      soundId: isReminderSoundId(parsed.soundId)
+        ? parsed.soundId
+        : DEFAULT_REMINDER_SETTINGS.soundId,
     };
   } catch {
     return DEFAULT_REMINDER_SETTINGS;
@@ -288,7 +366,9 @@ export const getReminderDiagnostics = async (
       permissionGranted: false,
       canAskAgain: false,
       scheduledCount: 0,
-      reason: "Expo Go ยังไม่รองรับการแจ้งเตือนชุดนี้ กรุณาใช้ development build",
+      reason: isExpoGoAndroid
+        ? "Expo Go บน Android ไม่รองรับการแจ้งเตือนตั้งแต่ SDK 53 กรุณาใช้ development build"
+        : "ไม่สามารถโหลดโมดูลแจ้งเตือนได้ กรุณาเปิดแอปใหม่อีกครั้ง",
     };
   }
 
@@ -346,6 +426,7 @@ const scheduleNotificationAt = async ({
   kind,
   occurrenceKey,
   userId,
+  soundId,
 }: {
   when: Date;
   title: string;
@@ -353,26 +434,29 @@ const scheduleNotificationAt = async ({
   kind: typeof REMINDER_KIND | typeof FOLLOW_UP_KIND;
   occurrenceKey: string;
   userId: string;
+  soundId?: ReminderSoundId;
 }) => {
   const Notifications = await getNotificationsModule();
   if (!Notifications) return "";
+  const sound = getReminderSoundOption(soundId);
 
   return Notifications.scheduleNotificationAsync({
     content: {
       title,
       body,
-      sound: true,
+      sound: sound.fileName,
       categoryIdentifier: REMINDER_CATEGORY_ID,
       data: {
         kind,
         reminderUserId: userId,
         occurrenceKey,
+        soundId: sound.id,
       },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: when,
-      channelId: "bp-reminders",
+      channelId: sound.channelId,
     },
   });
 };
@@ -414,6 +498,7 @@ export const scheduleSnoozedReminder = async ({
 }) => {
   const when = new Date(Date.now() + delayMinutes * 60_000);
   const occurrenceKey = `${sourceOccurrenceKey}:snooze:${delayMinutes}:${when.toISOString()}`;
+  const settings = await loadReminderSettings(userId);
   await scheduleNotificationAt({
     when,
     title: "เตือนอีกครั้งให้วัดความดัน",
@@ -424,6 +509,7 @@ export const scheduleSnoozedReminder = async ({
     kind: FOLLOW_UP_KIND,
     occurrenceKey,
     userId,
+    soundId: settings.soundId,
   });
 };
 
@@ -481,11 +567,13 @@ export const scheduleFlexibleReminders = async (
   if (!settings.enabled || settings.selectedDays.length === 0) return;
 
   await configureReminderActions();
+  const sound = getReminderSoundOption(settings.soundId);
 
   if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("bp-reminders", {
-      name: "BP Reminders",
+    await Notifications.setNotificationChannelAsync(sound.channelId, {
+      name: `BP Reminders ${sound.label}`,
       importance: Notifications.AndroidImportance.HIGH,
+      sound: sound.fileName,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#3498DB",
     });
@@ -517,6 +605,7 @@ export const scheduleFlexibleReminders = async (
           kind: REMINDER_KIND,
           occurrenceKey,
           userId,
+          soundId: settings.soundId,
         }),
       );
 
@@ -529,6 +618,7 @@ export const scheduleFlexibleReminders = async (
           kind: FOLLOW_UP_KIND,
           occurrenceKey,
           userId,
+          soundId: settings.soundId,
         }),
       );
     }
@@ -546,6 +636,7 @@ export const scheduleTestReminder = async (userId?: string) => {
   if (!granted) return false;
 
   const when = new Date(Date.now() + 10_000);
+  const settings = await loadReminderSettings(userId);
   await scheduleNotificationAt({
     when,
     title: "ทดสอบการแจ้งเตือน",
@@ -553,6 +644,7 @@ export const scheduleTestReminder = async (userId?: string) => {
     kind: FOLLOW_UP_KIND,
     occurrenceKey: `test:${when.toISOString()}`,
     userId,
+    soundId: settings.soundId,
   });
   return true;
 };

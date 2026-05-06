@@ -1,6 +1,7 @@
 import { BloodPressureReading, CommunityPost } from '@/types';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
 export type ExportDataType = 'readings' | 'posts';
@@ -343,6 +344,28 @@ const createExportFile = async (options: ExportPayloadOptions, attempt: number):
     const details = stringifyErrorSafe(error);
     throw new Error(`สร้างไฟล์ไม่สำเร็จ (attempt ${attempt})${details ? `: ${details}` : ''}`);
   }
+};
+
+export type ShareReadingsExportResult = 'shared' | 'unsupported-platform' | 'unsupported-device';
+
+/**
+ * One-shot helper: build the export file then open the OS share sheet.
+ * Returns a status code so callers can show their own messaging.
+ * Throws only on file generation failures.
+ */
+export const shareReadingsExport = async (
+  options: ExportPayloadOptions,
+  maxAttempts = 3,
+): Promise<ShareReadingsExportResult> => {
+  if (Platform.OS === 'web') return 'unsupported-platform';
+
+  const fileUri = await createExportFileWithRetry(options, maxAttempts);
+
+  const canShare = await Sharing.isAvailableAsync();
+  if (!canShare) return 'unsupported-device';
+
+  await Sharing.shareAsync(fileUri);
+  return 'shared';
 };
 
 export const createExportFileWithRetry = async (options: ExportPayloadOptions, maxAttempts = 3): Promise<string> => {

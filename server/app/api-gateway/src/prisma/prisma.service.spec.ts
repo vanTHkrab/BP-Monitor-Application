@@ -1,4 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
+jest.mock('@prisma/adapter-pg', () => ({
+  PrismaPg: jest.fn().mockImplementation(() => ({})),
+}));
+
+jest.mock('./generated/client', () => ({
+  PrismaClient: class {
+    $connect = jest.fn();
+    $disconnect = jest.fn();
+
+    constructor(_options?: unknown) {}
+  },
+}));
+
 import { PrismaService } from './prisma.service';
 
 describe('PrismaService', () => {

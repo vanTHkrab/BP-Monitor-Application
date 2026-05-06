@@ -1,10 +1,11 @@
 import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animated-components';
 import { BPReadingCard } from '@/components/bp-reading-card';
 import { GradientBackground } from '@/components/gradient-background';
+import { ReadingDetailModal } from '@/components/reading-detail-modal';
 import { TabButtons } from '@/components/tab-buttons';
 import { useAppStore } from '@/store/useAppStore';
-import { TimeFilter } from '@/types';
-import { createExportFileWithRetry, ExportDataType, ExportFormat } from '@/utils/export-data';
+import { BloodPressureReading, TimeFilter } from '@/types';
+import { ExportDataType, ExportFormat, shareReadingsExport } from '@/utils/export-data';
 import { getFontClass, getFontNumber } from '@/utils/font-scale';
 import {
   buildReminderTimelineForDate,
@@ -14,7 +15,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router, useFocusEffect } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import { cssInterop } from 'nativewind';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Platform, ScrollView, Text, View } from 'react-native';
@@ -63,6 +63,8 @@ export default function HistoryScreen() {
   });
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedReading, setSelectedReading] =
+    useState<BloodPressureReading | null>(null);
   const showChart = true;
   const maxExportAttempts = 3;
   type ExportRangeKey = TimeFilter | 'all';
@@ -93,7 +95,7 @@ export default function HistoryScreen() {
     { key: '1year', label: '1 ปี' },
   ];
 
-  const exportRangeOptions: Array<{ key: ExportRangeKey; label: string }> = [
+  const exportRangeOptions: { key: ExportRangeKey; label: string }[] = [
     { key: '7days', label: '7 วัน' },
     { key: '30days', label: '30 วัน' },
     { key: '3months', label: '3 เดือน' },
@@ -102,7 +104,7 @@ export default function HistoryScreen() {
   ];
 
   // Filter readings based on time filter
-  const filterReadingsByRange = (rangeKey: ExportRangeKey, source: typeof readings) => {
+  const filterReadingsByRange = useCallback((rangeKey: ExportRangeKey, source: typeof readings) => {
     if (rangeKey === 'all') return source;
 
     const now = new Date();
@@ -126,11 +128,11 @@ export default function HistoryScreen() {
     }
 
     return source.filter((r) => new Date(r.measuredAt) >= cutoffDate);
-  };
+  }, []);
 
   const filteredReadings = useMemo(() => {
     return filterReadingsByRange(timeFilter, readings);
-  }, [readings, timeFilter]);
+  }, [filterReadingsByRange, readings, timeFilter]);
 
   const todayReminderTimeline = useMemo(
     () =>
@@ -227,7 +229,7 @@ export default function HistoryScreen() {
     setIsExporting(true);
     try {
       const readingsForExport = dataType === 'readings' ? filterReadingsByRange(rangeKey, readings) : [];
-      const fileUri = await createExportFileWithRetry(
+      const result = await shareReadingsExport(
         {
           dataType,
           format,
@@ -235,16 +237,12 @@ export default function HistoryScreen() {
           posts,
           userName: user ? `${user.firstname} ${user.lastname}`.trim() : undefined,
         },
-        maxExportAttempts
+        maxExportAttempts,
       );
 
-      const canShare = await Sharing.isAvailableAsync();
-      if (!canShare) {
+      if (result === 'unsupported-device') {
         Alert.alert('ไม่รองรับ', 'อุปกรณ์นี้ไม่รองรับการแชร์ไฟล์');
-        return;
       }
-
-      await Sharing.shareAsync(fileUri);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'ไม่สามารถส่งออกข้อมูลได้';
       Alert.alert('เกิดข้อผิดพลาด', message);
@@ -308,16 +306,13 @@ export default function HistoryScreen() {
         <FadeInView delay={100}>
           <View className="flex-row items-center justify-center px-4 py-4 relative">
             <LinearGradient
-              colors={['#5DADE2', '#3498DB']}
+              colors={['#72DDF4', '#35B8E8']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="px-6 py-2.5 rounded-xl"
             >
               <Text className={titleClassName + " font-bold text-white"}>ประวัติความดัน</Text>
             </LinearGradient>
-            {/* <AnimatedPressable className="absolute right-4 p-2" onPress={() => {}}>
-              <Ionicons name="refresh" size={24} color={Colors.primary.blue} />
-            </AnimatedPressable> */}
           </View>
         </FadeInView>
 
@@ -334,9 +329,9 @@ export default function HistoryScreen() {
         </FadeInView>
 
         <FadeInView delay={250}>
-          <View className="mx-4 rounded-3xl overflow-hidden shadow-lg mb-5 bg-white dark:bg-slate-900 border border-transparent dark:border-slate-700">
+          <View className="mx-4 rounded-3xl overflow-hidden shadow-lg mb-5 bg-white dark:bg-slate-900 border border-white/80 dark:border-slate-700">
             <LinearGradient
-              colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F8FAFC']}
+              colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#FFFFFF']}
               className="p-4 rounded-3xl"
             >
               <View className="flex-row items-start justify-between">
@@ -446,7 +441,7 @@ export default function HistoryScreen() {
               ) : (
                 <View
                   className={
-                    (isDark ? 'bg-[#111827] border border-[#334155]' : 'bg-[#F8FAFC] border border-[#E2E8F0]') +
+                    (isDark ? 'bg-[#111827] border border-[#334155]' : 'bg-white border border-white/80') +
                     ' rounded-2xl mt-4 p-4'
                   }
                 >
@@ -467,13 +462,13 @@ export default function HistoryScreen() {
           <ScaleOnMount delay={320}>
             <View className="mx-4 rounded-3xl overflow-hidden shadow-lg mb-5 bg-white dark:bg-slate-900 border border-transparent dark:border-slate-700">
               <LinearGradient
-                colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F8FAFC']}
+                colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#FFFFFF']}
                 className="p-4 rounded-3xl"
               >
                 {/* Legend */}
                 <View className="flex-row justify-center gap-6 mb-2">
                   <View className="flex-row items-center">
-                    <View className="w-2.5 h-2.5 rounded-full bg-[#5DADE2] mr-1.5" />
+                    <View className="w-2.5 h-2.5 rounded-full bg-[#35B8E8] mr-1.5" />
                     <Text className={bodyClassName + " text-gray-500 dark:text-slate-300 font-medium"}>ค่าบน (SYS)</Text>
                   </View>
                   <View className="flex-row items-center">
@@ -492,7 +487,7 @@ export default function HistoryScreen() {
                         อัปเดตจากการวัดครั้งล่าสุด
                       </Text>
                     </View>
-                    <View className="rounded-full bg-[#5DADE2] px-4 py-2">
+                    <View className="rounded-full bg-[#35B8E8] px-4 py-2">
                       <Text className={bodyClassName + ' text-white font-bold'}>
                         {latestChartReading.systolic}/{latestChartReading.diastolic}
                       </Text>
@@ -511,21 +506,21 @@ export default function HistoryScreen() {
                     initialSpacing={18}
                     endSpacing={18}
                     spacing={36}
-                    color1="#5DADE2"
+                    color1="#35B8E8"
                     color2="#8E44AD"
                     thickness1={4}
                     thickness2={3}
                     dataPointsRadius1={5}
                     dataPointsRadius2={4}
-                    dataPointsColor1="#5DADE2"
+                    dataPointsColor1="#35B8E8"
                     dataPointsColor2="#8E44AD"
                     hideDataPoints={false}
                     hideDataPoints2={false}
                     curved
                     areaChart
                     areaChart1
-                    startFillColor1="#5DADE2"
-                    endFillColor1="#5DADE2"
+                    startFillColor1="#35B8E8"
+                    endFillColor1="#35B8E8"
                     startOpacity1={0.2}
                     endOpacity1={0.03}
                     startFillColor2="#8E44AD"
@@ -555,11 +550,11 @@ export default function HistoryScreen() {
                       pointerStripColor: isDark ? '#475569' : '#CBD5E1',
                       pointerStripWidth: 2,
                       radius: 6,
-                      pointerColor: '#5DADE2',
+                      pointerColor: '#35B8E8',
                       activatePointersOnLongPress: true,
                       persistPointer: false,
                       autoAdjustPointerLabelPosition: true,
-                      pointerLabelComponent: (items: Array<{ value?: number }>) => (
+                      pointerLabelComponent: (items: { value?: number }[]) => (
                         <View
                           style={{
                             backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
@@ -589,7 +584,10 @@ export default function HistoryScreen() {
             <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 mb-3"}>รายการล่าสุด</Text>
             {filteredReadings.slice(0, 3).map((reading, index) => (
               <FadeInView key={reading.id} delay={450 + index * 100}>
-                <BPReadingCard reading={reading} onPress={() => {}} />
+                <BPReadingCard
+                  reading={reading}
+                  onPress={() => setSelectedReading(reading)}
+                />
               </FadeInView>
             ))}
           </View>
@@ -608,9 +606,9 @@ export default function HistoryScreen() {
                   className="flex-row items-center justify-center py-3.5 rounded-2xl"
                 >
                   <View className="mr-2">
-                    <Ionicons name="list" size={20} color="#3498DB" />
+                    <Ionicons name="list" size={20} color="#7E57C2" />
                   </View>
-                  <Text className={bodyClassName + " text-[#3498DB] font-semibold"}>
+                  <Text className={bodyClassName + " text-[#7E57C2] font-semibold"}>
                     ดูทั้งหมด ({filteredReadings.length} รายการ)
                   </Text>
                 </LinearGradient>
@@ -641,6 +639,11 @@ export default function HistoryScreen() {
 
         <View className="h-[100px]" />
       </ScrollView>
+      <ReadingDetailModal
+        visible={Boolean(selectedReading)}
+        reading={selectedReading}
+        onClose={() => setSelectedReading(null)}
+      />
     </GradientBackground>
   );
 }

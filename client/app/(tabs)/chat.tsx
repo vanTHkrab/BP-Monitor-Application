@@ -3,12 +3,14 @@ import { CommunityPostCard } from '@/components/community-post-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/tab-buttons';
 import { useAppStore } from '@/store/useAppStore';
+import { PostComment } from '@/types';
 import { getFontClass, getFontNumber } from '@/utils/font-scale';
+import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
-import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -16,7 +18,25 @@ cssInterop(LinearGradient, { className: 'style' });
 type CommunityTab = 'general' | 'experience' | 'qa';
 
 export default function CommunityScreen() {
-  const { posts, toggleLike, createPost, updatePost, deletePost, isAuthenticated, user } = useAppStore();
+  const {
+    posts,
+    commentsByPostId,
+    toggleLike,
+    createPost,
+    updatePost,
+    deletePost,
+    fetchPosts,
+    syncPendingPosts,
+    fetchPostComments,
+    createComment,
+    updateComment,
+    deleteComment,
+    toggleCommentLike,
+    isAuthenticated,
+    isOnline,
+    authToken,
+    user,
+  } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
@@ -27,8 +47,19 @@ export default function CommunityScreen() {
   const [composerText, setComposerText] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [isCommentSubmitting, setIsCommentSubmitting] = useState(false);
 
   const canSubmit = composerText.trim().length > 0 && !isPosting;
+  const selectedPost = selectedPostId
+    ? posts.find((post) => post.id === selectedPostId)
+    : null;
+  const selectedComments = selectedPostId
+    ? commentsByPostId[selectedPostId] ?? []
+    : [];
+  const canSubmitComment = commentText.trim().length > 0 && !isCommentSubmitting;
 
   const closeComposer = () => {
     setIsComposerOpen(false);
@@ -73,6 +104,18 @@ export default function CommunityScreen() {
     { key: 'qa', label: 'Q&A' }
   ];
 
+  useEffect(() => {
+    void syncPendingPosts();
+    void fetchPosts();
+  }, [
+    authToken,
+    fetchPosts,
+    isAuthenticated,
+    isOnline,
+    syncPendingPosts,
+    user?.id,
+  ]);
+
   const filteredPosts = posts.filter(post => {
     if (activeTab === 'general') return post.category === 'general';
     if (activeTab === 'experience') return post.category === 'experience';
@@ -82,7 +125,11 @@ export default function CommunityScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await syncPendingPosts();
+    await fetchPosts();
+    if (selectedPostId) {
+      await fetchPostComments(selectedPostId);
+    }
     setRefreshing(false);
   };
 
@@ -156,6 +203,50 @@ export default function CommunityScreen() {
     ]);
   };
 
+  const openComments = (postId: string) => {
+    setSelectedPostId(postId);
+    setEditingCommentId(null);
+    setCommentText('');
+    void fetchPostComments(postId);
+  };
+
+  const closeComments = () => {
+    setSelectedPostId(null);
+    setEditingCommentId(null);
+    setCommentText('');
+  };
+
+  const startEditComment = (comment: PostComment) => {
+    setEditingCommentId(comment.id);
+    setCommentText(comment.content);
+  };
+
+  const confirmDeleteComment = (comment: PostComment) => {
+    if (!selectedPostId) return;
+    Alert.alert('ลบความคิดเห็น', 'ต้องการลบความคิดเห็นนี้ใช่ไหม?', [
+      { text: 'ยกเลิก', style: 'cancel' },
+      {
+        text: 'ลบ',
+        style: 'destructive',
+        onPress: async () => {
+          const ok = await deleteComment(selectedPostId, comment.id);
+          if (!ok) Alert.alert('ข้อผิดพลาด', 'ไม่สามารถลบความคิดเห็นได้');
+        },
+      },
+    ]);
+  };
+
+  const openCommentActions = (comment: PostComment) => {
+    const isOwner = Boolean(user && comment.userId === user.id);
+    if (!isOwner) return;
+
+    Alert.alert('จัดการความคิดเห็น', undefined, [
+      { text: 'แก้ไข', onPress: () => startEditComment(comment) },
+      { text: 'ลบ', style: 'destructive', onPress: () => confirmDeleteComment(comment) },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
   const performCreate = async () => {
     setIsPosting(true);
     try {
@@ -209,6 +300,33 @@ export default function CommunityScreen() {
     ]);
   };
 
+  const submitComment = async () => {
+    if (!selectedPostId) return;
+    if (!isAuthenticated) {
+      Alert.alert('กรุณาเข้าสู่ระบบ', 'ต้องเข้าสู่ระบบก่อนแสดงความคิดเห็น');
+      return;
+    }
+    if (!commentText.trim()) {
+      Alert.alert('ข้อความว่าง', 'กรุณาพิมพ์ความคิดเห็นก่อนส่ง');
+      return;
+    }
+
+    setIsCommentSubmitting(true);
+    try {
+      const ok = editingCommentId
+        ? await updateComment({ commentId: editingCommentId, content: commentText })
+        : await createComment({ postId: selectedPostId, content: commentText });
+      if (!ok) {
+        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกความคิดเห็นได้');
+        return;
+      }
+      setCommentText('');
+      setEditingCommentId(null);
+    } finally {
+      setIsCommentSubmitting(false);
+    }
+  };
+
   return (
     <GradientBackground safeArea={false}>
       <ScrollView 
@@ -226,7 +344,7 @@ export default function CommunityScreen() {
         <FadeInView delay={100}>
           <View className="items-center px-4 pt-3 pb-4">
             <LinearGradient
-              colors={['#9B59B6', '#8E44AD']}
+              colors={['#FFB26B', '#FF8A45']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="flex-row items-center px-5 py-2.5 rounded-xl shadow-lg"
@@ -236,9 +354,6 @@ export default function CommunityScreen() {
               </View>
               <Text className={titleClassName + " font-bold text-white"}>ชุมชนสุขภาพ</Text>
             </LinearGradient>
-            {/* <AnimatedPressable style={styles.notificationBtn} onPress={() => {}}>
-              <Ionicons name="notifications-outline" size={24} color={Colors.primary.blue} />
-            </AnimatedPressable> */}
           </View>
         </FadeInView>
 
@@ -263,8 +378,8 @@ export default function CommunityScreen() {
                   post={post}
                   onLike={() => toggleLike(post.id)}
                   onMore={() => openPostActions(post.id)}
-                  onPress={() => {}}
-                  onComment={() => {}}
+                  onPress={() => openComments(post.id)}
+                  onComment={() => openComments(post.id)}
                 />
               </FadeInView>
             ))
@@ -459,6 +574,172 @@ export default function CommunityScreen() {
                     <Text className={"text-white font-bold ml-2 " + bodyClassName}>{isPosting ? 'กำลังทำ...' : editingPostId ? 'ยืนยัน' : 'โพสต์'}</Text>
                   </LinearGradient>
                 </AnimatedPressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(selectedPostId)}
+        transparent
+        animationType="fade"
+        onRequestClose={closeComments}
+      >
+        <View className="flex-1 bg-black/45 justify-end">
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+            className="w-full"
+          >
+            <View
+              className={
+                (isDark ? 'bg-[#0B1220] border-t border-[#334155]' : 'bg-white') +
+                ' max-h-[86%] rounded-t-[24px] px-4 pt-4 ' +
+                (Platform.OS === 'ios' ? 'pb-7' : 'pb-4')
+              }
+            >
+              <View className="flex-row items-start justify-between mb-3">
+                <View className="flex-1 pr-3">
+                  <Text className={(isDark ? 'text-slate-100' : 'text-[#111827]') + ' ' + titleClassName + ' font-extrabold'}>
+                    ความคิดเห็น
+                  </Text>
+                  <Text className={(isDark ? 'text-slate-400' : 'text-gray-500') + ' mt-1 ' + captionClassName} numberOfLines={2}>
+                    {selectedPost?.content ?? 'เลือกโพสต์เพื่ออ่านความคิดเห็น'}
+                  </Text>
+                </View>
+                <AnimatedPressable
+                  onPress={closeComments}
+                  className={(isDark ? 'bg-[#111827]' : 'bg-gray-100') + ' w-10 h-10 rounded-xl items-center justify-center'}
+                >
+                  <Ionicons name="close" size={22} color={isDark ? '#E2E8F0' : '#374151'} />
+                </AnimatedPressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} className="mb-3">
+                {selectedComments.length > 0 ? (
+                  selectedComments.map((comment) => {
+                    const isOwner = Boolean(user && comment.userId === user.id);
+                    return (
+                      <View
+                        key={comment.id}
+                        className={
+                          (isDark ? 'bg-[#0F172A] border-[#334155]' : 'bg-white border-white/80') +
+                          ' rounded-2xl border p-3 mb-3'
+                        }
+                      >
+                        <View className="flex-row items-start">
+                          <View className="w-10 h-10 rounded-full overflow-hidden bg-sky-100 dark:bg-slate-800 items-center justify-center mr-3">
+                            {comment.userAvatar ? (
+                              <Image
+                                source={{ uri: toDisplayImageUri(comment.userAvatar) }}
+                                className="w-full h-full"
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <Ionicons name="person" size={20} color="#7E57C2" />
+                            )}
+                          </View>
+                          <View className="flex-1">
+                            <View className="flex-row items-center justify-between">
+                              <Text className={(isDark ? 'text-slate-100' : 'text-[#111827]') + ' ' + bodyClassName + ' font-bold'}>
+                                {comment.userName || 'ผู้ใช้'}
+                              </Text>
+                              {isOwner ? (
+                                <AnimatedPressable onPress={() => openCommentActions(comment)} className="p-1">
+                                  <Ionicons name="ellipsis-horizontal" size={18} color={isDark ? '#94A3B8' : '#6B7280'} />
+                                </AnimatedPressable>
+                              ) : null}
+                            </View>
+                            <Text className={(isDark ? 'text-slate-300' : 'text-gray-700') + ' mt-1 leading-6 ' + bodyClassName}>
+                              {comment.content}
+                            </Text>
+                            <View className="flex-row items-center mt-2">
+                              <AnimatedPressable
+                                onPress={() => selectedPostId && toggleCommentLike(selectedPostId, comment.id)}
+                                className="flex-row items-center mr-4"
+                              >
+                                <Ionicons
+                                  name={comment.isLiked ? 'heart' : 'heart-outline'}
+                                  size={17}
+                                  color={comment.isLiked ? '#E91E63' : isDark ? '#94A3B8' : '#6B7280'}
+                                />
+                                <Text className={(comment.isLiked ? 'text-[#E91E63]' : isDark ? 'text-slate-400' : 'text-gray-500') + ' ml-1 ' + captionClassName}>
+                                  {comment.likes}
+                                </Text>
+                              </AnimatedPressable>
+                              <Text className={(isDark ? 'text-slate-500' : 'text-gray-400') + ' ' + captionClassName}>
+                                {new Date(comment.createdAt).toLocaleString('th-TH', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View className={(isDark ? 'bg-[#0F172A] border-[#334155]' : 'bg-white border-white/80') + ' rounded-2xl border p-5 items-center'}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={34} color="#8E44AD" />
+                    <Text className={(isDark ? 'text-slate-200' : 'text-[#111827]') + ' mt-2 font-bold ' + bodyClassName}>
+                      ยังไม่มีความคิดเห็น
+                    </Text>
+                    <Text className={(isDark ? 'text-slate-400' : 'text-gray-500') + ' mt-1 text-center ' + captionClassName}>
+                      เริ่มพูดคุยจากประสบการณ์ของคุณได้เลย
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              <View className="border-t border-gray-200 dark:border-slate-700 pt-3">
+                {editingCommentId ? (
+                  <View className="flex-row items-center mb-2">
+                    <Text className={(isDark ? 'text-violet-200' : 'text-violet-700') + ' flex-1 font-bold ' + captionClassName}>
+                      กำลังแก้ไขความคิดเห็น
+                    </Text>
+                    <AnimatedPressable
+                      onPress={() => {
+                        setEditingCommentId(null);
+                        setCommentText('');
+                      }}
+                    >
+                      <Text className={'text-[#EF4444] font-bold ' + captionClassName}>ยกเลิกแก้ไข</Text>
+                    </AnimatedPressable>
+                  </View>
+                ) : null}
+                <View className="flex-row items-end">
+                  <TextInput
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    placeholder="เขียนความคิดเห็น..."
+                    placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
+                    multiline
+                    className={
+                      (isDark
+                        ? 'border border-[#334155] bg-[#111827] text-slate-100'
+                        : 'border border-gray-200 bg-gray-50 text-[#111827]') +
+                      ' flex-1 max-h-[120px] rounded-2xl px-3.5 py-3'
+                    }
+                    style={{ fontSize: composerFontSize, lineHeight: composerFontSize + 7 }}
+                    textAlignVertical="top"
+                  />
+                  <AnimatedPressable
+                    onPress={submitComment}
+                    disabled={!canSubmitComment}
+                    className="ml-2 rounded-2xl overflow-hidden"
+                  >
+                    <LinearGradient
+                      colors={!canSubmitComment ? ['#9CA3AF', '#6B7280'] : ['#9B59B6', '#8E44AD']}
+                      className="w-12 h-12 items-center justify-center"
+                    >
+                      <Ionicons name={isCommentSubmitting ? 'hourglass-outline' : 'send'} size={19} color="white" />
+                    </LinearGradient>
+                  </AnimatedPressable>
+                </View>
               </View>
             </View>
           </KeyboardAvoidingView>

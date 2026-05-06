@@ -27,7 +27,6 @@ type AuthTab = "login" | "register";
 cssInterop(LinearGradient, { className: "style" });
 
 export default function AuthScreen() {
-  const DEV_BUILD_ID = "auth-layout-2026-01-22-1";
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -94,7 +93,7 @@ export default function AuthScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.65,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -115,7 +114,7 @@ export default function AuthScreen() {
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.65,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -286,10 +285,10 @@ export default function AuthScreen() {
     { key: "register", label: "ลงทะเบียน" },
   ];
 
-  const genderOptions: Array<{
+  const genderOptions: {
     key: "male" | "female" | "other";
     label: string;
-  }> = [
+  }[] = [
     { key: "male", label: "ชาย" },
     { key: "female", label: "หญิง" },
     { key: "other", label: "อื่นๆ" },

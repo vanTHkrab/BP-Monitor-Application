@@ -47,19 +47,19 @@ export const CustomInput: React.FC<CustomInputProps> = ({
     (error
       ? `border-red-500 ${isDark ? 'bg-[#2A0A0A]' : 'bg-red-50'}`
       : isFocused
-        ? 'border-[#5DADE2] bg-white'
-        : `${isDark ? 'border-[#334155] bg-[#0B1220]' : 'border-[#94A3B8] bg-[#F8FAFC]'}`);
+        ? 'border-[#7E57C2] bg-white'
+        : `${isDark ? 'border-[#334155] bg-[#0B1220]' : 'border-white bg-white/95'}`);
 
   const iconBoxClassName =
     'w-9 h-9 rounded-[10px] items-center justify-center mr-2.5 ' +
     (isFocused
-      ? (isDark ? 'bg-[#0B2A3A]' : 'bg-[#EBF5FB]')
-      : (isDark ? 'bg-[#111827]' : 'bg-[#F3F4F6]'));
+      ? (isDark ? 'bg-[#281B45]' : 'bg-[#F3E5F5]')
+      : (isDark ? 'bg-[#111827]' : 'bg-[#F4F1F8]'));
 
   const iconColor = error
     ? '#EF4444'
     : isFocused
-      ? '#3498DB'
+      ? '#7E57C2'
       : isDark
         ? '#94A3B8'
         : '#9CA3AF';

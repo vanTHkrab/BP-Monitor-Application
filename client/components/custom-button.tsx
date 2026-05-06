@@ -51,15 +51,15 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
     if (disabled) return ['#BDC3C7', '#BDC3C7', '#BDC3C7'];
     switch (variant) {
       case 'primary':
-        return ['#72C9F7', '#5DADE2', '#3498DB'];
+        return ['#9575CD', '#7E57C2', '#5E35B1'];
       case 'secondary':
-        return ['#A569BD', '#8E44AD', '#6B3FA0'];
+        return ['#72DDF4', '#35B8E8', '#1898D4'];
       case 'danger':
-        return ['#F1948A', '#E57373', '#C0392B'];
+        return ['#FF8A8A', '#F46D6D', '#E05555'];
       case 'outline':
         return ['transparent', 'transparent', 'transparent'];
       default:
-        return ['#72C9F7', '#5DADE2', '#3498DB'];
+        return ['#9575CD', '#7E57C2', '#5E35B1'];
     }
   };
 

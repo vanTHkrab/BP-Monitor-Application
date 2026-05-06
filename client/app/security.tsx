@@ -62,7 +62,6 @@ export default function SecurityScreen() {
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const headerIconColor =
     themePreference === "dark" ? "#E2E8F0" : Colors.text.primary;
-  const isDark = themePreference === "dark";
   const titleClassName = getFontClass(fontSizePreference, {
     xsmall: "text-lg",
     small: "text-xl",

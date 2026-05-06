@@ -59,7 +59,7 @@ export const TabButtons: React.FC<TabButtonProps> = ({
             >
               {isActive ? (
                 <LinearGradient
-                  colors={isDark ? ['#2563EB', '#1D4ED8'] : ['#9B59B6', '#8E44AD']}
+                  colors={isDark ? ['#7E57C2', '#5E35B1'] : ['#FFB26B', '#FF8A45']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.pillGradient}
@@ -131,7 +131,7 @@ export const TabButtons: React.FC<TabButtonProps> = ({
             >
             {isActive ? (
               <LinearGradient
-                colors={['#5DADE2', '#3498DB']}
+                colors={['#FFB26B', '#FF8A45']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.defaultGradient}
@@ -169,15 +169,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
   },
   containerLight: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#CBD5E1',
+    backgroundColor: '#F4F1F8',
+    borderColor: '#E3D8F1',
     shadowOpacity: 0.12,
   },
   inactiveTextDark: {
     color: '#CBD5F5',
   },
   inactiveTextLight: {
-    color: '#475569',
+    color: '#5F4B75',
   },
   pillContainer: {
     borderRadius: 16,
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   underlineTextActive: {
-    color: '#3498DB',
+    color: '#7E57C2',
   },
   underlineTextInactive: {
     color: '#94A3B8',
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     height: 3,
     width: '60%',
     alignSelf: 'center',
-    backgroundColor: '#3498DB',
+    backgroundColor: '#7E57C2',
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
   },

@@ -21,7 +21,7 @@ export class PostService {
       include: {
         user: { select: { id: true, firstname: true, lastname: true, avatar: true } },
         likes: { select: { userId: true } },
-        _count: { select: { likes: true } },
+        _count: { select: { likes: true, comments: true } },
       },
     });
 
@@ -34,6 +34,7 @@ export class PostService {
       content: p.content,
       category: p.category,
       likes: p._count.likes,
+      comments: p._count.comments,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt ?? undefined,
       isLiked: currentUserId
@@ -46,16 +47,30 @@ export class PostService {
     userId: string,
     data: { content: string; category: string; clientId?: string },
   ) {
+    if (data.clientId) {
+      const existing = await this.prisma.post.findUnique({
+        where: { clientId: data.clientId },
+        include: {
+          user: { select: { id: true, firstname: true, lastname: true, avatar: true } },
+          _count: { select: { likes: true, comments: true } },
+        },
+      });
+
+      if (existing && existing.userId === userId) {
+        return existing;
+      }
+    }
+
     return this.prisma.post.create({
       data: {
         userId,
-        content: data.content,
+        content: data.content.trim(),
         category: data.category as any,
         clientId: data.clientId || null,
       },
       include: {
         user: { select: { id: true, firstname: true, lastname: true, avatar: true } },
-        _count: { select: { likes: true } },
+        _count: { select: { likes: true, comments: true } },
       },
     });
   }
@@ -77,7 +92,7 @@ export class PostService {
       data: patch,
       include: {
         user: { select: { id: true, firstname: true, lastname: true, avatar: true } },
-        _count: { select: { likes: true } },
+        _count: { select: { likes: true, comments: true } },
       },
     });
   }

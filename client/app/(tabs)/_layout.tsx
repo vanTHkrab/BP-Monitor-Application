@@ -11,6 +11,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
 
+function TabBarIcon({
+  name,
+  color,
+  focused,
+}: {
+  name: keyof typeof Ionicons.glyphMap;
+  color: string;
+  focused: boolean;
+}) {
+  if (!focused) {
+    return <Ionicons name={name} size={22} color={color} />;
+  }
+
+  return (
+    <LinearGradient
+      colors={['#FFB26B', '#FF8A45']}
+      className="w-9 h-8 rounded-xl items-center justify-center"
+    >
+      <Ionicons name={name} size={21} color="white" />
+    </LinearGradient>
+  );
+}
+
 export default function TabLayout() {
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
@@ -31,16 +54,20 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#5DADE2',
-        tabBarInactiveTintColor: isDark ? '#94A3B8' : '#9CA3AF',
+        tabBarActiveTintColor: '#FFFFFF',
+        tabBarInactiveTintColor: isDark ? '#C4B5FD' : '#F2EAFE',
         headerShown: false,
         tabBarButton: (props) => <HapticTab {...props} />,
         tabBarStyle: {
-          backgroundColor: isDark ? '#0B1220' : '#FFFFFF',
+          backgroundColor: isDark ? '#4C1D95' : '#7E57C2',
           borderTopWidth: 0,
           height: tabBarHeight,
           paddingBottom: tabBarPaddingBottom,
-          paddingTop: 8,
+          paddingTop: 7,
+          marginHorizontal: 8,
+          marginBottom: Platform.OS === 'ios' ? 2 : 4,
+          borderRadius: 16,
+          position: 'absolute',
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: isDark ? 0.25 : 0.1,
@@ -49,8 +76,8 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: {
           fontSize: tabLabelSize,
-          fontWeight: '500',
-          marginTop: 2,
+          fontWeight: '700',
+          marginTop: 1,
         },
       }}>
       <Tabs.Screen
@@ -58,11 +85,7 @@ export default function TabLayout() {
         options={{
           title: 'หน้าหลัก',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'home' : 'home-outline'}
-              size={24}
-              color={focused ? '#5DADE2' : color}
-            />
+            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} focused={focused} />
           ),
         }}
       />
@@ -71,11 +94,7 @@ export default function TabLayout() {
         options={{
           title: 'ประวัติ',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'stats-chart' : 'stats-chart-outline'}
-              size={24}
-              color={focused ? '#5DADE2' : color}
-            />
+            <TabBarIcon name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} focused={focused} />
           ),
         }}
       />
@@ -86,13 +105,13 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <View style={{ marginBottom: Platform.OS === 'ios' ? tabBarPaddingBottom + 10 : tabBarPaddingBottom + 6 }}>
               <LinearGradient
-                colors={['#D8BFD8', '#C8A2C8', '#BA8DC9']}
+                colors={['#FFB26B', '#FF8A45']}
                 className="w-14 h-14 rounded-full items-center justify-center shadow-lg"
               >
                 <Ionicons
                   name="camera"
                   size={26}
-                  color="#8E44AD"
+                  color="white"
                 />
               </LinearGradient>
             </View>
@@ -104,11 +123,7 @@ export default function TabLayout() {
         options={{
           title: 'ชุมชน',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'people' : 'people-outline'}
-              size={24}
-              color={focused ? '#5DADE2' : color}
-            />
+            <TabBarIcon name={focused ? 'people' : 'people-outline'} color={color} focused={focused} />
           ),
         }}
       />
@@ -117,11 +132,7 @@ export default function TabLayout() {
         options={{
           title: 'เมนู',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'albums' : 'albums-outline'}
-              size={24}
-              color={focused ? '#5DADE2' : color}
-            />
+            <TabBarIcon name={focused ? 'albums' : 'albums-outline'} color={color} focused={focused} />
           ),
         }}
       />
