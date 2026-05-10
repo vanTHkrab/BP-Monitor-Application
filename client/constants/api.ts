@@ -4,7 +4,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 const DEFAULT_API_PORT = "3000";
-const REQUEST_TIMEOUT_MS = 10000;
+const REQUEST_TIMEOUT_MS = 30000;
 const DEFAULT_LAN_API_HOST = "10.200.27.158";
 
 const isLoopbackHost = (host: string) =>
@@ -42,6 +42,10 @@ const resolveApiUrl = (): string => {
     }
   }
 
+  console.warn(
+    `[GraphQL] EXPO_PUBLIC_API_URL is not set and Expo host was unavailable. Falling back to ${DEFAULT_LAN_API_HOST}:${DEFAULT_API_PORT}`,
+  );
+
   if (Platform.OS === "android") {
     return `http://${DEFAULT_LAN_API_HOST}:${DEFAULT_API_PORT}/graphql`;
   }
@@ -50,6 +54,10 @@ const resolveApiUrl = (): string => {
 };
 
 const API_URL = resolveApiUrl();
+console.log(`[GraphQL] endpoint=${API_URL}`);
+
+export const getApiBaseUrl = () => API_URL.replace(/\/graphql\/?$/, "");
+export const getGraphqlEndpoint = () => API_URL;
 
 const TOKEN_KEY = "bp:auth-token";
 
@@ -74,11 +82,17 @@ interface GqlResponse<T = unknown> {
   errors?: Array<{ message: string; extensions?: Record<string, unknown> }>;
 }
 
+const getOperationName = (query: string): string => {
+  const match = query.match(/\b(query|mutation)\s+([A-Za-z0-9_]+)/);
+  return match?.[2] ?? "AnonymousOperation";
+};
+
 export async function graphqlRequest<T = unknown>(
   query: string,
   variables?: Record<string, unknown>,
   token?: string | null,
 ): Promise<T> {
+  const operationName = getOperationName(query);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const headers: Record<string, string> = {
@@ -90,6 +104,12 @@ export async function graphqlRequest<T = unknown>(
   }
 
   try {
+    console.log(`[GraphQL] ${operationName} request`, {
+      endpoint: API_URL,
+      hasToken: Boolean(token),
+      variableKeys: variables ? Object.keys(variables) : [],
+    });
+
     const res = await fetch(API_URL, {
       method: "POST",
       headers,
@@ -97,26 +117,58 @@ export async function graphqlRequest<T = unknown>(
       signal: controller.signal,
     });
 
-    const json: GqlResponse<T> = await res.json();
+    const rawText = await res.text();
+    let json: GqlResponse<T>;
+
+    try {
+      json = JSON.parse(rawText) as GqlResponse<T>;
+    } catch {
+      console.warn(`[GraphQL] ${operationName} invalid JSON response`, {
+        status: res.status,
+        endpoint: API_URL,
+        preview: rawText.slice(0, 180),
+      });
+      throw new Error(
+        `Invalid JSON response from server while calling ${operationName} (HTTP ${res.status})`,
+      );
+    }
+
+    if (!res.ok) {
+      const msg =
+        json.errors?.map((e) => e.message).join("; ") ||
+        `HTTP ${res.status}`;
+      console.warn(`[GraphQL] ${operationName} HTTP error`, {
+        status: res.status,
+        message: msg,
+      });
+      throw new Error(`${operationName} failed: ${msg}`);
+    }
 
     if (json.errors && json.errors.length > 0) {
       const msg = json.errors.map((e) => e.message).join("; ");
-      throw new Error(msg);
+      console.warn(`[GraphQL] ${operationName} GraphQL error`, {
+        message: msg,
+      });
+      throw new Error(`${operationName} failed: ${msg}`);
     }
 
     if (!json.data) {
-      throw new Error("No data returned from server");
+      console.warn(`[GraphQL] ${operationName} returned no data`);
+      throw new Error(`${operationName} failed: No data returned from server`);
     }
 
+    console.log(`[GraphQL] ${operationName} success`);
     return json.data;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(
-        `Network request timed out while connecting to ${API_URL}`,
+        `${operationName} timed out while connecting to ${API_URL}`,
       );
     }
     if (error instanceof Error && error.message === "Network request failed") {
-      throw new Error(`Network request failed while connecting to ${API_URL}`);
+      throw new Error(
+        `${operationName} network request failed while connecting to ${API_URL}`,
+      );
     }
     throw error;
   } finally {
@@ -200,6 +252,27 @@ export const GQL_DELETE_MY_DATA = `
   }
 `;
 
+export const GQL_UPLOAD_PROFILE_IMAGE = `
+  mutation UploadProfileImage($input: UploadImageInput!) {
+    uploadProfileImage(input: $input) {
+      key
+      url
+      bucket
+    }
+  }
+`;
+
+export const GQL_UPLOAD_BLOOD_PRESSURE_IMAGE = `
+  mutation UploadBloodPressureImage($input: UploadImageInput!) {
+    uploadBloodPressureImage(input: $input) {
+      key
+      url
+      bucket
+      imageId
+    }
+  }
+`;
+
 // ── Reading Queries/Mutations ──
 
 export const GQL_READINGS = `
@@ -229,7 +302,7 @@ export const GQL_DELETE_READING = `
 export const GQL_POSTS = `
   query Posts($category: String, $limit: Int, $offset: Int) {
     posts(category: $category, limit: $limit, offset: $offset) {
-      id userId clientId userName userAvatar content category likes createdAt updatedAt isLiked
+      id userId clientId userName userAvatar content category likes comments createdAt updatedAt isLiked
     }
   }
 `;
@@ -237,7 +310,7 @@ export const GQL_POSTS = `
 export const GQL_CREATE_POST = `
   mutation CreatePost($input: CreatePostInput!) {
     createPost(input: $input) {
-      id userId clientId userName userAvatar content category likes createdAt updatedAt isLiked
+      id userId clientId userName userAvatar content category likes comments createdAt updatedAt isLiked
     }
   }
 `;
@@ -257,5 +330,118 @@ export const GQL_DELETE_POST = `
 export const GQL_TOGGLE_LIKE = `
   mutation ToggleLike($postId: Int!) {
     toggleLike(postId: $postId)
+  }
+`;
+
+// ── Comment Queries/Mutations ──
+
+export const GQL_POST_COMMENTS = `
+  query PostComments($postId: Int!, $parentId: Int) {
+    postComments(postId: $postId, parentId: $parentId) {
+      id postId userId parentId userName userAvatar content likes replies createdAt updatedAt isLiked
+    }
+  }
+`;
+
+export const GQL_CREATE_COMMENT = `
+  mutation CreateComment($input: CreateCommentInput!) {
+    createComment(input: $input) {
+      id postId userId parentId userName userAvatar content likes replies createdAt updatedAt isLiked
+    }
+  }
+`;
+
+export const GQL_UPDATE_COMMENT = `
+  mutation UpdateComment($input: UpdateCommentInput!) {
+    updateComment(input: $input) {
+      id postId userId parentId userName userAvatar content likes replies createdAt updatedAt isLiked
+    }
+  }
+`;
+
+export const GQL_DELETE_COMMENT = `
+  mutation DeleteComment($id: Int!) {
+    deleteComment(id: $id)
+  }
+`;
+
+export const GQL_TOGGLE_COMMENT_LIKE = `
+  mutation ToggleCommentLike($commentId: Int!) {
+    toggleCommentLike(commentId: $commentId)
+  }
+`;
+
+// ── Alert Queries/Mutations ──
+
+export const GQL_ALERTS = `
+  query Alerts($limit: Int, $offset: Int, $unreadOnly: Boolean) {
+    alerts(limit: $limit, offset: $offset, unreadOnly: $unreadOnly) {
+      id
+      userId
+      analysisId
+      alertMessage
+      alertLevel
+      isRead
+      createdAt
+      analysis {
+        id
+        systolic
+        diastolic
+        pulse
+        confidence
+        bpLevel
+        analysisNote
+        analyzedAt
+        imageUrl
+      }
+    }
+  }
+`;
+
+export const GQL_MARK_ALERT_READ = `
+  mutation MarkAlertRead($id: Int!) {
+    markAlertRead(id: $id)
+  }
+`;
+
+export const GQL_MARK_ALL_ALERTS_READ = `
+  mutation MarkAllAlertsRead {
+    markAllAlertsRead
+  }
+`;
+
+// ── Caregiver Queries/Mutations ──
+
+export const GQL_CAREGIVER_LINKS = `
+  query CaregiverLinks {
+    caregiverLinks {
+      caregiverId
+      patientId
+      relationship
+      caregiverName
+      caregiverPhone
+      patientName
+      patientPhone
+    }
+  }
+`;
+
+export const GQL_ADD_CAREGIVER_PATIENT = `
+  mutation AddCaregiverPatient($patientPhone: String!, $relationship: String!) {
+    addCaregiverPatient(patientPhone: $patientPhone, relationship: $relationship) {
+      caregiverId
+      patientId
+      relationship
+      caregiverName
+      caregiverPhone
+      patientName
+      patientPhone
+    }
+  }
+`;
+
+export const GQL_REMOVE_CAREGIVER_PATIENT = `
+  mutation RemoveCaregiverPatient($caregiverId: String!, $patientId: String!) {
+    removeCaregiverPatient(caregiverId: $caregiverId, patientId: $patientId)
   }
 `;

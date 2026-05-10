@@ -1,9 +1,19 @@
-import { View, Text } from "react-native";
+import { useAppStore } from "@/store/useAppStore";
+import { getFontClass } from "@/utils/font-scale";
+import { Text, View } from "react-native";
 
 export default function Modal() {
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
+  const bodyClassName = getFontClass(fontSizePreference, {
+    small: "text-sm",
+    medium: "text-base",
+    large: "text-lg",
+    xlarge: "text-xl",
+  });
+
   return (
-      <View>
-        <Text>Modal</Text>
-      </View>
+    <View>
+      <Text className={bodyClassName}>Modal</Text>
+    </View>
   );
 }

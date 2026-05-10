@@ -1,8 +1,14 @@
 import { getBPStatus } from "@/constants/colors";
 import {
   clearAuthToken,
+  GQL_ADD_CAREGIVER_PATIENT,
+  GQL_ALERTS,
+  GQL_CAREGIVER_LINKS,
   GQL_CHANGE_PASSWORD,
+  GQL_CREATE_COMMENT,
   GQL_DELETE_MY_DATA,
+  GQL_DELETE_COMMENT,
+  getGraphqlEndpoint,
   getAuthToken,
   graphqlRequest,
   GQL_CREATE_POST,
@@ -12,11 +18,17 @@ import {
   GQL_LOGIN,
   GQL_LOGIN_SESSIONS,
   GQL_LOGOUT_ALL_DEVICES,
+  GQL_MARK_ALERT_READ,
+  GQL_MARK_ALL_ALERTS_READ,
   GQL_ME,
+  GQL_POST_COMMENTS,
   GQL_POSTS,
   GQL_READINGS,
   GQL_REGISTER,
+  GQL_REMOVE_CAREGIVER_PATIENT,
+  GQL_TOGGLE_COMMENT_LIKE,
   GQL_TOGGLE_LIKE,
+  GQL_UPDATE_COMMENT,
   GQL_UPDATE_POST,
   GQL_UPDATE_PROFILE,
   setAuthToken,
@@ -35,12 +47,16 @@ import {
   updateLocalPost,
 } from "@/data/local-db";
 import {
+  AppAlert,
   BloodPressureReading,
+  CaregiverLink,
   CommunityPost,
   FontSizePreference,
   LoginSession,
+  PostComment,
   User,
 } from "@/types";
+import { uploadImageToS3 } from "@/utils/upload-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { create } from "zustand";
@@ -61,6 +77,9 @@ interface AppState {
 
   // Community
   posts: CommunityPost[];
+  commentsByPostId: Record<string, PostComment[]>;
+  alerts: AppAlert[];
+  caregiverLinks: CaregiverLink[];
   sessions: LoginSession[];
 
   // Theme
@@ -103,6 +122,7 @@ interface AppState {
     congenitalDisease?: string;
     avatar?: string;
   }) => Promise<boolean>;
+  fetchMyProfile: () => Promise<boolean>;
   uploadMyAvatar: (avatarUri: string) => Promise<boolean>;
 
   createReading: (input: {
@@ -124,6 +144,18 @@ interface AppState {
 
   fetchReadings: () => Promise<void>;
   fetchPosts: () => Promise<void>;
+  fetchAlerts: () => Promise<void>;
+  markAlertRead: (id: string) => Promise<void>;
+  markAllAlertsRead: () => Promise<void>;
+  fetchCaregiverLinks: () => Promise<void>;
+  addCaregiverPatient: (input: {
+    patientPhone: string;
+    relationship: string;
+  }) => Promise<boolean>;
+  removeCaregiverPatient: (input: {
+    caregiverId: string;
+    patientId: string;
+  }) => Promise<boolean>;
 
   toggleLike: (postId: string) => Promise<void>;
   createPost: (input: {
@@ -136,6 +168,15 @@ interface AppState {
     category: CommunityPost["category"];
   }) => Promise<boolean>;
   deletePost: (postId: string) => Promise<boolean>;
+  fetchPostComments: (postId: string) => Promise<void>;
+  createComment: (input: {
+    postId: string;
+    content: string;
+    parentId?: string;
+  }) => Promise<boolean>;
+  updateComment: (input: { commentId: string; content: string }) => Promise<boolean>;
+  deleteComment: (postId: string, commentId: string) => Promise<boolean>;
+  toggleCommentLike: (postId: string, commentId: string) => Promise<void>;
   fetchSessions: () => Promise<void>;
   logoutAllDevices: () => Promise<boolean>;
   deleteAllMyData: () => Promise<boolean>;
@@ -169,6 +210,30 @@ const parseLocalPostId = (id: string) => Number(id.replace("local-post-", ""));
 const createClientId = (prefix: string, userId: string) =>
   `${prefix}-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const communityDebug = (
+  message: string,
+  details?: Record<string, unknown>,
+) => {
+  console.log(`[Community] ${message}`, details ?? {});
+};
+
+const communityWarn = (
+  message: string,
+  error?: unknown,
+  details?: Record<string, unknown>,
+) => {
+  const errorDetails =
+    error instanceof Error
+      ? { name: error.name, message: error.message }
+      : error
+        ? { error }
+        : {};
+  console.warn(`[Community] ${message}`, {
+    ...details,
+    ...errorDetails,
+  });
+};
+
 const getDeviceLabel = () =>
   `${
     Platform.OS === "ios"
@@ -192,6 +257,11 @@ const sortPostsDesc = (items: CommunityPost[]) =>
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
+const sortCommentsAsc = (items: PostComment[]) =>
+  [...items].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+
 const readingFromPending = (row: {
   id: number;
   userId: string;
@@ -203,6 +273,7 @@ const readingFromPending = (row: {
   imageUri: string | null;
   notes: string | null;
   status: string;
+  createdAt: string;
 }): BloodPressureReading => ({
   id: toLocalReadingId(row.id),
   userId: row.userId,
@@ -214,6 +285,7 @@ const readingFromPending = (row: {
   imageUri: row.imageUri ?? undefined,
   notes: row.notes ?? undefined,
   status: row.status as BloodPressureReading["status"],
+  createdAt: new Date(row.createdAt),
 });
 
 const postFromLocal = (row: {
@@ -267,6 +339,7 @@ const readingFromGql = (r: any): BloodPressureReading => ({
   measuredAt: new Date(r.measuredAt),
   imageUri: r.imageUri ?? undefined,
   notes: r.notes ?? undefined,
+  createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
 });
 
 const postFromGql = (p: any): CommunityPost => ({
@@ -278,9 +351,57 @@ const postFromGql = (p: any): CommunityPost => ({
   content: p.content,
   category: p.category as CommunityPost["category"],
   likes: p.likes ?? 0,
-  comments: 0,
+  comments: p.comments ?? 0,
   createdAt: new Date(p.createdAt),
   isLiked: p.isLiked ?? false,
+});
+
+const commentFromGql = (c: any): PostComment => ({
+  id: String(c.id),
+  postId: String(c.postId),
+  userId: c.userId,
+  parentId: c.parentId === null || c.parentId === undefined ? undefined : String(c.parentId),
+  userName: c.userName,
+  userAvatar: c.userAvatar ?? undefined,
+  content: c.content,
+  likes: c.likes ?? 0,
+  replies: c.replies ?? 0,
+  createdAt: new Date(c.createdAt),
+  updatedAt: c.updatedAt ? new Date(c.updatedAt) : undefined,
+  isLiked: c.isLiked ?? false,
+});
+
+const alertFromGql = (a: any): AppAlert => ({
+  id: String(a.id),
+  userId: a.userId,
+  analysisId: String(a.analysisId),
+  alertMessage: a.alertMessage,
+  alertLevel: a.alertLevel,
+  isRead: Boolean(a.isRead),
+  createdAt: new Date(a.createdAt),
+  analysis: a.analysis
+    ? {
+        id: String(a.analysis.id),
+        systolic: a.analysis.systolic,
+        diastolic: a.analysis.diastolic,
+        pulse: a.analysis.pulse,
+        confidence: a.analysis.confidence,
+        bpLevel: a.analysis.bpLevel,
+        analysisNote: a.analysis.analysisNote ?? undefined,
+        analyzedAt: new Date(a.analysis.analyzedAt),
+        imageUrl: a.analysis.imageUrl ?? undefined,
+      }
+    : undefined,
+});
+
+const caregiverLinkFromGql = (link: any): CaregiverLink => ({
+  caregiverId: link.caregiverId,
+  patientId: link.patientId,
+  relationship: link.relationship,
+  caregiverName: link.caregiverName,
+  caregiverPhone: link.caregiverPhone,
+  patientName: link.patientName,
+  patientPhone: link.patientPhone,
 });
 
 const authErrorToThai = (msg?: string): string => {
@@ -311,6 +432,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   readings: [],
   isOnline: true,
   posts: [],
+  commentsByPostId: {},
+  alerts: [],
+  caregiverLinks: [],
   sessions: [],
   themePreference: "light",
   themeHydrated: false,
@@ -341,6 +465,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Fetch data
       void get().fetchReadings();
       void get().fetchPosts();
+      void get().fetchAlerts();
+      void get().fetchCaregiverLinks();
       void get().fetchSessions();
       void get().hydratePendingReadings();
       void get().hydratePendingPosts();
@@ -374,6 +500,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       void get().fetchReadings();
       void get().fetchPosts();
+      void get().fetchAlerts();
+      void get().fetchCaregiverLinks();
       void get().fetchSessions();
       return true;
     } catch (error: any) {
@@ -409,7 +537,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           weight: input.weight,
           height: input.height,
           congenitalDisease: input.congenitalDisease || undefined,
-          avatar: input.avatarUri || undefined,
+          avatar: undefined,
         },
       });
 
@@ -422,8 +550,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         sensitiveDataUnlocked: false,
       });
 
+      if (input.avatarUri) {
+        void get().uploadMyAvatar(input.avatarUri);
+      }
+
       void get().fetchReadings();
       void get().fetchPosts();
+      void get().fetchAlerts();
+      void get().fetchCaregiverLinks();
       void get().fetchSessions();
       return true;
     } catch (error: any) {
@@ -445,6 +579,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       authToken: null,
       readings: [],
       posts: [],
+      commentsByPostId: {},
+      alerts: [],
+      caregiverLinks: [],
       sessions: [],
       sensitiveDataUnlocked: false,
     });
@@ -472,6 +609,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
       set({ user: userFromGql(data.updateProfile) });
       return true;
+    } catch (error) {
+      console.warn("[S3 upload] profile upload failed", error);
+      return false;
+    }
+  },
+
+  fetchMyProfile: async () => {
+    const token = get().authToken;
+    if (!token) return false;
+
+    try {
+      const data = await graphqlRequest<{ me: any }>(GQL_ME, undefined, token);
+      set({ user: userFromGql(data.me) });
+      return true;
     } catch {
       return false;
     }
@@ -482,10 +633,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token || !get().user) return false;
 
     try {
-      // For now, store avatar URL directly (local URI)
+      const uploadedAvatarUri = await uploadImageToS3({
+        uri: avatarUri,
+        kind: "profile",
+        token,
+      });
       const data = await graphqlRequest<{ updateProfile: any }>(
         GQL_UPDATE_PROFILE,
-        { input: { avatar: avatarUri } },
+        { input: { avatar: uploadedAvatarUri } },
         token,
       );
       set({ user: userFromGql(data.updateProfile) });
@@ -537,6 +692,138 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  fetchAlerts: async () => {
+    const token = get().authToken;
+    if (!token) return;
+
+    try {
+      const data = await graphqlRequest<{ alerts: any[] }>(
+        GQL_ALERTS,
+        { limit: 100, offset: 0, unreadOnly: false },
+        token,
+      );
+      set({ alerts: data.alerts.map(alertFromGql) });
+    } catch {
+      // silently fail
+    }
+  },
+
+  markAlertRead: async (id: string) => {
+    const token = get().authToken;
+    set((state) => ({
+      alerts: state.alerts.map((alert) =>
+        alert.id === id ? { ...alert, isRead: true } : alert,
+      ),
+    }));
+
+    if (!token) return;
+
+    try {
+      await graphqlRequest(GQL_MARK_ALERT_READ, { id: Number(id) }, token);
+    } catch {
+      // keep optimistic read state
+    }
+  },
+
+  markAllAlertsRead: async () => {
+    const token = get().authToken;
+    set((state) => ({
+      alerts: state.alerts.map((alert) => ({ ...alert, isRead: true })),
+    }));
+
+    if (!token) return;
+
+    try {
+      await graphqlRequest(GQL_MARK_ALL_ALERTS_READ, undefined, token);
+    } catch {
+      // keep optimistic read state
+    }
+  },
+
+  fetchCaregiverLinks: async () => {
+    const token = get().authToken;
+    if (!token) return;
+
+    try {
+      const data = await graphqlRequest<{ caregiverLinks: any[] }>(
+        GQL_CAREGIVER_LINKS,
+        undefined,
+        token,
+      );
+      set({
+        caregiverLinks: data.caregiverLinks.map(caregiverLinkFromGql),
+      });
+    } catch {
+      // silently fail
+    }
+  },
+
+  addCaregiverPatient: async ({ patientPhone, relationship }) => {
+    const token = get().authToken;
+    if (!token) return false;
+
+    try {
+      const data = await graphqlRequest<{ addCaregiverPatient: any }>(
+        GQL_ADD_CAREGIVER_PATIENT,
+        {
+          patientPhone: patientPhone.trim(),
+          relationship: relationship.trim() || "caregiver",
+        },
+        token,
+      );
+      const link = caregiverLinkFromGql(data.addCaregiverPatient);
+      set((state) => ({
+        caregiverLinks: [
+          link,
+          ...state.caregiverLinks.filter(
+            (item) =>
+              item.caregiverId !== link.caregiverId ||
+              item.patientId !== link.patientId,
+          ),
+        ],
+      }));
+      return true;
+    } catch (error: any) {
+      const msg = error?.message || "";
+      set({
+        authErrorCode: "caregiver/add-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
+      });
+      return false;
+    }
+  },
+
+  removeCaregiverPatient: async ({ caregiverId, patientId }) => {
+    const token = get().authToken;
+    if (!token) return false;
+
+    try {
+      const data = await graphqlRequest<{ removeCaregiverPatient: boolean }>(
+        GQL_REMOVE_CAREGIVER_PATIENT,
+        { caregiverId, patientId },
+        token,
+      );
+      if (!data.removeCaregiverPatient) return false;
+
+      set((state) => ({
+        caregiverLinks: state.caregiverLinks.filter(
+          (link) =>
+            link.caregiverId !== caregiverId || link.patientId !== patientId,
+        ),
+      }));
+      return true;
+    } catch (error: any) {
+      const msg = error?.message || "";
+      set({
+        authErrorCode: "caregiver/remove-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
+      });
+      return false;
+    }
+  },
+
   createReading: async (input) => {
     const currentUser = get().user;
     const token = get().authToken;
@@ -548,6 +835,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     const pulse = Number(input.pulse);
     const status = getBPStatus(systolic, diastolic);
     const clientId = createClientId("reading", currentUser.id);
+    let imageUri = input.imageUri;
+    let imageReadyForRemote = !imageUri || /^https?:\/\//i.test(imageUri);
+
+    if (get().isOnline && token && imageUri && !imageReadyForRemote) {
+      try {
+        imageUri = await uploadImageToS3({
+          uri: imageUri,
+          kind: "blood-pressure",
+          token,
+        });
+        imageReadyForRemote = true;
+      } catch (error) {
+        console.warn(
+          "[S3 upload] blood-pressure upload failed; keeping pending reading",
+          error,
+        );
+        imageReadyForRemote = false;
+      }
+    }
 
     // Always insert into local pending first
     const pendingId = await insertPendingReading({
@@ -557,7 +863,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       diastolic,
       pulse,
       measuredAt: measuredAt.toISOString(),
-      imageUri: input.imageUri ?? null,
+      imageUri: imageUri ?? null,
       notes: input.notes ?? null,
       status,
       createdAt: new Date().toISOString(),
@@ -572,9 +878,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         diastolic,
         pulse,
         measuredAt,
-        imageUri: input.imageUri,
+        imageUri,
         notes: input.notes,
         status,
+        createdAt: new Date(),
       };
       set((state) => ({
         readings: sortReadingsDesc([localReading, ...state.readings]),
@@ -582,6 +889,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     if (!get().isOnline || !token) return Boolean(pendingId);
+    if (!imageReadyForRemote) return Boolean(pendingId);
 
     try {
       await graphqlRequest(
@@ -594,7 +902,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             status,
             measuredAt: measuredAt.toISOString(),
             clientId,
-            imageUri: input.imageUri ?? null,
+            imageUri: imageUri ?? null,
             notes: input.notes ?? null,
           },
         },
@@ -609,6 +917,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
       }
       void get().fetchReadings();
+      void get().fetchAlerts();
       return true;
     } catch {
       return Boolean(pendingId);
@@ -669,6 +978,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       const pending = await listPendingReadings(currentUser.id);
       for (const row of pending) {
         try {
+          let imageUri = row.imageUri ?? null;
+          if (imageUri && !/^https?:\/\//i.test(imageUri)) {
+            imageUri = await uploadImageToS3({
+              uri: imageUri,
+              kind: "blood-pressure",
+              token,
+            });
+          }
+
           await graphqlRequest(
             GQL_CREATE_READING,
             {
@@ -679,7 +997,7 @@ export const useAppStore = create<AppState>((set, get) => ({
                 status: row.status,
                 measuredAt: row.measuredAt,
                 clientId: row.clientId || `local-${currentUser.id}-${row.id}`,
-                imageUri: row.imageUri ?? null,
+                imageUri,
                 notes: row.notes ?? null,
               },
             },
@@ -691,11 +1009,16 @@ export const useAppStore = create<AppState>((set, get) => ({
               (r) => r.id !== toLocalReadingId(row.id),
             ),
           }));
-        } catch {
+        } catch (error) {
+          console.warn(
+            "[S3 upload] pending blood-pressure sync failed; will retry later",
+            error,
+          );
           // keep pending for retry
         }
       }
       void get().fetchReadings();
+      void get().fetchAlerts();
     } finally {
       syncReadingsInFlight = false;
     }
@@ -706,6 +1029,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   fetchPosts: async () => {
     try {
       const token = get().authToken;
+      communityDebug("fetchPosts start", {
+        endpoint: getGraphqlEndpoint(),
+        hasToken: Boolean(token),
+      });
       const data = await graphqlRequest<{ posts: any[] }>(
         GQL_POSTS,
         { limit: 100, offset: 0 },
@@ -713,16 +1040,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
       const remotePosts = data.posts.map(postFromGql);
       const localPosts = get().posts.filter((p) => isLocalPostId(p.id));
+      communityDebug("fetchPosts success", {
+        remoteCount: remotePosts.length,
+        localVisibleCount: localPosts.length,
+      });
       set({ posts: sortPostsDesc([...localPosts, ...remotePosts]) });
-    } catch {
-      // silently fail
+    } catch (error) {
+      communityWarn("fetchPosts failed", error);
     }
   },
 
   hydratePendingPosts: async () => {
     const currentUser = get().user;
-    if (!currentUser) return;
+    if (!currentUser) {
+      communityDebug("hydratePendingPosts skipped", { reason: "missing-user" });
+      return;
+    }
     const localRows = await listLocalPosts(currentUser.id);
+    communityDebug("hydratePendingPosts loaded", {
+      localCount: localRows.length,
+      userId: currentUser.id,
+    });
     const localPosts = localRows.map(postFromLocal);
     set((state) => {
       const remotePosts = state.posts.filter((p) => !isLocalPostId(p.id));
@@ -733,15 +1071,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   syncPendingPosts: async () => {
     const currentUser = get().user;
     const token = get().authToken;
-    if (!currentUser || !token || !get().isOnline) return;
-    if (syncPostsInFlight) return;
+    const isOnline = get().isOnline;
+    if (!currentUser || !token || !isOnline) {
+      communityDebug("syncPendingPosts skipped", {
+        hasUser: Boolean(currentUser),
+        hasToken: Boolean(token),
+        isOnline,
+      });
+      return;
+    }
+    if (syncPostsInFlight) {
+      communityDebug("syncPendingPosts skipped", { reason: "in-flight" });
+      return;
+    }
     syncPostsInFlight = true;
 
     try {
       const localRows = await listLocalPosts(currentUser.id);
+      communityDebug("syncPendingPosts start", {
+        endpoint: getGraphqlEndpoint(),
+        localCount: localRows.length,
+        userId: currentUser.id,
+      });
       for (const row of localRows) {
         try {
           const docId = row.clientId || `local-post-${row.userId}-${row.id}`;
+          communityDebug("syncPendingPosts uploading local post", {
+            localId: row.id,
+            clientId: docId,
+            category: row.category,
+          });
           await graphqlRequest(
             GQL_CREATE_POST,
             {
@@ -757,12 +1116,22 @@ export const useAppStore = create<AppState>((set, get) => ({
           set((state) => ({
             posts: state.posts.filter((p) => p.id !== toLocalPostId(row.id)),
           }));
-        } catch {
-          // keep local post for retry
+          communityDebug("syncPendingPosts uploaded local post", {
+            localId: row.id,
+            clientId: docId,
+          });
+        } catch (error) {
+          communityWarn("syncPendingPosts failed for local post", error, {
+            localId: row.id,
+            clientId: row.clientId,
+          });
         }
       }
 
       const pendingActions = await listPendingPostActions(currentUser.id);
+      communityDebug("syncPendingPosts actions", {
+        actionCount: pendingActions.length,
+      });
       for (const action of pendingActions) {
         try {
           if (action.action === "delete") {
@@ -789,8 +1158,17 @@ export const useAppStore = create<AppState>((set, get) => ({
             );
           }
           await deletePendingPostAction(action.id);
-        } catch {
-          // keep pending action for retry
+          communityDebug("syncPendingPosts action synced", {
+            actionId: action.id,
+            action: action.action,
+            postId: action.postId,
+          });
+        } catch (error) {
+          communityWarn("syncPendingPosts action failed", error, {
+            actionId: action.id,
+            action: action.action,
+            postId: action.postId,
+          });
         }
       }
 
@@ -802,37 +1180,117 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toggleLike: async (postId: string) => {
     const token = get().authToken;
-    if (!token || !get().isOnline) return;
+    const isOnline = get().isOnline;
+    if (!token || !isOnline || isLocalPostId(postId)) {
+      communityDebug("toggleLike skipped", {
+        postId,
+        hasToken: Boolean(token),
+        isOnline,
+        isLocalPost: isLocalPostId(postId),
+      });
+      return;
+    }
+
+    const previousPosts = get().posts;
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              isLiked: !p.isLiked,
+              likes: p.isLiked ? Math.max(0, p.likes - 1) : p.likes + 1,
+            }
+          : p,
+      ),
+    }));
 
     try {
-      await graphqlRequest(GQL_TOGGLE_LIKE, { postId: Number(postId) }, token);
-      // Optimistic update
+      communityDebug("toggleLike request", { postId });
+      const data = await graphqlRequest<{ toggleLike: boolean }>(
+        GQL_TOGGLE_LIKE,
+        { postId: Number(postId) },
+        token,
+      );
+      communityDebug("toggleLike success", {
+        postId,
+        isLiked: data.toggleLike,
+      });
       set((state) => ({
         posts: state.posts.map((p) =>
           p.id === postId
             ? {
                 ...p,
-                isLiked: !p.isLiked,
-                likes: p.isLiked ? p.likes - 1 : p.likes + 1,
+                isLiked: data.toggleLike,
               }
             : p,
         ),
       }));
-    } catch {
-      // ignore
+    } catch (error) {
+      communityWarn("toggleLike failed; rolling back", error, { postId });
+      set({ posts: previousPosts });
     }
   },
 
   createPost: async ({ content, category }) => {
     const currentUser = get().user;
     const token = get().authToken;
-    if (!currentUser) return false;
+    if (!currentUser) {
+      communityDebug("createPost skipped", { reason: "missing-user" });
+      return false;
+    }
 
     const trimmed = content.trim();
-    if (!trimmed) return false;
+    if (!trimmed) {
+      communityDebug("createPost skipped", { reason: "empty-content" });
+      return false;
+    }
 
     const createdAt = new Date();
     const clientId = createClientId("post", currentUser.id);
+    const isOnline = get().isOnline;
+
+    communityDebug("createPost start", {
+      endpoint: getGraphqlEndpoint(),
+      hasToken: Boolean(token),
+      isOnline,
+      category,
+      clientId,
+    });
+
+    if (isOnline && token) {
+      try {
+        const data = await graphqlRequest<{ createPost: any }>(
+          GQL_CREATE_POST,
+          { input: { content: trimmed, category, clientId } },
+          token,
+        );
+        const remotePost = postFromGql(data.createPost);
+        communityDebug("createPost remote success", {
+          postId: remotePost.id,
+          clientId,
+        });
+        set((state) => ({
+          posts: sortPostsDesc([
+            remotePost,
+            ...state.posts.filter((post) => post.clientId !== clientId),
+          ]),
+        }));
+        void get().fetchPosts();
+        return true;
+      } catch (error) {
+        communityWarn("createPost remote failed; saving local fallback", error, {
+          clientId,
+        });
+      }
+    } else {
+      communityDebug("createPost using local fallback", {
+        reason: !isOnline ? "offline" : "missing-token",
+        hasToken: Boolean(token),
+        isOnline,
+        clientId,
+      });
+    }
+
     const localId = await insertLocalPost({
       userId: currentUser.id,
       clientId,
@@ -861,24 +1319,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       }));
     }
 
-    if (!get().isOnline || !token) return Boolean(localId);
-    if (!localId) return false;
-
-    try {
-      await graphqlRequest(
-        GQL_CREATE_POST,
-        { input: { content: trimmed, category, clientId } },
-        token,
-      );
-      await deleteLocalPost(localId);
-      set((state) => ({
-        posts: state.posts.filter((p) => p.id !== toLocalPostId(localId)),
-      }));
-      void get().fetchPosts();
-      return true;
-    } catch {
-      return true;
-    }
+    communityDebug("createPost local fallback saved", {
+      localId,
+      clientId,
+    });
+    return Boolean(localId);
   },
 
   updatePost: async ({ postId, content, category }) => {
@@ -987,6 +1432,246 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  fetchPostComments: async (postId: string) => {
+    if (isLocalPostId(postId)) {
+      communityDebug("fetchPostComments skipped", {
+        postId,
+        reason: "local-post",
+      });
+      set((state) => ({
+        commentsByPostId: { ...state.commentsByPostId, [postId]: [] },
+      }));
+      return;
+    }
+
+    try {
+      const token = get().authToken;
+      communityDebug("fetchPostComments start", {
+        postId,
+        hasToken: Boolean(token),
+      });
+      const data = await graphqlRequest<{ postComments: any[] }>(
+        GQL_POST_COMMENTS,
+        { postId: Number(postId), parentId: null },
+        token,
+      );
+      communityDebug("fetchPostComments success", {
+        postId,
+        count: data.postComments.length,
+      });
+      set((state) => ({
+        commentsByPostId: {
+          ...state.commentsByPostId,
+          [postId]: sortCommentsAsc(data.postComments.map(commentFromGql)),
+        },
+      }));
+    } catch (error) {
+      communityWarn("fetchPostComments failed", error, { postId });
+    }
+  },
+
+  createComment: async ({ postId, content, parentId }) => {
+    const token = get().authToken;
+    const isOnline = get().isOnline;
+    if (!token || !isOnline || isLocalPostId(postId)) {
+      communityDebug("createComment skipped", {
+        postId,
+        hasToken: Boolean(token),
+        isOnline,
+        isLocalPost: isLocalPostId(postId),
+      });
+      return false;
+    }
+
+    const trimmed = content.trim();
+    if (!trimmed) {
+      communityDebug("createComment skipped", { postId, reason: "empty-content" });
+      return false;
+    }
+
+    try {
+      communityDebug("createComment request", { postId, parentId });
+      const data = await graphqlRequest<{ createComment: any }>(
+        GQL_CREATE_COMMENT,
+        {
+          input: {
+            postId: Number(postId),
+            content: trimmed,
+            parentId: parentId ? Number(parentId) : null,
+          },
+        },
+        token,
+      );
+      const comment = commentFromGql(data.createComment);
+      communityDebug("createComment success", {
+        postId,
+        commentId: comment.id,
+      });
+
+      set((state) => ({
+        commentsByPostId: {
+          ...state.commentsByPostId,
+          [postId]: sortCommentsAsc([
+            ...(state.commentsByPostId[postId] ?? []),
+            comment,
+          ]),
+        },
+        posts: state.posts.map((post) =>
+          post.id === postId
+            ? { ...post, comments: post.comments + 1 }
+            : post,
+        ),
+      }));
+      return true;
+    } catch (error) {
+      communityWarn("createComment failed", error, { postId, parentId });
+      return false;
+    }
+  },
+
+  updateComment: async ({ commentId, content }) => {
+    const token = get().authToken;
+    if (!token || !get().isOnline) {
+      communityDebug("updateComment skipped", {
+        commentId,
+        hasToken: Boolean(token),
+        isOnline: get().isOnline,
+      });
+      return false;
+    }
+
+    const trimmed = content.trim();
+    if (!trimmed) {
+      communityDebug("updateComment skipped", {
+        commentId,
+        reason: "empty-content",
+      });
+      return false;
+    }
+
+    try {
+      communityDebug("updateComment request", { commentId });
+      const data = await graphqlRequest<{ updateComment: any }>(
+        GQL_UPDATE_COMMENT,
+        { input: { id: Number(commentId), content: trimmed } },
+        token,
+      );
+      const updated = commentFromGql(data.updateComment);
+      communityDebug("updateComment success", {
+        commentId,
+        postId: updated.postId,
+      });
+      set((state) => {
+        const postComments = state.commentsByPostId[updated.postId] ?? [];
+        return {
+          commentsByPostId: {
+            ...state.commentsByPostId,
+            [updated.postId]: postComments.map((comment) =>
+              comment.id === updated.id ? updated : comment,
+            ),
+          },
+        };
+      });
+      return true;
+    } catch (error) {
+      communityWarn("updateComment failed", error, { commentId });
+      return false;
+    }
+  },
+
+  deleteComment: async (postId, commentId) => {
+    const token = get().authToken;
+    if (!token || !get().isOnline) {
+      communityDebug("deleteComment skipped", {
+        postId,
+        commentId,
+        hasToken: Boolean(token),
+        isOnline: get().isOnline,
+      });
+      return false;
+    }
+
+    try {
+      communityDebug("deleteComment request", { postId, commentId });
+      const data = await graphqlRequest<{ deleteComment: boolean }>(
+        GQL_DELETE_COMMENT,
+        { id: Number(commentId) },
+        token,
+      );
+      if (!data.deleteComment) return false;
+      communityDebug("deleteComment success", { postId, commentId });
+
+      set((state) => ({
+        commentsByPostId: {
+          ...state.commentsByPostId,
+          [postId]: (state.commentsByPostId[postId] ?? []).filter(
+            (comment) => comment.id !== commentId,
+          ),
+        },
+        posts: state.posts.map((post) =>
+          post.id === postId
+            ? { ...post, comments: Math.max(0, post.comments - 1) }
+            : post,
+        ),
+      }));
+      return true;
+    } catch (error) {
+      communityWarn("deleteComment failed", error, { postId, commentId });
+      return false;
+    }
+  },
+
+  toggleCommentLike: async (postId, commentId) => {
+    const token = get().authToken;
+    const isOnline = get().isOnline;
+    if (!token || !isOnline) {
+      communityDebug("toggleCommentLike skipped", {
+        postId,
+        commentId,
+        hasToken: Boolean(token),
+        isOnline,
+      });
+      return;
+    }
+
+    set((state) => ({
+      commentsByPostId: {
+        ...state.commentsByPostId,
+        [postId]: (state.commentsByPostId[postId] ?? []).map((comment) =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                isLiked: !comment.isLiked,
+                likes: comment.isLiked
+                  ? Math.max(0, comment.likes - 1)
+                  : comment.likes + 1,
+              }
+            : comment,
+        ),
+      },
+    }));
+
+    try {
+      communityDebug("toggleCommentLike request", { postId, commentId });
+      const data = await graphqlRequest<{ toggleCommentLike: boolean }>(
+        GQL_TOGGLE_COMMENT_LIKE,
+        { commentId: Number(commentId) },
+        token,
+      );
+      communityDebug("toggleCommentLike success", {
+        postId,
+        commentId,
+        isLiked: data.toggleCommentLike,
+      });
+    } catch (error) {
+      communityWarn("toggleCommentLike failed; refreshing comments", error, {
+        postId,
+        commentId,
+      });
+      void get().fetchPostComments(postId);
+    }
+  },
+
   fetchSessions: async () => {
     const token = get().authToken;
     if (!token) return;
@@ -1050,7 +1735,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         token,
       );
       await clearUserLocalData(currentUser.id);
-      set({ readings: [], posts: [] });
+      set({ readings: [], posts: [], commentsByPostId: {}, alerts: [] });
       return true;
     } catch (error: any) {
       const msg = error?.message || "";
@@ -1087,14 +1772,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   hydrateAccessibilityPreferences: async () => {
     try {
       const raw = await AsyncStorage.getItem(FONT_SIZE_PREFERENCE_KEY);
-      set({
-        fontSizePreference:
-          raw === "xsmall" ||
-          raw === "small" ||
-          raw === "large" ||
-          raw === "xlarge"
+      if (raw === "xsmall") {
+        await AsyncStorage.setItem(FONT_SIZE_PREFERENCE_KEY, "small");
+      }
+      const normalized =
+        raw === "xsmall"
+          ? "small"
+          : raw === "small" || raw === "large" || raw === "xlarge"
             ? raw
-            : "medium",
+            : "medium";
+      set({
+        fontSizePreference: normalized,
       });
     } catch {
       set({ fontSizePreference: "medium" });

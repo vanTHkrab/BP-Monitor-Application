@@ -1,16 +1,19 @@
 import { useAppStore } from '@/store/useAppStore';
 import { CommunityPost } from '@/types';
-import { getFontClass } from '@/utils/font-scale';
+import { getFontClass, getFontNumber } from '@/utils/font-scale';
+import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import React from 'react';
-import { Image, Text, View } from 'react-native';
+import { Image, Share, Text, View } from 'react-native';
 import { AnimatedPressable } from './animated-components';
 
 cssInterop(LinearGradient, { className: 'style' });
 
 const DEFAULT_AVATAR = require('../assets/images/icon.png');
+const COLLAPSED_CONTENT_LINES = 4;
+const READ_MORE_CHARACTER_THRESHOLD = 120;
 
 type FirestoreTimestampLike = {
   toDate?: () => Date;
@@ -76,28 +79,61 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
   const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-[14px]',
-    small: 'text-[15px]',
-    medium: 'text-[16px]',
-    large: 'text-[17px]',
-    xlarge: 'text-[18px]',
+    xsmall: 'text-[15px]',
+    small: 'text-base',
+    medium: 'text-[17px]',
+    large: 'text-lg',
+    xlarge: 'text-xl',
   });
   const bodyClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-sm',
+    small: 'text-[15px]',
+    medium: 'text-base',
+    large: 'text-[17px]',
+    xlarge: 'text-lg',
+  });
+  const metaClassName = getFontClass(fontSizePreference, {
+    xsmall: 'text-xs',
+    small: 'text-[13px]',
+    medium: 'text-sm',
+    large: 'text-[15px]',
+    xlarge: 'text-base',
+  });
+  const actionClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-[13px]',
     small: 'text-sm',
     medium: 'text-[15px]',
     large: 'text-base',
     xlarge: 'text-[17px]',
   });
+  const bodyFontSize = getFontNumber(fontSizePreference, {
+    xsmall: 14,
+    small: 15,
+    medium: 16,
+    large: 17,
+    xlarge: 18,
+  });
   const syncLabel = post.syncStatus === 'local' ? 'บันทึกในเครื่อง' : post.syncStatus === 'pending-update' ? 'รอซิงก์' : null;
-  const syncBadgeColor = post.syncStatus === 'local' ? '#F59E0B' : '#3B82F6';
+  const syncBadgeColor = post.syncStatus === 'local' ? '#FF8A45' : '#7E57C2';
 
   const [avatarFailed, setAvatarFailed] = React.useState(false);
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const [contentLineCount, setContentLineCount] = React.useState(0);
+  const [hasMeasuredContent, setHasMeasuredContent] = React.useState(false);
   const hasAvatarUri = Boolean(post.userAvatar) && !avatarFailed;
+  const shouldShowReadMore =
+    contentLineCount > COLLAPSED_CONTENT_LINES ||
+    post.content.trim().length > READ_MORE_CHARACTER_THRESHOLD;
 
   const handleLike = () => {
     onLike?.();
   };
+
+  React.useEffect(() => {
+    setIsExpanded(false);
+    setContentLineCount(0);
+    setHasMeasuredContent(false);
+  }, [post.id, post.content]);
 
   return (
     <AnimatedPressable onPress={onPress} className="mb-3 rounded-[20px] overflow-hidden shadow-lg shadow-black/10">
@@ -112,7 +148,7 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
         <View className="flex-row items-center mb-3">
           <View className="w-[42px] h-[42px] rounded-full overflow-hidden">
             <Image
-              source={hasAvatarUri ? { uri: post.userAvatar! } : DEFAULT_AVATAR}
+              source={hasAvatarUri ? { uri: toDisplayImageUri(post.userAvatar) } : DEFAULT_AVATAR}
               className="w-full h-full"
               resizeMode="cover"
               onError={() => setAvatarFailed(true)}
@@ -122,13 +158,13 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
             <Text className={(isDark ? 'text-slate-100' : 'text-[#2C3E50]') + ' ' + titleClassName + ' font-semibold'}>
               {post.userName}
             </Text>
-            <Text className={(isDark ? 'text-slate-400' : 'text-gray-400') + ' text-xs mt-0.5'}>
+            <Text className={(isDark ? 'text-slate-400' : 'text-gray-400') + ' ' + metaClassName + ' mt-0.5'}>
               {formatRelativeTimeTH(post.createdAt)}
             </Text>
           </View>
           {syncLabel ? (
             <View className="px-2 py-1 rounded-full mr-2" style={{ backgroundColor: isDark ? '#0B1220' : '#EEF2FF', borderWidth: 1, borderColor: syncBadgeColor }}>
-              <Text style={{ color: syncBadgeColor }} className="text-[10px] font-bold">
+              <Text style={{ color: syncBadgeColor }} className={metaClassName + " font-bold"}>
                 {syncLabel}
               </Text>
             </View>
@@ -140,21 +176,33 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
 
         {/* Content */}
         <Text
-          className={(isDark ? 'text-slate-200' : 'text-gray-600') + ' ' + bodyClassName + ' leading-[22px] mb-2'}
-          numberOfLines={4}
+          className={(isDark ? 'text-slate-200' : 'text-gray-700') + ' ' + bodyClassName + ' mb-2'}
+          numberOfLines={isExpanded || !hasMeasuredContent ? undefined : COLLAPSED_CONTENT_LINES}
+          onTextLayout={(event) => {
+            const nextLineCount = event.nativeEvent.lines.length;
+            setContentLineCount((current) => (
+              nextLineCount > current ? nextLineCount : current
+            ));
+            setHasMeasuredContent(true);
+          }}
+          style={{ lineHeight: bodyFontSize + 8 }}
         >
           {post.content}
         </Text>
         
-        <AnimatedPressable onPress={onPress}>
-          <Text className={bodyClassName + " text-[#3498DB] font-medium mb-3"}>... อ่านต่อ</Text>
-        </AnimatedPressable>
+        {shouldShowReadMore ? (
+          <AnimatedPressable onPress={() => setIsExpanded((value) => !value)}>
+            <Text className={actionClassName + " text-[#7E57C2] font-bold mb-3"}>
+              {isExpanded ? 'ย่อข้อความ' : '... อ่านต่อ'}
+            </Text>
+          </AnimatedPressable>
+        ) : null}
 
         {/* Actions */}
         <View
           className={
             'flex-row items-center pt-3 border-t gap-6 ' +
-            (isDark ? 'border-[#334155]' : 'border-[#E5E7EB]')
+            (isDark ? 'border-[#334155]' : 'border-white/80')
           }
         >
           <AnimatedPressable 
@@ -174,7 +222,7 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
                   ? 'text-[#E91E63]'
                   : isDark
                     ? 'text-slate-400'
-                    : 'text-gray-400') + ' text-sm font-medium'
+                  : 'text-gray-400') + ' ' + actionClassName + ' font-medium'
               }
             >
               {post.likes}
@@ -190,13 +238,20 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
               size={18} 
               color={isDark ? '#94A3B8' : '#9CA3AF'}
             />
-            <Text className={(isDark ? 'text-slate-400' : 'text-gray-400') + ' text-sm font-medium'}>{post.comments}</Text>
+            <Text className={(isDark ? 'text-slate-400' : 'text-gray-400') + ' ' + actionClassName + ' font-medium'}>{post.comments}</Text>
           </AnimatedPressable>
 
-          <AnimatedPressable className="flex-row items-center gap-1.5" onPress={() => {}}>
-            <Ionicons 
-              name="share-social-outline" 
-              size={18} 
+          <AnimatedPressable
+            className="flex-row items-center gap-1.5"
+            onPress={() => {
+              void Share.share({
+                message: `${post.userName}: ${post.content}`,
+              }).catch(() => {});
+            }}
+          >
+            <Ionicons
+              name="share-social-outline"
+              size={18}
               color={isDark ? '#94A3B8' : '#9CA3AF'}
             />
           </AnimatedPressable>

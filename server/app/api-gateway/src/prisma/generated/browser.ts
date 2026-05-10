@@ -58,6 +58,16 @@ export type BloodPressureReading = Prisma.BloodPressureReadingModel
  */
 export type Post = Prisma.PostModel
 /**
+ * Model PostComment
+ * 
+ */
+export type PostComment = Prisma.PostCommentModel
+/**
+ * Model PostCommentLike
+ * 
+ */
+export type PostCommentLike = Prisma.PostCommentLikeModel
+/**
  * Model PostLike
  * 
  */

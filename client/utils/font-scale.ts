@@ -1,5 +1,4 @@
 export type FontSizePreference =
-  | "xsmall"
   | "small"
   | "medium"
   | "large"
@@ -15,7 +14,6 @@ export const getFontClass = (
     xlarge?: string;
   },
 ) => {
-  if (preference === "xsmall") return options.xsmall ?? options.small;
   if (preference === "small") return options.small;
   if (preference === "xlarge") return options.xlarge ?? options.large;
   if (preference === "large") return options.large;
@@ -32,7 +30,6 @@ export const getFontNumber = (
     xlarge?: number;
   },
 ) => {
-  if (preference === "xsmall") return options.xsmall ?? options.small;
   if (preference === "small") return options.small;
   if (preference === "xlarge") return options.xlarge ?? options.large;
   if (preference === "large") return options.large;

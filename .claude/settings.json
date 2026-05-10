@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm exec *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(cat \"/home/tchanon/Documents/ProjectendUniversity/coding/BP-Monitor-Application/client/app/\\(tabs\\)/index.tsx\" | sed -n '495,545p')",
+      "Read(//home/tchanon/Documents/ProjectendUniversity/coding/BP-Monitor-Application/client/app/\\(tabs\\)/**)"
+    ]
+  }
+}

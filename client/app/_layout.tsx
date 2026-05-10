@@ -1,3 +1,4 @@
+import { AppLoadingScreen } from "@/components/app-loading-screen";
 import { initLocalDb } from "@/data/local-db";
 import { useAppStore } from "@/store/useAppStore";
 import NetInfo from "@react-native-community/netinfo";
@@ -43,7 +44,9 @@ export default function RootLayout() {
   const syncPendingPosts = useAppStore((s) => s.syncPendingPosts);
   const lockSensitiveData = useAppStore((s) => s.lockSensitiveData);
 
+  // รอ theme + auth hydrate เสร็จก่อน hide splash — กัน flash ของหน้าจอเปล่า
   useEffect(() => {
+    if (!themeHydrated) return;
     const hide = async () => {
       try {
         await SplashScreen.hideAsync();
@@ -52,7 +55,7 @@ export default function RootLayout() {
       }
     };
     void hide();
-  }, []);
+  }, [themeHydrated]);
 
   useEffect(() => {
     void hydrateTheme();
@@ -132,26 +135,32 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GestureHandlerRootView className="flex-1">
         <StatusBar style={themePreference === "dark" ? "light" : "dark"} />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: "none",
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="history-list"
-            options={{ presentation: "modal" }}
-          />
-          <Stack.Screen name="profile" />
-          <Stack.Screen name="settings" />
-          <Stack.Screen name="security" />
-          <Stack.Screen name="help" />
-          <Stack.Screen name="about" />
-          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-        </Stack>
+        {!themeHydrated ? (
+          <AppLoadingScreen />
+        ) : (
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: "none",
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="history-list"
+              options={{ presentation: "modal" }}
+            />
+            <Stack.Screen name="profile" />
+            <Stack.Screen name="caregivers" />
+            <Stack.Screen name="settings" />
+            <Stack.Screen name="security" />
+            <Stack.Screen name="help" />
+            <Stack.Screen name="about" />
+            <Stack.Screen name="health-tips" />
+            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+          </Stack>
+        )}
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

@@ -1,23 +1,61 @@
+// Theme tokens — light is the primary design, dark is tuned to complement the purple tab bar.
+export const Theme = {
+  light: {
+    background: ['#BFE8F0', '#A8DEE8', '#90D2DF'] as const,
+    surface: '#FFFFFF',
+    surfaceMuted: '#EBF5FB',
+    border: 'rgba(255,255,255,0.8)',
+    textPrimary: '#2C3E50',
+    textSecondary: '#7F8C8D',
+    iconNeutral: '#374151',
+    headerGradient: ['#72DDF4', '#35B8E8'] as const,
+    accentGradient: ['#A879E8', '#7E57C2', '#5E35B1'] as const,
+    danger: '#F88B7E',
+    dangerGradient: ['#F88B7E', '#EF6E63'] as const,
+  },
+  dark: {
+    background: ['#0E0B1E', '#15112E', '#1C1840'] as const,
+    surface: '#1A1632',
+    surfaceMuted: '#231C42',
+    border: '#2D2654',
+    textPrimary: '#E8E4F5',
+    textSecondary: '#9C95C2',
+    iconNeutral: '#E2E8F0',
+    headerGradient: ['#5BC4DE', '#2A95C4'] as const,
+    accentGradient: ['#9C7BD9', '#6B45B5', '#4A2D9C'] as const,
+    danger: '#E97A6F',
+    dangerGradient: ['#E97A6F', '#D85A4D'] as const,
+  },
+} as const;
+
+export type ThemeMode = keyof typeof Theme;
+
 // Color palette based on the design mockups
 export const Colors = {
   // Primary colors
   primary: {
-    blue: '#5DADE2',
-    lightBlue: '#87CEEB',
-    skyBlue: '#72C9F7',
-    deepBlue: '#3498DB',
+    blue: '#35B8E8',
+    lightBlue: '#9BEAF7',
+    skyBlue: '#6FD7EE',
+    deepBlue: '#1898D4',
   },
   
   // Secondary colors
   secondary: {
-    purple: '#8E44AD',
-    darkPurple: '#6B3FA0',
-    lightPurple: '#A569BD',
+    purple: '#7E57C2',
+    darkPurple: '#5E35B1',
+    lightPurple: '#9575CD',
+  },
+
+  accent: {
+    orange: '#FF8A45',
+    orangeDark: '#F97316',
+    lavender: '#E9D5FF',
   },
   
   // Background colors
   background: {
-    gradient: ['#87CEEB', '#5DADE2'],
+    gradient: ['#8DEBFA', '#6FD7EE'],
     white: '#FFFFFF',
     card: '#FFFFFF',
     lightGray: '#F5F5F5',
@@ -49,16 +87,16 @@ export const Colors = {
   
   // Tab bar colors
   tabBar: {
-    active: '#8E44AD',
-    inactive: '#BDC3C7',
-    background: '#FFFFFF',
+    active: '#FF8A45',
+    inactive: '#FFFFFF',
+    background: '#7E57C2',
   },
   
   // Button colors
   button: {
-    primary: '#5DADE2',
-    secondary: '#8E44AD',
-    danger: '#E57373',
+    primary: '#7E57C2',
+    secondary: '#35B8E8',
+    danger: '#F46D6D',
     disabled: '#BDC3C7',
   },
   

@@ -1,6 +1,7 @@
 import { UseGuards } from '@nestjs/common';
 import {
   Args,
+  Context,
   Field,
   InputType,
   Int,
@@ -10,7 +11,9 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 import { GqlAuthGuard } from '../auth/auth.guard';
+import { getOptionalCurrentUser } from '../auth/auth-token';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { PrismaService } from '../prisma/prisma.service';
 import { PostService } from './post.service';
 
 @ObjectType()
@@ -23,6 +26,7 @@ export class PostType {
   @Field() content: string;
   @Field() category: string;
   @Field(() => Int) likes: number;
+  @Field(() => Int) comments: number;
   @Field() createdAt: Date;
   @Field({ nullable: true }) updatedAt?: Date;
   @Field() isLiked: boolean;
@@ -44,15 +48,25 @@ export class UpdatePostInput {
 
 @Resolver()
 export class PostResolver {
-  constructor(private readonly postService: PostService) {}
+  constructor(
+    private readonly postService: PostService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Query(() => [PostType], { description: 'รายการโพสต์ชุมชน (สาธารณะ)' })
   async posts(
     @Args('category', { nullable: true }) category?: string,
     @Args('limit', { type: () => Int, defaultValue: 100 }) limit?: number,
     @Args('offset', { type: () => Int, defaultValue: 0 }) offset?: number,
+    @Context() context?: any,
   ): Promise<PostType[]> {
-    return this.postService.list(category || null, limit!, offset!);
+    const currentUser = await getOptionalCurrentUser(context, this.prisma);
+    return this.postService.list(
+      category || null,
+      limit!,
+      offset!,
+      currentUser?.id,
+    );
   }
 
   @Mutation(() => PostType, { description: 'สร้างโพสต์ใหม่' })
@@ -71,6 +85,7 @@ export class PostResolver {
       content: p.content,
       category: p.category,
       likes: p._count.likes,
+      comments: p._count.comments,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt ?? undefined,
       isLiked: false,

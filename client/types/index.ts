@@ -27,6 +27,7 @@ export interface BloodPressureReading {
   notes?: string;
   status: BPStatus;
   clientId?: string;
+  createdAt?: Date;
 }
 
 export type BPStatus = "low" | "normal" | "elevated" | "high" | "critical";
@@ -61,6 +62,54 @@ export interface Comment {
   createdAt: Date;
 }
 
+export interface PostComment {
+  id: string;
+  postId: string;
+  userId: string;
+  parentId?: string;
+  userName: string;
+  userAvatar?: string;
+  content: string;
+  likes: number;
+  replies: number;
+  createdAt: Date;
+  updatedAt?: Date;
+  isLiked?: boolean;
+}
+
+export interface AppAlertAnalysis {
+  id: string;
+  systolic: number;
+  diastolic: number;
+  pulse: number;
+  confidence: number;
+  bpLevel: string;
+  analysisNote?: string;
+  analyzedAt: Date;
+  imageUrl?: string;
+}
+
+export interface AppAlert {
+  id: string;
+  userId: string;
+  analysisId: string;
+  alertMessage: string;
+  alertLevel: "warning" | "critical" | string;
+  isRead: boolean;
+  createdAt: Date;
+  analysis?: AppAlertAnalysis;
+}
+
+export interface CaregiverLink {
+  caregiverId: string;
+  patientId: string;
+  relationship: string;
+  caregiverName: string;
+  caregiverPhone: string;
+  patientName: string;
+  patientPhone: string;
+}
+
 export interface LoginSession {
   id: string;
   deviceLabel?: string;
@@ -72,7 +121,6 @@ export interface LoginSession {
 }
 
 export type FontSizePreference =
-  | "xsmall"
   | "small"
   | "medium"
   | "large"

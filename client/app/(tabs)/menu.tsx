@@ -4,12 +4,14 @@ import { GradientBackground } from '@/components/gradient-background';
 import { MenuItem } from '@/components/menu-item';
 import { useAppStore } from '@/store/useAppStore';
 import { getFontClass } from '@/utils/font-scale';
+import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React from 'react';
 import { Alert, Image, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
 
@@ -18,15 +20,24 @@ export default function MenuScreen() {
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const insets = useSafeAreaInsets();
   const headingClassName = getFontClass(fontSizePreference, {
     small: 'text-base',
     medium: 'text-lg',
     large: 'text-xl',
+    xlarge: 'text-2xl',
   });
   const bodyClassName = getFontClass(fontSizePreference, {
     small: 'text-sm',
     medium: 'text-base',
     large: 'text-lg',
+    xlarge: 'text-xl',
+  });
+  const captionClassName = getFontClass(fontSizePreference, {
+    small: 'text-xs',
+    medium: 'text-sm',
+    large: 'text-base',
+    xlarge: 'text-lg',
   });
 
   const handleLogout = () => {
@@ -48,13 +59,20 @@ export default function MenuScreen() {
   };
 
   return (
-    <GradientBackground>
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <GradientBackground safeArea={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: Math.max(insets.top + 4, 18),
+          paddingBottom: insets.bottom + 128,
+        }}
+      >
         {/* Header */}
         <FadeInView delay={100}>
-          <View className="items-center py-4">
+          <View className="items-center pb-4">
             <LinearGradient
-              colors={['#5DADE2', '#3498DB']}
+              colors={['#72DDF4', '#35B8E8']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="flex-row items-center px-6 py-2.5 rounded-xl shadow-lg"
@@ -62,7 +80,7 @@ export default function MenuScreen() {
               <View className="mr-2">
                 <Ionicons name="menu" size={20} color="white" />
               </View>
-              <Text className="text-lg font-bold text-white">เมนูอื่นๆ</Text>
+              <Text className={headingClassName + " font-bold text-white"}>เมนูอื่นๆ</Text>
             </LinearGradient>
           </View>
         </FadeInView>
@@ -74,15 +92,15 @@ export default function MenuScreen() {
             className="mx-4 mt-2 rounded-2xl overflow-hidden shadow-lg"
           >
             <LinearGradient
-              colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#F8FAFC']}
+              colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#FFFFFF']}
               className="flex-row items-center p-4"
             >
               <View className="w-[60px] h-[60px] rounded-full overflow-hidden mr-3.5">
                 {user?.avatar ? (
-                  <Image source={{ uri: user.avatar }} className="w-full h-full" />
+                  <Image source={{ uri: toDisplayImageUri(user.avatar) }} className="w-full h-full" />
                 ) : (
                   <LinearGradient
-                    colors={['#5DADE2', '#3498DB']}
+                    colors={['#7E57C2', '#5E35B1']}
                     className="w-full h-full items-center justify-center"
                   >
                     <Ionicons name="person" size={32} color="white" />
@@ -105,13 +123,19 @@ export default function MenuScreen() {
         {/* Menu Items */}
         <View className="px-4 mt-5">
           <FadeInView delay={300}>
-            <Text className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' text-sm font-semibold mb-3 ml-1 uppercase tracking-[0.5px]'}>
+            <Text className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' ' + captionClassName + ' font-semibold mb-3 ml-1 uppercase tracking-[0.5px]'}>
               บัญชีและการตั้งค่า
             </Text>
             <MenuItem
               icon="person-outline"
               title="โปรไฟล์ของฉัน"
               onPress={() => router.push('/profile' as Href)}
+            />
+
+            <MenuItem
+              icon="people-outline"
+              title="ผู้ดูแลและผู้ป่วย"
+              onPress={() => router.push('/caregivers' as Href)}
             />
             
             <MenuItem
@@ -128,7 +152,7 @@ export default function MenuScreen() {
           </FadeInView>
 
           <FadeInView delay={400}>
-            <Text className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' text-sm font-semibold mb-3 ml-1 uppercase tracking-[0.5px] mt-6'}>
+            <Text className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' ' + captionClassName + ' font-semibold mb-3 ml-1 uppercase tracking-[0.5px] mt-6'}>
               ความช่วยเหลือ
             </Text>
             <MenuItem
@@ -158,8 +182,8 @@ export default function MenuScreen() {
 
         {/* App Version */}
         <FadeInView delay={600}>
-          <View className="items-center py-6 pb-[100px]">
-            <Text className={isDark ? 'text-xs text-slate-400' : 'text-xs text-gray-400'}>BP Monitor v1.0.0</Text>
+          <View className="items-center py-6">
+            <Text className={(isDark ? 'text-slate-400' : 'text-gray-400') + ' ' + captionClassName}>BP Monitor v1.0.0</Text>
           </View>
         </FadeInView>
       </ScrollView>
