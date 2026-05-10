@@ -1,10 +1,16 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(git * main)"
+    ],
     "allow": [
       "Bash(pnpm exec *)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(cat \"/home/tchanon/Documents/ProjectendUniversity/coding/BP-Monitor-Application/client/app/\\(tabs\\)/index.tsx\" | sed -n '495,545p')",
-      "Read(//home/tchanon/Documents/ProjectendUniversity/coding/BP-Monitor-Application/client/app/\\(tabs\\)/**)"
+      "Bash(cat ./client/app/(tabs)/*)",
+      "Read(./client/app/(tabs)/**)"
     ]
   }
 }
