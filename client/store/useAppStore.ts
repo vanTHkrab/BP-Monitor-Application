@@ -207,13 +207,36 @@ const isLocalPostId = (id: string) => id.startsWith("local-post-");
 const toLocalPostId = (localId: number) => `local-post-${localId}`;
 const parseLocalPostId = (id: string) => Number(id.replace("local-post-", ""));
 
+// Combine timestamp + multiple Math.random() chunks for ~120 bits of entropy.
+// Cryptographically weak but collision-resistant enough for offline-sync IDs;
+// switch to expo-crypto's randomUUID() if/when that dependency is added.
+const randomChunk = () => Math.random().toString(36).slice(2, 12).padStart(10, "0");
 const createClientId = (prefix: string, userId: string) =>
-  `${prefix}-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  `${prefix}-${userId}-${Date.now().toString(36)}-${randomChunk()}${randomChunk()}`;
+
+// Dev-only logger so silent catch blocks no longer swallow errors in development
+// while staying quiet in production builds.
+const logWarn = (
+  scope: string,
+  message: string,
+  error?: unknown,
+  details?: Record<string, unknown>,
+) => {
+  if (!__DEV__) return;
+  const errorDetails =
+    error instanceof Error
+      ? { name: error.name, message: error.message }
+      : error
+        ? { error }
+        : {};
+  console.warn(`[${scope}] ${message}`, { ...details, ...errorDetails });
+};
 
 const communityDebug = (
   message: string,
   details?: Record<string, unknown>,
 ) => {
+  if (!__DEV__) return;
   console.log(`[Community] ${message}`, details ?? {});
 };
 
@@ -221,18 +244,7 @@ const communityWarn = (
   message: string,
   error?: unknown,
   details?: Record<string, unknown>,
-) => {
-  const errorDetails =
-    error instanceof Error
-      ? { name: error.name, message: error.message }
-      : error
-        ? { error }
-        : {};
-  console.warn(`[Community] ${message}`, {
-    ...details,
-    ...errorDetails,
-  });
-};
+) => logWarn("Community", message, error, details);
 
 const getDeviceLabel = () =>
   `${
@@ -243,8 +255,10 @@ const getDeviceLabel = () =>
         : "Web"
   } App`;
 
-let syncReadingsInFlight = false;
-let syncPostsInFlight = false;
+// Promise-based mutex: concurrent callers await the same in-flight sync
+// instead of racing past a boolean flag and double-syncing.
+let syncReadingsPromise: Promise<void> | null = null;
+let syncPostsPromise: Promise<void> | null = null;
 
 const sortReadingsDesc = (items: BloodPressureReading[]) =>
   [...items].sort(
@@ -470,8 +484,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().fetchSessions();
       void get().hydratePendingReadings();
       void get().hydratePendingPosts();
-    } catch {
-      // Token invalid or expired
+    } catch (error) {
+      logWarn("Auth", "initAuth failed; clearing token", error);
       await clearAuthToken();
       set({ authInitialized: true, authToken: null });
     }
@@ -623,7 +637,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const data = await graphqlRequest<{ me: any }>(GQL_ME, undefined, token);
       set({ user: userFromGql(data.me) });
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Profile", "fetchMyProfile failed", error);
       return false;
     }
   },
@@ -645,7 +660,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
       set({ user: userFromGql(data.updateProfile) });
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Profile", "uploadMyAvatar failed", error);
       return false;
     }
   },
@@ -687,8 +703,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const remote = data.readings.map(readingFromGql);
       const pending = get().readings.filter((r) => isLocalReadingId(r.id));
       set({ readings: sortReadingsDesc([...pending, ...remote]) });
-    } catch {
-      // silently fail
+    } catch (error) {
+      logWarn("Readings", "fetchReadings failed", error);
     }
   },
 
@@ -703,8 +719,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         token,
       );
       set({ alerts: data.alerts.map(alertFromGql) });
-    } catch {
-      // silently fail
+    } catch (error) {
+      logWarn("Alerts", "fetchAlerts failed", error);
     }
   },
 
@@ -720,8 +736,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await graphqlRequest(GQL_MARK_ALERT_READ, { id: Number(id) }, token);
-    } catch {
-      // keep optimistic read state
+    } catch (error) {
+      logWarn("Alerts", "markAlertRead failed; keeping optimistic state", error, { id });
     }
   },
 
@@ -735,8 +751,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await graphqlRequest(GQL_MARK_ALL_ALERTS_READ, undefined, token);
-    } catch {
-      // keep optimistic read state
+    } catch (error) {
+      logWarn("Alerts", "markAllAlertsRead failed; keeping optimistic state", error);
     }
   },
 
@@ -753,8 +769,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         caregiverLinks: data.caregiverLinks.map(caregiverLinkFromGql),
       });
-    } catch {
-      // silently fail
+    } catch (error) {
+      logWarn("Caregivers", "fetchCaregiverLinks failed", error);
     }
   },
 
@@ -919,7 +935,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().fetchReadings();
       void get().fetchAlerts();
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Readings", "createReading remote failed; kept as pending", error, { clientId });
       return Boolean(pendingId);
     }
   },
@@ -941,8 +958,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (token) {
       try {
         await graphqlRequest(GQL_DELETE_READING, { id: Number(id) }, token);
-      } catch {
-        // ignore
+      } catch (error) {
+        logWarn("Readings", "deleteReading remote failed", error, { id });
       }
     }
     set((state) => ({
@@ -971,57 +988,61 @@ export const useAppStore = create<AppState>((set, get) => ({
     const currentUser = get().user;
     const token = get().authToken;
     if (!currentUser || !token || !get().isOnline) return;
-    if (syncReadingsInFlight) return;
-    syncReadingsInFlight = true;
+    if (syncReadingsPromise) return syncReadingsPromise;
 
-    try {
-      const pending = await listPendingReadings(currentUser.id);
-      for (const row of pending) {
-        try {
-          let imageUri = row.imageUri ?? null;
-          if (imageUri && !/^https?:\/\//i.test(imageUri)) {
-            imageUri = await uploadImageToS3({
-              uri: imageUri,
-              kind: "blood-pressure",
-              token,
-            });
-          }
+    syncReadingsPromise = (async () => {
+      try {
+        const pending = await listPendingReadings(currentUser.id);
+        for (const row of pending) {
+          try {
+            let imageUri = row.imageUri ?? null;
+            if (imageUri && !/^https?:\/\//i.test(imageUri)) {
+              imageUri = await uploadImageToS3({
+                uri: imageUri,
+                kind: "blood-pressure",
+                token,
+              });
+            }
 
-          await graphqlRequest(
-            GQL_CREATE_READING,
-            {
-              input: {
-                systolic: row.systolic,
-                diastolic: row.diastolic,
-                pulse: row.pulse,
-                status: row.status,
-                measuredAt: row.measuredAt,
-                clientId: row.clientId || `local-${currentUser.id}-${row.id}`,
-                imageUri,
-                notes: row.notes ?? null,
+            await graphqlRequest(
+              GQL_CREATE_READING,
+              {
+                input: {
+                  systolic: row.systolic,
+                  diastolic: row.diastolic,
+                  pulse: row.pulse,
+                  status: row.status,
+                  measuredAt: row.measuredAt,
+                  clientId: row.clientId || `local-${currentUser.id}-${row.id}`,
+                  imageUri,
+                  notes: row.notes ?? null,
+                },
               },
-            },
-            token,
-          );
-          await deletePendingReading(row.id);
-          set((state) => ({
-            readings: state.readings.filter(
-              (r) => r.id !== toLocalReadingId(row.id),
-            ),
-          }));
-        } catch (error) {
-          console.warn(
-            "[S3 upload] pending blood-pressure sync failed; will retry later",
-            error,
-          );
-          // keep pending for retry
+              token,
+            );
+            await deletePendingReading(row.id);
+            set((state) => ({
+              readings: state.readings.filter(
+                (r) => r.id !== toLocalReadingId(row.id),
+              ),
+            }));
+          } catch (error) {
+            logWarn(
+              "Sync",
+              "pending blood-pressure reading failed; will retry later",
+              error,
+              { localId: row.id, clientId: row.clientId },
+            );
+          }
         }
+        void get().fetchReadings();
+        void get().fetchAlerts();
+      } finally {
+        syncReadingsPromise = null;
       }
-      void get().fetchReadings();
-      void get().fetchAlerts();
-    } finally {
-      syncReadingsInFlight = false;
-    }
+    })();
+
+    return syncReadingsPromise;
   },
 
   // ── Posts ──
@@ -1080,14 +1101,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       return;
     }
-    if (syncPostsInFlight) {
+    if (syncPostsPromise) {
       communityDebug("syncPendingPosts skipped", { reason: "in-flight" });
-      return;
+      return syncPostsPromise;
     }
-    syncPostsInFlight = true;
 
-    try {
-      const localRows = await listLocalPosts(currentUser.id);
+    syncPostsPromise = (async () => {
+      try {
+        const localRows = await listLocalPosts(currentUser.id);
       communityDebug("syncPendingPosts start", {
         endpoint: getGraphqlEndpoint(),
         localCount: localRows.length,
@@ -1172,10 +1193,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
 
-      void get().fetchPosts();
-    } finally {
-      syncPostsInFlight = false;
-    }
+        void get().fetchPosts();
+      } finally {
+        syncPostsPromise = null;
+      }
+    })();
+
+    return syncPostsPromise;
   },
 
   toggleLike: async (postId: string) => {
@@ -1384,7 +1408,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
       void get().fetchPosts();
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Posts", "updatePost remote failed", error, { postId });
       return false;
     }
   },
@@ -1427,7 +1452,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         posts: state.posts.filter((p) => p.id !== postId),
       }));
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Posts", "deletePost remote failed", error, { postId });
       return false;
     }
   },
@@ -1695,8 +1721,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           createdAt: new Date(session.createdAt),
         })),
       });
-    } catch {
-      // ignore
+    } catch (error) {
+      logWarn("Sessions", "fetchSessions failed", error);
     }
   },
 

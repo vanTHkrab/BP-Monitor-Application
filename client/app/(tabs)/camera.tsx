@@ -5,14 +5,14 @@ import { GradientBackground } from '@/components/gradient-background';
 import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors';
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
 import { useAppStore } from '@/store/useAppStore';
-import { getFontClass, getFontNumber } from '@/utils/font-scale';
+import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Text, View } from 'react-native';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -34,20 +34,15 @@ export default function CameraScreen() {
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
   const [pulse, setPulse] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [cameraMountError, setCameraMountError] = useState<string | null>(null);
-  const [cameraKey, setCameraKey] = useState(0);
-  const [isCameraReady, setIsCameraReady] = useState(false);
 
   // ─── Store ────────────────────────────────────────────────────────────────────
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
-  const createReading = useAppStore((s) => s.createReading);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
-  const isDark = themePreference === 'dark';
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
 
   // ─── Analysis service ─────────────────────────────────────────────────────────
-  const { phase, prefill, error: analysisError, isSaving, analyze, save, reset: resetAnalysis } = useCameraAnalysis();
+  const { phase, prefill, isSaving, analyze, save, reset: resetAnalysis } = useCameraAnalysis();
 
   // Auto-fill form when AI returns confident readings
   useEffect(() => {
@@ -58,8 +53,6 @@ export default function CameraScreen() {
 
   // ─── Derived ──────────────────────────────────────────────────────────────────
   const modalCloseIconColor = isDark ? '#E2E8F0' : '#374151';
-  
-  const cameraRef = useRef<CameraView>(null);
 
   const handleRequestCameraPermission = async () => {
     try {
@@ -212,128 +205,42 @@ export default function CameraScreen() {
     );
   }
 
-  const takePicture = async () => {
-    if (!cameraRef.current) return;
-    try {
-      const photo = await cameraRef.current.takePictureAsync({
-        base64: true,
-        quality: 0.8,
-      });
-      if (photo) {
-        setCapturedImage(photo.uri);
-      }
-    } catch (error) {
-      console.error('Error taking picture:', error);
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
-    }
-  };
-
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setCapturedImage(result.assets[0].uri);
-    }
-  };
-
-  const resetState = () => {
+  // ─── UI helpers ───────────────────────────────────────────────────────────────
+  const resetAll = () => {
     setCapturedImage(null);
     setShowEntryModal(false);
     setSystolic('');
     setDiastolic('');
     setPulse('');
+    resetAnalysis();
   };
 
-  const canAttemptSave = Boolean(capturedImage) && !!systolic.trim() && !!diastolic.trim() && !!pulse.trim();
-
-  const openEntry = () => {
-    setShowEntryModal(true);
+  const retryCamera = () => {
+    setCameraMountError(null);
+    setCameraKey((k) => k + 1);
+    setIsCameraReady(false);
   };
 
-  const saveManualReading = async () => {
-    if (!isAuthenticated) {
-      Alert.alert('กรุณาเข้าสู่ระบบ', 'ต้องเข้าสู่ระบบก่อนบันทึกข้อมูล');
-      return;
-    }
+  const openEntry = () => setShowEntryModal(true);
 
-    const sys = Number(systolic);
-    const dia = Number(diastolic);
-    const hr = Number(pulse);
+  const canAttemptSave =
+    Boolean(capturedImage) && !!systolic.trim() && !!diastolic.trim() && !!pulse.trim();
 
-    if (!Number.isFinite(sys) || !Number.isFinite(dia) || !Number.isFinite(hr) || sys <= 0 || dia <= 0 || hr <= 0) {
-      Alert.alert('ข้อมูลไม่ถูกต้อง', 'กรุณากรอกค่า SYS / DIA / ชีพจร ให้ถูกต้อง');
-      return;
-    }
-
-    if (!capturedImage) {
-      Alert.alert('ไม่มีรูป', 'กรุณาถ่ายรูปหรือเลือกรูปก่อน');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const status: BPStatus = getBPStatus(sys, dia);
-      const ok = await createReading({
-        systolic: sys,
-        diastolic: dia,
-        pulse: hr,
-        measuredAt: new Date(),
-        imageUri: capturedImage,
-      });
-
-      if (ok) {
-        const proceed = () => {
-          resetState();
-          router.back();
-        };
-
-        const statusText = getStatusText(status);
-        if (status === 'normal') {
-          Alert.alert('บันทึกสำเร็จ', 'บันทึกค่าความดันเรียบร้อยแล้ว', [{ text: 'ตกลง', onPress: proceed }]);
-          return;
-        }
-
-        if (status === 'elevated') {
-          Alert.alert(
-            'แจ้งเตือนความดัน',
-            `ผลของคุณ: ${statusText}\n\nคำแนะนำ: พัก 5–10 นาที แล้ววัดซ้ำ 1–2 ครั้ง หากยังสูงต่อเนื่องควรปรึกษาแพทย์`,
-            [{ text: 'ตกลง', onPress: proceed }]
-          );
-          return;
-        }
-
-        if (status === 'high') {
-          Alert.alert(
-            'แจ้งเตือนความดัน',
-            `ผลของคุณ: ${statusText}\n\nคำแนะนำ: หลีกเลี่ยงกิจกรรมหนัก พักและวัดซ้ำ หากมีอาการผิดปกติ (ปวดหัวมาก แน่นหน้าอก หายใจลำบาก) ให้พบแพทย์ทันที`,
-            [{ text: 'ตกลง', onPress: proceed }]
-          );
-          return;
-        }
-
-        if (status === 'critical') {
-          Alert.alert(
-            'แจ้งเตือนความดัน',
-            `ผลของคุณ: ${statusText}\n\nคำแนะนำ: ควรติดต่อแพทย์/ไปโรงพยาบาลทันที โดยเฉพาะหากมีอาการเวียนศีรษะ ปวดศีรษะรุนแรง ชา แขนขาอ่อนแรง หรือแน่นหน้าอก`,
-            [{ text: 'ตกลง', onPress: proceed }]
-          );
-          return;
-        }
-
-        // low or any other status
-        Alert.alert('บันทึกสำเร็จ', `ผลของคุณ: ${statusText}`, [{ text: 'ตกลง', onPress: proceed }]);
-        return;
-      } else {
-        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้');
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const isAnalyzing = phase !== 'idle' && phase !== 'done' && phase !== 'failed';
+  const isCapturing = false; // reserved for future capture-phase indicator
+  const tabBarTotalHeight = 80;
+  const captionClassName = getFontClass(fontSizePreference, {
+    small: 'text-[11px]',
+    medium: 'text-[13px]',
+    large: 'text-[15px]',
+    xlarge: 'text-[17px]',
+  });
+  const bodyClassName = getFontClass(fontSizePreference, {
+    small: 'text-sm',
+    medium: 'text-base',
+    large: 'text-lg',
+    xlarge: 'text-xl',
+  });
 
   return (
     <GradientBackground safeArea={false}>

@@ -1,6 +1,7 @@
 // constants/api.ts — GraphQL client helper for communicating with NestJS API Gateway
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 const DEFAULT_API_PORT = "3000";
@@ -59,19 +60,61 @@ console.log(`[GraphQL] endpoint=${API_URL}`);
 export const getApiBaseUrl = () => API_URL.replace(/\/graphql\/?$/, "");
 export const getGraphqlEndpoint = () => API_URL;
 
-const TOKEN_KEY = "bp:auth-token";
+// SecureStore keys must match /^[A-Za-z0-9._-]+$/, so the original
+// "bp:auth-token" key is kept only for legacy AsyncStorage migration.
+const LEGACY_TOKEN_KEY = "bp:auth-token";
+const TOKEN_KEY = "bp_auth_token";
+
+// SecureStore is iOS/Android only. On web we fall back to AsyncStorage so
+// the dev `expo start --web` flow keeps working.
+const useSecureStore = Platform.OS === "ios" || Platform.OS === "android";
+
+const removeLegacyToken = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {
+    // best-effort cleanup
+  }
+};
 
 // ── Token Management ──
 
 export const setAuthToken = async (token: string): Promise<void> => {
+  if (useSecureStore) {
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
+    await removeLegacyToken();
+    return;
+  }
   await AsyncStorage.setItem(TOKEN_KEY, token);
 };
 
 export const getAuthToken = async (): Promise<string | null> => {
+  if (useSecureStore) {
+    const secure = await SecureStore.getItemAsync(TOKEN_KEY);
+    if (secure) return secure;
+
+    // One-time migration: pull token written by the old AsyncStorage path
+    // into SecureStore, then clear the legacy entry.
+    const legacy = await AsyncStorage.getItem(LEGACY_TOKEN_KEY);
+    if (legacy) {
+      try {
+        await SecureStore.setItemAsync(TOKEN_KEY, legacy);
+      } finally {
+        await removeLegacyToken();
+      }
+      return legacy;
+    }
+    return null;
+  }
   return AsyncStorage.getItem(TOKEN_KEY);
 };
 
 export const clearAuthToken = async (): Promise<void> => {
+  if (useSecureStore) {
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await removeLegacyToken();
+    return;
+  }
   await AsyncStorage.removeItem(TOKEN_KEY);
 };
 
