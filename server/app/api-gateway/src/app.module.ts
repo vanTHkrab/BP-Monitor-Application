@@ -8,11 +8,10 @@ import { join } from 'path';
 import { AppResolver } from './app.resolver';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
-import { AiServiceResolver } from './ai-service/ai-service.resolver';
-import { AiServiceService } from './ai-service/ai-service.service';
 import { AuthModule } from './auth/auth.module';
 import { ReadingModule } from './reading/reading.module';
 import { PostModule } from './post/post.module';
+import { AiModule } from './ai/ai.module';
 import { StorageModule } from './storage/storage.module';
 import { CommentModule } from './comment/comment.module';
 import { AlertModule } from './alert/alert.module';
@@ -44,6 +43,7 @@ import { CaregiverModule } from './caregiver/caregiver.module';
     AuthModule,
     ReadingModule,
     PostModule,
+    AiModule,
     StorageModule,
     CommentModule,
     AlertModule,
@@ -70,9 +70,7 @@ import { CaregiverModule } from './caregiver/caregiver.module';
     // == Core App Providers ==
     AppService,
     AppResolver,
-    // == AI Service Providers ==
-    AiServiceService,
-    AiServiceResolver,
+    // == AI Providers ==
   ],
 })
 export class AppModule {}

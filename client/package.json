@@ -51,7 +51,9 @@
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.16.0",
     "react-native-web": "~0.21.0",
+    "react-native-webrtc": "^124.0.7",
     "react-native-worklets": "0.5.1",
+    "socket.io-client": "^4.8.3",
     "zustand": "^5.0.10"
   },
   "devDependencies": {
@@ -62,5 +64,6 @@
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "packageManager": "pnpm@11.0.9+sha512.34ce82e6780233cf9cad8685029a8f81d2e06196c5a9bad98879f7424940c6817c4e4524fb7d38b8553ceed48b9758b8ebaf1abd3600c232c4c8cf7366086f38"
 }
