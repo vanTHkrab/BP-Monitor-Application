@@ -56,6 +56,39 @@ import {
   PostComment,
   User,
 } from "@/types";
+import type {
+  AddCaregiverPatientMutation,
+  AlertGql,
+  AlertsQuery,
+  AuthPayloadGql,
+  CaregiverLinkGql,
+  CaregiverLinksQuery,
+  ChangePasswordMutation,
+  CommentGql,
+  CreateCommentMutation,
+  CreatePostMutation,
+  CreateReadingMutation,
+  DeleteCommentMutation,
+  DeleteMyDataMutation,
+  DeletePostMutation,
+  LoginMutation,
+  LoginSessionsQuery,
+  LogoutAllDevicesMutation,
+  MeQuery,
+  PostCommentsQuery,
+  PostGql,
+  PostsQuery,
+  ReadingGql,
+  ReadingsQuery,
+  RegisterMutation,
+  RemoveCaregiverPatientMutation,
+  ToggleCommentLikeMutation,
+  ToggleLikeMutation,
+  UpdateCommentMutation,
+  UpdateProfileMutation,
+  UserGql,
+} from "@/types/graphql";
+import { errorMessage } from "@/types/graphql";
 import { uploadImageToS3 } from "@/utils/upload-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
@@ -207,13 +240,36 @@ const isLocalPostId = (id: string) => id.startsWith("local-post-");
 const toLocalPostId = (localId: number) => `local-post-${localId}`;
 const parseLocalPostId = (id: string) => Number(id.replace("local-post-", ""));
 
+// Combine timestamp + multiple Math.random() chunks for ~120 bits of entropy.
+// Cryptographically weak but collision-resistant enough for offline-sync IDs;
+// switch to expo-crypto's randomUUID() if/when that dependency is added.
+const randomChunk = () => Math.random().toString(36).slice(2, 12).padStart(10, "0");
 const createClientId = (prefix: string, userId: string) =>
-  `${prefix}-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  `${prefix}-${userId}-${Date.now().toString(36)}-${randomChunk()}${randomChunk()}`;
+
+// Dev-only logger so silent catch blocks no longer swallow errors in development
+// while staying quiet in production builds.
+const logWarn = (
+  scope: string,
+  message: string,
+  error?: unknown,
+  details?: Record<string, unknown>,
+) => {
+  if (!__DEV__) return;
+  const errorDetails =
+    error instanceof Error
+      ? { name: error.name, message: error.message }
+      : error
+        ? { error }
+        : {};
+  console.warn(`[${scope}] ${message}`, { ...details, ...errorDetails });
+};
 
 const communityDebug = (
   message: string,
   details?: Record<string, unknown>,
 ) => {
+  if (!__DEV__) return;
   console.log(`[Community] ${message}`, details ?? {});
 };
 
@@ -221,18 +277,7 @@ const communityWarn = (
   message: string,
   error?: unknown,
   details?: Record<string, unknown>,
-) => {
-  const errorDetails =
-    error instanceof Error
-      ? { name: error.name, message: error.message }
-      : error
-        ? { error }
-        : {};
-  console.warn(`[Community] ${message}`, {
-    ...details,
-    ...errorDetails,
-  });
-};
+) => logWarn("Community", message, error, details);
 
 const getDeviceLabel = () =>
   `${
@@ -243,8 +288,10 @@ const getDeviceLabel = () =>
         : "Web"
   } App`;
 
-let syncReadingsInFlight = false;
-let syncPostsInFlight = false;
+// Promise-based mutex: concurrent callers await the same in-flight sync
+// instead of racing past a boolean flag and double-syncing.
+let syncReadingsPromise: Promise<void> | null = null;
+let syncPostsPromise: Promise<void> | null = null;
 
 const sortReadingsDesc = (items: BloodPressureReading[]) =>
   [...items].sort(
@@ -312,7 +359,7 @@ const postFromLocal = (row: {
   syncStatus: "local",
 });
 
-const userFromGql = (u: any): User => ({
+const userFromGql = (u: UserGql): User => ({
   id: u.id,
   firstname: u.firstname,
   lastname: u.lastname,
@@ -328,39 +375,40 @@ const userFromGql = (u: any): User => ({
   congenitalDisease: u.congenitalDisease ?? undefined,
 });
 
-const readingFromGql = (r: any): BloodPressureReading => ({
+const readingFromGql = (r: ReadingGql): BloodPressureReading => ({
   id: String(r.id),
   userId: r.userId,
   clientId: r.clientId ?? undefined,
   systolic: r.systolic,
   diastolic: r.diastolic,
   pulse: r.pulse,
-  status: r.status as BloodPressureReading["status"],
+  status: r.status,
   measuredAt: new Date(r.measuredAt),
   imageUri: r.imageUri ?? undefined,
   notes: r.notes ?? undefined,
   createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
 });
 
-const postFromGql = (p: any): CommunityPost => ({
+const postFromGql = (p: PostGql): CommunityPost => ({
   id: String(p.id),
   userId: p.userId,
   clientId: p.clientId ?? undefined,
   userName: p.userName,
   userAvatar: p.userAvatar ?? undefined,
   content: p.content,
-  category: p.category as CommunityPost["category"],
+  category: p.category,
   likes: p.likes ?? 0,
   comments: p.comments ?? 0,
   createdAt: new Date(p.createdAt),
   isLiked: p.isLiked ?? false,
 });
 
-const commentFromGql = (c: any): PostComment => ({
+const commentFromGql = (c: CommentGql): PostComment => ({
   id: String(c.id),
   postId: String(c.postId),
   userId: c.userId,
-  parentId: c.parentId === null || c.parentId === undefined ? undefined : String(c.parentId),
+  parentId:
+    c.parentId === null || c.parentId === undefined ? undefined : String(c.parentId),
   userName: c.userName,
   userAvatar: c.userAvatar ?? undefined,
   content: c.content,
@@ -371,7 +419,7 @@ const commentFromGql = (c: any): PostComment => ({
   isLiked: c.isLiked ?? false,
 });
 
-const alertFromGql = (a: any): AppAlert => ({
+const alertFromGql = (a: AlertGql): AppAlert => ({
   id: String(a.id),
   userId: a.userId,
   analysisId: String(a.analysisId),
@@ -394,7 +442,7 @@ const alertFromGql = (a: any): AppAlert => ({
     : undefined,
 });
 
-const caregiverLinkFromGql = (link: any): CaregiverLink => ({
+const caregiverLinkFromGql = (link: CaregiverLinkGql): CaregiverLink => ({
   caregiverId: link.caregiverId,
   patientId: link.patientId,
   relationship: link.relationship,
@@ -404,6 +452,12 @@ const caregiverLinkFromGql = (link: any): CaregiverLink => ({
   patientPhone: link.patientPhone,
 });
 
+// Heuristic: a string is "Thai-friendly" if it contains any Thai characters.
+// We let those pass through unchanged (they came from the backend's localized
+// validation messages). Anything else gets normalized to a generic Thai
+// message so we don't leak raw English GraphQL errors into the UI.
+const containsThai = (text: string) => /[฀-๿]/.test(text);
+
 const authErrorToThai = (msg?: string): string => {
   if (!msg) return "เกิดข้อผิดพลาด กรุณาลองใหม่";
   if (msg.includes("Network request timed out")) {
@@ -412,12 +466,8 @@ const authErrorToThai = (msg?: string): string => {
   if (msg.includes("Network request failed")) {
     return "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบ IP, Wi-Fi และพอร์ตของ Nest GraphQL";
   }
-  if (msg.includes("ถูกใช้งานแล้ว")) return msg;
-  if (msg.includes("ไม่ถูกต้อง")) return msg;
-  if (msg.includes("ไม่พบผู้ใช้")) return msg;
-  if (msg.includes("อีเมล")) return msg;
-  if (msg.includes("รหัสผ่านปัจจุบัน")) return msg;
-  return msg;
+  if (containsThai(msg)) return msg;
+  return "เกิดข้อผิดพลาด กรุณาลองใหม่";
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -452,7 +502,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
 
-      const data = await graphqlRequest<{ me: any }>(GQL_ME, undefined, token);
+      const data = await graphqlRequest<MeQuery>(GQL_ME, undefined, token);
       const user = userFromGql(data.me);
       set({
         isAuthenticated: true,
@@ -470,8 +520,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().fetchSessions();
       void get().hydratePendingReadings();
       void get().hydratePendingPosts();
-    } catch {
-      // Token invalid or expired
+    } catch (error) {
+      logWarn("Auth", "initAuth failed; clearing token", error);
       await clearAuthToken();
       set({ authInitialized: true, authToken: null });
     }
@@ -484,9 +534,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         authErrorMessage: null,
         authErrorRawMessage: null,
       });
-      const data = await graphqlRequest<{
-        login: { token: string; user: any };
-      }>(GQL_LOGIN, {
+      const data = await graphqlRequest<LoginMutation>(GQL_LOGIN, {
         input: { phone, password, deviceLabel: getDeviceLabel() },
       });
       const { token, user } = data.login;
@@ -504,8 +552,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().fetchCaregiverLinks();
       void get().fetchSessions();
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/login-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -523,9 +571,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         authErrorRawMessage: null,
       });
 
-      const data = await graphqlRequest<{
-        register: { token: string; user: any };
-      }>(GQL_REGISTER, {
+      const data = await graphqlRequest<RegisterMutation>(GQL_REGISTER, {
         input: {
           firstname: input.firstname,
           lastname: input.lastname,
@@ -560,8 +606,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().fetchCaregiverLinks();
       void get().fetchSessions();
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/register-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -602,7 +648,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token || !get().user) return false;
 
     try {
-      const data = await graphqlRequest<{ updateProfile: any }>(
+      const data = await graphqlRequest<UpdateProfileMutation>(
         GQL_UPDATE_PROFILE,
         { input },
         token,
@@ -620,10 +666,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      const data = await graphqlRequest<{ me: any }>(GQL_ME, undefined, token);
+      const data = await graphqlRequest<MeQuery>(GQL_ME, undefined, token);
       set({ user: userFromGql(data.me) });
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Profile", "fetchMyProfile failed", error);
       return false;
     }
   },
@@ -638,14 +685,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         kind: "profile",
         token,
       });
-      const data = await graphqlRequest<{ updateProfile: any }>(
+      const data = await graphqlRequest<UpdateProfileMutation>(
         GQL_UPDATE_PROFILE,
         { input: { avatar: uploadedAvatarUri } },
         token,
       );
       set({ user: userFromGql(data.updateProfile) });
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Profile", "uploadMyAvatar failed", error);
       return false;
     }
   },
@@ -655,14 +703,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      await graphqlRequest<{ changePassword: boolean }>(
+      await graphqlRequest<ChangePasswordMutation>(
         GQL_CHANGE_PASSWORD,
         { input: { currentPassword, newPassword } },
         token,
       );
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/change-password-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -679,7 +727,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
 
     try {
-      const data = await graphqlRequest<{ readings: any[] }>(
+      const data = await graphqlRequest<ReadingsQuery>(
         GQL_READINGS,
         { limit: 200, offset: 0 },
         token,
@@ -687,8 +735,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const remote = data.readings.map(readingFromGql);
       const pending = get().readings.filter((r) => isLocalReadingId(r.id));
       set({ readings: sortReadingsDesc([...pending, ...remote]) });
-    } catch {
-      // silently fail
+    } catch (error) {
+      logWarn("Readings", "fetchReadings failed", error);
     }
   },
 
@@ -697,14 +745,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
 
     try {
-      const data = await graphqlRequest<{ alerts: any[] }>(
+      const data = await graphqlRequest<AlertsQuery>(
         GQL_ALERTS,
         { limit: 100, offset: 0, unreadOnly: false },
         token,
       );
       set({ alerts: data.alerts.map(alertFromGql) });
-    } catch {
-      // silently fail
+    } catch (error) {
+      logWarn("Alerts", "fetchAlerts failed", error);
     }
   },
 
@@ -720,8 +768,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await graphqlRequest(GQL_MARK_ALERT_READ, { id: Number(id) }, token);
-    } catch {
-      // keep optimistic read state
+    } catch (error) {
+      logWarn("Alerts", "markAlertRead failed; keeping optimistic state", error, { id });
     }
   },
 
@@ -735,8 +783,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await graphqlRequest(GQL_MARK_ALL_ALERTS_READ, undefined, token);
-    } catch {
-      // keep optimistic read state
+    } catch (error) {
+      logWarn("Alerts", "markAllAlertsRead failed; keeping optimistic state", error);
     }
   },
 
@@ -745,7 +793,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
 
     try {
-      const data = await graphqlRequest<{ caregiverLinks: any[] }>(
+      const data = await graphqlRequest<CaregiverLinksQuery>(
         GQL_CAREGIVER_LINKS,
         undefined,
         token,
@@ -753,8 +801,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         caregiverLinks: data.caregiverLinks.map(caregiverLinkFromGql),
       });
-    } catch {
-      // silently fail
+    } catch (error) {
+      logWarn("Caregivers", "fetchCaregiverLinks failed", error);
     }
   },
 
@@ -763,7 +811,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      const data = await graphqlRequest<{ addCaregiverPatient: any }>(
+      const data = await graphqlRequest<AddCaregiverPatientMutation>(
         GQL_ADD_CAREGIVER_PATIENT,
         {
           patientPhone: patientPhone.trim(),
@@ -783,8 +831,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         ],
       }));
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "caregiver/add-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -799,7 +847,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      const data = await graphqlRequest<{ removeCaregiverPatient: boolean }>(
+      const data = await graphqlRequest<RemoveCaregiverPatientMutation>(
         GQL_REMOVE_CAREGIVER_PATIENT,
         { caregiverId, patientId },
         token,
@@ -813,8 +861,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         ),
       }));
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "caregiver/remove-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -919,7 +967,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().fetchReadings();
       void get().fetchAlerts();
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Readings", "createReading remote failed; kept as pending", error, { clientId });
       return Boolean(pendingId);
     }
   },
@@ -941,8 +990,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (token) {
       try {
         await graphqlRequest(GQL_DELETE_READING, { id: Number(id) }, token);
-      } catch {
-        // ignore
+      } catch (error) {
+        logWarn("Readings", "deleteReading remote failed", error, { id });
       }
     }
     set((state) => ({
@@ -971,57 +1020,61 @@ export const useAppStore = create<AppState>((set, get) => ({
     const currentUser = get().user;
     const token = get().authToken;
     if (!currentUser || !token || !get().isOnline) return;
-    if (syncReadingsInFlight) return;
-    syncReadingsInFlight = true;
+    if (syncReadingsPromise) return syncReadingsPromise;
 
-    try {
-      const pending = await listPendingReadings(currentUser.id);
-      for (const row of pending) {
-        try {
-          let imageUri = row.imageUri ?? null;
-          if (imageUri && !/^https?:\/\//i.test(imageUri)) {
-            imageUri = await uploadImageToS3({
-              uri: imageUri,
-              kind: "blood-pressure",
-              token,
-            });
-          }
+    syncReadingsPromise = (async () => {
+      try {
+        const pending = await listPendingReadings(currentUser.id);
+        for (const row of pending) {
+          try {
+            let imageUri = row.imageUri ?? null;
+            if (imageUri && !/^https?:\/\//i.test(imageUri)) {
+              imageUri = await uploadImageToS3({
+                uri: imageUri,
+                kind: "blood-pressure",
+                token,
+              });
+            }
 
-          await graphqlRequest(
-            GQL_CREATE_READING,
-            {
-              input: {
-                systolic: row.systolic,
-                diastolic: row.diastolic,
-                pulse: row.pulse,
-                status: row.status,
-                measuredAt: row.measuredAt,
-                clientId: row.clientId || `local-${currentUser.id}-${row.id}`,
-                imageUri,
-                notes: row.notes ?? null,
+            await graphqlRequest(
+              GQL_CREATE_READING,
+              {
+                input: {
+                  systolic: row.systolic,
+                  diastolic: row.diastolic,
+                  pulse: row.pulse,
+                  status: row.status,
+                  measuredAt: row.measuredAt,
+                  clientId: row.clientId || `local-${currentUser.id}-${row.id}`,
+                  imageUri,
+                  notes: row.notes ?? null,
+                },
               },
-            },
-            token,
-          );
-          await deletePendingReading(row.id);
-          set((state) => ({
-            readings: state.readings.filter(
-              (r) => r.id !== toLocalReadingId(row.id),
-            ),
-          }));
-        } catch (error) {
-          console.warn(
-            "[S3 upload] pending blood-pressure sync failed; will retry later",
-            error,
-          );
-          // keep pending for retry
+              token,
+            );
+            await deletePendingReading(row.id);
+            set((state) => ({
+              readings: state.readings.filter(
+                (r) => r.id !== toLocalReadingId(row.id),
+              ),
+            }));
+          } catch (error) {
+            logWarn(
+              "Sync",
+              "pending blood-pressure reading failed; will retry later",
+              error,
+              { localId: row.id, clientId: row.clientId },
+            );
+          }
         }
+        void get().fetchReadings();
+        void get().fetchAlerts();
+      } finally {
+        syncReadingsPromise = null;
       }
-      void get().fetchReadings();
-      void get().fetchAlerts();
-    } finally {
-      syncReadingsInFlight = false;
-    }
+    })();
+
+    return syncReadingsPromise;
   },
 
   // ── Posts ──
@@ -1033,7 +1086,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         endpoint: getGraphqlEndpoint(),
         hasToken: Boolean(token),
       });
-      const data = await graphqlRequest<{ posts: any[] }>(
+      const data = await graphqlRequest<PostsQuery>(
         GQL_POSTS,
         { limit: 100, offset: 0 },
         token,
@@ -1080,14 +1133,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       return;
     }
-    if (syncPostsInFlight) {
+    if (syncPostsPromise) {
       communityDebug("syncPendingPosts skipped", { reason: "in-flight" });
-      return;
+      return syncPostsPromise;
     }
-    syncPostsInFlight = true;
 
-    try {
-      const localRows = await listLocalPosts(currentUser.id);
+    syncPostsPromise = (async () => {
+      try {
+        const localRows = await listLocalPosts(currentUser.id);
       communityDebug("syncPendingPosts start", {
         endpoint: getGraphqlEndpoint(),
         localCount: localRows.length,
@@ -1172,10 +1225,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
 
-      void get().fetchPosts();
-    } finally {
-      syncPostsInFlight = false;
-    }
+        void get().fetchPosts();
+      } finally {
+        syncPostsPromise = null;
+      }
+    })();
+
+    return syncPostsPromise;
   },
 
   toggleLike: async (postId: string) => {
@@ -1206,7 +1262,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("toggleLike request", { postId });
-      const data = await graphqlRequest<{ toggleLike: boolean }>(
+      const data = await graphqlRequest<ToggleLikeMutation>(
         GQL_TOGGLE_LIKE,
         { postId: Number(postId) },
         token,
@@ -1259,7 +1315,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     if (isOnline && token) {
       try {
-        const data = await graphqlRequest<{ createPost: any }>(
+        const data = await graphqlRequest<CreatePostMutation>(
           GQL_CREATE_POST,
           { input: { content: trimmed, category, clientId } },
           token,
@@ -1384,7 +1440,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
       void get().fetchPosts();
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Posts", "updatePost remote failed", error, { postId });
       return false;
     }
   },
@@ -1427,7 +1484,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         posts: state.posts.filter((p) => p.id !== postId),
       }));
       return true;
-    } catch {
+    } catch (error) {
+      logWarn("Posts", "deletePost remote failed", error, { postId });
       return false;
     }
   },
@@ -1450,7 +1508,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         postId,
         hasToken: Boolean(token),
       });
-      const data = await graphqlRequest<{ postComments: any[] }>(
+      const data = await graphqlRequest<PostCommentsQuery>(
         GQL_POST_COMMENTS,
         { postId: Number(postId), parentId: null },
         token,
@@ -1491,7 +1549,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("createComment request", { postId, parentId });
-      const data = await graphqlRequest<{ createComment: any }>(
+      const data = await graphqlRequest<CreateCommentMutation>(
         GQL_CREATE_COMMENT,
         {
           input: {
@@ -1551,7 +1609,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("updateComment request", { commentId });
-      const data = await graphqlRequest<{ updateComment: any }>(
+      const data = await graphqlRequest<UpdateCommentMutation>(
         GQL_UPDATE_COMMENT,
         { input: { id: Number(commentId), content: trimmed } },
         token,
@@ -1593,7 +1651,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("deleteComment request", { postId, commentId });
-      const data = await graphqlRequest<{ deleteComment: boolean }>(
+      const data = await graphqlRequest<DeleteCommentMutation>(
         GQL_DELETE_COMMENT,
         { id: Number(commentId) },
         token,
@@ -1653,7 +1711,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("toggleCommentLike request", { postId, commentId });
-      const data = await graphqlRequest<{ toggleCommentLike: boolean }>(
+      const data = await graphqlRequest<ToggleCommentLikeMutation>(
         GQL_TOGGLE_COMMENT_LIKE,
         { commentId: Number(commentId) },
         token,
@@ -1677,7 +1735,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
 
     try {
-      const data = await graphqlRequest<{ loginSessions: any[] }>(
+      const data = await graphqlRequest<LoginSessionsQuery>(
         GQL_LOGIN_SESSIONS,
         undefined,
         token,
@@ -1695,8 +1753,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           createdAt: new Date(session.createdAt),
         })),
       });
-    } catch {
-      // ignore
+    } catch (error) {
+      logWarn("Sessions", "fetchSessions failed", error);
     }
   },
 
@@ -1705,15 +1763,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      await graphqlRequest<{ logoutAllDevices: boolean }>(
+      await graphqlRequest<LogoutAllDevicesMutation>(
         GQL_LOGOUT_ALL_DEVICES,
         undefined,
         token,
       );
       void get().fetchSessions();
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/logout-all-devices-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -1729,7 +1787,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token || !currentUser) return false;
 
     try {
-      await graphqlRequest<{ deleteMyData: boolean }>(
+      await graphqlRequest<DeleteMyDataMutation>(
         GQL_DELETE_MY_DATA,
         undefined,
         token,
@@ -1737,8 +1795,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       await clearUserLocalData(currentUser.id);
       set({ readings: [], posts: [], commentsByPostId: {}, alerts: [] });
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "data/delete-all-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -1831,7 +1889,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!currentUser) return false;
 
     try {
-      await graphqlRequest<{ login: { token: string; user: any } }>(GQL_LOGIN, {
+      await graphqlRequest<LoginMutation>(GQL_LOGIN, {
         input: {
           phone: currentUser.phone,
           password,
@@ -1839,8 +1897,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       set({ sensitiveDataUnlocked: true });
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/unlock-sensitive-data-failed",
         authErrorMessage: authErrorToThai(msg),

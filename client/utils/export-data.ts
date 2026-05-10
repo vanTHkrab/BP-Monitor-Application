@@ -13,6 +13,12 @@ export interface ExportPayloadOptions {
   readings: BloodPressureReading[];
   posts: CommunityPost[];
   userName?: string | null;
+  /**
+   * When true, strip identifiers and image URLs from the exported file
+   * (internal IDs, userId, S3 imageUri, etc). Use when sharing data outside
+   * the patient's own device.
+   */
+  anonymize?: boolean;
 }
 
 const EXPORT_DIR_NAME = 'exports';
@@ -114,44 +120,60 @@ const stringifyErrorSafe = (error: unknown): string => {
   }
 };
 
-const buildReadingsCsv = (readings: BloodPressureReading[]): string => {
-  const header = ['id', 'systolic', 'diastolic', 'pulse', 'status', 'measuredAt', 'notes', 'imageUri'];
-  const rows = readings.map((r) => [
-    r.id,
-    r.systolic,
-    r.diastolic,
-    r.pulse,
-    r.status,
-    toIsoString(r.measuredAt),
-    r.notes ?? '',
-    r.imageUri ?? '',
-  ]);
+const buildReadingsCsv = (readings: BloodPressureReading[], anonymize = false): string => {
+  const header = anonymize
+    ? ['systolic', 'diastolic', 'pulse', 'status', 'measuredAt', 'notes']
+    : ['id', 'systolic', 'diastolic', 'pulse', 'status', 'measuredAt', 'notes', 'imageUri'];
+  const rows = readings.map((r) =>
+    anonymize
+      ? [r.systolic, r.diastolic, r.pulse, r.status, toIsoString(r.measuredAt), r.notes ?? '']
+      : [
+          r.id,
+          r.systolic,
+          r.diastolic,
+          r.pulse,
+          r.status,
+          toIsoString(r.measuredAt),
+          r.notes ?? '',
+          r.imageUri ?? '',
+        ],
+  );
 
   return [header.join(','), ...rows.map((row) => row.map(csvEscape).join(','))].join('\n');
 };
 
-const buildPostsCsv = (posts: CommunityPost[]): string => {
-  const header = ['id', 'userId', 'userName', 'category', 'content', 'likes', 'comments', 'createdAt'];
-  const rows = posts.map((p) => [
-    p.id,
-    p.userId,
-    p.userName,
-    p.category,
-    p.content,
-    p.likes,
-    p.comments,
-    toIsoString(p.createdAt),
-  ]);
+const buildPostsCsv = (posts: CommunityPost[], anonymize = false): string => {
+  const header = anonymize
+    ? ['category', 'content', 'likes', 'comments', 'createdAt']
+    : ['id', 'userId', 'userName', 'category', 'content', 'likes', 'comments', 'createdAt'];
+  const rows = posts.map((p) =>
+    anonymize
+      ? [p.category, p.content, p.likes, p.comments, toIsoString(p.createdAt)]
+      : [
+          p.id,
+          p.userId,
+          p.userName,
+          p.category,
+          p.content,
+          p.likes,
+          p.comments,
+          toIsoString(p.createdAt),
+        ],
+  );
 
   return [header.join(','), ...rows.map((row) => row.map(csvEscape).join(','))].join('\n');
 };
 
-const buildReadingsPdfHtml = (readings: BloodPressureReading[], userName?: string | null): string => {
+const buildReadingsPdfHtml = (
+  readings: BloodPressureReading[],
+  userName?: string | null,
+  anonymize = false,
+): string => {
   const rows = readings
     .map(
       (r) => `
         <tr>
-          <td>${escapeHtml(r.id)}</td>
+          ${anonymize ? '' : `<td>${escapeHtml(r.id)}</td>`}
           <td>${escapeHtml(r.systolic)}</td>
           <td>${escapeHtml(r.diastolic)}</td>
           <td>${escapeHtml(r.pulse)}</td>
@@ -162,6 +184,9 @@ const buildReadingsPdfHtml = (readings: BloodPressureReading[], userName?: strin
       `
     )
     .join('');
+  const userLine = anonymize
+    ? `สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}`
+    : `ผู้ใช้: ${escapeHtml(userName ?? '-')} | สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}`;
 
   return `
     <html>
@@ -178,11 +203,11 @@ const buildReadingsPdfHtml = (readings: BloodPressureReading[], userName?: strin
       </head>
       <body>
         <h1>รายงานค่าความดัน</h1>
-        <h2>ผู้ใช้: ${escapeHtml(userName ?? '-')} | สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}</h2>
+        <h2>${userLine}</h2>
         <table>
           <thead>
             <tr>
-              <th>ID</th>
+              ${anonymize ? '' : '<th>ID</th>'}
               <th>SYS</th>
               <th>DIA</th>
               <th>Pulse</th>
@@ -200,13 +225,16 @@ const buildReadingsPdfHtml = (readings: BloodPressureReading[], userName?: strin
   `;
 };
 
-const buildPostsPdfHtml = (posts: CommunityPost[], userName?: string | null): string => {
+const buildPostsPdfHtml = (
+  posts: CommunityPost[],
+  userName?: string | null,
+  anonymize = false,
+): string => {
   const rows = posts
     .map(
       (p) => `
         <tr>
-          <td>${escapeHtml(p.id)}</td>
-          <td>${escapeHtml(p.userName)}</td>
+          ${anonymize ? '' : `<td>${escapeHtml(p.id)}</td><td>${escapeHtml(p.userName)}</td>`}
           <td>${escapeHtml(p.category)}</td>
           <td>${escapeHtml(p.content)}</td>
           <td>${escapeHtml(p.likes)}</td>
@@ -216,6 +244,9 @@ const buildPostsPdfHtml = (posts: CommunityPost[], userName?: string | null): st
       `
     )
     .join('');
+  const userLine = anonymize
+    ? `สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}`
+    : `ผู้ใช้: ${escapeHtml(userName ?? '-')} | สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}`;
 
   return `
     <html>
@@ -232,12 +263,11 @@ const buildPostsPdfHtml = (posts: CommunityPost[], userName?: string | null): st
       </head>
       <body>
         <h1>รายงานโพสต์ชุมชน</h1>
-        <h2>ผู้ใช้: ${escapeHtml(userName ?? '-')} | สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}</h2>
+        <h2>${userLine}</h2>
         <table>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>User</th>
+              ${anonymize ? '' : '<th>ID</th><th>User</th>'}
               <th>Category</th>
               <th>Content</th>
               <th>Likes</th>
@@ -319,7 +349,7 @@ const createPdfFile = async (html: string, dataType: ExportDataType, attempt: nu
 };
 
 const createExportFile = async (options: ExportPayloadOptions, attempt: number): Promise<string> => {
-  const { dataType, format, readings, posts, userName } = options;
+  const { dataType, format, readings, posts, userName, anonymize = false } = options;
 
   if (dataType === 'readings' && readings.length === 0) {
     throw new Error('ไม่พบข้อมูลค่าความดันสำหรับส่งออก');
@@ -331,14 +361,16 @@ const createExportFile = async (options: ExportPayloadOptions, attempt: number):
 
   try {
     if (format === 'csv') {
-      const content = dataType === 'readings' ? buildReadingsCsv(readings) : buildPostsCsv(posts);
+      const content = dataType === 'readings'
+        ? buildReadingsCsv(readings, anonymize)
+        : buildPostsCsv(posts, anonymize);
       return createCsvFile(content, dataType, attempt);
     }
 
     const html =
       dataType === 'readings'
-        ? buildReadingsPdfHtml(readings, userName)
-        : buildPostsPdfHtml(posts, userName);
+        ? buildReadingsPdfHtml(readings, userName, anonymize)
+        : buildPostsPdfHtml(posts, userName, anonymize);
     return createPdfFile(html, dataType, attempt);
   } catch (error) {
     const details = stringifyErrorSafe(error);
