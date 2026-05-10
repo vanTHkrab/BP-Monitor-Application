@@ -66,6 +66,17 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 - **Local-only IDs are strings prefixed with `local-` (readings) or
   `local-post-` (posts)**. Use the `isLocalReadingId`/`isLocalPostId` helpers
   in the store; don't string-match these prefixes elsewhere.
+- **`lib/` vs `services/` vs `utils/` vs `hooks/`** — pick the bucket by what
+  the file *is*, not what it touches. `services/` is for stateful I/O modules
+  that own a workflow against a remote system (e.g. `camera.service.ts` owns
+  upload + poll for AI analysis). `lib/` is for low-level integrations and
+  third-party SDK wrappers that other code calls into (e.g. `graphql-client.ts`
+  is a transport, not a workflow). `utils/` is for pure functions and small
+  side-effect helpers that don't model a remote workflow (CSV/PDF export,
+  font scaling, one-shot S3 uploads, local notification scheduling). `hooks/`
+  is React hooks only — anything returning a hook must live here, anything
+  not must not. When in doubt: workflow → `services/`, transport → `lib/`,
+  helper → `utils/`, React state → `hooks/`.
 
 ## Styling Conventions
 

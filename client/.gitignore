@@ -21,6 +21,10 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+# Local caches (ESLint cache, Expo web image-optimization cache, etc.)
+cache/
+web/cache/
+
 # debug
 npm-debug.*
 yarn-debug.*
@@ -43,3 +47,9 @@ app-example
 /android
 
 .idea
+
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

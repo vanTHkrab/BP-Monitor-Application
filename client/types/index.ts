@@ -142,3 +142,4 @@ export interface HealthTip {
 }
 
 export * from './camera';
+export * from './graphql';
