@@ -17,6 +17,7 @@ import {
   GQL_DELETE_READING,
   GQL_LOGIN,
   GQL_LOGIN_SESSIONS,
+  GQL_LOGOUT,
   GQL_LOGOUT_ALL_DEVICES,
   GQL_MARK_ALERT_READ,
   GQL_MARK_ALL_ALERTS_READ,
@@ -73,6 +74,7 @@ import type {
   DeletePostMutation,
   LoginMutation,
   LoginSessionsQuery,
+  LogoutMutation,
   LogoutAllDevicesMutation,
   MeQuery,
   PostCommentsQuery,
@@ -140,7 +142,7 @@ interface AppState {
     congenitalDisease?: string;
     avatarUri?: string | null;
   }) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   clearAuthError: () => void;
 
   updateMyProfile: (input: {
@@ -617,8 +619,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  logout: () => {
-    void clearAuthToken();
+  logout: async () => {
+    const token = get().authToken;
+    // Best-effort revoke on the server. If the network is down or the token
+    // is already invalid, still proceed to clear local state — the user
+    // pressed "log out" and we have to honor that.
+    if (token) {
+      try {
+        await graphqlRequest<LogoutMutation>(GQL_LOGOUT, undefined, token);
+      } catch (error) {
+        logWarn("Auth", "logout server revoke failed", error);
+      }
+    }
+    await clearAuthToken();
     set({
       isAuthenticated: false,
       user: null,

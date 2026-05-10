@@ -125,10 +125,27 @@ export const clearAuthToken = async (): Promise<void> => {
 
 // ── GraphQL Request ──
 
+interface GqlError {
+  message: string;
+  extensions?: Record<string, unknown> & { code?: string };
+}
+
 interface GqlResponse<T = unknown> {
   data?: T;
-  errors?: Array<{ message: string; extensions?: Record<string, unknown> }>;
+  errors?: GqlError[];
 }
+
+// Surface GraphQL extension codes (Apollo / Mercurius style: UNAUTHENTICATED,
+// FORBIDDEN, BAD_USER_INPUT, …) inside the thrown message so downstream
+// formatters in lib/error-message.ts can map them to localized copy.
+const formatGqlErrors = (errors: GqlError[]): string =>
+  errors
+    .map((e) => {
+      const code =
+        typeof e.extensions?.code === "string" ? e.extensions.code : null;
+      return code ? `[${code}] ${e.message}` : e.message;
+    })
+    .join("; ");
 
 const getOperationName = (query: string): string => {
   const match = query.match(/\b(query|mutation)\s+([A-Za-z0-9_]+)/);
@@ -187,8 +204,9 @@ export async function graphqlRequest<T = unknown>(
 
     if (!res.ok) {
       const msg =
-        json.errors?.map((e) => e.message).join("; ") ||
-        `HTTP ${res.status}`;
+        (json.errors && json.errors.length > 0
+          ? formatGqlErrors(json.errors)
+          : null) || `HTTP ${res.status}`;
       if (__DEV__) {
         console.warn(`[GraphQL] ${operationName} HTTP error`, {
           status: res.status,
@@ -199,7 +217,7 @@ export async function graphqlRequest<T = unknown>(
     }
 
     if (json.errors && json.errors.length > 0) {
-      const msg = json.errors.map((e) => e.message).join("; ");
+      const msg = formatGqlErrors(json.errors);
       if (__DEV__) {
         console.warn(`[GraphQL] ${operationName} GraphQL error`, { message: msg });
       }
@@ -291,6 +309,12 @@ export const GQL_UPDATE_PROFILE = `
 export const GQL_CHANGE_PASSWORD = `
   mutation ChangePassword($input: ChangePasswordInput!) {
     changePassword(input: $input)
+  }
+`;
+
+export const GQL_LOGOUT = `
+  mutation Logout {
+    logout
   }
 `;
 

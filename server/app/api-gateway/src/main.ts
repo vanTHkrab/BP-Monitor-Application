@@ -1,3 +1,4 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
@@ -10,6 +11,18 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter({
       bodyLimit: 16 * 1024 * 1024,
+    }),
+  );
+
+  // Validate every @Args / @Body / @Query input against its class-validator
+  // decorators. Strip unknown fields, transform plain JSON into class instances
+  // so @IsDate() etc. fire correctly.
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 

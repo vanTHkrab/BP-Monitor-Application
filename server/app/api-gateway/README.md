@@ -1,98 +1,144 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# API Gateway
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS 11 + Fastify + Mercurius (GraphQL) gateway สำหรับ BP Monitor Application
+ทำหน้าที่เป็น single entry point ของทุก client (Expo app, Web dashboard) จัดการ
+auth, persistence (Prisma + PostgreSQL), file storage (S3), และเชื่อม AI service
+ผ่าน Redis transport
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+GraphQL endpoint: `POST /graphql`
+GraphiQL playground (dev): `GET /graphql`
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Quick start
 
 ```bash
-$ pnpm install
+pnpm install
+cp .env.example .env       # แล้วเติม DATABASE_URL, JWT_SECRET, S3_*
+pnpm prisma migrate dev    # สร้าง schema (ครั้งแรก)
+pnpm start:dev             # hot-reload, port 3000
 ```
 
-## Compile and run the project
+ตรวจว่ารันถูก:
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+curl -s http://localhost:3000/graphql \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"{ hello }"}'
+# {"data":{"hello":"Hello from BP Monitor API!"}}
 ```
 
-## Run tests
+---
+
+## Required environment variables
+
+ดู `.env.example` แต่สรุปสำคัญ:
+
+| Var | บังคับ | หมายเหตุ |
+|---|---|---|
+| `DATABASE_URL` | ✓ | Postgres connection string. Host ต้อง resolve ได้จากเครื่องที่รัน gateway (อย่าใช้ docker service name ถ้ารัน native) |
+| `JWT_SECRET` | ✓ | **อย่างน้อย 32 ตัวอักษร** สุ่มจริง — gateway จะปฏิเสธการบูตถ้าสั้นกว่านั้นหรือไม่ตั้ง |
+| `JWT_EXPIRES_IN` | – | default `30d` |
+| `S3_*` | ✓ ถ้าใช้ upload | provider, key, bucket, endpoint |
+| `PORT` | – | default `3000` |
+
+สร้าง JWT secret:
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+---
+
+## Scripts
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm start:dev          # dev with watch
+pnpm build              # tsc → dist/
+pnpm start:prod         # node dist/main
+pnpm test               # Jest unit tests
+pnpm test:e2e           # Jest e2e (requires running DB)
+pnpm lint
+pnpm prisma generate    # regen client after schema change
+pnpm prisma migrate dev # create + apply migration
 ```
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Project layout
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+```
+src/
+├── main.ts              # bootstrap (Fastify + global ValidationPipe)
+├── app.module.ts        # GraphQL config, error formatter, Redis client wiring
+├── schema.gql           # auto-generated from decorators (do not edit)
+├── auth/                # register/login/me, JWT guard, throttle, sessions
+├── reading/             # BP readings CRUD
+├── post/                # community posts
+├── comment/             # post comments
+├── alert/               # high-BP alerts
+├── caregiver/           # caregiver ↔ patient links
+├── ai/                  # bridge to FastAPI AI service via Redis
+├── storage/             # S3 upload helpers
+└── prisma/              # Prisma client provider + schema
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## GraphQL contract
 
-Check out a few resources that may come in handy when working with NestJS:
+- ทุก operation ที่ client ใช้อยู่ใน [client/constants/api.ts](../../../client/constants/api.ts)
+  ภายใต้ชื่อ `GQL_*`
+- Schema ถูก generate อัตโนมัติจาก decorators ลงใน `src/schema.gql`
+  ห้ามแก้ไฟล์นี้มือ — แก้ที่ `*.types.ts` หรือ `*.resolver.ts` แทน
+- Error response มาตรฐาน: HTTP 200 + body `{ errors: [{ message, extensions: { code } }] }`
+  โดย `code` ถูก stamp ใน `errorFormatter` ของ `app.module.ts` จาก HTTP status
+  ของ HttpException ที่ resolver โยน (`UNAUTHENTICATED`, `FORBIDDEN`,
+  `NOT_FOUND`, `BAD_USER_INPUT`, `INTERNAL_SERVER_ERROR`)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+---
 
-## Support
+## Auth flow
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+1. Client ส่ง `register` หรือ `login` mutation → gateway สร้าง `userSession`
+   row + sign JWT (`{ sub: userId, phone, sid: sessionId }`) → คืน `{ token, user }`
+2. Client เก็บ token ใน SecureStore แล้วใส่ `Authorization: Bearer <token>`
+   ในทุก request ถัดไป
+3. `GqlAuthGuard` verify JWT → ตรวจว่า session ยัง `isActive` →
+   อัปเดต `lastActiveAt` (throttle 5 นาที) → attach user เข้า GraphQL context
+4. `logout` mutation → mark session ปัจจุบัน `isActive=false` ที่ฝั่ง server
+   → client clear local token
 
-## Stay in touch
+หมายเหตุด้านความปลอดภัย:
+- bcrypt rounds = 10 (OWASP minimum)
+- Login throttle: 5 ครั้ง / 15 นาที / phone (ดู `auth/login-throttle.guard.ts`)
+- ไม่มี refresh token ในตอนนี้ (ดู PLAN.md)
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+---
 
-## License
+## Connect to AI service
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+AI service (FastAPI) ฟัง Redis pub/sub ที่ port 6379 ตามที่กำหนดใน
+`app.module.ts`. ถ้า Redis ไม่ติด AI features จะ fail แบบ graceful แต่ feature
+อื่นทำงานได้
+
+---
+
+## Troubleshooting
+
+| อาการ | สาเหตุที่พบบ่อย |
+|---|---|
+| `getaddrinfo EAI_AGAIN <host>` | `DATABASE_URL` ใช้ host ที่ DNS ไม่รู้จัก (เช่น docker service name แต่รัน native) |
+| Boot fail "JWT_SECRET is not set" | ตั้งค่าใน `.env` ตามคำแนะนำด้านบน |
+| Login ตอบ HTTP 429 | ติด rate limit — รอครบ 15 นาทีหรือ restart gateway (counter เป็น in-memory) |
+| GraphQL error `[BAD_USER_INPUT]` | input ไม่ผ่าน class-validator เช่น password < 8 ตัว |
+| Schema ไม่อัปเดต | `pnpm start:dev` regen `schema.gql` อัตโนมัติ; ถ้าค้าง restart |
+
+---
+
+## เอกสารที่เกี่ยวข้อง
+
+- [CLAUDE.md](./CLAUDE.md) — guideline สำหรับ AI-assisted edits
+- [AGENT.md](./AGENT.md) — รายละเอียดสถาปัตยกรรมของ gateway agent
+- [PLAN.md](./PLAN.md) — roadmap, work in progress, upcoming changes
+- [MEMORY.md](./MEMORY.md) — ข้อมูลที่ควรจำข้ามรอบ session
+- Root [CLAUDE.md](../../../CLAUDE.md) — guideline ระดับ monorepo

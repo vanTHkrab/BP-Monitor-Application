@@ -42,17 +42,24 @@ const toUserMessage = (raw: string, fallback: string): string => {
   if (raw.includes("Network request failed") || raw.includes("network request failed")) {
     return "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต";
   }
-  if (/HTTP 401|Unauthorized/i.test(raw)) {
+  // GraphQL errors come back as HTTP 200 with an `errors` array; the gateway
+  // (NestJS + Mercurius) stamps an extension `code` that graphqlRequest in
+  // constants/api.ts surfaces as `[CODE] message`. Match those alongside the
+  // REST-style status patterns.
+  if (/HTTP 401|Unauthorized|\[UNAUTHENTICATED\]/i.test(raw)) {
     return "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่";
   }
-  if (/HTTP 403|Forbidden/i.test(raw)) {
+  if (/HTTP 403|Forbidden|\[FORBIDDEN\]/i.test(raw)) {
     return "ไม่มีสิทธิ์ดำเนินการนี้";
   }
-  if (/HTTP 404/i.test(raw)) {
+  if (/HTTP 404|\[NOT_FOUND\]/i.test(raw)) {
     return "ไม่พบข้อมูลที่ร้องขอ";
   }
-  if (/HTTP 5\d\d/i.test(raw)) {
+  if (/HTTP 5\d\d|\[INTERNAL_SERVER_ERROR\]/i.test(raw)) {
     return "เซิร์ฟเวอร์ขัดข้อง กรุณาลองใหม่ภายหลัง";
+  }
+  if (/\[BAD_USER_INPUT\]|\[GRAPHQL_VALIDATION_FAILED\]/i.test(raw)) {
+    return "ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่";
   }
 
   // If the backend already returned a Thai-localized message, trust it.

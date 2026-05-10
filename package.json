@@ -1,0 +1,10 @@
+{
+  "name": "bp-monitor-dev",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n web,api,ai,app -c blue,green,magenta,yellow \"pnpm --dir web dev\" \"pnpm --dir server/app/api-gateway start:dev\" \"cd server/app/ai-service && uv run fastapi dev main.py\" \"pnpm --dir client start\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
