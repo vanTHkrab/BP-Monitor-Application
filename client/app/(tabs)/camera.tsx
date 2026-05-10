@@ -44,11 +44,16 @@ export default function CameraScreen() {
   // ─── Analysis service ─────────────────────────────────────────────────────────
   const { phase, prefill, isSaving, analyze, save, reset: resetAnalysis } = useCameraAnalysis();
 
-  // Auto-fill form when AI returns confident readings
+  // Auto-fill form when AI returns confident readings.
+  // Only write into empty fields so the user's manual edits aren't clobbered
+  // when the AI result lands after they've already started typing.
   useEffect(() => {
-    if (prefill.systolic) setSystolic(String(prefill.systolic));
-    if (prefill.diastolic) setDiastolic(String(prefill.diastolic));
-    if (prefill.pulse) setPulse(String(prefill.pulse));
+    if (prefill.systolic && !systolic.trim()) setSystolic(String(prefill.systolic));
+    if (prefill.diastolic && !diastolic.trim()) setDiastolic(String(prefill.diastolic));
+    if (prefill.pulse && !pulse.trim()) setPulse(String(prefill.pulse));
+    // intentionally only depends on prefill — re-running on every keystroke
+    // would defeat the empty-field guard above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill]);
 
   // ─── Derived ──────────────────────────────────────────────────────────────────
@@ -122,11 +127,31 @@ export default function CameraScreen() {
     const dia = Number(diastolic);
     const hr = Number(pulse);
 
-    if (
-      !Number.isFinite(sys) || !Number.isFinite(dia) || !Number.isFinite(hr) ||
-      sys <= 0 || dia <= 0 || hr <= 0
-    ) {
+    // Physiologically-plausible bounds. Values outside these ranges almost
+    // certainly indicate a typo or OCR misread; saving them would pollute
+    // history and trigger spurious alerts.
+    const SYS_MIN = 50, SYS_MAX = 250;
+    const DIA_MIN = 30, DIA_MAX = 150;
+    const HR_MIN = 30, HR_MAX = 220;
+
+    if (!Number.isFinite(sys) || !Number.isFinite(dia) || !Number.isFinite(hr)) {
       Alert.alert('ข้อมูลไม่ถูกต้อง', 'กรุณากรอกค่า SYS / DIA / ชีพจร ให้ถูกต้อง');
+      return;
+    }
+    if (sys < SYS_MIN || sys > SYS_MAX) {
+      Alert.alert('ค่า SYS ผิดปกติ', `กรุณากรอกค่า SYS ระหว่าง ${SYS_MIN}–${SYS_MAX} mmHg`);
+      return;
+    }
+    if (dia < DIA_MIN || dia > DIA_MAX) {
+      Alert.alert('ค่า DIA ผิดปกติ', `กรุณากรอกค่า DIA ระหว่าง ${DIA_MIN}–${DIA_MAX} mmHg`);
+      return;
+    }
+    if (hr < HR_MIN || hr > HR_MAX) {
+      Alert.alert('ค่าชีพจรผิดปกติ', `กรุณากรอกค่าชีพจรระหว่าง ${HR_MIN}–${HR_MAX} bpm`);
+      return;
+    }
+    if (sys <= dia) {
+      Alert.alert('ข้อมูลไม่ถูกต้อง', 'ค่า SYS ต้องมากกว่า DIA');
       return;
     }
 

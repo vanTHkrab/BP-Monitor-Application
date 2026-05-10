@@ -80,8 +80,22 @@ export default function RootLayout() {
   }, [userId]);
 
   useEffect(() => {
-    void initLocalDb();
-    void useAppStore.getState().initAuth();
+    let cancelled = false;
+    let notificationResponseSub: { remove: () => void } | null = null;
+
+    // Sequence the bootstrap so SQLite is ready before initAuth's
+    // hydratePendingReadings() touches it, and so initial network/sync events
+    // don't fire against an un-hydrated auth state.
+    const bootstrap = async () => {
+      try {
+        await initLocalDb();
+        if (cancelled) return;
+        await useAppStore.getState().initAuth();
+      } catch (error) {
+        if (__DEV__) console.warn("[Bootstrap] init failed", error);
+      }
+    };
+    void bootstrap();
 
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
       const isOnline = Boolean(
@@ -106,14 +120,19 @@ export default function RootLayout() {
       }
     });
 
-    let notificationResponseSub: { remove: () => void } | null = null;
     void subscribeToReminderResponses((response) => {
       void handleReminderNotificationResponse(response);
     }).then((subscription) => {
+      if (!subscription) return;
+      if (cancelled) {
+        subscription.remove();
+        return;
+      }
       notificationResponseSub = subscription;
     });
 
     return () => {
+      cancelled = true;
       unsubscribeNetInfo();
       appStateSub.remove();
       notificationResponseSub?.remove();

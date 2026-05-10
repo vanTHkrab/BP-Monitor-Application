@@ -6,7 +6,6 @@ import { Platform } from "react-native";
 
 const DEFAULT_API_PORT = "3000";
 const REQUEST_TIMEOUT_MS = 30000;
-const DEFAULT_LAN_API_HOST = "10.200.27.158";
 
 const isLoopbackHost = (host: string) =>
   host === "127.0.0.1" ||
@@ -14,14 +13,22 @@ const isLoopbackHost = (host: string) =>
   host === "::1" ||
   host === "0.0.0.0";
 
+interface ConstantsHostShape {
+  expoGoConfig?: { debuggerHost?: string; hostUri?: string };
+  manifest2?: { extra?: { expoClient?: { hostUri?: string } } };
+  manifest?: { debuggerHost?: string };
+  platform?: { hostUri?: string };
+}
+
 const getExpoHostUri = (): string | null => {
+  const c = Constants as unknown as ConstantsHostShape;
   const possibleHostUri =
     Constants.expoConfig?.hostUri ||
-    (Constants as any)?.expoGoConfig?.debuggerHost ||
-    (Constants as any)?.expoGoConfig?.hostUri ||
-    (Constants as any)?.manifest2?.extra?.expoClient?.hostUri ||
-    (Constants as any)?.manifest?.debuggerHost ||
-    (Constants as any)?.platform?.hostUri ||
+    c.expoGoConfig?.debuggerHost ||
+    c.expoGoConfig?.hostUri ||
+    c.manifest2?.extra?.expoClient?.hostUri ||
+    c.manifest?.debuggerHost ||
+    c.platform?.hostUri ||
     null;
 
   return typeof possibleHostUri === "string" && possibleHostUri.length > 0
@@ -43,19 +50,17 @@ const resolveApiUrl = (): string => {
     }
   }
 
-  console.warn(
-    `[GraphQL] EXPO_PUBLIC_API_URL is not set and Expo host was unavailable. Falling back to ${DEFAULT_LAN_API_HOST}:${DEFAULT_API_PORT}`,
+  // No env var and no usable Expo host — fail loudly so misconfiguration is
+  // obvious rather than silently hitting some other developer's LAN box.
+  throw new Error(
+    "[GraphQL] EXPO_PUBLIC_API_URL is not set and no usable Expo host URI was " +
+      "found. Add EXPO_PUBLIC_API_URL=http://<host>:3000/graphql to client/.env " +
+      "(or to app.json's `expo.extra` for a build).",
   );
-
-  if (Platform.OS === "android") {
-    return `http://${DEFAULT_LAN_API_HOST}:${DEFAULT_API_PORT}/graphql`;
-  }
-
-  return `http://${DEFAULT_LAN_API_HOST}:${DEFAULT_API_PORT}/graphql`;
 };
 
 const API_URL = resolveApiUrl();
-console.log(`[GraphQL] endpoint=${API_URL}`);
+if (__DEV__) console.log(`[GraphQL] endpoint=${API_URL}`);
 
 export const getApiBaseUrl = () => API_URL.replace(/\/graphql\/?$/, "");
 export const getGraphqlEndpoint = () => API_URL;
@@ -147,11 +152,13 @@ export async function graphqlRequest<T = unknown>(
   }
 
   try {
-    console.log(`[GraphQL] ${operationName} request`, {
-      endpoint: API_URL,
-      hasToken: Boolean(token),
-      variableKeys: variables ? Object.keys(variables) : [],
-    });
+    if (__DEV__) {
+      console.log(`[GraphQL] ${operationName} request`, {
+        endpoint: API_URL,
+        hasToken: Boolean(token),
+        variableKeys: variables ? Object.keys(variables) : [],
+      });
+    }
 
     const res = await fetch(API_URL, {
       method: "POST",
@@ -166,11 +173,13 @@ export async function graphqlRequest<T = unknown>(
     try {
       json = JSON.parse(rawText) as GqlResponse<T>;
     } catch {
-      console.warn(`[GraphQL] ${operationName} invalid JSON response`, {
-        status: res.status,
-        endpoint: API_URL,
-        preview: rawText.slice(0, 180),
-      });
+      if (__DEV__) {
+        console.warn(`[GraphQL] ${operationName} invalid JSON response`, {
+          status: res.status,
+          endpoint: API_URL,
+          preview: rawText.slice(0, 180),
+        });
+      }
       throw new Error(
         `Invalid JSON response from server while calling ${operationName} (HTTP ${res.status})`,
       );
@@ -180,27 +189,29 @@ export async function graphqlRequest<T = unknown>(
       const msg =
         json.errors?.map((e) => e.message).join("; ") ||
         `HTTP ${res.status}`;
-      console.warn(`[GraphQL] ${operationName} HTTP error`, {
-        status: res.status,
-        message: msg,
-      });
+      if (__DEV__) {
+        console.warn(`[GraphQL] ${operationName} HTTP error`, {
+          status: res.status,
+          message: msg,
+        });
+      }
       throw new Error(`${operationName} failed: ${msg}`);
     }
 
     if (json.errors && json.errors.length > 0) {
       const msg = json.errors.map((e) => e.message).join("; ");
-      console.warn(`[GraphQL] ${operationName} GraphQL error`, {
-        message: msg,
-      });
+      if (__DEV__) {
+        console.warn(`[GraphQL] ${operationName} GraphQL error`, { message: msg });
+      }
       throw new Error(`${operationName} failed: ${msg}`);
     }
 
     if (!json.data) {
-      console.warn(`[GraphQL] ${operationName} returned no data`);
+      if (__DEV__) console.warn(`[GraphQL] ${operationName} returned no data`);
       throw new Error(`${operationName} failed: No data returned from server`);
     }
 
-    console.log(`[GraphQL] ${operationName} success`);
+    if (__DEV__) console.log(`[GraphQL] ${operationName} success`);
     return json.data;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {

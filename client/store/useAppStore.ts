@@ -56,6 +56,39 @@ import {
   PostComment,
   User,
 } from "@/types";
+import type {
+  AddCaregiverPatientMutation,
+  AlertGql,
+  AlertsQuery,
+  AuthPayloadGql,
+  CaregiverLinkGql,
+  CaregiverLinksQuery,
+  ChangePasswordMutation,
+  CommentGql,
+  CreateCommentMutation,
+  CreatePostMutation,
+  CreateReadingMutation,
+  DeleteCommentMutation,
+  DeleteMyDataMutation,
+  DeletePostMutation,
+  LoginMutation,
+  LoginSessionsQuery,
+  LogoutAllDevicesMutation,
+  MeQuery,
+  PostCommentsQuery,
+  PostGql,
+  PostsQuery,
+  ReadingGql,
+  ReadingsQuery,
+  RegisterMutation,
+  RemoveCaregiverPatientMutation,
+  ToggleCommentLikeMutation,
+  ToggleLikeMutation,
+  UpdateCommentMutation,
+  UpdateProfileMutation,
+  UserGql,
+} from "@/types/graphql";
+import { errorMessage } from "@/types/graphql";
 import { uploadImageToS3 } from "@/utils/upload-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
@@ -326,7 +359,7 @@ const postFromLocal = (row: {
   syncStatus: "local",
 });
 
-const userFromGql = (u: any): User => ({
+const userFromGql = (u: UserGql): User => ({
   id: u.id,
   firstname: u.firstname,
   lastname: u.lastname,
@@ -342,39 +375,40 @@ const userFromGql = (u: any): User => ({
   congenitalDisease: u.congenitalDisease ?? undefined,
 });
 
-const readingFromGql = (r: any): BloodPressureReading => ({
+const readingFromGql = (r: ReadingGql): BloodPressureReading => ({
   id: String(r.id),
   userId: r.userId,
   clientId: r.clientId ?? undefined,
   systolic: r.systolic,
   diastolic: r.diastolic,
   pulse: r.pulse,
-  status: r.status as BloodPressureReading["status"],
+  status: r.status,
   measuredAt: new Date(r.measuredAt),
   imageUri: r.imageUri ?? undefined,
   notes: r.notes ?? undefined,
   createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
 });
 
-const postFromGql = (p: any): CommunityPost => ({
+const postFromGql = (p: PostGql): CommunityPost => ({
   id: String(p.id),
   userId: p.userId,
   clientId: p.clientId ?? undefined,
   userName: p.userName,
   userAvatar: p.userAvatar ?? undefined,
   content: p.content,
-  category: p.category as CommunityPost["category"],
+  category: p.category,
   likes: p.likes ?? 0,
   comments: p.comments ?? 0,
   createdAt: new Date(p.createdAt),
   isLiked: p.isLiked ?? false,
 });
 
-const commentFromGql = (c: any): PostComment => ({
+const commentFromGql = (c: CommentGql): PostComment => ({
   id: String(c.id),
   postId: String(c.postId),
   userId: c.userId,
-  parentId: c.parentId === null || c.parentId === undefined ? undefined : String(c.parentId),
+  parentId:
+    c.parentId === null || c.parentId === undefined ? undefined : String(c.parentId),
   userName: c.userName,
   userAvatar: c.userAvatar ?? undefined,
   content: c.content,
@@ -385,7 +419,7 @@ const commentFromGql = (c: any): PostComment => ({
   isLiked: c.isLiked ?? false,
 });
 
-const alertFromGql = (a: any): AppAlert => ({
+const alertFromGql = (a: AlertGql): AppAlert => ({
   id: String(a.id),
   userId: a.userId,
   analysisId: String(a.analysisId),
@@ -408,7 +442,7 @@ const alertFromGql = (a: any): AppAlert => ({
     : undefined,
 });
 
-const caregiverLinkFromGql = (link: any): CaregiverLink => ({
+const caregiverLinkFromGql = (link: CaregiverLinkGql): CaregiverLink => ({
   caregiverId: link.caregiverId,
   patientId: link.patientId,
   relationship: link.relationship,
@@ -418,6 +452,12 @@ const caregiverLinkFromGql = (link: any): CaregiverLink => ({
   patientPhone: link.patientPhone,
 });
 
+// Heuristic: a string is "Thai-friendly" if it contains any Thai characters.
+// We let those pass through unchanged (they came from the backend's localized
+// validation messages). Anything else gets normalized to a generic Thai
+// message so we don't leak raw English GraphQL errors into the UI.
+const containsThai = (text: string) => /[฀-๿]/.test(text);
+
 const authErrorToThai = (msg?: string): string => {
   if (!msg) return "เกิดข้อผิดพลาด กรุณาลองใหม่";
   if (msg.includes("Network request timed out")) {
@@ -426,12 +466,8 @@ const authErrorToThai = (msg?: string): string => {
   if (msg.includes("Network request failed")) {
     return "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบ IP, Wi-Fi และพอร์ตของ Nest GraphQL";
   }
-  if (msg.includes("ถูกใช้งานแล้ว")) return msg;
-  if (msg.includes("ไม่ถูกต้อง")) return msg;
-  if (msg.includes("ไม่พบผู้ใช้")) return msg;
-  if (msg.includes("อีเมล")) return msg;
-  if (msg.includes("รหัสผ่านปัจจุบัน")) return msg;
-  return msg;
+  if (containsThai(msg)) return msg;
+  return "เกิดข้อผิดพลาด กรุณาลองใหม่";
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -466,7 +502,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
 
-      const data = await graphqlRequest<{ me: any }>(GQL_ME, undefined, token);
+      const data = await graphqlRequest<MeQuery>(GQL_ME, undefined, token);
       const user = userFromGql(data.me);
       set({
         isAuthenticated: true,
@@ -498,9 +534,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         authErrorMessage: null,
         authErrorRawMessage: null,
       });
-      const data = await graphqlRequest<{
-        login: { token: string; user: any };
-      }>(GQL_LOGIN, {
+      const data = await graphqlRequest<LoginMutation>(GQL_LOGIN, {
         input: { phone, password, deviceLabel: getDeviceLabel() },
       });
       const { token, user } = data.login;
@@ -518,8 +552,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().fetchCaregiverLinks();
       void get().fetchSessions();
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/login-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -537,9 +571,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         authErrorRawMessage: null,
       });
 
-      const data = await graphqlRequest<{
-        register: { token: string; user: any };
-      }>(GQL_REGISTER, {
+      const data = await graphqlRequest<RegisterMutation>(GQL_REGISTER, {
         input: {
           firstname: input.firstname,
           lastname: input.lastname,
@@ -574,8 +606,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().fetchCaregiverLinks();
       void get().fetchSessions();
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/register-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -616,7 +648,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token || !get().user) return false;
 
     try {
-      const data = await graphqlRequest<{ updateProfile: any }>(
+      const data = await graphqlRequest<UpdateProfileMutation>(
         GQL_UPDATE_PROFILE,
         { input },
         token,
@@ -634,7 +666,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      const data = await graphqlRequest<{ me: any }>(GQL_ME, undefined, token);
+      const data = await graphqlRequest<MeQuery>(GQL_ME, undefined, token);
       set({ user: userFromGql(data.me) });
       return true;
     } catch (error) {
@@ -653,7 +685,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         kind: "profile",
         token,
       });
-      const data = await graphqlRequest<{ updateProfile: any }>(
+      const data = await graphqlRequest<UpdateProfileMutation>(
         GQL_UPDATE_PROFILE,
         { input: { avatar: uploadedAvatarUri } },
         token,
@@ -671,14 +703,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      await graphqlRequest<{ changePassword: boolean }>(
+      await graphqlRequest<ChangePasswordMutation>(
         GQL_CHANGE_PASSWORD,
         { input: { currentPassword, newPassword } },
         token,
       );
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/change-password-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -695,7 +727,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
 
     try {
-      const data = await graphqlRequest<{ readings: any[] }>(
+      const data = await graphqlRequest<ReadingsQuery>(
         GQL_READINGS,
         { limit: 200, offset: 0 },
         token,
@@ -713,7 +745,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
 
     try {
-      const data = await graphqlRequest<{ alerts: any[] }>(
+      const data = await graphqlRequest<AlertsQuery>(
         GQL_ALERTS,
         { limit: 100, offset: 0, unreadOnly: false },
         token,
@@ -761,7 +793,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
 
     try {
-      const data = await graphqlRequest<{ caregiverLinks: any[] }>(
+      const data = await graphqlRequest<CaregiverLinksQuery>(
         GQL_CAREGIVER_LINKS,
         undefined,
         token,
@@ -779,7 +811,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      const data = await graphqlRequest<{ addCaregiverPatient: any }>(
+      const data = await graphqlRequest<AddCaregiverPatientMutation>(
         GQL_ADD_CAREGIVER_PATIENT,
         {
           patientPhone: patientPhone.trim(),
@@ -799,8 +831,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         ],
       }));
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "caregiver/add-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -815,7 +847,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      const data = await graphqlRequest<{ removeCaregiverPatient: boolean }>(
+      const data = await graphqlRequest<RemoveCaregiverPatientMutation>(
         GQL_REMOVE_CAREGIVER_PATIENT,
         { caregiverId, patientId },
         token,
@@ -829,8 +861,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         ),
       }));
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "caregiver/remove-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -1054,7 +1086,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         endpoint: getGraphqlEndpoint(),
         hasToken: Boolean(token),
       });
-      const data = await graphqlRequest<{ posts: any[] }>(
+      const data = await graphqlRequest<PostsQuery>(
         GQL_POSTS,
         { limit: 100, offset: 0 },
         token,
@@ -1230,7 +1262,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("toggleLike request", { postId });
-      const data = await graphqlRequest<{ toggleLike: boolean }>(
+      const data = await graphqlRequest<ToggleLikeMutation>(
         GQL_TOGGLE_LIKE,
         { postId: Number(postId) },
         token,
@@ -1283,7 +1315,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     if (isOnline && token) {
       try {
-        const data = await graphqlRequest<{ createPost: any }>(
+        const data = await graphqlRequest<CreatePostMutation>(
           GQL_CREATE_POST,
           { input: { content: trimmed, category, clientId } },
           token,
@@ -1476,7 +1508,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         postId,
         hasToken: Boolean(token),
       });
-      const data = await graphqlRequest<{ postComments: any[] }>(
+      const data = await graphqlRequest<PostCommentsQuery>(
         GQL_POST_COMMENTS,
         { postId: Number(postId), parentId: null },
         token,
@@ -1517,7 +1549,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("createComment request", { postId, parentId });
-      const data = await graphqlRequest<{ createComment: any }>(
+      const data = await graphqlRequest<CreateCommentMutation>(
         GQL_CREATE_COMMENT,
         {
           input: {
@@ -1577,7 +1609,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("updateComment request", { commentId });
-      const data = await graphqlRequest<{ updateComment: any }>(
+      const data = await graphqlRequest<UpdateCommentMutation>(
         GQL_UPDATE_COMMENT,
         { input: { id: Number(commentId), content: trimmed } },
         token,
@@ -1619,7 +1651,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("deleteComment request", { postId, commentId });
-      const data = await graphqlRequest<{ deleteComment: boolean }>(
+      const data = await graphqlRequest<DeleteCommentMutation>(
         GQL_DELETE_COMMENT,
         { id: Number(commentId) },
         token,
@@ -1679,7 +1711,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       communityDebug("toggleCommentLike request", { postId, commentId });
-      const data = await graphqlRequest<{ toggleCommentLike: boolean }>(
+      const data = await graphqlRequest<ToggleCommentLikeMutation>(
         GQL_TOGGLE_COMMENT_LIKE,
         { commentId: Number(commentId) },
         token,
@@ -1703,7 +1735,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
 
     try {
-      const data = await graphqlRequest<{ loginSessions: any[] }>(
+      const data = await graphqlRequest<LoginSessionsQuery>(
         GQL_LOGIN_SESSIONS,
         undefined,
         token,
@@ -1731,15 +1763,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return false;
 
     try {
-      await graphqlRequest<{ logoutAllDevices: boolean }>(
+      await graphqlRequest<LogoutAllDevicesMutation>(
         GQL_LOGOUT_ALL_DEVICES,
         undefined,
         token,
       );
       void get().fetchSessions();
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/logout-all-devices-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -1755,7 +1787,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token || !currentUser) return false;
 
     try {
-      await graphqlRequest<{ deleteMyData: boolean }>(
+      await graphqlRequest<DeleteMyDataMutation>(
         GQL_DELETE_MY_DATA,
         undefined,
         token,
@@ -1763,8 +1795,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       await clearUserLocalData(currentUser.id);
       set({ readings: [], posts: [], commentsByPostId: {}, alerts: [] });
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "data/delete-all-failed",
         authErrorMessage: authErrorToThai(msg),
@@ -1857,7 +1889,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!currentUser) return false;
 
     try {
-      await graphqlRequest<{ login: { token: string; user: any } }>(GQL_LOGIN, {
+      await graphqlRequest<LoginMutation>(GQL_LOGIN, {
         input: {
           phone: currentUser.phone,
           password,
@@ -1865,8 +1897,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       set({ sensitiveDataUnlocked: true });
       return true;
-    } catch (error: any) {
-      const msg = error?.message || "";
+    } catch (error) {
+      const msg = errorMessage(error);
       set({
         authErrorCode: "auth/unlock-sensitive-data-failed",
         authErrorMessage: authErrorToThai(msg),
