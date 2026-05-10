@@ -2,15 +2,19 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Bash(git * main)"
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.production)",
+      "Read(**/.env.development)",
+      "Read(**/secrets/**)",
+      "Bash(git * main)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ],
     "allow": [
       "Bash(pnpm exec *)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(cat ./client/app/(tabs)/*)",
-      "Read(./client/app/(tabs)/**)"
+      "Read(**/.env.example)"
     ]
   }
 }
