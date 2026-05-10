@@ -1,6 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const GQL_ENDPOINT = process.env.EXPO_PUBLIC_API_URL + '/graphql';
+import { getAuthToken, getGraphqlEndpoint } from '@/constants/api';
 
 interface GQLOptions {
   query: string;
@@ -9,7 +7,7 @@ interface GQLOptions {
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
-  const token = await AsyncStorage.getItem('auth_token');
+  const token = await getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -17,7 +15,7 @@ export async function gqlRequest<T = unknown>(options: GQLOptions): Promise<T> {
   const { query, variables, signal } = options;
   const authHeader = await getAuthHeader();
 
-  const res = await fetch(GQL_ENDPOINT, {
+  const res = await fetch(getGraphqlEndpoint(), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -59,7 +57,7 @@ export async function gqlUpload<T = unknown>(
   form.append('map', JSON.stringify({ '0': ['variables.file'] }));
   form.append('0', { uri: file.uri, name: file.name, type: file.type } as unknown as Blob);
 
-  const res = await fetch(GQL_ENDPOINT, {
+  const res = await fetch(getGraphqlEndpoint(), {
     method: 'POST',
     headers: authHeader,  // NO Content-Type — let fetch set multipart boundary
     body: form,
