@@ -11,6 +11,7 @@ import {
 } from '@nestjs/graphql';
 import { AuthService } from './auth.service';
 import { GqlAuthGuard } from './auth.guard';
+import { LoginThrottleGuard } from './login-throttle.guard';
 import { CurrentUser } from './current-user.decorator';
 import {
   AuthPayload,
@@ -37,7 +38,10 @@ export class UpdateProfileInput {
 
 @Resolver()
 export class AuthResolver {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly loginThrottle: LoginThrottleGuard,
+  ) {}
 
   @Mutation(() => AuthPayload, { description: 'ลงทะเบียนผู้ใช้ใหม่' })
   async register(
@@ -51,6 +55,7 @@ export class AuthResolver {
   }
 
   @Mutation(() => AuthPayload, { description: 'เข้าสู่ระบบ' })
+  @UseGuards(LoginThrottleGuard)
   async login(
     @Args('input') input: LoginInput,
     @Context() context: any,
@@ -58,7 +63,11 @@ export class AuthResolver {
     const userAgent =
       context?.reply?.request?.headers?.['user-agent'] ??
       context?.req?.headers?.['user-agent'];
-    return this.authService.login(input, userAgent);
+    const result = await this.authService.login(input, userAgent);
+    // Successful login → reset the per-phone counter so legitimate retries
+    // after a typo don't accumulate against the user.
+    this.loginThrottle.reset(input.phone);
+    return result;
   }
 
   @Query(() => UserType, { description: 'ดึงข้อมูลผู้ใช้ปัจจุบัน' })
@@ -95,6 +104,14 @@ export class AuthResolver {
     @CurrentUser() user: { id: string },
   ): Promise<SessionType[]> {
     return this.authService.listSessions(user.id);
+  }
+
+  @Mutation(() => Boolean, { description: 'ออกจากระบบเฉพาะอุปกรณ์ปัจจุบัน' })
+  @UseGuards(GqlAuthGuard)
+  async logout(
+    @CurrentUser() user: { id: string; sessionId: string },
+  ): Promise<boolean> {
+    return this.authService.logout(user.id, user.sessionId);
   }
 
   @Mutation(() => Boolean, { description: 'ออกจากระบบทุกอุปกรณ์' })

@@ -312,6 +312,12 @@ export const GQL_CHANGE_PASSWORD = `
   }
 `;
 
+export const GQL_LOGOUT = `
+  mutation Logout {
+    logout
+  }
+`;
+
 export const GQL_LOGOUT_ALL_DEVICES = `
   mutation LogoutAllDevices {
     logoutAllDevices

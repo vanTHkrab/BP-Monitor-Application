@@ -58,6 +58,10 @@ export interface ChangePasswordMutation {
   changePassword: boolean;
 }
 
+export interface LogoutMutation {
+  logout: boolean;
+}
+
 export interface LogoutAllDevicesMutation {
   logoutAllDevices: boolean;
 }

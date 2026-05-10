@@ -49,8 +49,8 @@ export default function MenuScreen() {
         {
           text: 'ออกจากระบบ',
           style: 'destructive',
-          onPress: () => {
-            logout();
+          onPress: async () => {
+            await logout();
             router.replace('/auth' as Href);
           },
         },

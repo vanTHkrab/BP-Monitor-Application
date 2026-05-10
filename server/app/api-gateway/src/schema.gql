@@ -67,6 +67,36 @@ type PostType {
   isLiked: Boolean!
 }
 
+type BPReading {
+  systolic: Int!
+  diastolic: Int!
+  pulse: Int!
+}
+
+type AnalysisResult {
+  readings: BPReading
+  confidence: Float!
+  roiImageUrl: String
+  rawText: String
+  status: String!
+}
+
+type AnalysisJob {
+  jobId: String!
+  status: String!
+  result: AnalysisResult
+  error: String
+}
+
+type BPReadingRecordObject {
+  id: String!
+  systolic: Int!
+  diastolic: Int!
+  pulse: Int!
+  measuredAt: String!
+  imageUrl: String
+}
+
 type UploadedImageType {
   key: String!
   url: String!
@@ -143,6 +173,7 @@ type Query {
 
   """รายการโพสต์ชุมชน (สาธารณะ)"""
   posts(category: String, limit: Int! = 100, offset: Int! = 0): [PostType!]!
+  analysisJob(jobId: String!): AnalysisJob!
 
   """รายการความคิดเห็นของโพสต์"""
   postComments(postId: Int!, parentId: Int): [CommentType!]!
@@ -167,6 +198,9 @@ type Mutation {
   """เปลี่ยนรหัสผ่านผู้ใช้"""
   changePassword(input: ChangePasswordInput!): Boolean!
 
+  """ออกจากระบบเฉพาะอุปกรณ์ปัจจุบัน"""
+  logout: Boolean!
+
   """ออกจากระบบทุกอุปกรณ์"""
   logoutAllDevices: Boolean!
 
@@ -190,6 +224,8 @@ type Mutation {
 
   """กดถูกใจ/ยกเลิกถูกใจโพสต์"""
   toggleLike(postId: Int!): Boolean!
+  uploadBPImage(file: Upload!): AnalysisJob!
+  submitBPReading(input: SubmitBPReadingInput!): BPReadingRecordObject!
 
   """อัปโหลดรูปโปรไฟล์เข้า S3"""
   uploadProfileImage(input: UploadImageInput!): UploadedImageType!
@@ -284,6 +320,18 @@ input UpdatePostInput {
   id: Int!
   content: String
   category: String
+}
+
+"""The `Upload` scalar type represents a file upload."""
+scalar Upload
+
+input SubmitBPReadingInput {
+  jobId: String
+  imageUri: String
+  systolic: Int!
+  diastolic: Int!
+  pulse: Int!
+  measuredAt: String!
 }
 
 input UploadImageInput {

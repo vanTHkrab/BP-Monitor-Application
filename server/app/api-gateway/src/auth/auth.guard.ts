@@ -7,9 +7,12 @@ import {
 import { GqlExecutionContext } from '@nestjs/graphql';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
+import { getJwtSecret } from './auth.config';
 import { JwtPayload } from './auth.types';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'bp-monitor-secret-change-me';
+// Throttle DB writes for `lastActiveAt` so every authenticated request doesn't
+// turn into a write — only refresh if the stored value is older than this.
+const LAST_ACTIVE_REFRESH_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class GqlAuthGuard implements CanActivate {
@@ -31,7 +34,7 @@ export class GqlAuthGuard implements CanActivate {
     const token = authHeader.slice(7);
 
     try {
-      const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
+      const payload = jwt.verify(token, getJwtSecret()) as JwtPayload;
       const session = await this.prisma.userSession.findUnique({
         where: { id: payload.sid },
       });
@@ -40,12 +43,15 @@ export class GqlAuthGuard implements CanActivate {
         throw new UnauthorizedException('Session is no longer active');
       }
 
-      await this.prisma.userSession.update({
-        where: { id: session.id },
-        data: {
-          lastActiveAt: new Date(),
-        },
-      });
+      // Throttle lastActiveAt writes: only persist if it's been long enough
+      // since the last refresh. Saves a write per authenticated request.
+      const lastActiveAge = Date.now() - session.lastActiveAt.getTime();
+      if (lastActiveAge > LAST_ACTIVE_REFRESH_MS) {
+        await this.prisma.userSession.update({
+          where: { id: session.id },
+          data: { lastActiveAt: new Date() },
+        });
+      }
 
       // Attach to context so @CurrentUser() can read it
       ctx.getContext().user = {

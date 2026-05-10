@@ -1,9 +1,28 @@
-import { Module } from '@nestjs/common';
+import { HttpException, Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { MercuriusDriver, MercuriusDriverConfig } from '@nestjs/mercurius';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import type { GraphQLError, GraphQLFormattedError } from 'graphql';
 import Redis from 'ioredis';
 import { join } from 'path';
+
+// Map a NestJS HttpException status to the Apollo-style string codes the
+// mobile client (client/lib/error-message.ts) keys off of. Mercurius doesn't
+// stamp these on its own.
+const httpStatusToGqlCode = (status: number): string => {
+  switch (status) {
+    case 400:
+      return 'BAD_USER_INPUT';
+    case 401:
+      return 'UNAUTHENTICATED';
+    case 403:
+      return 'FORBIDDEN';
+    case 404:
+      return 'NOT_FOUND';
+    default:
+      return status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST';
+  }
+};
 
 import { AppResolver } from './app.resolver';
 import { AppService } from './app.service';
@@ -25,6 +44,30 @@ import { CaregiverModule } from './caregiver/caregiver.module';
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       graphiql: true,
       subscription: true,
+      errorFormatter: (execution) => {
+        const errors = execution.errors?.map((err): GraphQLFormattedError => {
+          const original = (err as GraphQLError).originalError;
+          const existingCode =
+            typeof err.extensions?.code === 'string'
+              ? (err.extensions.code as string)
+              : null;
+          const code =
+            existingCode ??
+            (original instanceof HttpException
+              ? httpStatusToGqlCode(original.getStatus())
+              : 'INTERNAL_SERVER_ERROR');
+          return {
+            message: err.message,
+            locations: err.locations,
+            path: err.path,
+            extensions: { ...err.extensions, code },
+          };
+        });
+        return {
+          statusCode: 200,
+          response: { data: execution.data ?? null, errors },
+        };
+      },
     }),
     // == Microservice Clients ==
     ClientsModule.register([

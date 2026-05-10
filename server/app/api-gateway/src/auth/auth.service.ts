@@ -6,6 +6,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
+import { BCRYPT_SALT_ROUNDS, JWT_EXPIRES_IN, getJwtSecret } from './auth.config';
 import {
   AuthPayload,
   JwtPayload,
@@ -13,10 +14,6 @@ import {
   RegisterInput,
   UserType,
 } from './auth.types';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'bp-monitor-secret-change-me';
-const JWT_EXPIRES_IN = '30d';
-const SALT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService {
@@ -44,7 +41,7 @@ export class AuthService {
       }
     }
 
-    const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_SALT_ROUNDS);
 
     const user = await this.prisma.user.create({
       data: {
@@ -189,7 +186,7 @@ export class AuthService {
       throw new UnauthorizedException('รหัสผ่านปัจจุบันไม่ถูกต้อง');
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -215,6 +212,16 @@ export class AuthService {
       lastActiveAt: session.lastActiveAt,
       createdAt: session.createdAt,
     }));
+  }
+
+  async logout(userId: string, sessionId: string) {
+    // Only revoke if it actually belongs to this user. Prevents a forged or
+    // mismatched sid from poking other users' sessions.
+    await this.prisma.userSession.updateMany({
+      where: { id: sessionId, userId, isActive: true },
+      data: { isActive: false, revokedAt: new Date() },
+    });
+    return true;
   }
 
   async logoutAllDevices(userId: string, currentSessionId?: string) {
@@ -264,7 +271,10 @@ export class AuthService {
 
   private signToken(userId: string, phone: string, sessionId: string): string {
     const payload: JwtPayload = { sub: userId, phone, sid: sessionId };
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const options: jwt.SignOptions = {
+      expiresIn: JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+    };
+    return jwt.sign(payload, getJwtSecret(), options);
   }
 
   private toUserType(user: {
