@@ -1,10 +1,20 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.production)",
+      "Read(**/.env.development)",
+      "Read(**/secrets/**)",
+      "Bash(git * main)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ],
     "allow": [
       "Bash(pnpm exec *)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(cat \"/home/tchanon/Documents/ProjectendUniversity/coding/BP-Monitor-Application/client/app/\\(tabs\\)/index.tsx\" | sed -n '495,545p')",
-      "Read(//home/tchanon/Documents/ProjectendUniversity/coding/BP-Monitor-Application/client/app/\\(tabs\\)/**)"
+      "Read(**/.env.example)"
     ]
   }
 }
