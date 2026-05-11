@@ -1,64 +1,64 @@
 import { Logger, UseGuards } from '@nestjs/common';
 import { Args, Mutation, Resolver } from '@nestjs/graphql';
-import { GqlAuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { GqlAuthGuard } from '../auth/auth.guard';
+import { SyncStorageImagesObject } from './dto/sync-storage-images.object';
+import { UploadImageInput } from './dto/upload-image.input';
+import { UploadedImageObject } from './dto/uploaded-image.object';
 import { StorageService } from './storage.service';
-import {
-  SyncStorageImagesType,
-  UploadedImageType,
-  UploadImageInput,
-} from './storage.types';
 
 @Resolver()
+@UseGuards(GqlAuthGuard)
 export class StorageResolver {
   private readonly logger = new Logger(StorageResolver.name);
 
   constructor(private readonly storageService: StorageService) {}
 
-  @Mutation(() => UploadedImageType, {
+  @Mutation(() => UploadedImageObject, {
     description: 'อัปโหลดรูปโปรไฟล์เข้า S3',
   })
-  @UseGuards(GqlAuthGuard)
   async uploadProfileImage(
     @CurrentUser() user: { id: string },
     @Args('input') input: UploadImageInput,
-  ): Promise<UploadedImageType> {
+  ): Promise<UploadedImageObject> {
     this.logger.log(
-      `Mutation reached uploadProfileImage userId=${user.id} mimeType=${input.mimeType} base64Length=${input.base64?.length ?? 0}`,
+      `uploadProfileImage userId=${user.id} mimeType=${input.mimeType} base64Length=${input.base64.length}`,
     );
     return this.storageService.uploadImage({
       userId: user.id,
       kind: 'profile',
-      ...input,
+      base64: input.base64,
+      mimeType: input.mimeType,
+      fileName: input.fileName,
     });
   }
 
-  @Mutation(() => UploadedImageType, {
+  @Mutation(() => UploadedImageObject, {
     description: 'อัปโหลดรูปเครื่องวัดความดันเข้า S3',
   })
-  @UseGuards(GqlAuthGuard)
   async uploadBloodPressureImage(
     @CurrentUser() user: { id: string },
     @Args('input') input: UploadImageInput,
-  ): Promise<UploadedImageType> {
+  ): Promise<UploadedImageObject> {
     this.logger.log(
-      `Mutation reached uploadBloodPressureImage userId=${user.id} mimeType=${input.mimeType} base64Length=${input.base64?.length ?? 0}`,
+      `uploadBloodPressureImage userId=${user.id} mimeType=${input.mimeType} base64Length=${input.base64.length}`,
     );
     return this.storageService.uploadImage({
       userId: user.id,
       kind: 'blood-pressure-reading',
-      ...input,
+      base64: input.base64,
+      mimeType: input.mimeType,
+      fileName: input.fileName,
     });
   }
 
-  @Mutation(() => SyncStorageImagesType, {
+  @Mutation(() => SyncStorageImagesObject, {
     description: 'ซิงก์รูปเครื่องวัดความดันจาก S3 prefix เข้า table images',
   })
-  @UseGuards(GqlAuthGuard)
   async syncBloodPressureImagesFromStorage(
     @CurrentUser() user: { id: string },
     @Args('prefix', { nullable: true }) prefix?: string,
-  ): Promise<SyncStorageImagesType> {
+  ): Promise<SyncStorageImagesObject> {
     return this.storageService.syncBloodPressureImagesFromPrefix(
       user.id,
       prefix,

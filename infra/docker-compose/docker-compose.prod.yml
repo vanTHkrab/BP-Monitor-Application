@@ -1,0 +1,31 @@
+services:
+  postgres:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      target: prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+
+  ai-service:
+    restart: unless-stopped
+    environment:
+      ENV: production
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      target: prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3001:3000"

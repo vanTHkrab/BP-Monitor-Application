@@ -1,3 +1,6 @@
+@api-gateway/CLAUDE.md
+@ai-service/CLAUDE.md
+
 # Server - Claude Context
 
 This file provides guidance for AI-assisted changes in server-side projects.

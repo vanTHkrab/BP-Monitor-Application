@@ -8,7 +8,22 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
 import { getJwtSecret } from './auth.config';
-import { JwtPayload } from './auth.types';
+import { CurrentUserContext, JwtPayload } from './types/auth.types';
+
+interface RequestLike {
+  headers?: Record<string, string | string[] | undefined>;
+  raw?: { headers?: Record<string, string | string[] | undefined> };
+}
+
+interface MutableGqlContext {
+  req?: RequestLike;
+  user?: CurrentUserContext;
+}
+
+const readAuthHeader = (req: RequestLike | undefined): string | undefined => {
+  const value = req?.headers?.authorization ?? req?.raw?.headers?.authorization;
+  return typeof value === 'string' ? value : undefined;
+};
 
 // Throttle DB writes for `lastActiveAt` so every authenticated request doesn't
 // turn into a write — only refresh if the stored value is older than this.
@@ -20,10 +35,8 @@ export class GqlAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const ctx = GqlExecutionContext.create(context);
-    const { req } = ctx.getContext();
-
-    const authHeader: string | undefined =
-      req?.headers?.authorization ?? req?.raw?.headers?.authorization;
+    const gqlContext = ctx.getContext<MutableGqlContext>();
+    const authHeader = readAuthHeader(gqlContext.req);
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException(
@@ -54,7 +67,7 @@ export class GqlAuthGuard implements CanActivate {
       }
 
       // Attach to context so @CurrentUser() can read it
-      ctx.getContext().user = {
+      gqlContext.user = {
         id: payload.sub,
         phone: payload.phone,
         sessionId: payload.sid,

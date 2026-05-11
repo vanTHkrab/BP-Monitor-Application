@@ -11,7 +11,7 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 import { GqlAuthGuard } from '../auth/auth.guard';
-import { getOptionalCurrentUser } from '../auth/auth-token';
+import { getOptionalCurrentUser } from '../auth/helpers/optional-current-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { PostService } from './post.service';

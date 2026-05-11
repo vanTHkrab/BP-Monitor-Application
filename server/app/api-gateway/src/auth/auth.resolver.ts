@@ -1,40 +1,36 @@
 import { UseGuards } from '@nestjs/common';
-import {
-  Args,
-  Context,
-  Field,
-  Float,
-  InputType,
-  Mutation,
-  Query,
-  Resolver,
-} from '@nestjs/graphql';
-import { AuthService } from './auth.service';
+import { Args, Context, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { GqlAuthGuard } from './auth.guard';
-import { LoginThrottleGuard } from './login-throttle.guard';
+import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
-import {
-  AuthPayload,
-  ChangePasswordInput,
-  LoginInput,
-  RegisterInput,
-  SessionType,
-  UserType,
-} from './auth.types';
+import { AuthPayloadObject } from './dto/auth-payload.object';
+import { ChangePasswordInput } from './dto/change-password.input';
+import { LoginInput } from './dto/login.input';
+import { RegisterInput } from './dto/register.input';
+import { SessionObject } from './dto/session.object';
+import { UpdateProfileInput } from './dto/update-profile.input';
+import { UserObject } from './dto/user.object';
+import { LoginThrottleGuard } from './login-throttle.guard';
 
-@InputType()
-export class UpdateProfileInput {
-  @Field({ nullable: true }) firstname?: string;
-  @Field({ nullable: true }) lastname?: string;
-  @Field({ nullable: true }) phone?: string;
-  @Field({ nullable: true }) email?: string;
-  @Field({ nullable: true }) dob?: Date;
-  @Field({ nullable: true }) gender?: string;
-  @Field(() => Float, { nullable: true }) weight?: number;
-  @Field(() => Float, { nullable: true }) height?: number;
-  @Field({ nullable: true }) congenitalDisease?: string;
-  @Field({ nullable: true }) avatar?: string;
+interface GraphQLContextWithRequest {
+  req?: { headers?: Record<string, string | string[] | undefined> };
+  reply?: {
+    request?: { headers?: Record<string, string | string[] | undefined> };
+  };
 }
+
+const readUserAgent = (
+  context: GraphQLContextWithRequest,
+): string | undefined => {
+  const candidates = [
+    context.reply?.request?.headers?.['user-agent'],
+    context.req?.headers?.['user-agent'],
+  ];
+  for (const value of candidates) {
+    if (typeof value === 'string') return value;
+  }
+  return undefined;
+};
 
 @Resolver()
 export class AuthResolver {
@@ -43,45 +39,39 @@ export class AuthResolver {
     private readonly loginThrottle: LoginThrottleGuard,
   ) {}
 
-  @Mutation(() => AuthPayload, { description: 'ลงทะเบียนผู้ใช้ใหม่' })
+  @Mutation(() => AuthPayloadObject, { description: 'ลงทะเบียนผู้ใช้ใหม่' })
   async register(
     @Args('input') input: RegisterInput,
-    @Context() context: any,
-  ): Promise<AuthPayload> {
-    const userAgent =
-      context?.reply?.request?.headers?.['user-agent'] ??
-      context?.req?.headers?.['user-agent'];
-    return this.authService.register(input, userAgent);
+    @Context() context: GraphQLContextWithRequest,
+  ): Promise<AuthPayloadObject> {
+    return this.authService.register(input, readUserAgent(context));
   }
 
-  @Mutation(() => AuthPayload, { description: 'เข้าสู่ระบบ' })
+  @Mutation(() => AuthPayloadObject, { description: 'เข้าสู่ระบบ' })
   @UseGuards(LoginThrottleGuard)
   async login(
     @Args('input') input: LoginInput,
-    @Context() context: any,
-  ): Promise<AuthPayload> {
-    const userAgent =
-      context?.reply?.request?.headers?.['user-agent'] ??
-      context?.req?.headers?.['user-agent'];
-    const result = await this.authService.login(input, userAgent);
+    @Context() context: GraphQLContextWithRequest,
+  ): Promise<AuthPayloadObject> {
+    const result = await this.authService.login(input, readUserAgent(context));
     // Successful login → reset the per-phone counter so legitimate retries
     // after a typo don't accumulate against the user.
     this.loginThrottle.reset(input.phone);
     return result;
   }
 
-  @Query(() => UserType, { description: 'ดึงข้อมูลผู้ใช้ปัจจุบัน' })
+  @Query(() => UserObject, { description: 'ดึงข้อมูลผู้ใช้ปัจจุบัน' })
   @UseGuards(GqlAuthGuard)
-  async me(@CurrentUser() user: { id: string }): Promise<UserType> {
+  async me(@CurrentUser() user: { id: string }): Promise<UserObject> {
     return this.authService.me(user.id);
   }
 
-  @Mutation(() => UserType, { description: 'แก้ไขโปรไฟล์' })
+  @Mutation(() => UserObject, { description: 'แก้ไขโปรไฟล์' })
   @UseGuards(GqlAuthGuard)
   async updateProfile(
     @CurrentUser() user: { id: string },
     @Args('input') input: UpdateProfileInput,
-  ): Promise<UserType> {
+  ): Promise<UserObject> {
     return this.authService.updateProfile(user.id, input);
   }
 
@@ -98,11 +88,11 @@ export class AuthResolver {
     );
   }
 
-  @Query(() => [SessionType], { description: 'ประวัติการเข้าสู่ระบบ' })
+  @Query(() => [SessionObject], { description: 'ประวัติการเข้าสู่ระบบ' })
   @UseGuards(GqlAuthGuard)
   async loginSessions(
     @CurrentUser() user: { id: string },
-  ): Promise<SessionType[]> {
+  ): Promise<SessionObject[]> {
     return this.authService.listSessions(user.id);
   }
 

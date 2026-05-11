@@ -1,7 +1,7 @@
 import { UseGuards } from '@nestjs/common';
 import { Args, Context, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { GqlAuthGuard } from '../auth/auth.guard';
-import { getOptionalCurrentUser } from '../auth/auth-token';
+import { getOptionalCurrentUser } from '../auth/helpers/optional-current-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { CommentService } from './comment.service';
@@ -25,11 +25,7 @@ export class CommentResolver {
     @Context() context: any,
   ): Promise<CommentType[]> {
     const currentUser = await getOptionalCurrentUser(context, this.prisma);
-    return this.commentService.list(
-      postId,
-      parentId ?? null,
-      currentUser?.id,
-    );
+    return this.commentService.list(postId, parentId ?? null, currentUser?.id);
   }
 
   @Mutation(() => CommentType, { description: 'สร้างความคิดเห็นใหม่' })
@@ -47,7 +43,12 @@ export class CommentResolver {
     @CurrentUser() user: { id: string },
     @Args('input') input: UpdateCommentInput,
   ): Promise<CommentType> {
-    return this.commentService.update(user.id, input.id, input.content, user.id);
+    return this.commentService.update(
+      user.id,
+      input.id,
+      input.content,
+      user.id,
+    );
   }
 
   @Mutation(() => Boolean, { description: 'ลบความคิดเห็น' })

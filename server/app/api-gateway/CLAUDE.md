@@ -109,6 +109,7 @@ pnpm prisma migrate dev       # apply pending migrations
 
 ## Pointers
 
+- [STRUCTURE.md](./STRUCTURE.md) — feature module layout convention (DTO / types / module / resolver / service split). Follow `storage/` and `ai/` as templates.
 - [README.md](./README.md) — onboarding & ops
 - [AGENT.md](./AGENT.md) — agent-style architecture overview
 - [PLAN.md](./PLAN.md) — roadmap and known gaps
