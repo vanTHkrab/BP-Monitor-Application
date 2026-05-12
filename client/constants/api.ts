@@ -340,6 +340,29 @@ export const GQL_UPLOAD_PROFILE_IMAGE = `
   }
 `;
 
+// ── Presigned (direct-to-S3) upload ──
+
+export const GQL_REQUEST_IMAGE_UPLOAD = `
+  mutation RequestImageUpload($input: RequestImageUploadInput!) {
+    requestImageUpload(input: $input) {
+      uploadUrl
+      key
+      headers { name value }
+      expiresAt
+    }
+  }
+`;
+
+export const GQL_CONFIRM_IMAGE_UPLOAD = `
+  mutation ConfirmImageUpload($input: ConfirmImageUploadInput!) {
+    confirmImageUpload(input: $input) {
+      key
+      url
+      imageId
+    }
+  }
+`;
+
 export const GQL_UPLOAD_BLOOD_PRESSURE_IMAGE = `
   mutation UploadBloodPressureImage($input: UploadImageInput!) {
     uploadBloodPressureImage(input: $input) {

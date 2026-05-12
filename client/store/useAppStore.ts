@@ -91,7 +91,10 @@ import type {
   UserGql,
 } from "@/types/graphql";
 import { errorMessage } from "@/types/graphql";
-import { uploadImageToS3 } from "@/utils/upload-image";
+import {
+  uploadImageToS3,
+  uploadImageViaPresign,
+} from "@/utils/upload-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { create } from "zustand";
@@ -693,7 +696,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token || !get().user) return false;
 
     try {
-      const uploadedAvatarUri = await uploadImageToS3({
+      const uploadedAvatarUri = await uploadImageViaPresign({
         uri: avatarUri,
         kind: "profile",
         token,
