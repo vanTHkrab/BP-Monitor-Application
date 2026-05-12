@@ -9,6 +9,7 @@ import { Job, Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import type { BpStatus } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { ImageKind, isFinalKeyOwnedBy } from '../storage/types/storage.types';
 import { AnalysisJobObject } from './dto/analysis-job.object';
 import { SubmitBPReadingInput } from './dto/submit-bp-reading.input';
 import { AnalysisJobPayload, AnalysisResult } from './types/ai.types';
@@ -46,34 +47,46 @@ export class AiService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async enqueueImageAnalysis(
-    file: { buffer: Buffer; mimetype: string; originalname: string },
+  /**
+   * Enqueue analysis for an image already present in S3 (presigned flow).
+   * The caller must have run requestImageUpload + confirmImageUpload before
+   * calling this; the key is verified to belong to the user.
+   */
+  async enqueueFromKey(
+    s3Key: string,
+    mimeType: string,
     userId: string,
   ): Promise<AnalysisJobObject> {
-    const jobId = randomUUID();
-    const payload: AnalysisJobPayload = {
-      jobId,
-      userId,
-      mimetype: file.mimetype,
-      filename: file.originalname,
-      imageBase64: file.buffer.toString('base64'),
-    };
+    this.assertBPKeyOwnedBy(userId, s3Key);
+    return this.enqueue({ jobId: randomUUID(), userId, s3Key, mimeType });
+  }
 
+  private async enqueue(
+    payload: AnalysisJobPayload,
+  ): Promise<AnalysisJobObject> {
     await this.aiQueue.add(AI_JOB_ANALYZE, payload, {
-      jobId,
+      jobId: payload.jobId,
       attempts: 3,
       backoff: { type: 'exponential', delay: 2000 },
       removeOnComplete: { age: RETAIN_COMPLETED_SECONDS },
       removeOnFail: { age: RETAIN_FAILED_SECONDS },
     });
 
-    this.logger.log(`Enqueued analysis job ${jobId} for user ${userId}`);
+    this.logger.log(
+      `Enqueued analysis job ${payload.jobId} userId=${payload.userId} s3Key=${payload.s3Key}`,
+    );
     return {
-      jobId,
+      jobId: payload.jobId,
       status: 'pending',
       result: null,
       error: null,
     };
+  }
+
+  private assertBPKeyOwnedBy(userId: string, s3Key: string): void {
+    if (!isFinalKeyOwnedBy(ImageKind.BLOOD_PRESSURE_READING, userId, s3Key)) {
+      throw new ForbiddenException('S3 key นี้ไม่ใช่ของคุณ');
+    }
   }
 
   async getJobState(jobId: string, userId: string): Promise<AnalysisJobObject> {

@@ -1,23 +1,30 @@
 import { File } from "expo-file-system";
 import {
-  GQL_UPLOAD_BLOOD_PRESSURE_IMAGE,
-  GQL_UPLOAD_PROFILE_IMAGE,
+  GQL_CONFIRM_IMAGE_UPLOAD,
+  GQL_REQUEST_IMAGE_UPLOAD,
   graphqlRequest,
 } from "@/constants/api";
 
 export type UploadImageKind = "profile" | "blood-pressure";
 
-interface UploadImageResponse {
+// GraphQL ImageKind enum values on the server.
+const SERVER_IMAGE_KIND: Record<UploadImageKind, string> = {
+  profile: "PROFILE",
+  "blood-pressure": "BLOOD_PRESSURE_READING",
+};
+
+interface PresignedUploadResponse {
+  uploadUrl: string;
   key: string;
-  url: string;
-  bucket: string;
-  imageId?: number;
+  headers: { name: string; value: string }[];
+  expiresAt: string;
 }
 
-const getFileNameFromUri = (uri: string) => {
-  const clean = uri.split("?")[0];
-  return clean.split("/").pop() || `image-${Date.now()}.jpg`;
-};
+interface ConfirmedImageResponse {
+  key: string;
+  url: string;
+  imageId?: number;
+}
 
 const getMimeTypeFromUri = (uri: string) => {
   const lower = uri.split("?")[0].toLowerCase();
@@ -30,7 +37,18 @@ const getMimeTypeFromUri = (uri: string) => {
 export const isRemoteImageUri = (uri?: string | null) =>
   Boolean(uri && /^https?:\/\//i.test(uri));
 
-export const uploadImageToS3 = async ({
+/**
+ * Upload an image directly to S3 via a presigned URL.
+ *
+ * Flow: gateway issues a presigned PUT URL → mobile uploads binary
+ * straight to S3 → gateway verifies and records the object.
+ *
+ * The image never passes through the gateway, so gateway memory
+ * pressure + base64 overhead are both gone.
+ *
+ * Returns the canonical URL stored on the server.
+ */
+export const uploadImageViaPresign = async ({
   uri,
   kind,
   token,
@@ -38,65 +56,92 @@ export const uploadImageToS3 = async ({
   uri: string;
   kind: UploadImageKind;
   token: string;
-}) => {
+}): Promise<string> => {
   if (isRemoteImageUri(uri)) {
-    console.log(`[S3 upload] skip remote image kind=${kind} uri=${uri}`);
+    console.log(`[S3 presign] skip remote image kind=${kind} uri=${uri}`);
     return uri;
   }
 
-  const fileName = getFileNameFromUri(uri);
   const mimeType = getMimeTypeFromUri(uri);
+  const serverKind = SERVER_IMAGE_KIND[kind];
 
-  console.log(
-    `[S3 upload] start kind=${kind} fileName=${fileName} mimeType=${mimeType}`,
-  );
-
-  let base64 = "";
+  let bytes: Uint8Array;
   try {
-    base64 = await new File(uri).base64();
-    console.log(
-      `[S3 upload] file-ready kind=${kind} fileName=${fileName} base64Length=${base64.length}`,
-    );
+    bytes = await new File(uri).bytes();
   } catch (error) {
-    console.error(
-      `[S3 upload] file-read-failed kind=${kind} fileName=${fileName}`,
-      error,
-    );
+    console.error(`[S3 presign] file-read-failed kind=${kind} uri=${uri}`, error);
     throw error;
   }
+  const size = bytes.byteLength;
 
-  const query =
-    kind === "profile"
-      ? GQL_UPLOAD_PROFILE_IMAGE
-      : GQL_UPLOAD_BLOOD_PRESSURE_IMAGE;
-  const field =
-    kind === "profile" ? "uploadProfileImage" : "uploadBloodPressureImage";
+  console.log(
+    `[S3 presign] start kind=${kind} mimeType=${mimeType} size=${size}B`,
+  );
 
-  let data: Record<string, UploadImageResponse>;
+  // 1. Request a presigned URL.
+  let presign: PresignedUploadResponse;
   try {
-    console.log(`[S3 upload] request kind=${kind} fileName=${fileName}`);
-    data = await graphqlRequest<Record<string, UploadImageResponse>>(
-      query,
-      {
-        input: {
-          base64,
-          mimeType,
-          fileName,
-        },
-      },
+    const data = await graphqlRequest<{
+      requestImageUpload: PresignedUploadResponse;
+    }>(
+      GQL_REQUEST_IMAGE_UPLOAD,
+      { input: { kind: serverKind, mimeType, size } },
       token,
     );
+    presign = data.requestImageUpload;
+  } catch (error) {
+    console.error(`[S3 presign] request-failed kind=${kind}`, error);
+    throw error;
+  }
+
+  // 2. PUT the binary body straight to S3.
+  const headers: Record<string, string> = {};
+  for (const h of presign.headers) headers[h.name] = h.value;
+
+  let putRes: Response;
+  try {
+    // Cast: expo-file-system returns Uint8Array<ArrayBuffer>, but TS widens
+    // the generic at the call site so BlobPart's strict typing rejects it.
+    const body = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType });
+    putRes = await fetch(presign.uploadUrl, {
+      method: "PUT",
+      headers,
+      body,
+    });
+  } catch (error) {
+    console.error(`[S3 presign] put-failed kind=${kind} key=${presign.key}`, error);
+    throw error;
+  }
+  if (!putRes.ok) {
+    const body = await putRes.text().catch(() => "");
+    console.error(
+      `[S3 presign] put-rejected kind=${kind} key=${presign.key} status=${putRes.status} body=${body.slice(0, 200)}`,
+    );
+    throw new Error(`S3 upload rejected (${putRes.status})`);
+  }
+
+  // 3. Confirm — server verifies the object and persists records as needed.
+  let confirmed: ConfirmedImageResponse;
+  try {
+    const data = await graphqlRequest<{
+      confirmImageUpload: ConfirmedImageResponse;
+    }>(
+      GQL_CONFIRM_IMAGE_UPLOAD,
+      { input: { kind: serverKind, key: presign.key } },
+      token,
+    );
+    confirmed = data.confirmImageUpload;
   } catch (error) {
     console.error(
-      `[S3 upload] request-failed kind=${kind} fileName=${fileName}`,
+      `[S3 presign] confirm-failed kind=${kind} key=${presign.key}`,
       error,
     );
     throw error;
   }
 
   console.log(
-    `[S3 upload] success kind=${kind} key=${data[field].key} bucket=${data[field].bucket}`,
+    `[S3 presign] success kind=${kind} key=${confirmed.key} imageId=${confirmed.imageId ?? "-"}`,
   );
 
-  return data[field].url;
+  return confirmed.url;
 };

@@ -1,67 +1,37 @@
-import { Logger, UseGuards } from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
 import { Args, Mutation, Resolver } from '@nestjs/graphql';
 import { GqlAuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { StorageService } from './storage.service';
-import {
-  SyncStorageImagesType,
-  UploadedImageType,
-  UploadImageInput,
-} from './storage.types';
+import { ConfirmImageUploadInput } from './dto/confirm-image-upload.input';
+import { ConfirmedImageObject } from './dto/confirmed-image.object';
+import { PresignedUploadObject } from './dto/presigned-upload.object';
+import { RequestImageUploadInput } from './dto/request-image-upload.input';
+import { PresignedUploadService } from './presigned-upload.service';
 
 @Resolver()
+@UseGuards(GqlAuthGuard)
 export class StorageResolver {
-  private readonly logger = new Logger(StorageResolver.name);
+  constructor(
+    private readonly presignedUploadService: PresignedUploadService,
+  ) {}
 
-  constructor(private readonly storageService: StorageService) {}
-
-  @Mutation(() => UploadedImageType, {
-    description: 'อัปโหลดรูปโปรไฟล์เข้า S3',
+  @Mutation(() => PresignedUploadObject, {
+    description: 'ขอ presigned URL เพื่ออัปโหลดรูปตรงสู่ S3',
   })
-  @UseGuards(GqlAuthGuard)
-  async uploadProfileImage(
+  async requestImageUpload(
     @CurrentUser() user: { id: string },
-    @Args('input') input: UploadImageInput,
-  ): Promise<UploadedImageType> {
-    this.logger.log(
-      `Mutation reached uploadProfileImage userId=${user.id} mimeType=${input.mimeType} base64Length=${input.base64?.length ?? 0}`,
-    );
-    return this.storageService.uploadImage({
-      userId: user.id,
-      kind: 'profile',
-      ...input,
-    });
+    @Args('input') input: RequestImageUploadInput,
+  ): Promise<PresignedUploadObject> {
+    return this.presignedUploadService.request(user.id, input);
   }
 
-  @Mutation(() => UploadedImageType, {
-    description: 'อัปโหลดรูปเครื่องวัดความดันเข้า S3',
+  @Mutation(() => ConfirmedImageObject, {
+    description: 'ยืนยันการอัปโหลด หลัง PUT ไป S3 สำเร็จ',
   })
-  @UseGuards(GqlAuthGuard)
-  async uploadBloodPressureImage(
+  async confirmImageUpload(
     @CurrentUser() user: { id: string },
-    @Args('input') input: UploadImageInput,
-  ): Promise<UploadedImageType> {
-    this.logger.log(
-      `Mutation reached uploadBloodPressureImage userId=${user.id} mimeType=${input.mimeType} base64Length=${input.base64?.length ?? 0}`,
-    );
-    return this.storageService.uploadImage({
-      userId: user.id,
-      kind: 'blood-pressure-reading',
-      ...input,
-    });
-  }
-
-  @Mutation(() => SyncStorageImagesType, {
-    description: 'ซิงก์รูปเครื่องวัดความดันจาก S3 prefix เข้า table images',
-  })
-  @UseGuards(GqlAuthGuard)
-  async syncBloodPressureImagesFromStorage(
-    @CurrentUser() user: { id: string },
-    @Args('prefix', { nullable: true }) prefix?: string,
-  ): Promise<SyncStorageImagesType> {
-    return this.storageService.syncBloodPressureImagesFromPrefix(
-      user.id,
-      prefix,
-    );
+    @Args('input') input: ConfirmImageUploadInput,
+  ): Promise<ConfirmedImageObject> {
+    return this.presignedUploadService.confirm(user.id, input);
   }
 }

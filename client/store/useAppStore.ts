@@ -91,7 +91,7 @@ import type {
   UserGql,
 } from "@/types/graphql";
 import { errorMessage } from "@/types/graphql";
-import { uploadImageToS3 } from "@/utils/upload-image";
+import { uploadImageViaPresign } from "@/utils/upload-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { create } from "zustand";
@@ -693,7 +693,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token || !get().user) return false;
 
     try {
-      const uploadedAvatarUri = await uploadImageToS3({
+      const uploadedAvatarUri = await uploadImageViaPresign({
         uri: avatarUri,
         kind: "profile",
         token,
@@ -901,7 +901,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     if (get().isOnline && token && imageUri && !imageReadyForRemote) {
       try {
-        imageUri = await uploadImageToS3({
+        imageUri = await uploadImageViaPresign({
           uri: imageUri,
           kind: "blood-pressure",
           token,
@@ -1042,7 +1042,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           try {
             let imageUri = row.imageUri ?? null;
             if (imageUri && !/^https?:\/\//i.test(imageUri)) {
-              imageUri = await uploadImageToS3({
+              imageUri = await uploadImageViaPresign({
                 uri: imageUri,
                 kind: "blood-pressure",
                 token,

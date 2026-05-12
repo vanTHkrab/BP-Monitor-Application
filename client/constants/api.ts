@@ -330,22 +330,24 @@ export const GQL_DELETE_MY_DATA = `
   }
 `;
 
-export const GQL_UPLOAD_PROFILE_IMAGE = `
-  mutation UploadProfileImage($input: UploadImageInput!) {
-    uploadProfileImage(input: $input) {
+// ── Presigned (direct-to-S3) upload ──
+
+export const GQL_REQUEST_IMAGE_UPLOAD = `
+  mutation RequestImageUpload($input: RequestImageUploadInput!) {
+    requestImageUpload(input: $input) {
+      uploadUrl
       key
-      url
-      bucket
+      headers { name value }
+      expiresAt
     }
   }
 `;
 
-export const GQL_UPLOAD_BLOOD_PRESSURE_IMAGE = `
-  mutation UploadBloodPressureImage($input: UploadImageInput!) {
-    uploadBloodPressureImage(input: $input) {
+export const GQL_CONFIRM_IMAGE_UPLOAD = `
+  mutation ConfirmImageUpload($input: ConfirmImageUploadInput!) {
+    confirmImageUpload(input: $input) {
       key
       url
-      bucket
       imageId
     }
   }

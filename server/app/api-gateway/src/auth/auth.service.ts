@@ -6,14 +6,16 @@ import {
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
-import { BCRYPT_SALT_ROUNDS, JWT_EXPIRES_IN, getJwtSecret } from './auth.config';
 import {
-  AuthPayload,
-  JwtPayload,
-  LoginInput,
-  RegisterInput,
-  UserType,
-} from './auth.types';
+  BCRYPT_SALT_ROUNDS,
+  JWT_EXPIRES_IN,
+  getJwtSecret,
+} from './auth.config';
+import { AuthPayloadObject } from './dto/auth-payload.object';
+import { LoginInput } from './dto/login.input';
+import { RegisterInput } from './dto/register.input';
+import { UserObject } from './dto/user.object';
+import { Gender, JwtPayload } from './types/auth.types';
 
 @Injectable()
 export class AuthService {
@@ -22,7 +24,7 @@ export class AuthService {
   async register(
     input: RegisterInput,
     userAgent?: string,
-  ): Promise<AuthPayload> {
+  ): Promise<AuthPayloadObject> {
     const existing = await this.prisma.user.findUnique({
       where: { phone: input.phone },
     });
@@ -53,8 +55,7 @@ export class AuthService {
         avatar: input.avatar || null,
         role: 'patient',
         dob: input.dob ?? null,
-        gender:
-          (input.gender as 'male' | 'female' | 'other' | undefined) ?? null,
+        gender: (input.gender as Gender | undefined) ?? null,
         weight: input.weight ?? null,
         height: input.height ?? null,
         congenitalDisease: input.congenitalDisease ?? null,
@@ -73,7 +74,10 @@ export class AuthService {
     return { token, user: this.toUserType(user) };
   }
 
-  async login(input: LoginInput, userAgent?: string): Promise<AuthPayload> {
+  async login(
+    input: LoginInput,
+    userAgent?: string,
+  ): Promise<AuthPayloadObject> {
     const user = await this.prisma.user.findUnique({
       where: { phone: input.phone },
     });
@@ -99,7 +103,7 @@ export class AuthService {
     return { token, user: this.toUserType(user) };
   }
 
-  async me(userId: string): Promise<UserType> {
+  async me(userId: string): Promise<UserObject> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -125,7 +129,7 @@ export class AuthService {
       congenitalDisease?: string;
       avatar?: string;
     },
-  ): Promise<UserType> {
+  ): Promise<UserObject> {
     if (data.phone) {
       const existingPhone = await this.prisma.user.findUnique({
         where: { phone: data.phone },
@@ -291,7 +295,7 @@ export class AuthService {
     weight: number | null;
     height: number | null;
     congenitalDisease: string | null;
-  }): UserType {
+  }): UserObject {
     return {
       id: user.id,
       email: user.email ?? undefined,

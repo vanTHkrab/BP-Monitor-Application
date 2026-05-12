@@ -1,0 +1,42 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  api-gateway:
+    build:
+      target: dev
+    command: pnpm start:dev
+    volumes:
+      - ../../server/app/api-gateway:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+
+  ai-service:
+    command: uv run fastapi dev main.py --host 0.0.0.0 --port 8000
+    volumes:
+      - ../../server/app/ai-service:/app
+    ports:
+      - "8000:8000"
+    environment:
+      ENV: development
+
+  web:
+    build:
+      target: dev
+    command: pnpm dev
+    volumes:
+      - ../../web:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: development

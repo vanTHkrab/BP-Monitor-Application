@@ -54,8 +54,7 @@ export class LoginThrottleGuard implements CanActivate {
       );
       throw new HttpException(
         {
-          message:
-            'พยายามเข้าสู่ระบบบ่อยเกินไป กรุณารอแล้วลองใหม่',
+          message: 'พยายามเข้าสู่ระบบบ่อยเกินไป กรุณารอแล้วลองใหม่',
           retryAfterSec,
         },
         HttpStatus.TOO_MANY_REQUESTS,
