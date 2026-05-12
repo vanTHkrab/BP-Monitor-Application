@@ -6,6 +6,7 @@ import type { FileUpload } from 'graphql-upload/processRequest.mjs';
 import { GqlAuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AiService } from './ai.service';
+import { AnalyzeBPImageInput } from './dto/analyze-bp-image.input';
 import { AnalysisJobObject } from './dto/analysis-job.object';
 import { BPReadingRecordObject } from './dto/bp-reading-record.object';
 import { SubmitBPReadingInput } from './dto/submit-bp-reading.input';
@@ -58,10 +59,21 @@ export class AiResolver {
         .on('error', reject);
     });
 
-    return this.aiService.enqueueImageAnalysis(
+    return this.aiService.enqueueFromBuffer(
       { buffer, mimetype, originalname: filename },
       user.id,
     );
+  }
+
+  @Mutation(() => AnalysisJobObject, {
+    description:
+      'จัดคิวให้ AI วิเคราะห์รูป BP ที่อัปขึ้น S3 แล้ว (presigned flow)',
+  })
+  async analyzeBPImage(
+    @Args('input') input: AnalyzeBPImageInput,
+    @CurrentUser() user: { id: string },
+  ): Promise<AnalysisJobObject> {
+    return this.aiService.enqueueFromKey(input.s3Key, input.mimeType, user.id);
   }
 
   @Query(() => AnalysisJobObject)

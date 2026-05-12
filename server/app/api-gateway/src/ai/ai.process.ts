@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
@@ -27,8 +26,10 @@ export class AiProcessor extends WorkerHost {
     }
 
     const payload = this.parseJobPayload(job.data as unknown);
-    const { jobId, userId, filename, mimetype, imageBase64 } = payload;
-    this.logger.log(`Processing job ${jobId} for user ${userId}`);
+    const { jobId, userId, s3Key, mimeType } = payload;
+    this.logger.log(
+      `Processing job ${jobId} for user ${userId} s3Key=${s3Key}`,
+    );
 
     try {
       const response = await firstValueFrom(
@@ -36,9 +37,8 @@ export class AiProcessor extends WorkerHost {
           .send<unknown>('analyze_bp_image', {
             jobId,
             userId,
-            filename,
-            mimetype,
-            imageBase64,
+            s3Key,
+            mimeType,
           })
           .pipe(timeout(55_000)),
       );
@@ -124,28 +124,17 @@ export class AiProcessor extends WorkerHost {
     }
 
     const payload = value as Record<string, unknown>;
-    const jobId = payload.jobId;
-    const userId = payload.userId;
-    const filename = payload.filename;
-    const mimetype = payload.mimetype;
-    const imageBase64 = payload.imageBase64;
+    const { jobId, userId, s3Key, mimeType } = payload;
 
     if (
       typeof jobId !== 'string' ||
       typeof userId !== 'string' ||
-      typeof filename !== 'string' ||
-      typeof mimetype !== 'string' ||
-      typeof imageBase64 !== 'string'
+      typeof s3Key !== 'string' ||
+      typeof mimeType !== 'string'
     ) {
       throw new Error('AI queue payload is missing required fields');
     }
 
-    return {
-      jobId,
-      userId,
-      filename,
-      mimetype,
-      imageBase64,
-    };
+    return { jobId, userId, s3Key, mimeType };
   }
 }

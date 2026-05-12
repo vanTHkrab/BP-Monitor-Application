@@ -16,15 +16,17 @@ export interface AnalysisResult {
   status: BPReadingStatus;
 }
 
+// What the gateway enqueues to BullMQ for the AI worker to consume.
+// s3Key replaces the previous imageBase64 payload — the image lives in S3
+// and ai-service fetches it from there.
 export interface AnalysisJobPayload {
   jobId: string;
   userId: string;
-  filename: string;
-  mimetype: string;
-  imageBase64: string;
+  s3Key: string;
+  mimeType: string;
 }
 
-// Shape returned by the current Redis-backed AI service.
+// Shape returned by the Redis-backed AI service.
 export interface AiServiceAnalysisResponse {
   confidence: number;
   systolic: number;

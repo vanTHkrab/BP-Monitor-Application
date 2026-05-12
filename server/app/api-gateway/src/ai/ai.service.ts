@@ -7,8 +7,11 @@ import {
 } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
+import { extname } from 'node:path';
 import type { BpStatus } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { S3StorageClient } from '../storage/s3-storage.client';
+import { IMAGE_FOLDERS, ImageKind } from '../storage/types/storage.types';
 import { AnalysisJobObject } from './dto/analysis-job.object';
 import { SubmitBPReadingInput } from './dto/submit-bp-reading.input';
 import { AnalysisJobPayload, AnalysisResult } from './types/ai.types';
@@ -44,36 +47,80 @@ export class AiService {
     @InjectQueue(AI_QUEUE)
     private readonly aiQueue: Queue<AnalysisJobPayload, AnalysisResult>,
     private readonly prisma: PrismaService,
+    private readonly s3: S3StorageClient,
   ) {}
 
-  async enqueueImageAnalysis(
+  /**
+   * Enqueue analysis for an image already present in S3 (presigned flow).
+   * The caller must have run requestImageUpload + confirmImageUpload before
+   * calling this; the key is verified to belong to the user.
+   */
+  async enqueueFromKey(
+    s3Key: string,
+    mimeType: string,
+    userId: string,
+  ): Promise<AnalysisJobObject> {
+    this.assertBPKeyOwnedBy(userId, s3Key);
+    return this.enqueue({ jobId: randomUUID(), userId, s3Key, mimeType });
+  }
+
+  /**
+   * Legacy multipart path: gateway received the image bytes, uploads them
+   * to S3 first, then enqueues the resulting key. Kept as a compatibility
+   * shim for mobile builds still on the multipart mutation.
+   */
+  async enqueueFromBuffer(
     file: { buffer: Buffer; mimetype: string; originalname: string },
     userId: string,
   ): Promise<AnalysisJobObject> {
-    const jobId = randomUUID();
-    const payload: AnalysisJobPayload = {
-      jobId,
-      userId,
-      mimetype: file.mimetype,
-      filename: file.originalname,
-      imageBase64: file.buffer.toString('base64'),
-    };
+    const folder = IMAGE_FOLDERS[ImageKind.BLOOD_PRESSURE_READING];
+    const ext = extname(file.originalname) || '.jpg';
+    const datePart = new Date().toISOString().slice(0, 10);
+    const s3Key = `${folder}/${userId}/${datePart}/${randomUUID()}${ext}`;
 
+    await this.s3.put({
+      key: s3Key,
+      body: file.buffer,
+      contentType: file.mimetype,
+      metadata: { userId, kind: ImageKind.BLOOD_PRESSURE_READING },
+    });
+
+    return this.enqueue({
+      jobId: randomUUID(),
+      userId,
+      s3Key,
+      mimeType: file.mimetype,
+    });
+  }
+
+  private async enqueue(
+    payload: AnalysisJobPayload,
+  ): Promise<AnalysisJobObject> {
     await this.aiQueue.add(AI_JOB_ANALYZE, payload, {
-      jobId,
+      jobId: payload.jobId,
       attempts: 3,
       backoff: { type: 'exponential', delay: 2000 },
       removeOnComplete: { age: RETAIN_COMPLETED_SECONDS },
       removeOnFail: { age: RETAIN_FAILED_SECONDS },
     });
 
-    this.logger.log(`Enqueued analysis job ${jobId} for user ${userId}`);
+    this.logger.log(
+      `Enqueued analysis job ${payload.jobId} userId=${payload.userId} s3Key=${payload.s3Key}`,
+    );
     return {
-      jobId,
+      jobId: payload.jobId,
       status: 'pending',
       result: null,
       error: null,
     };
+  }
+
+  private assertBPKeyOwnedBy(userId: string, s3Key: string): void {
+    const folder = IMAGE_FOLDERS[ImageKind.BLOOD_PRESSURE_READING];
+    const expectedPrefix = `${folder}/${userId}/`;
+    if (!s3Key.startsWith(expectedPrefix) || s3Key.includes('..')) {
+      throw new ForbiddenException('S3 key นี้ไม่ใช่ของคุณ');
+    }
   }
 
   async getJobState(jobId: string, userId: string): Promise<AnalysisJobObject> {

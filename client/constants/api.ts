@@ -330,16 +330,6 @@ export const GQL_DELETE_MY_DATA = `
   }
 `;
 
-export const GQL_UPLOAD_PROFILE_IMAGE = `
-  mutation UploadProfileImage($input: UploadImageInput!) {
-    uploadProfileImage(input: $input) {
-      key
-      url
-      bucket
-    }
-  }
-`;
-
 // ── Presigned (direct-to-S3) upload ──
 
 export const GQL_REQUEST_IMAGE_UPLOAD = `
@@ -358,17 +348,6 @@ export const GQL_CONFIRM_IMAGE_UPLOAD = `
     confirmImageUpload(input: $input) {
       key
       url
-      imageId
-    }
-  }
-`;
-
-export const GQL_UPLOAD_BLOOD_PRESSURE_IMAGE = `
-  mutation UploadBloodPressureImage($input: UploadImageInput!) {
-    uploadBloodPressureImage(input: $input) {
-      key
-      url
-      bucket
       imageId
     }
   }

@@ -1,5 +1,12 @@
-import { gqlRequest, gqlUpload } from '@/lib/graphql-client';
-import type { AnalysisJob, AnalysisResult, SubmitReadingPayload, UploadImagePayload } from '@/types';
+import { File } from 'expo-file-system';
+import { getAuthToken } from '@/constants/api';
+import { gqlRequest } from '@/lib/graphql-client';
+import type {
+  AnalysisJob,
+  AnalysisResult,
+  SubmitReadingPayload,
+  UploadImagePayload,
+} from '@/types';
 
 // ─── Fragments ────────────────────────────────────────────────────────────────
 
@@ -20,10 +27,27 @@ const ANALYSIS_JOB_FRAGMENT = `
 
 // ─── Operations ───────────────────────────────────────────────────────────────
 
-const UPLOAD_BP_IMAGE_MUTATION = `
+const REQUEST_IMAGE_UPLOAD_MUTATION = `
+  mutation RequestImageUpload($input: RequestImageUploadInput!) {
+    requestImageUpload(input: $input) {
+      uploadUrl
+      key
+      headers { name value }
+      expiresAt
+    }
+  }
+`;
+
+const CONFIRM_IMAGE_UPLOAD_MUTATION = `
+  mutation ConfirmImageUpload($input: ConfirmImageUploadInput!) {
+    confirmImageUpload(input: $input) { key url imageId }
+  }
+`;
+
+const ANALYZE_BP_IMAGE_MUTATION = `
   ${ANALYSIS_JOB_FRAGMENT}
-  mutation UploadBPImage($file: Upload!) {
-    uploadBPImage(file: $file) { ...AnalysisJobFields }
+  mutation AnalyzeBPImage($input: AnalyzeBPImageInput!) {
+    analyzeBPImage(input: $input) { ...AnalysisJobFields }
   }
 `;
 
@@ -42,19 +66,79 @@ const SUBMIT_BP_READING_MUTATION = `
   }
 `;
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface PresignedUpload {
+  uploadUrl: string;
+  key: string;
+  headers: { name: string; value: string }[];
+  expiresAt: string;
+}
+
+interface ConfirmedImage {
+  key: string;
+  url: string;
+  imageId: number | null;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function uriToMime(uri: string): string {
   const ext = uri.split('.').pop()?.toLowerCase() ?? '';
   const map: Record<string, string> = {
-    jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    png: 'image/png', heic: 'image/heic', webp: 'image/webp',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    heic: 'image/heic',
+    webp: 'image/webp',
   };
   return map[ext] ?? 'image/jpeg';
 }
 
-function uriToFilename(uri: string): string {
-  return uri.split('/').pop() ?? `bp_${Date.now()}.jpg`;
+// ─── Presigned upload pipeline ────────────────────────────────────────────────
+
+async function uploadToS3(
+  imageUri: string,
+  signal?: AbortSignal,
+): Promise<{ key: string; mimeType: string }> {
+  const mimeType = uriToMime(imageUri);
+  const bytes = await new File(imageUri).bytes();
+  const size = bytes.byteLength;
+
+  const presign = await gqlRequest<{ requestImageUpload: PresignedUpload }>({
+    query: REQUEST_IMAGE_UPLOAD_MUTATION,
+    variables: {
+      input: { kind: 'BLOOD_PRESSURE_READING', mimeType, size },
+    },
+    signal,
+  });
+
+  const { uploadUrl, key, headers } = presign.requestImageUpload;
+  const headerMap: Record<string, string> = {};
+  for (const h of headers) headerMap[h.name] = h.value;
+
+  // Cast: expo-file-system returns Uint8Array<ArrayBuffer>, but the generic
+  // collapses at this call site so BlobPart's strict typing rejects it.
+  const body = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType });
+  const putRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: headerMap,
+    body,
+    signal,
+  });
+  if (!putRes.ok) {
+    throw new Error(`S3 upload rejected (${putRes.status})`);
+  }
+
+  const confirmed = await gqlRequest<{ confirmImageUpload: ConfirmedImage }>({
+    query: CONFIRM_IMAGE_UPLOAD_MUTATION,
+    variables: {
+      input: { key, kind: 'BLOOD_PRESSURE_READING' },
+    },
+    signal,
+  });
+
+  return { key: confirmed.confirmImageUpload.key, mimeType };
 }
 
 // ─── Polling ──────────────────────────────────────────────────────────────────
@@ -92,7 +176,10 @@ async function pollUntilDone(jobId: string, options: PollOptions = {}): Promise<
 
     await new Promise<void>((resolve, reject) => {
       const t = setTimeout(resolve, intervalMs);
-      signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); });
+      signal?.addEventListener('abort', () => {
+        clearTimeout(t);
+        reject(new DOMException('Aborted', 'AbortError'));
+      });
     });
   }
 
@@ -105,15 +192,21 @@ export async function analyzeImage(
   payload: UploadImagePayload,
   options?: PollOptions,
 ): Promise<{ job: AnalysisJob; result: AnalysisResult | null }> {
-  const uploadData = await gqlUpload<{ uploadBPImage: AnalysisJob }>(
-    UPLOAD_BP_IMAGE_MUTATION,
-    { file: null },
-    { uri: payload.imageUri, name: uriToFilename(payload.imageUri), type: uriToMime(payload.imageUri) },
-    options?.signal,
-  );
+  // Auth is required to presign — fail fast with a useful message rather
+  // than letting the request fall through and get rejected by the gateway.
+  if (!(await getAuthToken())) {
+    throw new Error('ต้องเข้าสู่ระบบก่อนวิเคราะห์รูป');
+  }
 
-  const initial = uploadData.uploadBPImage;
+  const { key, mimeType } = await uploadToS3(payload.imageUri, options?.signal);
 
+  const enqueued = await gqlRequest<{ analyzeBPImage: AnalysisJob }>({
+    query: ANALYZE_BP_IMAGE_MUTATION,
+    variables: { input: { s3Key: key, mimeType } },
+    signal: options?.signal,
+  });
+
+  const initial = enqueued.analyzeBPImage;
   if (initial.status === 'done') {
     return { job: initial, result: initial.result ?? null };
   }
