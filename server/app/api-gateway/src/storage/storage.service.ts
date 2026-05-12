@@ -1,32 +1,12 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
-import { PrismaService } from '../prisma/prisma.service';
-import { SyncStorageImagesObject } from './dto/sync-storage-images.object';
-import { UploadedImageObject } from './dto/uploaded-image.object';
 import { S3StorageClient } from './s3-storage.client';
-import {
-  ALLOWED_IMAGE_PREFIXES,
-  ImageKind,
-  MAX_IMAGE_BYTES,
-  USERS_ROOT,
-  buildFinalKey,
-} from './types/storage.types';
-
-interface UploadImageArgs {
-  userId: string;
-  kind: ImageKind;
-  base64: string;
-  mimeType: string;
-  fileName?: string;
-}
+import { ALLOWED_IMAGE_PREFIXES } from './types/storage.types';
 
 interface ImageObject {
   body: Readable;
@@ -38,105 +18,13 @@ interface ImageObject {
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
 
-  constructor(
-    private readonly s3: S3StorageClient,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly s3: S3StorageClient) {}
 
-  async uploadImage(args: UploadImageArgs): Promise<UploadedImageObject> {
-    const body = this.decodeImage(args.base64, args.mimeType);
-    // Legacy multipart shim shares the same final key layout as the
-    // presigned flow — fileName is ignored (uuid drives the key).
-    const key = buildFinalKey(
-      args.kind,
-      args.userId,
-      randomUUID(),
-      args.mimeType,
-    );
-
-    this.logger.log(
-      `Uploading kind=${args.kind} userId=${args.userId} key=${key} size=${body.length}B`,
-    );
-
-    try {
-      await this.s3.put({
-        key,
-        body,
-        contentType: args.mimeType,
-        metadata: { userId: args.userId, kind: args.kind },
-      });
-    } catch (error) {
-      const name = error instanceof Error ? error.name : 'UnknownError';
-      const message =
-        error instanceof Error ? error.message : 'Unknown S3 upload error';
-      this.logger.error(`Upload failed key=${key} error=${name}: ${message}`);
-      throw new InternalServerErrorException(
-        `อัปโหลดรูปไปยัง S3 ไม่สำเร็จ (${name})`,
-      );
-    }
-
-    const imageId =
-      args.kind === ImageKind.BLOOD_PRESSURE_READING
-        ? await this.createImageRecord({
-            userId: args.userId,
-            imageUrl: key,
-            deviceName: 'blood-pressure-monitor',
-          })
-        : undefined;
-
-    return {
-      key,
-      bucket: this.s3.bucket,
-      url: key,
-      imageId,
-    };
-  }
-
-  async syncBloodPressureImagesFromPrefix(
-    userId: string,
-    prefix?: string,
-  ): Promise<SyncStorageImagesObject> {
-    const safePrefix = this.resolveBloodPressurePrefix(userId, prefix);
-    let scanned = 0;
-    let inserted = 0;
-    let skipped = 0;
-
-    for await (const item of this.s3.listAll(safePrefix)) {
-      scanned += 1;
-
-      const exists = await this.prisma.image.findFirst({
-        where: {
-          userId,
-          OR: [
-            { imageUrl: item.key },
-            { imageUrl: this.s3.publicUrl(item.key) },
-            { imageUrl: this.s3.storageUri(item.key) },
-          ],
-        },
-        select: { id: true },
-      });
-
-      if (exists) {
-        skipped += 1;
-        continue;
-      }
-
-      await this.createImageRecord({
-        userId,
-        imageUrl: item.key,
-        deviceName: 'blood-pressure-monitor',
-        uploadedAt: item.lastModified,
-      });
-      inserted += 1;
-    }
-
-    this.logger.log(
-      `Synced userId=${userId} prefix=${safePrefix} scanned=${scanned} inserted=${inserted} skipped=${skipped}`,
-    );
-
-    return { prefix: safePrefix, scanned, inserted, skipped };
-  }
-
+  /**
+   * Stream an S3 object back to an HTTP client. Used by the
+   * `/storage/image?key=…` REST endpoint so mobile/web can render images
+   * without exposing a public S3 bucket.
+   */
   async getImageObject(key: string): Promise<ImageObject> {
     this.assertAllowedKey(key);
 
@@ -154,25 +42,6 @@ export class StorageService {
     }
   }
 
-  private decodeImage(base64: string, mimeType: string): Buffer {
-    if (!mimeType.startsWith('image/')) {
-      throw new BadRequestException('รองรับเฉพาะไฟล์รูปภาพเท่านั้น');
-    }
-
-    const cleanBase64 = base64.includes(',')
-      ? (base64.split(',').pop() ?? '')
-      : base64;
-    const body = Buffer.from(cleanBase64, 'base64');
-
-    if (body.length === 0) {
-      throw new BadRequestException('ไฟล์รูปภาพไม่ถูกต้อง');
-    }
-    if (body.length > MAX_IMAGE_BYTES) {
-      throw new BadRequestException('รูปภาพมีขนาดใหญ่เกิน 8MB');
-    }
-    return body;
-  }
-
   private assertAllowedKey(key: string): void {
     const normalizedKey = key.replace(/^\/+/, '');
     if (
@@ -182,46 +51,5 @@ export class StorageService {
     ) {
       throw new ForbiddenException('ไม่อนุญาตให้เข้าถึงไฟล์นี้');
     }
-  }
-
-  private resolveBloodPressurePrefix(userId: string, prefix?: string): string {
-    const defaultPrefix = `${USERS_ROOT}/${userId}/bp/readings`;
-    const normalized = (prefix?.trim() || defaultPrefix).replace(/^\/+/, '');
-
-    // New layout first; legacy prefixes kept so a one-off sync can pick
-    // up unmigrated objects. Drop the legacy entries after migration.
-    const allowedPrefixes = [
-      `${USERS_ROOT}/${userId}/bp/`,
-      `training/blood-pressure-meter-images/${userId}`,
-      `blood-pressure-meter-images/${userId}`,
-    ];
-
-    if (!allowedPrefixes.some((allowed) => normalized.startsWith(allowed))) {
-      throw new ForbiddenException(
-        'อนุญาตให้ซิงก์เฉพาะรูปเครื่องวัดความดันของผู้ใช้ปัจจุบันเท่านั้น',
-      );
-    }
-
-    return normalized.endsWith('/') ? normalized : `${normalized}/`;
-  }
-
-  private async createImageRecord(args: {
-    userId: string;
-    imageUrl: string;
-    deviceName: string;
-    uploadedAt?: Date;
-  }): Promise<number> {
-    const image = await this.prisma.image.create({
-      data: {
-        userId: args.userId,
-        imageUrl: args.imageUrl,
-        deviceName: args.deviceName,
-        syncStatus: 'synced',
-        syncedAt: new Date(),
-        uploadedAt: args.uploadedAt ?? new Date(),
-      },
-      select: { id: true },
-    });
-    return image.id;
   }
 }

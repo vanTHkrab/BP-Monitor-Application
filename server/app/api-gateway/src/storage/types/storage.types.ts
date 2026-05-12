@@ -52,19 +52,10 @@ export const USERS_ROOT = 'users';
 /**
  * Prefixes a key may legally start with. Used to gate
  * `StorageController.getImage` so users can't fetch arbitrary keys.
- *
- * The legacy entries are temporarily kept so `/storage/image?key=...`
- * keeps serving objects that haven't been migrated yet. Remove them
- * after the S3 copy migration completes.
  */
 export const ALLOWED_IMAGE_PREFIXES = [
   `${USERS_ROOT}/`,
   `${TMP_ROOT}/`,
-  // Legacy — remove after migration is complete:
-  'app/profile-images/',
-  'training/blood-pressure-meter-images/',
-  'profiles/',
-  'blood-pressure-meter-images/',
 ] as const;
 
 const extFromMime = (mimeType: string): string =>

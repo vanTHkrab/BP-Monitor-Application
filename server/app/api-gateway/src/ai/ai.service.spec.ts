@@ -9,17 +9,14 @@ jest.mock('../prisma/prisma.service', () => ({
 }));
 
 import { PrismaService } from '../prisma/prisma.service';
-import { S3StorageClient } from '../storage/s3-storage.client';
 import { AI_QUEUE, AiService } from './ai.service';
 
 describe('AiService', () => {
   let service: AiService;
   let queue: { add: jest.Mock; getJob: jest.Mock };
-  let s3: { put: jest.Mock; bucket: string };
 
   beforeEach(async () => {
     queue = { add: jest.fn().mockResolvedValue(undefined), getJob: jest.fn() };
-    s3 = { put: jest.fn().mockResolvedValue(undefined), bucket: 'test-bucket' };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -29,7 +26,6 @@ describe('AiService', () => {
           provide: PrismaService,
           useValue: { bloodPressureReading: { create: jest.fn() } },
         },
-        { provide: S3StorageClient, useValue: s3 },
       ],
     }).compile();
 
@@ -55,7 +51,6 @@ describe('AiService', () => {
       expect(payload.userId).toBe('user-1');
       expect(payload.mimeType).toBe('image/jpeg');
       expect(result.status).toBe('pending');
-      expect(s3.put).not.toHaveBeenCalled();
     });
 
     it('rejects keys owned by another user', async () => {
@@ -78,27 +73,6 @@ describe('AiService', () => {
       await expect(
         service.enqueueFromKey(badKey, 'image/jpeg', 'user-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
-    });
-  });
-
-  describe('enqueueFromBuffer', () => {
-    it('uploads to S3 first then enqueues the resulting key', async () => {
-      await service.enqueueFromBuffer(
-        {
-          buffer: Buffer.from('hello'),
-          mimetype: 'image/jpeg',
-          originalname: 'photo.jpg',
-        },
-        'user-1',
-      );
-      expect(s3.put).toHaveBeenCalledTimes(1);
-      const [putArg] = s3.put.mock.calls[0];
-      expect(putArg.key).toMatch(
-        /^users\/user-1\/bp\/readings\/\d{4}-\d{2}\/[a-f0-9-]+\.jpg$/,
-      );
-      expect(queue.add).toHaveBeenCalledTimes(1);
-      const [, payload] = queue.add.mock.calls[0];
-      expect(payload.s3Key).toBe(putArg.key);
     });
   });
 });

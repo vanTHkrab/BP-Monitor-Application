@@ -9,12 +9,7 @@ import { Job, Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import type { BpStatus } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
-import { S3StorageClient } from '../storage/s3-storage.client';
-import {
-  ImageKind,
-  buildFinalKey,
-  isFinalKeyOwnedBy,
-} from '../storage/types/storage.types';
+import { ImageKind, isFinalKeyOwnedBy } from '../storage/types/storage.types';
 import { AnalysisJobObject } from './dto/analysis-job.object';
 import { SubmitBPReadingInput } from './dto/submit-bp-reading.input';
 import { AnalysisJobPayload, AnalysisResult } from './types/ai.types';
@@ -50,7 +45,6 @@ export class AiService {
     @InjectQueue(AI_QUEUE)
     private readonly aiQueue: Queue<AnalysisJobPayload, AnalysisResult>,
     private readonly prisma: PrismaService,
-    private readonly s3: S3StorageClient,
   ) {}
 
   /**
@@ -65,37 +59,6 @@ export class AiService {
   ): Promise<AnalysisJobObject> {
     this.assertBPKeyOwnedBy(userId, s3Key);
     return this.enqueue({ jobId: randomUUID(), userId, s3Key, mimeType });
-  }
-
-  /**
-   * Legacy multipart path: gateway received the image bytes, uploads them
-   * to S3 first, then enqueues the resulting key. Kept as a compatibility
-   * shim for mobile builds still on the multipart mutation.
-   */
-  async enqueueFromBuffer(
-    file: { buffer: Buffer; mimetype: string; originalname: string },
-    userId: string,
-  ): Promise<AnalysisJobObject> {
-    const s3Key = buildFinalKey(
-      ImageKind.BLOOD_PRESSURE_READING,
-      userId,
-      randomUUID(),
-      file.mimetype,
-    );
-
-    await this.s3.put({
-      key: s3Key,
-      body: file.buffer,
-      contentType: file.mimetype,
-      metadata: { userId, kind: ImageKind.BLOOD_PRESSURE_READING },
-    });
-
-    return this.enqueue({
-      jobId: randomUUID(),
-      userId,
-      s3Key,
-      mimeType: file.mimetype,
-    });
   }
 
   private async enqueue(

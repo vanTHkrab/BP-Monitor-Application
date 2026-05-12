@@ -1,11 +1,8 @@
 import { getApiBaseUrl } from '@/constants/api';
 
-const storagePrefixes = [
-  'app/profile-images/',
-  'training/blood-pressure-meter-images/',
-  'profiles/',
-  'blood-pressure-meter-images/',
-];
+// Must stay in sync with ALLOWED_IMAGE_PREFIXES on the gateway
+// (server/app/api-gateway/src/storage/types/storage.types.ts).
+const storagePrefixes = ['users/', 'tmp/'];
 
 const extractStorageKey = (uri: string) => {
   const raw = uri.trim();

@@ -1,11 +1,6 @@
 /// <reference types="jest" />
 import { Test, TestingModule } from '@nestjs/testing';
 
-jest.mock('graphql-upload/GraphQLUpload.mjs', () => ({
-  __esModule: true,
-  default: {},
-}));
-
 jest.mock('../auth/auth.guard', () => ({
   GqlAuthGuard: class GqlAuthGuard {},
 }));
@@ -27,7 +22,7 @@ describe('AiResolver', () => {
         {
           provide: AiService,
           useValue: {
-            enqueueImageAnalysis: jest.fn(),
+            enqueueFromKey: jest.fn(),
             getJobState: jest.fn(),
             submitReading: jest.fn(),
           },

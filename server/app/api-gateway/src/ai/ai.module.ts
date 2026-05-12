@@ -1,7 +1,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { StorageModule } from '../storage/storage.module';
 import { AiProcessor } from './ai.process';
 import { AiResolver } from './ai.resolver';
 import { AI_QUEUE, AiService } from './ai.service';
@@ -29,7 +28,6 @@ const redisHost = process.env.REDIS_HOST ?? 'localhost';
         },
       },
     ]),
-    StorageModule,
   ],
   providers: [AiResolver, AiService, AiProcessor],
 })
