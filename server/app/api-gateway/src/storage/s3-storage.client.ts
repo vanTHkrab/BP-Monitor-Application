@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -9,6 +10,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Readable } from 'node:stream';
 import { S3_CONFIG, type S3Config } from './s3.config';
@@ -243,6 +245,54 @@ export class S3StorageClient {
     return this.config.forcePathStyle
       ? `${base}/${this.config.bucket}/${normalizedKey}`
       : `${base.replace(/^https?:\/\//, (m) => `${m}${this.config.bucket}.`)}/${normalizedKey}`;
+  }
+
+  async presignPut(input: {
+    key: string;
+    contentType: string;
+    contentLength: number;
+    expiresIn?: number;
+  }): Promise<{ url: string; expiresAt: Date }> {
+    const expiresIn = input.expiresIn ?? 300;
+    const command = new PutObjectCommand({
+      Bucket: this.config.bucket,
+      Key: this.normalizeKey(input.key),
+      ContentType: input.contentType,
+      ContentLength: input.contentLength,
+    });
+    const url = await getSignedUrl(this.client, command, { expiresIn });
+    return { url, expiresAt: new Date(Date.now() + expiresIn * 1000) };
+  }
+
+  async presignGet(key: string, expiresIn = 600): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.config.bucket,
+      Key: this.normalizeKey(key),
+    });
+    return getSignedUrl(this.client, command, { expiresIn });
+  }
+
+  async copy(input: {
+    sourceKey: string;
+    destinationKey: string;
+  }): Promise<void> {
+    const source = this.normalizeKey(input.sourceKey);
+    const destination = this.normalizeKey(input.destinationKey);
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.config.bucket,
+        CopySource: `/${this.config.bucket}/${source}`,
+        Key: destination,
+      }),
+    );
+  }
+
+  async move(input: {
+    sourceKey: string;
+    destinationKey: string;
+  }): Promise<void> {
+    await this.copy(input);
+    await this.delete(input.sourceKey);
   }
 
   storageUri(key: string): string {

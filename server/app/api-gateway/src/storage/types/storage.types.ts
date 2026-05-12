@@ -1,9 +1,21 @@
-export type ImageKind = 'profile' | 'blood-pressure-reading';
+import { registerEnumType } from '@nestjs/graphql';
+
+export enum ImageKind {
+  PROFILE = 'profile',
+  BLOOD_PRESSURE_READING = 'blood-pressure-reading',
+}
+
+registerEnumType(ImageKind, {
+  name: 'ImageKind',
+  description: 'Kind of image being uploaded — drives folder placement.',
+});
 
 export const IMAGE_FOLDERS: Record<ImageKind, string> = {
-  profile: 'app/profile-images',
-  'blood-pressure-reading': 'training/blood-pressure-meter-images',
+  [ImageKind.PROFILE]: 'app/profile-images',
+  [ImageKind.BLOOD_PRESSURE_READING]: 'training/blood-pressure-meter-images',
 };
+
+export const PENDING_SEGMENT = 'pending';
 
 export const ALLOWED_IMAGE_PREFIXES = [
   'app/profile-images/',

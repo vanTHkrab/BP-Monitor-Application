@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PresignedUploadService } from './presigned-upload.service';
 import { S3StorageClient } from './s3-storage.client';
 import { s3ConfigProvider } from './s3.config';
 import { StorageController } from './storage.controller';
@@ -12,7 +13,8 @@ import { StorageService } from './storage.service';
     S3StorageClient,
     StorageResolver,
     StorageService,
+    PresignedUploadService,
   ],
-  exports: [S3StorageClient, StorageService],
+  exports: [S3StorageClient, StorageService, PresignedUploadService],
 })
 export class StorageModule {}

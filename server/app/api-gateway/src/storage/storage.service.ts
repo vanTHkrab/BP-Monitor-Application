@@ -16,9 +16,9 @@ import { S3StorageClient } from './s3-storage.client';
 import {
   ALLOWED_IMAGE_PREFIXES,
   IMAGE_FOLDERS,
+  ImageKind,
   MAX_IMAGE_BYTES,
   MIME_TYPE_EXTENSIONS,
-  type ImageKind,
 } from './types/storage.types';
 
 interface UploadImageArgs {
@@ -75,7 +75,7 @@ export class StorageService {
     }
 
     const imageId =
-      args.kind === 'blood-pressure-reading'
+      args.kind === ImageKind.BLOOD_PRESSURE_READING
         ? await this.createImageRecord({
             userId: args.userId,
             imageUrl: key,
