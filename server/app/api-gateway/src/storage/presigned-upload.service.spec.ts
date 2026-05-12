@@ -63,7 +63,7 @@ describe('PresignedUploadService', () => {
       size: 1024,
     };
 
-    it('issues presigned URL with pending key under the user prefix', async () => {
+    it('issues presigned URL with tmp key under the user namespace', async () => {
       const expiresAt = new Date('2030-01-01');
       s3.presignPut.mockResolvedValueOnce({
         url: 'https://s3.example/put',
@@ -80,9 +80,7 @@ describe('PresignedUploadService', () => {
         }),
       );
       const presignCall = s3.presignPut.mock.calls[0][0] as { key: string };
-      expect(presignCall.key).toMatch(
-        /^app\/profile-images\/user-1\/pending\/[a-f0-9-]+\.jpg$/,
-      );
+      expect(presignCall.key).toMatch(/^tmp\/user-1\/[a-f0-9-]+\.jpg$/);
       expect(result.uploadUrl).toBe('https://s3.example/put');
       expect(result.expiresAt).toBe(expiresAt);
       expect(result.headers).toEqual([
@@ -91,7 +89,7 @@ describe('PresignedUploadService', () => {
       ]);
     });
 
-    it('uses BP folder for BLOOD_PRESSURE_READING', async () => {
+    it('uses the same tmp namespace for BLOOD_PRESSURE_READING (feature-agnostic)', async () => {
       s3.presignPut.mockResolvedValueOnce({
         url: 'https://s3.example/put',
         expiresAt: new Date(),
@@ -101,9 +99,7 @@ describe('PresignedUploadService', () => {
         kind: ImageKind.BLOOD_PRESSURE_READING,
       });
       const presignCall = s3.presignPut.mock.calls[0][0] as { key: string };
-      expect(presignCall.key).toMatch(
-        /^training\/blood-pressure-meter-images\/user-1\/pending\/[a-f0-9-]+\.jpg$/,
-      );
+      expect(presignCall.key).toMatch(/^tmp\/user-1\/[a-f0-9-]+\.jpg$/);
     });
 
     it('rejects unsupported mime types', async () => {
@@ -130,9 +126,9 @@ describe('PresignedUploadService', () => {
   });
 
   describe('confirm', () => {
-    const pendingKey = 'app/profile-images/user-1/pending/abc.jpg';
+    const tmpKey = 'tmp/user-1/abc.jpg';
 
-    it('verifies head, moves object, returns public URL', async () => {
+    it('promotes profile tmp object to users/<id>/profile/avatar/...', async () => {
       s3.head.mockResolvedValueOnce({
         contentType: 'image/jpeg',
         contentLength: 1024,
@@ -140,7 +136,7 @@ describe('PresignedUploadService', () => {
 
       const result = await service.confirm('user-1', {
         kind: ImageKind.PROFILE,
-        key: pendingKey,
+        key: tmpKey,
       });
 
       expect(s3.move).toHaveBeenCalledTimes(1);
@@ -148,17 +144,17 @@ describe('PresignedUploadService', () => {
         sourceKey: string;
         destinationKey: string;
       };
-      expect(moveCall.sourceKey).toBe(pendingKey);
+      expect(moveCall.sourceKey).toBe(tmpKey);
       expect(moveCall.destinationKey).toMatch(
-        /^app\/profile-images\/user-1\/\d{4}-\d{2}-\d{2}\/abc\.jpg$/,
+        /^users\/user-1\/profile\/avatar\/abc\.jpg$/,
       );
       expect(result.url).toBe(`https://cdn.example/${moveCall.destinationKey}`);
       expect(result.imageId).toBeUndefined();
       expect(prisma.image.create).not.toHaveBeenCalled();
     });
 
-    it('creates Image row for BLOOD_PRESSURE_READING confirmation', async () => {
-      const bpKey = 'training/blood-pressure-meter-images/user-1/pending/x.png';
+    it('promotes BP tmp object to users/<id>/bp/readings/<YYYY-MM>/... and creates Image row', async () => {
+      const bpTmpKey = 'tmp/user-1/xyz.png';
       s3.head.mockResolvedValueOnce({
         contentType: 'image/png',
         contentLength: 2048,
@@ -167,9 +163,16 @@ describe('PresignedUploadService', () => {
 
       const result = await service.confirm('user-1', {
         kind: ImageKind.BLOOD_PRESSURE_READING,
-        key: bpKey,
+        key: bpTmpKey,
       });
 
+      const moveCall = s3.move.mock.calls[0][0] as {
+        sourceKey: string;
+        destinationKey: string;
+      };
+      expect(moveCall.destinationKey).toMatch(
+        /^users\/user-1\/bp\/readings\/\d{4}-\d{2}\/xyz\.png$/,
+      );
       expect(prisma.image.create).toHaveBeenCalledTimes(1);
       expect(result.imageId).toBe(42);
     });
@@ -178,17 +181,17 @@ describe('PresignedUploadService', () => {
       await expect(
         service.confirm('user-1', {
           kind: ImageKind.PROFILE,
-          key: 'app/profile-images/other-user/pending/abc.jpg',
+          key: 'tmp/other-user/abc.jpg',
         }),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(s3.head).not.toHaveBeenCalled();
     });
 
-    it('rejects keys that do not match the declared kind', async () => {
+    it('rejects keys outside the tmp/ namespace', async () => {
       await expect(
         service.confirm('user-1', {
           kind: ImageKind.PROFILE,
-          key: 'training/blood-pressure-meter-images/user-1/pending/x.jpg',
+          key: 'users/user-1/profile/avatar/abc.jpg',
         }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -197,7 +200,7 @@ describe('PresignedUploadService', () => {
       await expect(
         service.confirm('user-1', {
           kind: ImageKind.PROFILE,
-          key: 'app/profile-images/user-1/pending/../../etc/passwd',
+          key: 'tmp/user-1/../../etc/passwd',
         }),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -205,7 +208,7 @@ describe('PresignedUploadService', () => {
     it('throws NotFound when S3 HEAD returns null', async () => {
       s3.head.mockResolvedValueOnce(null);
       await expect(
-        service.confirm('user-1', { kind: ImageKind.PROFILE, key: pendingKey }),
+        service.confirm('user-1', { kind: ImageKind.PROFILE, key: tmpKey }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(s3.move).not.toHaveBeenCalled();
     });
@@ -216,9 +219,9 @@ describe('PresignedUploadService', () => {
         contentLength: MAX_IMAGE_BYTES + 1,
       });
       await expect(
-        service.confirm('user-1', { kind: ImageKind.PROFILE, key: pendingKey }),
+        service.confirm('user-1', { kind: ImageKind.PROFILE, key: tmpKey }),
       ).rejects.toBeInstanceOf(BadRequestException);
-      expect(s3.delete).toHaveBeenCalledWith(pendingKey);
+      expect(s3.delete).toHaveBeenCalledWith(tmpKey);
       expect(s3.move).not.toHaveBeenCalled();
       expect(prisma.image.create).not.toHaveBeenCalled();
     });
@@ -229,9 +232,9 @@ describe('PresignedUploadService', () => {
         contentLength: 1024,
       });
       await expect(
-        service.confirm('user-1', { kind: ImageKind.PROFILE, key: pendingKey }),
+        service.confirm('user-1', { kind: ImageKind.PROFILE, key: tmpKey }),
       ).rejects.toBeInstanceOf(BadRequestException);
-      expect(s3.delete).toHaveBeenCalledWith(pendingKey);
+      expect(s3.delete).toHaveBeenCalledWith(tmpKey);
     });
   });
 });

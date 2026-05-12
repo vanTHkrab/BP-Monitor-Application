@@ -41,8 +41,7 @@ describe('AiService', () => {
   });
 
   describe('enqueueFromKey', () => {
-    const validKey =
-      'training/blood-pressure-meter-images/user-1/2026-05-13/abc.jpg';
+    const validKey = 'users/user-1/bp/readings/2026-05/abc.jpg';
 
     it('enqueues job with s3Key payload', async () => {
       const result = await service.enqueueFromKey(
@@ -60,17 +59,22 @@ describe('AiService', () => {
     });
 
     it('rejects keys owned by another user', async () => {
-      const otherKey =
-        'training/blood-pressure-meter-images/user-2/2026-05-13/abc.jpg';
+      const otherKey = 'users/user-2/bp/readings/2026-05/abc.jpg';
       await expect(
         service.enqueueFromKey(otherKey, 'image/jpeg', 'user-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(queue.add).not.toHaveBeenCalled();
     });
 
+    it('rejects keys outside the bp feature folder', async () => {
+      const wrongFeature = 'users/user-1/profile/avatar/abc.jpg';
+      await expect(
+        service.enqueueFromKey(wrongFeature, 'image/jpeg', 'user-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
     it('rejects keys with path traversal', async () => {
-      const badKey =
-        'training/blood-pressure-meter-images/user-1/../../../etc/passwd';
+      const badKey = 'users/user-1/bp/../../etc/passwd';
       await expect(
         service.enqueueFromKey(badKey, 'image/jpeg', 'user-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -90,7 +94,7 @@ describe('AiService', () => {
       expect(s3.put).toHaveBeenCalledTimes(1);
       const [putArg] = s3.put.mock.calls[0];
       expect(putArg.key).toMatch(
-        /^training\/blood-pressure-meter-images\/user-1\/\d{4}-\d{2}-\d{2}\/[a-f0-9-]+\.jpg$/,
+        /^users\/user-1\/bp\/readings\/\d{4}-\d{2}\/[a-f0-9-]+\.jpg$/,
       );
       expect(queue.add).toHaveBeenCalledTimes(1);
       const [, payload] = queue.add.mock.calls[0];

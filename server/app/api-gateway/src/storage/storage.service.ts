@@ -7,7 +7,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { basename, extname } from 'node:path';
 import type { Readable } from 'node:stream';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncStorageImagesObject } from './dto/sync-storage-images.object';
@@ -15,10 +14,10 @@ import { UploadedImageObject } from './dto/uploaded-image.object';
 import { S3StorageClient } from './s3-storage.client';
 import {
   ALLOWED_IMAGE_PREFIXES,
-  IMAGE_FOLDERS,
   ImageKind,
   MAX_IMAGE_BYTES,
-  MIME_TYPE_EXTENSIONS,
+  USERS_ROOT,
+  buildFinalKey,
 } from './types/storage.types';
 
 interface UploadImageArgs {
@@ -46,10 +45,12 @@ export class StorageService {
 
   async uploadImage(args: UploadImageArgs): Promise<UploadedImageObject> {
     const body = this.decodeImage(args.base64, args.mimeType);
-    const key = this.buildImageKey(
-      args.userId,
+    // Legacy multipart shim shares the same final key layout as the
+    // presigned flow — fileName is ignored (uuid drives the key).
+    const key = buildFinalKey(
       args.kind,
-      args.fileName,
+      args.userId,
+      randomUUID(),
       args.mimeType,
     );
 
@@ -172,28 +173,6 @@ export class StorageService {
     return body;
   }
 
-  private buildImageKey(
-    userId: string,
-    kind: ImageKind,
-    fileName: string | undefined,
-    mimeType: string,
-  ): string {
-    const folder = IMAGE_FOLDERS[kind];
-    const ext =
-      extname(this.sanitizeFileName(fileName)) ||
-      MIME_TYPE_EXTENSIONS[mimeType] ||
-      '';
-    const datePart = new Date().toISOString().slice(0, 10);
-    return `${folder}/${userId}/${datePart}/${randomUUID()}${ext}`;
-  }
-
-  private sanitizeFileName(name?: string): string {
-    if (!name) return '';
-    return basename(name)
-      .replace(/[^a-zA-Z0-9._-]/g, '-')
-      .slice(0, 80);
-  }
-
   private assertAllowedKey(key: string): void {
     const normalizedKey = key.replace(/^\/+/, '');
     if (
@@ -206,10 +185,13 @@ export class StorageService {
   }
 
   private resolveBloodPressurePrefix(userId: string, prefix?: string): string {
-    const defaultPrefix = `training/blood-pressure-meter-images/${userId}`;
+    const defaultPrefix = `${USERS_ROOT}/${userId}/bp/readings`;
     const normalized = (prefix?.trim() || defaultPrefix).replace(/^\/+/, '');
 
+    // New layout first; legacy prefixes kept so a one-off sync can pick
+    // up unmigrated objects. Drop the legacy entries after migration.
     const allowedPrefixes = [
+      `${USERS_ROOT}/${userId}/bp/`,
       `training/blood-pressure-meter-images/${userId}`,
       `blood-pressure-meter-images/${userId}`,
     ];

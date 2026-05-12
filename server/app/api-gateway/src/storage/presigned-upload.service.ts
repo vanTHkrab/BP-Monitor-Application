@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { extname } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfirmImageUploadInput } from './dto/confirm-image-upload.input';
 import { ConfirmedImageObject } from './dto/confirmed-image.object';
@@ -14,11 +15,11 @@ import { RequestImageUploadInput } from './dto/request-image-upload.input';
 import { S3StorageClient } from './s3-storage.client';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
-  IMAGE_FOLDERS,
   ImageKind,
   MAX_IMAGE_BYTES,
-  MIME_TYPE_EXTENSIONS,
-  PENDING_SEGMENT,
+  buildFinalKey,
+  buildTmpKey,
+  isTmpKeyOwnedBy,
 } from './types/storage.types';
 
 const PRESIGN_TTL_SECONDS = 300; // 5 minutes — long enough for slow networks, short enough to limit replay window
@@ -45,7 +46,9 @@ export class PresignedUploadService {
       );
     }
 
-    const key = this.buildPendingKey(userId, input.kind, input.mimeType);
+    // Tmp keys are feature-agnostic — a single lifecycle rule on `tmp/`
+    // cleans orphans regardless of what feature requested the upload.
+    const key = buildTmpKey(userId, randomUUID(), input.mimeType);
     const { url, expiresAt } = await this.s3.presignPut({
       key,
       contentType: input.mimeType,
@@ -72,7 +75,9 @@ export class PresignedUploadService {
     userId: string,
     input: ConfirmImageUploadInput,
   ): Promise<ConfirmedImageObject> {
-    this.assertPendingKeyOwnedBy(userId, input.kind, input.key);
+    if (!isTmpKeyOwnedBy(userId, input.key)) {
+      throw new ForbiddenException('ไม่อนุญาตให้ยืนยันไฟล์นี้');
+    }
 
     const head = await this.s3.head(input.key);
     if (!head) {
@@ -89,7 +94,12 @@ export class PresignedUploadService {
       throw new BadRequestException('ประเภทไฟล์รูปภาพไม่ถูกต้อง');
     }
 
-    const finalKey = this.promotePendingKey(input.key);
+    const finalKey = this.promote(
+      input.key,
+      input.kind,
+      userId,
+      head.contentType,
+    );
     await this.s3.move({ sourceKey: input.key, destinationKey: finalKey });
 
     const imageId =
@@ -108,31 +118,20 @@ export class PresignedUploadService {
     };
   }
 
-  private buildPendingKey(
-    userId: string,
+  /**
+   * Move an object out of the feature-agnostic tmp/ namespace into the
+   * permanent kind-specific location. Reuses the object id (uuid) and
+   * extension from the tmp key so the destination is stable.
+   */
+  private promote(
+    tmpKey: string,
     kind: ImageKind,
-    mimeType: string,
+    userId: string,
+    contentType: string,
   ): string {
-    const folder = IMAGE_FOLDERS[kind];
-    const ext = MIME_TYPE_EXTENSIONS[mimeType] ?? '';
-    return `${folder}/${userId}/${PENDING_SEGMENT}/${randomUUID()}${ext}`;
-  }
-
-  private assertPendingKeyOwnedBy(
-    userId: string,
-    kind: ImageKind,
-    key: string,
-  ): void {
-    const expectedPrefix = `${IMAGE_FOLDERS[kind]}/${userId}/${PENDING_SEGMENT}/`;
-    if (!key.startsWith(expectedPrefix) || key.includes('..')) {
-      throw new ForbiddenException('ไม่อนุญาตให้ยืนยันไฟล์นี้');
-    }
-  }
-
-  private promotePendingKey(pendingKey: string): string {
-    const datePart = new Date().toISOString().slice(0, 10);
-    // Replace ".../pending/<file>" with ".../<date>/<file>"
-    return pendingKey.replace(`/${PENDING_SEGMENT}/`, `/${datePart}/`);
+    const filename = tmpKey.split('/').pop() ?? '';
+    const objectId = filename.replace(extname(filename), '') || randomUUID();
+    return buildFinalKey(kind, userId, objectId, contentType);
   }
 
   private async createImageRecord(

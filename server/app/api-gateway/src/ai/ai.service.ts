@@ -7,11 +7,14 @@ import {
 } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
 import type { BpStatus } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3StorageClient } from '../storage/s3-storage.client';
-import { IMAGE_FOLDERS, ImageKind } from '../storage/types/storage.types';
+import {
+  ImageKind,
+  buildFinalKey,
+  isFinalKeyOwnedBy,
+} from '../storage/types/storage.types';
 import { AnalysisJobObject } from './dto/analysis-job.object';
 import { SubmitBPReadingInput } from './dto/submit-bp-reading.input';
 import { AnalysisJobPayload, AnalysisResult } from './types/ai.types';
@@ -73,10 +76,12 @@ export class AiService {
     file: { buffer: Buffer; mimetype: string; originalname: string },
     userId: string,
   ): Promise<AnalysisJobObject> {
-    const folder = IMAGE_FOLDERS[ImageKind.BLOOD_PRESSURE_READING];
-    const ext = extname(file.originalname) || '.jpg';
-    const datePart = new Date().toISOString().slice(0, 10);
-    const s3Key = `${folder}/${userId}/${datePart}/${randomUUID()}${ext}`;
+    const s3Key = buildFinalKey(
+      ImageKind.BLOOD_PRESSURE_READING,
+      userId,
+      randomUUID(),
+      file.mimetype,
+    );
 
     await this.s3.put({
       key: s3Key,
@@ -116,9 +121,7 @@ export class AiService {
   }
 
   private assertBPKeyOwnedBy(userId: string, s3Key: string): void {
-    const folder = IMAGE_FOLDERS[ImageKind.BLOOD_PRESSURE_READING];
-    const expectedPrefix = `${folder}/${userId}/`;
-    if (!s3Key.startsWith(expectedPrefix) || s3Key.includes('..')) {
+    if (!isFinalKeyOwnedBy(ImageKind.BLOOD_PRESSURE_READING, userId, s3Key)) {
       throw new ForbiddenException('S3 key นี้ไม่ใช่ของคุณ');
     }
   }
