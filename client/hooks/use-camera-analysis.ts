@@ -1,4 +1,5 @@
-import { analyzeImage, submitReading } from '@/services/camera.service';
+import { analyzeImage } from '@/services/camera.service';
+import { useAppStore } from '@/store/use-app-store';
 import type { AnalysisJob, AnalysisResult, BPReading } from '@/types';
 import { useCallback, useRef, useState } from 'react';
 
@@ -25,6 +26,10 @@ interface AnalysisState {
   job: AnalysisJob | null;
   result: AnalysisResult | null;
   prefill: Partial<BPReading>;
+  /** Public URL of the uploaded image once analyze succeeds. Passed to
+   *  `createReading` on save so the store doesn't re-upload — it sees the
+   *  `https://` prefix and goes straight to the GraphQL submit. */
+  uploadedUrl: string | null;
   error: string | null;
 }
 
@@ -33,6 +38,7 @@ const INITIAL_STATE: AnalysisState = {
   job: null,
   result: null,
   prefill: {},
+  uploadedUrl: null,
   error: null,
 };
 
@@ -56,7 +62,7 @@ export function useCameraAnalysis() {
     setState({ ...INITIAL_STATE, phase: 'uploading' });
 
     try {
-      const { job, result } = await analyzeImage(
+      const { job, result, uploadedUrl } = await analyzeImage(
         { imageUri },
         {
           signal: abort.signal,
@@ -73,6 +79,7 @@ export function useCameraAnalysis() {
         job,
         result,
         prefill: hasGoodReading ? { ...result!.readings! } : {},
+        uploadedUrl,
         error: null,
       });
     } catch (err) {
@@ -87,22 +94,28 @@ export function useCameraAnalysis() {
 
   const save = useCallback(
     async (params: { imageUri: string; systolic: number; diastolic: number; pulse: number }) => {
-      const jobId = state.job?.jobId ?? `manual_${Date.now()}`;
+      // Route through the store so we inherit the offline queue + optimistic
+      // UI used by manual entry. If analyze succeeded, `uploadedUrl` is the
+      // already-S3-hosted URL and `createReading` skips re-uploading (the
+      // `https://` prefix is its short-circuit signal). If analyze failed
+      // or the user is offline, fall back to the captured local URI;
+      // `createReading` will upload-then-submit when network returns via
+      // `syncPendingReadings`.
       setIsSaving(true);
       try {
-        return await submitReading({
-          jobId,
-          imageUri: params.imageUri,
+        const ok = await useAppStore.getState().createReading({
           systolic: params.systolic,
           diastolic: params.diastolic,
           pulse: params.pulse,
           measuredAt: new Date(),
+          imageUri: state.uploadedUrl ?? params.imageUri,
         });
+        return ok;
       } finally {
         setIsSaving(false);
       }
     },
-    [state.job],
+    [state.uploadedUrl],
   );
 
   return { ...state, isSaving, analyze, save, reset };

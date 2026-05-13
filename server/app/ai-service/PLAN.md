@@ -6,13 +6,17 @@ Replace the stub in `src/ai_service/main.py` with a real analyzer:
 The stub stays valid until this work lands; the wire contract on
 `analyze_bp_image` does not change.
 
+อัปเดตล่าสุด: 2026-05-13
+
 ## Confirmed decisions
 
 | Decision | Choice | Why |
 | --- | --- | --- |
 | Model format | **ONNX** (export from `.pt` with `yolo export ... format=onnx simplify=True`) | ~200 MB image vs ~2 GB ultralytics; cold start <1 s; portable; no AGPL tangle |
-| Image fetch | **Presigned GET URL** passed in the BullMQ payload | ai-service holds no S3 credentials → smaller blast radius |
+| Image fetch | **Presigned GET URL** passed in the AI request payload (the message gateway publishes on the Redis MS channel) | ai-service holds no S3 credentials → smaller blast radius |
+| ROI upload | ai-service **returns annotated bytes in the reply payload**; gateway PUTs to S3 from its own worker (`ai.process.ts`) | Keeps the no-S3-credentials decision intact — only the gateway holds S3 creds |
 | ssocr | **subprocess wrapper** — the project will supply the handler file; we plug it in behind `SSOCRReader` Protocol | Reuse upstream binary; no port effort; swap-friendly |
+| Boot failure | **Fail-fast on model load** — refuse to start if the ONNX session can't be created | Better to surface a broken deploy than serve mock readings as if real. The stub is a code path, not a runtime fallback |
 
 ## Module layout
 
@@ -138,22 +142,29 @@ block Redis message acks for everyone else.
 
 ## Cross-cutting changes on the gateway
 
-This pipeline needs a presigned GET URL alongside the s3Key in the
-BullMQ payload. Touches:
+This pipeline needs a presigned GET URL alongside the s3Key in the AI
+request payload (the message gateway publishes on the
+`analyze_bp_image` Redis MS channel — separate from the BullMQ job
+record the resolver polls). The matching gateway-side work should be
+tracked under api-gateway PLAN as a P1 item. Files touched:
 
 | File | Change |
 | --- | --- |
 | `server/app/api-gateway/src/ai/types/ai.types.ts` | `AnalysisJobPayload` gains `imageUrl: string` |
 | `server/app/api-gateway/src/ai/ai.service.ts` | `enqueueFromKey` calls `S3StorageClient.presignGet(s3Key, 600)` and includes the URL in the payload |
 | `server/app/api-gateway/src/ai/ai.module.ts` | Re-import `StorageModule` (PR 4 dropped it; presigning needs it back) |
-| `server/app/api-gateway/src/ai/ai.process.ts` | `parseAiResponse` accepts a `model_version` field and forwards it on `AnalysisResult` |
+| `server/app/api-gateway/src/ai/ai.process.ts` | `parseAiResponse` accepts `model_version` + `roi_image_bytes` (base64). Uploads ROI image to S3 from this worker (gateway owns S3 creds — see decision table) and substitutes the public URL into the result |
 | `server/app/api-gateway/src/ai/dto/analysis-job.object.ts` | `AnalysisResultObject` gains `modelVersion` (nullable) |
 
 ROI image upload: after detection, draw boxes + labels on the
-original image and PUT it to
-`users/{userId}/bp/analysis/{jobId}_roi.{ext}`. Return its public URL
-as `roi_image_url`. Optional but worth doing — it makes "why did AI
-read 130 instead of 138" debuggable and earns user trust.
+original image and **return the annotated bytes inline in the reply
+payload** (base64 or binary in the MS envelope). The gateway's worker
+(`ai.process.ts`) is the only place that PUTs to
+`users/{userId}/bp/analysis/{jobId}_roi.{ext}` — keeps the
+no-S3-credentials decision intact for ai-service. The resolver returns
+`roi_image_url` (the gateway's public URL) to the client. Optional but
+worth doing — it makes "why did AI read 130 instead of 138" debuggable
+and earns user trust.
 
 ## New Python dependencies
 
@@ -195,18 +206,34 @@ implementing:
 
 ## Error modes — explicit handling
 
+Concrete timeouts live in `AnalyzerConfig` so they can be tuned per
+deployment (env vars: `IMAGE_FETCH_TIMEOUT_S`, `SSOCR_FIELD_TIMEOUT_S`,
+`PIPELINE_TIMEOUT_S`). Defaults below.
+
 - **Image fetch fails** (presigned URL expired, 404, timeout) → reply
-  with `err: "fetch failed: ..."` — gateway retry handles it (3
-  attempts with exp backoff already configured in BullMQ).
+  with `err: "fetch failed: ..."`. The gateway-side worker retries (3
+  attempts with exponential backoff configured in BullMQ on the
+  gateway).  
+  Default `IMAGE_FETCH_TIMEOUT_S = 5`.
 - **YOLO returns 0 boxes** → `status='unreadable'`, no fields, conf=0.
 - **YOLO returns partial classes** (e.g., only sys + dia, no pulse) →
   set `pulse=None`, `status='unreadable'` (because the user expects
   three numbers).
 - **ssocr subprocess crashes / times out** → catch, treat that field
-  as unreadable, drop overall confidence.
+  as unreadable, drop overall confidence. Hard-kill the subprocess if
+  it exceeds the per-field timeout.  
+  Default `SSOCR_FIELD_TIMEOUT_S = 5`.
+- **Whole pipeline exceeds budget** → reply `err: "timeout"`;
+  cancel any in-flight subprocesses to free the worker.  
+  Default `PIPELINE_TIMEOUT_S = 30`.
 - **Validation rejects** (sys=400, dia>sys, etc.) → keep the raw
   value in `fields[]` for debugging but null out the public field +
   halve confidence.
+- **Boot failure** (ONNX model can't load, ssocr binary missing) →
+  raise from `lifespan` so the FastAPI process exits non-zero. Health
+  endpoint never returns 200 in this state. Do not fall back to the
+  stub at runtime — the stub is a development code path, not a
+  resilience strategy.
 
 ## Test plan
 
@@ -246,3 +273,24 @@ edge case.
   this but no curation/labeling tools yet)
 - Multi-device support (only off-the-shelf BP monitors with 7-segment
   displays — different screen types need separate models)
+
+## Notes for AI agents
+
+- Treat the wire protocol (`analyze_bp_image` + reply payload shape)
+  as a hard contract — any change must update both
+  [src/ai_service/main.py](./src/ai_service/main.py) and
+  [api-gateway/src/ai/](../api-gateway/src/ai/) in the same PR.
+- Real OCR work belongs in `src/ai_service/analyzer/` and `storage/`
+  per the layout above. Keep `main.py` thin — only `lifespan`,
+  FastAPI app instance, and the `/health` route belong there. The
+  Redis listener bootstrap stays in `main.py` but the message handler
+  itself moves to `handlers.py`.
+- Don't add new HTTP routes beyond `/health` — the service surface is
+  the Redis channel. Adding HTTP invites a second source of truth.
+- Don't reach for S3 credentials from ai-service. ROI uploads flow
+  back through the gateway (see "ROI upload" decision).
+- Heavy CPU work (YOLO, ssocr, cv2) goes through `asyncio.to_thread`.
+  A slow request must not stall the event loop and block Redis acks.
+- The stub in `main.py` (`build_mock_response`) is the seam — replace
+  it when the real pipeline lands; keep the surrounding listener and
+  reply shape untouched.

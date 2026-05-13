@@ -4,7 +4,6 @@ import { gqlRequest } from '@/lib/graphql-client';
 import type {
   AnalysisJob,
   AnalysisResult,
-  SubmitReadingPayload,
   UploadImagePayload,
 } from '@/types';
 
@@ -58,14 +57,6 @@ const POLL_ANALYSIS_JOB_QUERY = `
   }
 `;
 
-const SUBMIT_BP_READING_MUTATION = `
-  mutation SubmitBPReading($input: SubmitBPReadingInput!) {
-    submitBPReading(input: $input) {
-      id systolic diastolic pulse measuredAt imageUrl
-    }
-  }
-`;
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PresignedUpload {
@@ -100,7 +91,7 @@ function uriToMime(uri: string): string {
 async function uploadToS3(
   imageUri: string,
   signal?: AbortSignal,
-): Promise<{ key: string; mimeType: string }> {
+): Promise<{ key: string; url: string; mimeType: string }> {
   const mimeType = uriToMime(imageUri);
   const bytes = await new File(imageUri).bytes();
   const size = bytes.byteLength;
@@ -138,7 +129,11 @@ async function uploadToS3(
     signal,
   });
 
-  return { key: confirmed.confirmImageUpload.key, mimeType };
+  return {
+    key: confirmed.confirmImageUpload.key,
+    url: confirmed.confirmImageUpload.url,
+    mimeType,
+  };
 }
 
 // ─── Polling ──────────────────────────────────────────────────────────────────
@@ -191,14 +186,23 @@ async function pollUntilDone(jobId: string, options: PollOptions = {}): Promise<
 export async function analyzeImage(
   payload: UploadImagePayload,
   options?: PollOptions,
-): Promise<{ job: AnalysisJob; result: AnalysisResult | null }> {
+): Promise<{
+  job: AnalysisJob;
+  result: AnalysisResult | null;
+  /** Public URL of the uploaded image — pass this to `createReading` as
+   *  `imageUri` so the store can submit the reading without re-uploading. */
+  uploadedUrl: string;
+}> {
   // Auth is required to presign — fail fast with a useful message rather
   // than letting the request fall through and get rejected by the gateway.
   if (!(await getAuthToken())) {
     throw new Error('ต้องเข้าสู่ระบบก่อนวิเคราะห์รูป');
   }
 
-  const { key, mimeType } = await uploadToS3(payload.imageUri, options?.signal);
+  const { key, url, mimeType } = await uploadToS3(
+    payload.imageUri,
+    options?.signal,
+  );
 
   const enqueued = await gqlRequest<{ analyzeBPImage: AnalysisJob }>({
     query: ANALYZE_BP_IMAGE_MUTATION,
@@ -208,27 +212,14 @@ export async function analyzeImage(
 
   const initial = enqueued.analyzeBPImage;
   if (initial.status === 'done') {
-    return { job: initial, result: initial.result ?? null };
+    return { job: initial, result: initial.result ?? null, uploadedUrl: url };
   }
 
   const completed = await pollUntilDone(initial.jobId, options);
-  return { job: completed, result: completed.result ?? null };
+  return {
+    job: completed,
+    result: completed.result ?? null,
+    uploadedUrl: url,
+  };
 }
 
-export async function submitReading(payload: SubmitReadingPayload): Promise<string> {
-  const data = await gqlRequest<{ submitBPReading: { id: string } }>({
-    query: SUBMIT_BP_READING_MUTATION,
-    variables: {
-      input: {
-        jobId: payload.jobId,
-        imageUri: payload.imageUri,
-        systolic: payload.systolic,
-        diastolic: payload.diastolic,
-        pulse: payload.pulse,
-        measuredAt: payload.measuredAt.toISOString(),
-      },
-    },
-  });
-
-  return data.submitBPReading.id;
-}
