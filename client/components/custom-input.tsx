@@ -42,9 +42,16 @@ export const CustomInput: React.FC<CustomInputProps> = ({
     setIsFocused(false);
   };
 
+  // `error` is a tri-state:
+  //   undefined → normal state
+  //   ""        → red border + icon, no text (companion-field highlight)
+  //   string    → red border + icon + text below
+  const hasError = typeof error === 'string';
+  const showErrorText = hasError && error.length > 0;
+
   const wrapperClassName =
     'flex-row items-center rounded-[14px] border-2 px-[14px] py-1 shadow-sm ' +
-    (error
+    (hasError
       ? `border-red-500 ${isDark ? 'bg-[#2A0A0A]' : 'bg-red-50'}`
       : isFocused
         ? 'border-[#7E57C2] bg-white'
@@ -56,7 +63,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
       ? (isDark ? 'bg-[#281B45]' : 'bg-[#F3E5F5]')
       : (isDark ? 'bg-[#111827]' : 'bg-[#F4F1F8]'));
 
-  const iconColor = error
+  const iconColor = hasError
     ? '#EF4444'
     : isFocused
       ? '#7E57C2'
@@ -113,7 +120,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
           </Pressable>
         )}
       </View>
-      {error && (
+      {showErrorText && (
         <Text className="text-red-500 mt-1.5 ml-1 font-semibold" style={{ fontSize: errorFontSize }}>
           {error}
         </Text>

@@ -30,7 +30,11 @@ import { errorMessage } from "@/types/graphql";
 import { uploadImageViaPresign } from "@/utils/upload-image";
 import { Platform } from "react-native";
 import type { StateCreator } from "zustand";
-import { authErrorToThai } from "../shared/error-format";
+import {
+  type AuthErrorField,
+  authErrorToThai,
+  formatAuthError,
+} from "../shared/error-format";
 import { logWarn } from "../shared/log";
 import { userFromGql } from "../shared/mappers";
 import type { AppState } from "../use-app-store";
@@ -51,8 +55,14 @@ export interface AuthSlice {
   authInitialized: boolean;
   authToken: string | null;
   authErrorCode: string | null;
+  /** Final user-facing Thai message. Never includes raw English or codes. */
   authErrorMessage: string | null;
+  /** Original error message kept for dev logs / Sentry — never shown in UI. */
   authErrorRawMessage: string | null;
+  /** Which input the login/register error attaches to, for inline UI. */
+  authErrorField: AuthErrorField;
+  /** Seconds the user must wait before the next login attempt (HTTP 429). */
+  authErrorRetryAfterSec: number | null;
   sessions: LoginSession[];
 
   // ── Auth actions ──
@@ -111,6 +121,8 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
   authErrorCode: null,
   authErrorMessage: null,
   authErrorRawMessage: null,
+  authErrorField: null,
+  authErrorRetryAfterSec: null,
   sessions: [],
 
   initAuth: async () => {
@@ -152,6 +164,8 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         authErrorCode: null,
         authErrorMessage: null,
         authErrorRawMessage: null,
+        authErrorField: null,
+        authErrorRetryAfterSec: null,
       });
       const data = await graphqlRequest<LoginMutation>(GQL_LOGIN, {
         input: { phone, password, deviceLabel: getDeviceLabel() },
@@ -172,11 +186,16 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
       void get().fetchSessions();
       return true;
     } catch (error) {
-      const msg = errorMessage(error);
+      const view = formatAuthError(error, {
+        context: "login",
+        fallback: "เบอร์โทรศัพท์หรือรหัสผ่านไม่ถูกต้อง",
+      });
       set({
         authErrorCode: "auth/login-failed",
-        authErrorMessage: authErrorToThai(msg),
-        authErrorRawMessage: msg,
+        authErrorMessage: view.message,
+        authErrorRawMessage: errorMessage(error),
+        authErrorField: view.field,
+        authErrorRetryAfterSec: view.retryAfterSec,
       });
       return false;
     }
@@ -188,6 +207,8 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         authErrorCode: null,
         authErrorMessage: null,
         authErrorRawMessage: null,
+        authErrorField: null,
+        authErrorRetryAfterSec: null,
       });
 
       const data = await graphqlRequest<RegisterMutation>(GQL_REGISTER, {
@@ -226,11 +247,16 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
       void get().fetchSessions();
       return true;
     } catch (error) {
-      const msg = errorMessage(error);
+      const view = formatAuthError(error, {
+        context: "register",
+        fallback: "ไม่สามารถลงทะเบียนได้ กรุณาตรวจสอบข้อมูลและลองใหม่",
+      });
       set({
         authErrorCode: "auth/register-failed",
-        authErrorMessage: authErrorToThai(msg),
-        authErrorRawMessage: msg,
+        authErrorMessage: view.message,
+        authErrorRawMessage: errorMessage(error),
+        authErrorField: view.field,
+        authErrorRetryAfterSec: view.retryAfterSec,
       });
       return false;
     }
@@ -268,6 +294,8 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
       authErrorCode: null,
       authErrorMessage: null,
       authErrorRawMessage: null,
+      authErrorField: null,
+      authErrorRetryAfterSec: null,
     });
   },
 

@@ -5,13 +5,13 @@ import { GradientBackground } from "@/components/gradient-background";
 import { TabButtons } from "@/components/tab-buttons";
 import { useAppStore } from "@/store/use-app-store";
 import { getFontClass } from "@/utils/font-scale";
+import { formatThaiPhone, stripPhoneDigits } from "@/utils/phone-format";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Href, router } from "expo-router";
 import { cssInterop } from "nativewind";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,10 +21,25 @@ import {
 
 cssInterop(LinearGradient, { className: "style" });
 
+const formatCountdown = (sec: number) => {
+  if (sec >= 60) {
+    const minutes = Math.ceil(sec / 60);
+    return `${minutes} นาที`;
+  }
+  return `${sec} วินาที`;
+};
+
 export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [phoneError, setPhoneError] = useState<string | undefined>(undefined);
+  const [passwordError, setPasswordError] = useState<string | undefined>(
+    undefined,
+  );
+  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [retryAfterSec, setRetryAfterSec] = useState<number | null>(null);
+  const retryDeadlineRef = useRef<number | null>(null);
 
   const { login, clearAuthError } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
@@ -53,32 +68,109 @@ export default function LoginScreen() {
     xlarge: "text-base",
   });
 
-  const handleLogin = async () => {
-    if (!loginPhone || !loginPassword) {
-      Alert.alert("ข้อผิดพลาด", "กรุณากรอกข้อมูลให้ครบถ้วน");
+  // Drive the rate-limit countdown off a wall-clock deadline so it stays
+  // accurate even if JS gets backgrounded between ticks.
+  useEffect(() => {
+    if (retryAfterSec === null) {
+      retryDeadlineRef.current = null;
       return;
     }
+    if (retryDeadlineRef.current === null) {
+      retryDeadlineRef.current = Date.now() + retryAfterSec * 1000;
+    }
+    const id = setInterval(() => {
+      const remaining = Math.max(
+        0,
+        Math.ceil(((retryDeadlineRef.current ?? 0) - Date.now()) / 1000),
+      );
+      if (remaining <= 0) {
+        retryDeadlineRef.current = null;
+        setRetryAfterSec(null);
+        setGeneralError(null);
+      } else {
+        setRetryAfterSec(remaining);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [retryAfterSec]);
+
+  const clearAllErrors = () => {
+    setPhoneError(undefined);
+    setPasswordError(undefined);
+    setGeneralError(null);
+  };
+
+  const onPhoneChange = (text: string) => {
+    setLoginPhone(formatThaiPhone(text));
+    if (phoneError !== undefined) setPhoneError(undefined);
+    if (generalError) setGeneralError(null);
+  };
+
+  const onPasswordChange = (text: string) => {
+    setLoginPassword(text);
+    if (passwordError !== undefined) setPasswordError(undefined);
+    if (generalError) setGeneralError(null);
+  };
+
+  const validate = (): { phone: string } | null => {
+    const phone = stripPhoneDigits(loginPhone);
+    let ok = true;
+    if (!phone) {
+      setPhoneError("กรุณากรอกเบอร์โทรศัพท์");
+      ok = false;
+    } else if (!/^\d{9,10}$/.test(phone)) {
+      setPhoneError("เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก");
+      ok = false;
+    }
+    if (!loginPassword) {
+      setPasswordError("กรุณากรอกรหัสผ่าน");
+      ok = false;
+    }
+    return ok ? { phone } : null;
+  };
+
+  const handleLogin = async () => {
+    if (retryAfterSec !== null) return;
+    clearAllErrors();
+    const validated = validate();
+    if (!validated) return;
 
     setIsLoading(true);
     try {
       clearAuthError();
-      const success = await login(loginPhone, loginPassword);
-      if (success) {
+      const ok = await login(validated.phone, loginPassword);
+      if (ok) {
         router.replace("/(tabs)" as Href);
-      } else {
-        const { authErrorCode, authErrorMessage, authErrorRawMessage } =
-          useAppStore.getState();
-        const detail = [
-          authErrorMessage || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
-          authErrorCode ? `(${authErrorCode})` : null,
-          authErrorRawMessage ? authErrorRawMessage : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
-        Alert.alert("ข้อผิดพลาด", detail);
+        return;
       }
-    } catch {
-      Alert.alert("ข้อผิดพลาด", "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+
+      const s = useAppStore.getState();
+      const message = s.authErrorMessage ?? "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่";
+
+      if (s.authErrorRetryAfterSec !== null) {
+        retryDeadlineRef.current = null;
+        setRetryAfterSec(s.authErrorRetryAfterSec);
+        setGeneralError(message);
+        return;
+      }
+
+      switch (s.authErrorField) {
+        case "phone":
+          setPhoneError(message);
+          break;
+        case "password":
+          setPasswordError(message);
+          break;
+        case "both":
+          // Highlight both inputs with the same red border; show the
+          // message once under the password field (the more common
+          // cause) instead of duplicating it.
+          setPhoneError("");
+          setPasswordError(message);
+          break;
+        default:
+          setGeneralError(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -94,6 +186,18 @@ export default function LoginScreen() {
     (isDark
       ? "bg-[#1E293B] border-[#334155] shadow-black/40"
       : "bg-white border-[#E2E8F0] shadow-black/10");
+
+  const bannerClassName =
+    "flex-row items-start rounded-2xl p-3 mb-4 border " +
+    (isDark
+      ? "bg-[#3F1D1D] border-[#7F1D1D]"
+      : "bg-red-50 border-red-200");
+
+  const isThrottled = retryAfterSec !== null && retryAfterSec > 0;
+  const submitDisabled = isLoading || isThrottled;
+  const submitTitle = isThrottled
+    ? `รอ ${formatCountdown(retryAfterSec ?? 0)}`
+    : "เข้าสู่ระบบ";
 
   return (
     <GradientBackground>
@@ -164,26 +268,49 @@ export default function LoginScreen() {
                   />
                 </View>
 
+                {generalError && (
+                  <View className={bannerClassName}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={20}
+                      color="#EF4444"
+                      style={{ marginTop: 1, marginRight: 8 }}
+                    />
+                    <Text
+                      className={
+                        captionClassName +
+                        " flex-1 font-semibold " +
+                        (isDark ? "text-red-300" : "text-red-700")
+                      }
+                    >
+                      {generalError}
+                    </Text>
+                  </View>
+                )}
+
                 <CustomInput
                   placeholder="เบอร์โทรศัพท์"
                   value={loginPhone}
-                  onChangeText={setLoginPhone}
+                  onChangeText={onPhoneChange}
                   icon="person-outline"
                   keyboardType="phone-pad"
+                  error={phoneError}
                 />
 
                 <CustomInput
                   placeholder="รหัสผ่าน"
                   value={loginPassword}
-                  onChangeText={setLoginPassword}
+                  onChangeText={onPasswordChange}
                   icon="lock-closed-outline"
                   secureTextEntry
+                  error={passwordError}
                 />
 
                 <CustomButton
-                  title="เข้าสู่ระบบ"
+                  title={submitTitle}
                   onPress={handleLogin}
                   loading={isLoading}
+                  disabled={submitDisabled}
                   size="large"
                 />
               </View>

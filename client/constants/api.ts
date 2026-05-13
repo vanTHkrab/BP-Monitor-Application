@@ -1,4 +1,5 @@
 // constants/api.ts — GraphQL client helper for communicating with NestJS API Gateway
+import { GraphQLClientError } from "@/lib/graphql-error";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
@@ -203,43 +204,75 @@ export async function graphqlRequest<T = unknown>(
     }
 
     if (!res.ok) {
+      const firstError = json.errors?.[0];
+      const code =
+        typeof firstError?.extensions?.code === "string"
+          ? firstError.extensions.code
+          : null;
       const msg =
         (json.errors && json.errors.length > 0
           ? formatGqlErrors(json.errors)
           : null) || `HTTP ${res.status}`;
+      const retryAfterRaw = res.headers.get("Retry-After");
+      const retryAfterParsed = retryAfterRaw ? Number(retryAfterRaw) : NaN;
+      const retryAfterSec = Number.isFinite(retryAfterParsed)
+        ? retryAfterParsed
+        : null;
       if (__DEV__) {
         console.warn(`[GraphQL] ${operationName} HTTP error`, {
           status: res.status,
+          code,
+          retryAfterSec,
           message: msg,
         });
       }
-      throw new Error(`${operationName} failed: ${msg}`);
+      throw new GraphQLClientError(`${operationName} failed: ${msg}`, {
+        code,
+        httpStatus: res.status,
+        retryAfterSec,
+      });
     }
 
     if (json.errors && json.errors.length > 0) {
+      const firstError = json.errors[0];
+      const code =
+        typeof firstError?.extensions?.code === "string"
+          ? firstError.extensions.code
+          : null;
       const msg = formatGqlErrors(json.errors);
       if (__DEV__) {
-        console.warn(`[GraphQL] ${operationName} GraphQL error`, { message: msg });
+        console.warn(`[GraphQL] ${operationName} GraphQL error`, {
+          code,
+          message: msg,
+        });
       }
-      throw new Error(`${operationName} failed: ${msg}`);
+      throw new GraphQLClientError(`${operationName} failed: ${msg}`, {
+        code,
+        httpStatus: res.status,
+      });
     }
 
     if (!json.data) {
       if (__DEV__) console.warn(`[GraphQL] ${operationName} returned no data`);
-      throw new Error(`${operationName} failed: No data returned from server`);
+      throw new GraphQLClientError(
+        `${operationName} failed: No data returned from server`,
+        { httpStatus: res.status },
+      );
     }
 
     if (__DEV__) console.log(`[GraphQL] ${operationName} success`);
     return json.data;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(
+      throw new GraphQLClientError(
         `${operationName} timed out while connecting to ${API_URL}`,
+        { code: "NETWORK_TIMEOUT" },
       );
     }
     if (error instanceof Error && error.message === "Network request failed") {
-      throw new Error(
+      throw new GraphQLClientError(
         `${operationName} network request failed while connecting to ${API_URL}`,
+        { code: "NETWORK_FAILED" },
       );
     }
     throw error;

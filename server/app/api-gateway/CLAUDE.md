@@ -98,10 +98,20 @@ pnpm prisma migrate dev       # apply pending migrations
 
 ## Cross-cutting concerns
 
-- The Expo client reads error `extensions.code` to localize messages
-  ([client/lib/error-message.ts](../../../client/lib/error-message.ts)).
+- The Expo client reads error `extensions.code` to localize messages.
+  `graphqlRequest` ([client/constants/api.ts](../../../client/constants/api.ts))
+  throws [`GraphQLClientError`](../../../client/lib/graphql-error.ts)
+  carrying `code`, `httpStatus`, and `retryAfterSec` — login/register
+  dispatch those via [`formatAuthError`](../../../client/store/shared/error-format.ts)
+  to inline form errors and a throttle countdown; other flows fall back
+  to the legacy string-based [`formatError`](../../../client/lib/error-message.ts).
   When you throw a new exception type, make sure its HTTP status maps to
   the code the client expects, or extend the mapping in both places.
+- The mobile client also reads the standard `Retry-After` response header
+  when present and uses it to drive a live "please wait N seconds"
+  countdown for the login throttle. If you keep / replace the in-memory
+  throttle guard, setting `Retry-After: <seconds>` on the 429 response
+  upgrades the UX from a generic "try again later" to a real timer.
 - The web dashboard hits the same GraphQL endpoint. Any breaking schema
   change ships to two clients.
 - The AI service expects payloads on the Redis channel `analyze_bp_image`
