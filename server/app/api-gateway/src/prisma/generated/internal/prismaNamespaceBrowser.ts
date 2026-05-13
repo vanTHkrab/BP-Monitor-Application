@@ -55,7 +55,6 @@ export const ModelName = {
   UserSession: 'UserSession',
   CaregiverPatient: 'CaregiverPatient',
   Image: 'Image',
-  AnalysisResult: 'AnalysisResult',
   Alert: 'Alert',
   BloodPressureReading: 'BloodPressureReading',
   Post: 'Post',
@@ -137,25 +136,10 @@ export const ImageScalarFieldEnum = {
 export type ImageScalarFieldEnum = (typeof ImageScalarFieldEnum)[keyof typeof ImageScalarFieldEnum]
 
 
-export const AnalysisResultScalarFieldEnum = {
-  id: 'id',
-  imageId: 'imageId',
-  systolic: 'systolic',
-  diastolic: 'diastolic',
-  pulseRate: 'pulseRate',
-  confidenceScore: 'confidenceScore',
-  bpLevel: 'bpLevel',
-  analysisNote: 'analysisNote',
-  analyzedAt: 'analyzedAt'
-} as const
-
-export type AnalysisResultScalarFieldEnum = (typeof AnalysisResultScalarFieldEnum)[keyof typeof AnalysisResultScalarFieldEnum]
-
-
 export const AlertScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
-  analysisId: 'analysisId',
+  bpReadingId: 'bpReadingId',
   alertMessage: 'alertMessage',
   alertLevel: 'alertLevel',
   isRead: 'isRead',

@@ -97,18 +97,34 @@ type BPReadingRecordObject {
   imageUrl: String
 }
 
-type UploadedImageType {
+type ConfirmedImage {
+  """Canonical key after the object is moved out of pending/."""
   key: String!
+
+  """Public/storage URL to embed or fetch later."""
   url: String!
-  bucket: String!
-  imageId: Float
+
+  """Image row id — populated only for BLOOD_PRESSURE_READING uploads."""
+  imageId: Int
 }
 
-type SyncStorageImagesType {
-  prefix: String!
-  scanned: Float!
-  inserted: Float!
-  skipped: Float!
+type HttpHeader {
+  name: String!
+  value: String!
+}
+
+type PresignedUpload {
+  """Presigned URL — client PUTs the image body here."""
+  uploadUrl: String!
+
+  """Echo back to confirmImageUpload after PUT succeeds."""
+  key: String!
+
+  """Headers required on the PUT request."""
+  headers: [HttpHeader!]!
+
+  """URL becomes invalid at this time."""
+  expiresAt: DateTime!
 }
 
 type CommentType {
@@ -224,17 +240,16 @@ type Mutation {
 
   """กดถูกใจ/ยกเลิกถูกใจโพสต์"""
   toggleLike(postId: Int!): Boolean!
-  uploadBPImage(file: Upload!): AnalysisJob!
+
+  """จัดคิวให้ AI วิเคราะห์รูป BP ที่อัปขึ้น S3 แล้ว (presigned flow)"""
+  analyzeBPImage(input: AnalyzeBPImageInput!): AnalysisJob!
   submitBPReading(input: SubmitBPReadingInput!): BPReadingRecordObject!
 
-  """อัปโหลดรูปโปรไฟล์เข้า S3"""
-  uploadProfileImage(input: UploadImageInput!): UploadedImageType!
+  """ขอ presigned URL เพื่ออัปโหลดรูปตรงสู่ S3"""
+  requestImageUpload(input: RequestImageUploadInput!): PresignedUpload!
 
-  """อัปโหลดรูปเครื่องวัดความดันเข้า S3"""
-  uploadBloodPressureImage(input: UploadImageInput!): UploadedImageType!
-
-  """ซิงก์รูปเครื่องวัดความดันจาก S3 prefix เข้า table images"""
-  syncBloodPressureImagesFromStorage(prefix: String): SyncStorageImagesType!
+  """ยืนยันการอัปโหลด หลัง PUT ไป S3 สำเร็จ"""
+  confirmImageUpload(input: ConfirmImageUploadInput!): ConfirmedImage!
 
   """สร้างความคิดเห็นใหม่"""
   createComment(input: CreateCommentInput!): CommentType!
@@ -322,8 +337,13 @@ input UpdatePostInput {
   category: String
 }
 
-"""The `Upload` scalar type represents a file upload."""
-scalar Upload
+input AnalyzeBPImageInput {
+  """
+  S3 key returned by confirmImageUpload for a BLOOD_PRESSURE_READING image.
+  """
+  s3Key: String!
+  mimeType: String!
+}
 
 input SubmitBPReadingInput {
   jobId: String
@@ -334,10 +354,24 @@ input SubmitBPReadingInput {
   measuredAt: String!
 }
 
-input UploadImageInput {
-  base64: String!
+input RequestImageUploadInput {
+  kind: ImageKind!
   mimeType: String!
-  fileName: String
+
+  """File size in bytes (used to constrain the presigned PUT)"""
+  size: Int!
+}
+
+"""Kind of image being uploaded — drives folder placement."""
+enum ImageKind {
+  PROFILE
+  BLOOD_PRESSURE_READING
+}
+
+input ConfirmImageUploadInput {
+  """Key returned by requestImageUpload"""
+  key: String!
+  kind: ImageKind!
 }
 
 input CreateCommentInput {

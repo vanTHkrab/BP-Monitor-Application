@@ -277,6 +277,7 @@ export type BloodPressureReadingWhereInput = {
   notes?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
   createdAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  alerts?: Prisma.AlertListRelationFilter
 }
 
 export type BloodPressureReadingOrderByWithRelationInput = {
@@ -292,6 +293,7 @@ export type BloodPressureReadingOrderByWithRelationInput = {
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
+  alerts?: Prisma.AlertOrderByRelationAggregateInput
 }
 
 export type BloodPressureReadingWhereUniqueInput = Prisma.AtLeast<{
@@ -310,6 +312,7 @@ export type BloodPressureReadingWhereUniqueInput = Prisma.AtLeast<{
   notes?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
   createdAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  alerts?: Prisma.AlertListRelationFilter
 }, "id" | "clientId">
 
 export type BloodPressureReadingOrderByWithAggregationInput = {
@@ -359,6 +362,7 @@ export type BloodPressureReadingCreateInput = {
   notes?: string | null
   createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutReadingsInput
+  alerts?: Prisma.AlertCreateNestedManyWithoutReadingInput
 }
 
 export type BloodPressureReadingUncheckedCreateInput = {
@@ -373,6 +377,7 @@ export type BloodPressureReadingUncheckedCreateInput = {
   imageUri?: string | null
   notes?: string | null
   createdAt?: Date | string
+  alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutReadingInput
 }
 
 export type BloodPressureReadingUpdateInput = {
@@ -386,6 +391,7 @@ export type BloodPressureReadingUpdateInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutReadingsNestedInput
+  alerts?: Prisma.AlertUpdateManyWithoutReadingNestedInput
 }
 
 export type BloodPressureReadingUncheckedUpdateInput = {
@@ -400,6 +406,7 @@ export type BloodPressureReadingUncheckedUpdateInput = {
   imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  alerts?: Prisma.AlertUncheckedUpdateManyWithoutReadingNestedInput
 }
 
 export type BloodPressureReadingCreateManyInput = {
@@ -450,6 +457,11 @@ export type BloodPressureReadingListRelationFilter = {
 
 export type BloodPressureReadingOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
+}
+
+export type BloodPressureReadingScalarRelationFilter = {
+  is?: Prisma.BloodPressureReadingWhereInput
+  isNot?: Prisma.BloodPressureReadingWhereInput
 }
 
 export type BloodPressureReadingCountOrderByAggregateInput = {
@@ -550,6 +562,20 @@ export type BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.BloodPressureReadingScalarWhereInput | Prisma.BloodPressureReadingScalarWhereInput[]
 }
 
+export type BloodPressureReadingCreateNestedOneWithoutAlertsInput = {
+  create?: Prisma.XOR<Prisma.BloodPressureReadingCreateWithoutAlertsInput, Prisma.BloodPressureReadingUncheckedCreateWithoutAlertsInput>
+  connectOrCreate?: Prisma.BloodPressureReadingCreateOrConnectWithoutAlertsInput
+  connect?: Prisma.BloodPressureReadingWhereUniqueInput
+}
+
+export type BloodPressureReadingUpdateOneRequiredWithoutAlertsNestedInput = {
+  create?: Prisma.XOR<Prisma.BloodPressureReadingCreateWithoutAlertsInput, Prisma.BloodPressureReadingUncheckedCreateWithoutAlertsInput>
+  connectOrCreate?: Prisma.BloodPressureReadingCreateOrConnectWithoutAlertsInput
+  upsert?: Prisma.BloodPressureReadingUpsertWithoutAlertsInput
+  connect?: Prisma.BloodPressureReadingWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.BloodPressureReadingUpdateToOneWithWhereWithoutAlertsInput, Prisma.BloodPressureReadingUpdateWithoutAlertsInput>, Prisma.BloodPressureReadingUncheckedUpdateWithoutAlertsInput>
+}
+
 export type EnumBpStatusFieldUpdateOperationsInput = {
   set?: $Enums.BpStatus
 }
@@ -564,6 +590,7 @@ export type BloodPressureReadingCreateWithoutUserInput = {
   imageUri?: string | null
   notes?: string | null
   createdAt?: Date | string
+  alerts?: Prisma.AlertCreateNestedManyWithoutReadingInput
 }
 
 export type BloodPressureReadingUncheckedCreateWithoutUserInput = {
@@ -577,6 +604,7 @@ export type BloodPressureReadingUncheckedCreateWithoutUserInput = {
   imageUri?: string | null
   notes?: string | null
   createdAt?: Date | string
+  alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutReadingInput
 }
 
 export type BloodPressureReadingCreateOrConnectWithoutUserInput = {
@@ -622,6 +650,76 @@ export type BloodPressureReadingScalarWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
 }
 
+export type BloodPressureReadingCreateWithoutAlertsInput = {
+  clientId?: string | null
+  systolic: number
+  diastolic: number
+  pulse: number
+  status: $Enums.BpStatus
+  measuredAt: Date | string
+  imageUri?: string | null
+  notes?: string | null
+  createdAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutReadingsInput
+}
+
+export type BloodPressureReadingUncheckedCreateWithoutAlertsInput = {
+  id?: number
+  userId: string
+  clientId?: string | null
+  systolic: number
+  diastolic: number
+  pulse: number
+  status: $Enums.BpStatus
+  measuredAt: Date | string
+  imageUri?: string | null
+  notes?: string | null
+  createdAt?: Date | string
+}
+
+export type BloodPressureReadingCreateOrConnectWithoutAlertsInput = {
+  where: Prisma.BloodPressureReadingWhereUniqueInput
+  create: Prisma.XOR<Prisma.BloodPressureReadingCreateWithoutAlertsInput, Prisma.BloodPressureReadingUncheckedCreateWithoutAlertsInput>
+}
+
+export type BloodPressureReadingUpsertWithoutAlertsInput = {
+  update: Prisma.XOR<Prisma.BloodPressureReadingUpdateWithoutAlertsInput, Prisma.BloodPressureReadingUncheckedUpdateWithoutAlertsInput>
+  create: Prisma.XOR<Prisma.BloodPressureReadingCreateWithoutAlertsInput, Prisma.BloodPressureReadingUncheckedCreateWithoutAlertsInput>
+  where?: Prisma.BloodPressureReadingWhereInput
+}
+
+export type BloodPressureReadingUpdateToOneWithWhereWithoutAlertsInput = {
+  where?: Prisma.BloodPressureReadingWhereInput
+  data: Prisma.XOR<Prisma.BloodPressureReadingUpdateWithoutAlertsInput, Prisma.BloodPressureReadingUncheckedUpdateWithoutAlertsInput>
+}
+
+export type BloodPressureReadingUpdateWithoutAlertsInput = {
+  clientId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  systolic?: Prisma.IntFieldUpdateOperationsInput | number
+  diastolic?: Prisma.IntFieldUpdateOperationsInput | number
+  pulse?: Prisma.IntFieldUpdateOperationsInput | number
+  status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
+  measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutReadingsNestedInput
+}
+
+export type BloodPressureReadingUncheckedUpdateWithoutAlertsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  clientId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  systolic?: Prisma.IntFieldUpdateOperationsInput | number
+  diastolic?: Prisma.IntFieldUpdateOperationsInput | number
+  pulse?: Prisma.IntFieldUpdateOperationsInput | number
+  status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
+  measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
 export type BloodPressureReadingCreateManyUserInput = {
   id?: number
   clientId?: string | null
@@ -645,6 +743,7 @@ export type BloodPressureReadingUpdateWithoutUserInput = {
   imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  alerts?: Prisma.AlertUpdateManyWithoutReadingNestedInput
 }
 
 export type BloodPressureReadingUncheckedUpdateWithoutUserInput = {
@@ -658,6 +757,7 @@ export type BloodPressureReadingUncheckedUpdateWithoutUserInput = {
   imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  alerts?: Prisma.AlertUncheckedUpdateManyWithoutReadingNestedInput
 }
 
 export type BloodPressureReadingUncheckedUpdateManyWithoutUserInput = {
@@ -674,6 +774,35 @@ export type BloodPressureReadingUncheckedUpdateManyWithoutUserInput = {
 }
 
 
+/**
+ * Count Type BloodPressureReadingCountOutputType
+ */
+
+export type BloodPressureReadingCountOutputType = {
+  alerts: number
+}
+
+export type BloodPressureReadingCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  alerts?: boolean | BloodPressureReadingCountOutputTypeCountAlertsArgs
+}
+
+/**
+ * BloodPressureReadingCountOutputType without action
+ */
+export type BloodPressureReadingCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the BloodPressureReadingCountOutputType
+   */
+  select?: Prisma.BloodPressureReadingCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * BloodPressureReadingCountOutputType without action
+ */
+export type BloodPressureReadingCountOutputTypeCountAlertsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AlertWhereInput
+}
+
 
 export type BloodPressureReadingSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -688,6 +817,8 @@ export type BloodPressureReadingSelect<ExtArgs extends runtime.Types.Extensions.
   notes?: boolean
   createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  alerts?: boolean | Prisma.BloodPressureReading$alertsArgs<ExtArgs>
+  _count?: boolean | Prisma.BloodPressureReadingCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["bloodPressureReading"]>
 
 export type BloodPressureReadingSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -737,6 +868,8 @@ export type BloodPressureReadingSelectScalar = {
 export type BloodPressureReadingOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "clientId" | "systolic" | "diastolic" | "pulse" | "status" | "measuredAt" | "imageUri" | "notes" | "createdAt", ExtArgs["result"]["bloodPressureReading"]>
 export type BloodPressureReadingInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  alerts?: boolean | Prisma.BloodPressureReading$alertsArgs<ExtArgs>
+  _count?: boolean | Prisma.BloodPressureReadingCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type BloodPressureReadingIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -749,6 +882,7 @@ export type $BloodPressureReadingPayload<ExtArgs extends runtime.Types.Extension
   name: "BloodPressureReading"
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
+    alerts: Prisma.$AlertPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1157,6 +1291,7 @@ readonly fields: BloodPressureReadingFieldRefs;
 export interface Prisma__BloodPressureReadingClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  alerts<T extends Prisma.BloodPressureReading$alertsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.BloodPressureReading$alertsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AlertPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1595,6 +1730,30 @@ export type BloodPressureReadingDeleteManyArgs<ExtArgs extends runtime.Types.Ext
    * Limit how many BloodPressureReadings to delete.
    */
   limit?: number
+}
+
+/**
+ * BloodPressureReading.alerts
+ */
+export type BloodPressureReading$alertsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Alert
+   */
+  select?: Prisma.AlertSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Alert
+   */
+  omit?: Prisma.AlertOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AlertInclude<ExtArgs> | null
+  where?: Prisma.AlertWhereInput
+  orderBy?: Prisma.AlertOrderByWithRelationInput | Prisma.AlertOrderByWithRelationInput[]
+  cursor?: Prisma.AlertWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AlertScalarFieldEnum | Prisma.AlertScalarFieldEnum[]
 }
 
 /**

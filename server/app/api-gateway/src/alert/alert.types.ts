@@ -1,27 +1,25 @@
-import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
+import { Field, Int, ObjectType } from '@nestjs/graphql';
 
 @ObjectType()
-export class AlertAnalysisType {
+export class AlertReadingType {
   @Field(() => Int) id: number;
   @Field(() => Int) systolic: number;
   @Field(() => Int) diastolic: number;
   @Field(() => Int) pulse: number;
-  @Field(() => Float) confidence: number;
-  @Field() bpLevel: string;
-  @Field({ nullable: true }) analysisNote?: string;
-  @Field() analyzedAt: Date;
-  @Field({ nullable: true }) imageUrl?: string;
+  @Field() status: string;
+  @Field() measuredAt: Date;
+  @Field({ nullable: true }) imageUri?: string;
 }
 
 @ObjectType()
 export class AlertType {
   @Field(() => Int) id: number;
   @Field() userId: string;
-  @Field(() => Int) analysisId: number;
+  @Field(() => Int) bpReadingId: number;
   @Field() alertMessage: string;
   @Field() alertLevel: string;
   @Field() isRead: boolean;
   @Field() createdAt: Date;
-  @Field(() => AlertAnalysisType, { nullable: true })
-  analysis?: AlertAnalysisType;
+  @Field(() => AlertReadingType, { nullable: true })
+  reading?: AlertReadingType;
 }

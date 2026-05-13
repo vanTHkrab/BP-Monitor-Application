@@ -38,11 +38,6 @@ export type CaregiverPatient = Prisma.CaregiverPatientModel
  */
 export type Image = Prisma.ImageModel
 /**
- * Model AnalysisResult
- * 
- */
-export type AnalysisResult = Prisma.AnalysisResultModel
-/**
  * Model Alert
  * 
  */

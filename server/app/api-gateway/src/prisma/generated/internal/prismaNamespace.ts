@@ -388,7 +388,6 @@ export const ModelName = {
   UserSession: 'UserSession',
   CaregiverPatient: 'CaregiverPatient',
   Image: 'Image',
-  AnalysisResult: 'AnalysisResult',
   Alert: 'Alert',
   BloodPressureReading: 'BloodPressureReading',
   Post: 'Post',
@@ -410,7 +409,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "userSession" | "caregiverPatient" | "image" | "analysisResult" | "alert" | "bloodPressureReading" | "post" | "postComment" | "postCommentLike" | "postLike"
+    modelProps: "user" | "userSession" | "caregiverPatient" | "image" | "alert" | "bloodPressureReading" | "post" | "postComment" | "postCommentLike" | "postLike"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -707,80 +706,6 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ImageCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ImageCountAggregateOutputType> | number
-        }
-      }
-    }
-    AnalysisResult: {
-      payload: Prisma.$AnalysisResultPayload<ExtArgs>
-      fields: Prisma.AnalysisResultFieldRefs
-      operations: {
-        findUnique: {
-          args: Prisma.AnalysisResultFindUniqueArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload> | null
-        }
-        findUniqueOrThrow: {
-          args: Prisma.AnalysisResultFindUniqueOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>
-        }
-        findFirst: {
-          args: Prisma.AnalysisResultFindFirstArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload> | null
-        }
-        findFirstOrThrow: {
-          args: Prisma.AnalysisResultFindFirstOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>
-        }
-        findMany: {
-          args: Prisma.AnalysisResultFindManyArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>[]
-        }
-        create: {
-          args: Prisma.AnalysisResultCreateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>
-        }
-        createMany: {
-          args: Prisma.AnalysisResultCreateManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        createManyAndReturn: {
-          args: Prisma.AnalysisResultCreateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>[]
-        }
-        delete: {
-          args: Prisma.AnalysisResultDeleteArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>
-        }
-        update: {
-          args: Prisma.AnalysisResultUpdateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>
-        }
-        deleteMany: {
-          args: Prisma.AnalysisResultDeleteManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        updateMany: {
-          args: Prisma.AnalysisResultUpdateManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        updateManyAndReturn: {
-          args: Prisma.AnalysisResultUpdateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>[]
-        }
-        upsert: {
-          args: Prisma.AnalysisResultUpsertArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnalysisResultPayload>
-        }
-        aggregate: {
-          args: Prisma.AnalysisResultAggregateArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.AggregateAnalysisResult>
-        }
-        groupBy: {
-          args: Prisma.AnalysisResultGroupByArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.AnalysisResultGroupByOutputType>[]
-        }
-        count: {
-          args: Prisma.AnalysisResultCountArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.AnalysisResultCountAggregateOutputType> | number
         }
       }
     }
@@ -1324,25 +1249,10 @@ export const ImageScalarFieldEnum = {
 export type ImageScalarFieldEnum = (typeof ImageScalarFieldEnum)[keyof typeof ImageScalarFieldEnum]
 
 
-export const AnalysisResultScalarFieldEnum = {
-  id: 'id',
-  imageId: 'imageId',
-  systolic: 'systolic',
-  diastolic: 'diastolic',
-  pulseRate: 'pulseRate',
-  confidenceScore: 'confidenceScore',
-  bpLevel: 'bpLevel',
-  analysisNote: 'analysisNote',
-  analyzedAt: 'analyzedAt'
-} as const
-
-export type AnalysisResultScalarFieldEnum = (typeof AnalysisResultScalarFieldEnum)[keyof typeof AnalysisResultScalarFieldEnum]
-
-
 export const AlertScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
-  analysisId: 'analysisId',
+  bpReadingId: 'bpReadingId',
   alertMessage: 'alertMessage',
   alertLevel: 'alertLevel',
   isRead: 'isRead',
@@ -1547,20 +1457,6 @@ export type ListEnumImageSyncStatusFieldRefInput<$PrismaModel> = FieldRefInputTy
 
 
 /**
- * Reference to a field of type 'BpLevel'
- */
-export type EnumBpLevelFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BpLevel'>
-    
-
-
-/**
- * Reference to a field of type 'BpLevel[]'
- */
-export type ListEnumBpLevelFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BpLevel[]'>
-    
-
-
-/**
  * Reference to a field of type 'AlertLevel'
  */
 export type EnumAlertLevelFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AlertLevel'>
@@ -1700,7 +1596,6 @@ export type GlobalOmitConfig = {
   userSession?: Prisma.UserSessionOmit
   caregiverPatient?: Prisma.CaregiverPatientOmit
   image?: Prisma.ImageOmit
-  analysisResult?: Prisma.AnalysisResultOmit
   alert?: Prisma.AlertOmit
   bloodPressureReading?: Prisma.BloodPressureReadingOmit
   post?: Prisma.PostOmit

@@ -245,7 +245,6 @@ export type ImageWhereInput = {
   syncedAt?: Prisma.DateTimeNullableFilter<"Image"> | Date | string | null
   uploadedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
-  analysisResult?: Prisma.XOR<Prisma.AnalysisResultNullableScalarRelationFilter, Prisma.AnalysisResultWhereInput> | null
 }
 
 export type ImageOrderByWithRelationInput = {
@@ -258,7 +257,6 @@ export type ImageOrderByWithRelationInput = {
   syncedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
-  analysisResult?: Prisma.AnalysisResultOrderByWithRelationInput
 }
 
 export type ImageWhereUniqueInput = Prisma.AtLeast<{
@@ -274,7 +272,6 @@ export type ImageWhereUniqueInput = Prisma.AtLeast<{
   syncedAt?: Prisma.DateTimeNullableFilter<"Image"> | Date | string | null
   uploadedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
-  analysisResult?: Prisma.XOR<Prisma.AnalysisResultNullableScalarRelationFilter, Prisma.AnalysisResultWhereInput> | null
 }, "id">
 
 export type ImageOrderByWithAggregationInput = {
@@ -315,7 +312,6 @@ export type ImageCreateInput = {
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutImagesInput
-  analysisResult?: Prisma.AnalysisResultCreateNestedOneWithoutImageInput
 }
 
 export type ImageUncheckedCreateInput = {
@@ -327,7 +323,6 @@ export type ImageUncheckedCreateInput = {
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
-  analysisResult?: Prisma.AnalysisResultUncheckedCreateNestedOneWithoutImageInput
 }
 
 export type ImageUpdateInput = {
@@ -338,7 +333,6 @@ export type ImageUpdateInput = {
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutImagesNestedInput
-  analysisResult?: Prisma.AnalysisResultUpdateOneWithoutImageNestedInput
 }
 
 export type ImageUncheckedUpdateInput = {
@@ -350,7 +344,6 @@ export type ImageUncheckedUpdateInput = {
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  analysisResult?: Prisma.AnalysisResultUncheckedUpdateOneWithoutImageNestedInput
 }
 
 export type ImageCreateManyInput = {
@@ -437,11 +430,6 @@ export type ImageSumOrderByAggregateInput = {
   imageQualityScore?: Prisma.SortOrder
 }
 
-export type ImageScalarRelationFilter = {
-  is?: Prisma.ImageWhereInput
-  isNot?: Prisma.ImageWhereInput
-}
-
 export type ImageCreateNestedManyWithoutUserInput = {
   create?: Prisma.XOR<Prisma.ImageCreateWithoutUserInput, Prisma.ImageUncheckedCreateWithoutUserInput> | Prisma.ImageCreateWithoutUserInput[] | Prisma.ImageUncheckedCreateWithoutUserInput[]
   connectOrCreate?: Prisma.ImageCreateOrConnectWithoutUserInput | Prisma.ImageCreateOrConnectWithoutUserInput[]
@@ -496,20 +484,6 @@ export type IntFieldUpdateOperationsInput = {
   divide?: number
 }
 
-export type ImageCreateNestedOneWithoutAnalysisResultInput = {
-  create?: Prisma.XOR<Prisma.ImageCreateWithoutAnalysisResultInput, Prisma.ImageUncheckedCreateWithoutAnalysisResultInput>
-  connectOrCreate?: Prisma.ImageCreateOrConnectWithoutAnalysisResultInput
-  connect?: Prisma.ImageWhereUniqueInput
-}
-
-export type ImageUpdateOneRequiredWithoutAnalysisResultNestedInput = {
-  create?: Prisma.XOR<Prisma.ImageCreateWithoutAnalysisResultInput, Prisma.ImageUncheckedCreateWithoutAnalysisResultInput>
-  connectOrCreate?: Prisma.ImageCreateOrConnectWithoutAnalysisResultInput
-  upsert?: Prisma.ImageUpsertWithoutAnalysisResultInput
-  connect?: Prisma.ImageWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.ImageUpdateToOneWithWhereWithoutAnalysisResultInput, Prisma.ImageUpdateWithoutAnalysisResultInput>, Prisma.ImageUncheckedUpdateWithoutAnalysisResultInput>
-}
-
 export type ImageCreateWithoutUserInput = {
   imageUrl: string
   deviceName: string
@@ -517,7 +491,6 @@ export type ImageCreateWithoutUserInput = {
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
-  analysisResult?: Prisma.AnalysisResultCreateNestedOneWithoutImageInput
 }
 
 export type ImageUncheckedCreateWithoutUserInput = {
@@ -528,7 +501,6 @@ export type ImageUncheckedCreateWithoutUserInput = {
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
-  analysisResult?: Prisma.AnalysisResultUncheckedCreateNestedOneWithoutImageInput
 }
 
 export type ImageCreateOrConnectWithoutUserInput = {
@@ -571,64 +543,6 @@ export type ImageScalarWhereInput = {
   uploadedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
 }
 
-export type ImageCreateWithoutAnalysisResultInput = {
-  imageUrl: string
-  deviceName: string
-  imageQualityScore?: number | null
-  syncStatus?: $Enums.ImageSyncStatus
-  syncedAt?: Date | string | null
-  uploadedAt?: Date | string
-  user: Prisma.UserCreateNestedOneWithoutImagesInput
-}
-
-export type ImageUncheckedCreateWithoutAnalysisResultInput = {
-  id?: number
-  userId: string
-  imageUrl: string
-  deviceName: string
-  imageQualityScore?: number | null
-  syncStatus?: $Enums.ImageSyncStatus
-  syncedAt?: Date | string | null
-  uploadedAt?: Date | string
-}
-
-export type ImageCreateOrConnectWithoutAnalysisResultInput = {
-  where: Prisma.ImageWhereUniqueInput
-  create: Prisma.XOR<Prisma.ImageCreateWithoutAnalysisResultInput, Prisma.ImageUncheckedCreateWithoutAnalysisResultInput>
-}
-
-export type ImageUpsertWithoutAnalysisResultInput = {
-  update: Prisma.XOR<Prisma.ImageUpdateWithoutAnalysisResultInput, Prisma.ImageUncheckedUpdateWithoutAnalysisResultInput>
-  create: Prisma.XOR<Prisma.ImageCreateWithoutAnalysisResultInput, Prisma.ImageUncheckedCreateWithoutAnalysisResultInput>
-  where?: Prisma.ImageWhereInput
-}
-
-export type ImageUpdateToOneWithWhereWithoutAnalysisResultInput = {
-  where?: Prisma.ImageWhereInput
-  data: Prisma.XOR<Prisma.ImageUpdateWithoutAnalysisResultInput, Prisma.ImageUncheckedUpdateWithoutAnalysisResultInput>
-}
-
-export type ImageUpdateWithoutAnalysisResultInput = {
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
-  deviceName?: Prisma.StringFieldUpdateOperationsInput | string
-  imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
-  syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
-  syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  user?: Prisma.UserUpdateOneRequiredWithoutImagesNestedInput
-}
-
-export type ImageUncheckedUpdateWithoutAnalysisResultInput = {
-  id?: Prisma.IntFieldUpdateOperationsInput | number
-  userId?: Prisma.StringFieldUpdateOperationsInput | string
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
-  deviceName?: Prisma.StringFieldUpdateOperationsInput | string
-  imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
-  syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
-  syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-}
-
 export type ImageCreateManyUserInput = {
   id?: number
   imageUrl: string
@@ -646,7 +560,6 @@ export type ImageUpdateWithoutUserInput = {
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  analysisResult?: Prisma.AnalysisResultUpdateOneWithoutImageNestedInput
 }
 
 export type ImageUncheckedUpdateWithoutUserInput = {
@@ -657,7 +570,6 @@ export type ImageUncheckedUpdateWithoutUserInput = {
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  analysisResult?: Prisma.AnalysisResultUncheckedUpdateOneWithoutImageNestedInput
 }
 
 export type ImageUncheckedUpdateManyWithoutUserInput = {
@@ -682,7 +594,6 @@ export type ImageSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   syncedAt?: boolean
   uploadedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
-  analysisResult?: boolean | Prisma.Image$analysisResultArgs<ExtArgs>
 }, ExtArgs["result"]["image"]>
 
 export type ImageSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -723,7 +634,6 @@ export type ImageSelectScalar = {
 export type ImageOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "imageUrl" | "deviceName" | "imageQualityScore" | "syncStatus" | "syncedAt" | "uploadedAt", ExtArgs["result"]["image"]>
 export type ImageInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
-  analysisResult?: boolean | Prisma.Image$analysisResultArgs<ExtArgs>
 }
 export type ImageIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -736,7 +646,6 @@ export type $ImagePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   name: "Image"
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
-    analysisResult: Prisma.$AnalysisResultPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1142,7 +1051,6 @@ readonly fields: ImageFieldRefs;
 export interface Prisma__ImageClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
-  analysisResult<T extends Prisma.Image$analysisResultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Image$analysisResultArgs<ExtArgs>>): Prisma.Prisma__AnalysisResultClient<runtime.Types.Result.GetResult<Prisma.$AnalysisResultPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1578,25 +1486,6 @@ export type ImageDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Interna
    * Limit how many Images to delete.
    */
   limit?: number
-}
-
-/**
- * Image.analysisResult
- */
-export type Image$analysisResultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the AnalysisResult
-   */
-  select?: Prisma.AnalysisResultSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the AnalysisResult
-   */
-  omit?: Prisma.AnalysisResultOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.AnalysisResultInclude<ExtArgs> | null
-  where?: Prisma.AnalysisResultWhereInput
 }
 
 /**

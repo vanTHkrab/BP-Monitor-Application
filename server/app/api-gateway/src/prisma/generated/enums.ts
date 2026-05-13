@@ -36,15 +36,6 @@ export const ImageSyncStatus = {
 export type ImageSyncStatus = (typeof ImageSyncStatus)[keyof typeof ImageSyncStatus]
 
 
-export const BpLevel = {
-  normal: 'normal',
-  elevated: 'elevated',
-  highRisk: 'highRisk'
-} as const
-
-export type BpLevel = (typeof BpLevel)[keyof typeof BpLevel]
-
-
 export const AlertLevel = {
   warning: 'warning',
   critical: 'critical'

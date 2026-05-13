@@ -31,12 +31,6 @@ enum ImageSyncStatus {
   failed
 }
 
-enum BpLevel {
-  normal
-  elevated
-  highRisk @map("high risk")
-}
-
 enum AlertLevel {
   warning
   critical
@@ -64,7 +58,7 @@ model User {
   firstname         String   @db.VarChar(100)
   lastname          String   @db.VarChar(100)
   phone             String   @unique @db.VarChar(30)
-  passwordHash      String   @map("password") @db.VarChar(255)
+  passwordHash      String   @map("password_hash") @db.VarChar(255)
   role              UserRole @default(patient)
   dob               DateTime? @db.Date
   gender            Gender?
@@ -129,46 +123,26 @@ model Image {
   syncedAt          DateTime?       @map("synced_at")
   uploadedAt        DateTime        @default(now()) @map("uploaded_at")
 
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  analysisResult AnalysisResult?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([syncStatus])
   @@map("images")
 }
 
-model AnalysisResult {
-  id              Int      @id @default(autoincrement())
-  imageId         Int      @unique @map("image_id")
-  systolic        Int
-  diastolic       Int
-  pulseRate       Int      @map("pulse_rate")
-  confidenceScore Float    @map("confidence_score")
-  bpLevel         BpLevel  @map("bp_level")
-  analysisNote    String?  @map("analysis_note") @db.VarChar(500)
-  analyzedAt      DateTime @default(now()) @map("analyzed_at")
-
-  image  Image   @relation(fields: [imageId], references: [id], onDelete: Cascade)
-  alerts Alert[]
-
-  @@index([bpLevel])
-  @@index([analyzedAt])
-  @@map("analysis_results")
-}
-
 model Alert {
   id           Int        @id @default(autoincrement())
   userId       String     @map("user_id") @db.Uuid
-  analysisId   Int        @map("analysis_id")
+  bpReadingId  Int        @map("bp_reading_id")
   alertMessage String     @map("alert_message") @db.VarChar(500)
   alertLevel   AlertLevel @map("alert_level")
   isRead       Boolean    @default(false) @map("is_read")
   createdAt    DateTime   @default(now()) @map("created_at")
 
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  analysis AnalysisResult @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reading BloodPressureReading @relation(fields: [bpReadingId], references: [id], onDelete: Cascade)
 
-  @@index([analysisId])
+  @@index([bpReadingId])
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("alerts")
@@ -190,7 +164,8 @@ model BloodPressureReading {
   notes      String?  @db.VarChar(500)
   createdAt  DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts Alert[]
 
   @@index([userId])
   @@index([measuredAt])

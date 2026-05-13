@@ -28,18 +28,18 @@ export type AggregateAlert = {
 
 export type AlertAvgAggregateOutputType = {
   id: number | null
-  analysisId: number | null
+  bpReadingId: number | null
 }
 
 export type AlertSumAggregateOutputType = {
   id: number | null
-  analysisId: number | null
+  bpReadingId: number | null
 }
 
 export type AlertMinAggregateOutputType = {
   id: number | null
   userId: string | null
-  analysisId: number | null
+  bpReadingId: number | null
   alertMessage: string | null
   alertLevel: $Enums.AlertLevel | null
   isRead: boolean | null
@@ -49,7 +49,7 @@ export type AlertMinAggregateOutputType = {
 export type AlertMaxAggregateOutputType = {
   id: number | null
   userId: string | null
-  analysisId: number | null
+  bpReadingId: number | null
   alertMessage: string | null
   alertLevel: $Enums.AlertLevel | null
   isRead: boolean | null
@@ -59,7 +59,7 @@ export type AlertMaxAggregateOutputType = {
 export type AlertCountAggregateOutputType = {
   id: number
   userId: number
-  analysisId: number
+  bpReadingId: number
   alertMessage: number
   alertLevel: number
   isRead: number
@@ -70,18 +70,18 @@ export type AlertCountAggregateOutputType = {
 
 export type AlertAvgAggregateInputType = {
   id?: true
-  analysisId?: true
+  bpReadingId?: true
 }
 
 export type AlertSumAggregateInputType = {
   id?: true
-  analysisId?: true
+  bpReadingId?: true
 }
 
 export type AlertMinAggregateInputType = {
   id?: true
   userId?: true
-  analysisId?: true
+  bpReadingId?: true
   alertMessage?: true
   alertLevel?: true
   isRead?: true
@@ -91,7 +91,7 @@ export type AlertMinAggregateInputType = {
 export type AlertMaxAggregateInputType = {
   id?: true
   userId?: true
-  analysisId?: true
+  bpReadingId?: true
   alertMessage?: true
   alertLevel?: true
   isRead?: true
@@ -101,7 +101,7 @@ export type AlertMaxAggregateInputType = {
 export type AlertCountAggregateInputType = {
   id?: true
   userId?: true
-  analysisId?: true
+  bpReadingId?: true
   alertMessage?: true
   alertLevel?: true
   isRead?: true
@@ -198,7 +198,7 @@ export type AlertGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
 export type AlertGroupByOutputType = {
   id: number
   userId: string
-  analysisId: number
+  bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
   isRead: boolean
@@ -231,25 +231,25 @@ export type AlertWhereInput = {
   NOT?: Prisma.AlertWhereInput | Prisma.AlertWhereInput[]
   id?: Prisma.IntFilter<"Alert"> | number
   userId?: Prisma.UuidFilter<"Alert"> | string
-  analysisId?: Prisma.IntFilter<"Alert"> | number
+  bpReadingId?: Prisma.IntFilter<"Alert"> | number
   alertMessage?: Prisma.StringFilter<"Alert"> | string
   alertLevel?: Prisma.EnumAlertLevelFilter<"Alert"> | $Enums.AlertLevel
   isRead?: Prisma.BoolFilter<"Alert"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
-  analysis?: Prisma.XOR<Prisma.AnalysisResultScalarRelationFilter, Prisma.AnalysisResultWhereInput>
+  reading?: Prisma.XOR<Prisma.BloodPressureReadingScalarRelationFilter, Prisma.BloodPressureReadingWhereInput>
 }
 
 export type AlertOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  analysisId?: Prisma.SortOrder
+  bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
   isRead?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
-  analysis?: Prisma.AnalysisResultOrderByWithRelationInput
+  reading?: Prisma.BloodPressureReadingOrderByWithRelationInput
 }
 
 export type AlertWhereUniqueInput = Prisma.AtLeast<{
@@ -258,19 +258,19 @@ export type AlertWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.AlertWhereInput[]
   NOT?: Prisma.AlertWhereInput | Prisma.AlertWhereInput[]
   userId?: Prisma.UuidFilter<"Alert"> | string
-  analysisId?: Prisma.IntFilter<"Alert"> | number
+  bpReadingId?: Prisma.IntFilter<"Alert"> | number
   alertMessage?: Prisma.StringFilter<"Alert"> | string
   alertLevel?: Prisma.EnumAlertLevelFilter<"Alert"> | $Enums.AlertLevel
   isRead?: Prisma.BoolFilter<"Alert"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
-  analysis?: Prisma.XOR<Prisma.AnalysisResultScalarRelationFilter, Prisma.AnalysisResultWhereInput>
+  reading?: Prisma.XOR<Prisma.BloodPressureReadingScalarRelationFilter, Prisma.BloodPressureReadingWhereInput>
 }, "id">
 
 export type AlertOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  analysisId?: Prisma.SortOrder
+  bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
   isRead?: Prisma.SortOrder
@@ -288,7 +288,7 @@ export type AlertScalarWhereWithAggregatesInput = {
   NOT?: Prisma.AlertScalarWhereWithAggregatesInput | Prisma.AlertScalarWhereWithAggregatesInput[]
   id?: Prisma.IntWithAggregatesFilter<"Alert"> | number
   userId?: Prisma.UuidWithAggregatesFilter<"Alert"> | string
-  analysisId?: Prisma.IntWithAggregatesFilter<"Alert"> | number
+  bpReadingId?: Prisma.IntWithAggregatesFilter<"Alert"> | number
   alertMessage?: Prisma.StringWithAggregatesFilter<"Alert"> | string
   alertLevel?: Prisma.EnumAlertLevelWithAggregatesFilter<"Alert"> | $Enums.AlertLevel
   isRead?: Prisma.BoolWithAggregatesFilter<"Alert"> | boolean
@@ -301,13 +301,13 @@ export type AlertCreateInput = {
   isRead?: boolean
   createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAlertsInput
-  analysis: Prisma.AnalysisResultCreateNestedOneWithoutAlertsInput
+  reading: Prisma.BloodPressureReadingCreateNestedOneWithoutAlertsInput
 }
 
 export type AlertUncheckedCreateInput = {
   id?: number
   userId: string
-  analysisId: number
+  bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
   isRead?: boolean
@@ -320,13 +320,13 @@ export type AlertUpdateInput = {
   isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAlertsNestedInput
-  analysis?: Prisma.AnalysisResultUpdateOneRequiredWithoutAlertsNestedInput
+  reading?: Prisma.BloodPressureReadingUpdateOneRequiredWithoutAlertsNestedInput
 }
 
 export type AlertUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.StringFieldUpdateOperationsInput | string
-  analysisId?: Prisma.IntFieldUpdateOperationsInput | number
+  bpReadingId?: Prisma.IntFieldUpdateOperationsInput | number
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
   isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -336,7 +336,7 @@ export type AlertUncheckedUpdateInput = {
 export type AlertCreateManyInput = {
   id?: number
   userId: string
-  analysisId: number
+  bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
   isRead?: boolean
@@ -353,7 +353,7 @@ export type AlertUpdateManyMutationInput = {
 export type AlertUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.StringFieldUpdateOperationsInput | string
-  analysisId?: Prisma.IntFieldUpdateOperationsInput | number
+  bpReadingId?: Prisma.IntFieldUpdateOperationsInput | number
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
   isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -373,7 +373,7 @@ export type AlertOrderByRelationAggregateInput = {
 export type AlertCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  analysisId?: Prisma.SortOrder
+  bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
   isRead?: Prisma.SortOrder
@@ -382,13 +382,13 @@ export type AlertCountOrderByAggregateInput = {
 
 export type AlertAvgOrderByAggregateInput = {
   id?: Prisma.SortOrder
-  analysisId?: Prisma.SortOrder
+  bpReadingId?: Prisma.SortOrder
 }
 
 export type AlertMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  analysisId?: Prisma.SortOrder
+  bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
   isRead?: Prisma.SortOrder
@@ -398,7 +398,7 @@ export type AlertMaxOrderByAggregateInput = {
 export type AlertMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  analysisId?: Prisma.SortOrder
+  bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
   isRead?: Prisma.SortOrder
@@ -407,7 +407,7 @@ export type AlertMinOrderByAggregateInput = {
 
 export type AlertSumOrderByAggregateInput = {
   id?: Prisma.SortOrder
-  analysisId?: Prisma.SortOrder
+  bpReadingId?: Prisma.SortOrder
 }
 
 export type AlertCreateNestedManyWithoutUserInput = {
@@ -452,50 +452,50 @@ export type AlertUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.AlertScalarWhereInput | Prisma.AlertScalarWhereInput[]
 }
 
-export type AlertCreateNestedManyWithoutAnalysisInput = {
-  create?: Prisma.XOR<Prisma.AlertCreateWithoutAnalysisInput, Prisma.AlertUncheckedCreateWithoutAnalysisInput> | Prisma.AlertCreateWithoutAnalysisInput[] | Prisma.AlertUncheckedCreateWithoutAnalysisInput[]
-  connectOrCreate?: Prisma.AlertCreateOrConnectWithoutAnalysisInput | Prisma.AlertCreateOrConnectWithoutAnalysisInput[]
-  createMany?: Prisma.AlertCreateManyAnalysisInputEnvelope
-  connect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-}
-
-export type AlertUncheckedCreateNestedManyWithoutAnalysisInput = {
-  create?: Prisma.XOR<Prisma.AlertCreateWithoutAnalysisInput, Prisma.AlertUncheckedCreateWithoutAnalysisInput> | Prisma.AlertCreateWithoutAnalysisInput[] | Prisma.AlertUncheckedCreateWithoutAnalysisInput[]
-  connectOrCreate?: Prisma.AlertCreateOrConnectWithoutAnalysisInput | Prisma.AlertCreateOrConnectWithoutAnalysisInput[]
-  createMany?: Prisma.AlertCreateManyAnalysisInputEnvelope
-  connect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-}
-
-export type AlertUpdateManyWithoutAnalysisNestedInput = {
-  create?: Prisma.XOR<Prisma.AlertCreateWithoutAnalysisInput, Prisma.AlertUncheckedCreateWithoutAnalysisInput> | Prisma.AlertCreateWithoutAnalysisInput[] | Prisma.AlertUncheckedCreateWithoutAnalysisInput[]
-  connectOrCreate?: Prisma.AlertCreateOrConnectWithoutAnalysisInput | Prisma.AlertCreateOrConnectWithoutAnalysisInput[]
-  upsert?: Prisma.AlertUpsertWithWhereUniqueWithoutAnalysisInput | Prisma.AlertUpsertWithWhereUniqueWithoutAnalysisInput[]
-  createMany?: Prisma.AlertCreateManyAnalysisInputEnvelope
-  set?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-  disconnect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-  delete?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-  connect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-  update?: Prisma.AlertUpdateWithWhereUniqueWithoutAnalysisInput | Prisma.AlertUpdateWithWhereUniqueWithoutAnalysisInput[]
-  updateMany?: Prisma.AlertUpdateManyWithWhereWithoutAnalysisInput | Prisma.AlertUpdateManyWithWhereWithoutAnalysisInput[]
-  deleteMany?: Prisma.AlertScalarWhereInput | Prisma.AlertScalarWhereInput[]
-}
-
-export type AlertUncheckedUpdateManyWithoutAnalysisNestedInput = {
-  create?: Prisma.XOR<Prisma.AlertCreateWithoutAnalysisInput, Prisma.AlertUncheckedCreateWithoutAnalysisInput> | Prisma.AlertCreateWithoutAnalysisInput[] | Prisma.AlertUncheckedCreateWithoutAnalysisInput[]
-  connectOrCreate?: Prisma.AlertCreateOrConnectWithoutAnalysisInput | Prisma.AlertCreateOrConnectWithoutAnalysisInput[]
-  upsert?: Prisma.AlertUpsertWithWhereUniqueWithoutAnalysisInput | Prisma.AlertUpsertWithWhereUniqueWithoutAnalysisInput[]
-  createMany?: Prisma.AlertCreateManyAnalysisInputEnvelope
-  set?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-  disconnect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-  delete?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-  connect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
-  update?: Prisma.AlertUpdateWithWhereUniqueWithoutAnalysisInput | Prisma.AlertUpdateWithWhereUniqueWithoutAnalysisInput[]
-  updateMany?: Prisma.AlertUpdateManyWithWhereWithoutAnalysisInput | Prisma.AlertUpdateManyWithWhereWithoutAnalysisInput[]
-  deleteMany?: Prisma.AlertScalarWhereInput | Prisma.AlertScalarWhereInput[]
-}
-
 export type EnumAlertLevelFieldUpdateOperationsInput = {
   set?: $Enums.AlertLevel
+}
+
+export type AlertCreateNestedManyWithoutReadingInput = {
+  create?: Prisma.XOR<Prisma.AlertCreateWithoutReadingInput, Prisma.AlertUncheckedCreateWithoutReadingInput> | Prisma.AlertCreateWithoutReadingInput[] | Prisma.AlertUncheckedCreateWithoutReadingInput[]
+  connectOrCreate?: Prisma.AlertCreateOrConnectWithoutReadingInput | Prisma.AlertCreateOrConnectWithoutReadingInput[]
+  createMany?: Prisma.AlertCreateManyReadingInputEnvelope
+  connect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+}
+
+export type AlertUncheckedCreateNestedManyWithoutReadingInput = {
+  create?: Prisma.XOR<Prisma.AlertCreateWithoutReadingInput, Prisma.AlertUncheckedCreateWithoutReadingInput> | Prisma.AlertCreateWithoutReadingInput[] | Prisma.AlertUncheckedCreateWithoutReadingInput[]
+  connectOrCreate?: Prisma.AlertCreateOrConnectWithoutReadingInput | Prisma.AlertCreateOrConnectWithoutReadingInput[]
+  createMany?: Prisma.AlertCreateManyReadingInputEnvelope
+  connect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+}
+
+export type AlertUpdateManyWithoutReadingNestedInput = {
+  create?: Prisma.XOR<Prisma.AlertCreateWithoutReadingInput, Prisma.AlertUncheckedCreateWithoutReadingInput> | Prisma.AlertCreateWithoutReadingInput[] | Prisma.AlertUncheckedCreateWithoutReadingInput[]
+  connectOrCreate?: Prisma.AlertCreateOrConnectWithoutReadingInput | Prisma.AlertCreateOrConnectWithoutReadingInput[]
+  upsert?: Prisma.AlertUpsertWithWhereUniqueWithoutReadingInput | Prisma.AlertUpsertWithWhereUniqueWithoutReadingInput[]
+  createMany?: Prisma.AlertCreateManyReadingInputEnvelope
+  set?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+  disconnect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+  delete?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+  connect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+  update?: Prisma.AlertUpdateWithWhereUniqueWithoutReadingInput | Prisma.AlertUpdateWithWhereUniqueWithoutReadingInput[]
+  updateMany?: Prisma.AlertUpdateManyWithWhereWithoutReadingInput | Prisma.AlertUpdateManyWithWhereWithoutReadingInput[]
+  deleteMany?: Prisma.AlertScalarWhereInput | Prisma.AlertScalarWhereInput[]
+}
+
+export type AlertUncheckedUpdateManyWithoutReadingNestedInput = {
+  create?: Prisma.XOR<Prisma.AlertCreateWithoutReadingInput, Prisma.AlertUncheckedCreateWithoutReadingInput> | Prisma.AlertCreateWithoutReadingInput[] | Prisma.AlertUncheckedCreateWithoutReadingInput[]
+  connectOrCreate?: Prisma.AlertCreateOrConnectWithoutReadingInput | Prisma.AlertCreateOrConnectWithoutReadingInput[]
+  upsert?: Prisma.AlertUpsertWithWhereUniqueWithoutReadingInput | Prisma.AlertUpsertWithWhereUniqueWithoutReadingInput[]
+  createMany?: Prisma.AlertCreateManyReadingInputEnvelope
+  set?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+  disconnect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+  delete?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+  connect?: Prisma.AlertWhereUniqueInput | Prisma.AlertWhereUniqueInput[]
+  update?: Prisma.AlertUpdateWithWhereUniqueWithoutReadingInput | Prisma.AlertUpdateWithWhereUniqueWithoutReadingInput[]
+  updateMany?: Prisma.AlertUpdateManyWithWhereWithoutReadingInput | Prisma.AlertUpdateManyWithWhereWithoutReadingInput[]
+  deleteMany?: Prisma.AlertScalarWhereInput | Prisma.AlertScalarWhereInput[]
 }
 
 export type AlertCreateWithoutUserInput = {
@@ -503,12 +503,12 @@ export type AlertCreateWithoutUserInput = {
   alertLevel: $Enums.AlertLevel
   isRead?: boolean
   createdAt?: Date | string
-  analysis: Prisma.AnalysisResultCreateNestedOneWithoutAlertsInput
+  reading: Prisma.BloodPressureReadingCreateNestedOneWithoutAlertsInput
 }
 
 export type AlertUncheckedCreateWithoutUserInput = {
   id?: number
-  analysisId: number
+  bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
   isRead?: boolean
@@ -547,14 +547,14 @@ export type AlertScalarWhereInput = {
   NOT?: Prisma.AlertScalarWhereInput | Prisma.AlertScalarWhereInput[]
   id?: Prisma.IntFilter<"Alert"> | number
   userId?: Prisma.UuidFilter<"Alert"> | string
-  analysisId?: Prisma.IntFilter<"Alert"> | number
+  bpReadingId?: Prisma.IntFilter<"Alert"> | number
   alertMessage?: Prisma.StringFilter<"Alert"> | string
   alertLevel?: Prisma.EnumAlertLevelFilter<"Alert"> | $Enums.AlertLevel
   isRead?: Prisma.BoolFilter<"Alert"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
 }
 
-export type AlertCreateWithoutAnalysisInput = {
+export type AlertCreateWithoutReadingInput = {
   alertMessage: string
   alertLevel: $Enums.AlertLevel
   isRead?: boolean
@@ -562,7 +562,7 @@ export type AlertCreateWithoutAnalysisInput = {
   user: Prisma.UserCreateNestedOneWithoutAlertsInput
 }
 
-export type AlertUncheckedCreateWithoutAnalysisInput = {
+export type AlertUncheckedCreateWithoutReadingInput = {
   id?: number
   userId: string
   alertMessage: string
@@ -571,35 +571,35 @@ export type AlertUncheckedCreateWithoutAnalysisInput = {
   createdAt?: Date | string
 }
 
-export type AlertCreateOrConnectWithoutAnalysisInput = {
+export type AlertCreateOrConnectWithoutReadingInput = {
   where: Prisma.AlertWhereUniqueInput
-  create: Prisma.XOR<Prisma.AlertCreateWithoutAnalysisInput, Prisma.AlertUncheckedCreateWithoutAnalysisInput>
+  create: Prisma.XOR<Prisma.AlertCreateWithoutReadingInput, Prisma.AlertUncheckedCreateWithoutReadingInput>
 }
 
-export type AlertCreateManyAnalysisInputEnvelope = {
-  data: Prisma.AlertCreateManyAnalysisInput | Prisma.AlertCreateManyAnalysisInput[]
+export type AlertCreateManyReadingInputEnvelope = {
+  data: Prisma.AlertCreateManyReadingInput | Prisma.AlertCreateManyReadingInput[]
   skipDuplicates?: boolean
 }
 
-export type AlertUpsertWithWhereUniqueWithoutAnalysisInput = {
+export type AlertUpsertWithWhereUniqueWithoutReadingInput = {
   where: Prisma.AlertWhereUniqueInput
-  update: Prisma.XOR<Prisma.AlertUpdateWithoutAnalysisInput, Prisma.AlertUncheckedUpdateWithoutAnalysisInput>
-  create: Prisma.XOR<Prisma.AlertCreateWithoutAnalysisInput, Prisma.AlertUncheckedCreateWithoutAnalysisInput>
+  update: Prisma.XOR<Prisma.AlertUpdateWithoutReadingInput, Prisma.AlertUncheckedUpdateWithoutReadingInput>
+  create: Prisma.XOR<Prisma.AlertCreateWithoutReadingInput, Prisma.AlertUncheckedCreateWithoutReadingInput>
 }
 
-export type AlertUpdateWithWhereUniqueWithoutAnalysisInput = {
+export type AlertUpdateWithWhereUniqueWithoutReadingInput = {
   where: Prisma.AlertWhereUniqueInput
-  data: Prisma.XOR<Prisma.AlertUpdateWithoutAnalysisInput, Prisma.AlertUncheckedUpdateWithoutAnalysisInput>
+  data: Prisma.XOR<Prisma.AlertUpdateWithoutReadingInput, Prisma.AlertUncheckedUpdateWithoutReadingInput>
 }
 
-export type AlertUpdateManyWithWhereWithoutAnalysisInput = {
+export type AlertUpdateManyWithWhereWithoutReadingInput = {
   where: Prisma.AlertScalarWhereInput
-  data: Prisma.XOR<Prisma.AlertUpdateManyMutationInput, Prisma.AlertUncheckedUpdateManyWithoutAnalysisInput>
+  data: Prisma.XOR<Prisma.AlertUpdateManyMutationInput, Prisma.AlertUncheckedUpdateManyWithoutReadingInput>
 }
 
 export type AlertCreateManyUserInput = {
   id?: number
-  analysisId: number
+  bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
   isRead?: boolean
@@ -611,12 +611,12 @@ export type AlertUpdateWithoutUserInput = {
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
   isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  analysis?: Prisma.AnalysisResultUpdateOneRequiredWithoutAlertsNestedInput
+  reading?: Prisma.BloodPressureReadingUpdateOneRequiredWithoutAlertsNestedInput
 }
 
 export type AlertUncheckedUpdateWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
-  analysisId?: Prisma.IntFieldUpdateOperationsInput | number
+  bpReadingId?: Prisma.IntFieldUpdateOperationsInput | number
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
   isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -625,14 +625,14 @@ export type AlertUncheckedUpdateWithoutUserInput = {
 
 export type AlertUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
-  analysisId?: Prisma.IntFieldUpdateOperationsInput | number
+  bpReadingId?: Prisma.IntFieldUpdateOperationsInput | number
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
   isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
-export type AlertCreateManyAnalysisInput = {
+export type AlertCreateManyReadingInput = {
   id?: number
   userId: string
   alertMessage: string
@@ -641,7 +641,7 @@ export type AlertCreateManyAnalysisInput = {
   createdAt?: Date | string
 }
 
-export type AlertUpdateWithoutAnalysisInput = {
+export type AlertUpdateWithoutReadingInput = {
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
   isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -649,7 +649,7 @@ export type AlertUpdateWithoutAnalysisInput = {
   user?: Prisma.UserUpdateOneRequiredWithoutAlertsNestedInput
 }
 
-export type AlertUncheckedUpdateWithoutAnalysisInput = {
+export type AlertUncheckedUpdateWithoutReadingInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
@@ -658,7 +658,7 @@ export type AlertUncheckedUpdateWithoutAnalysisInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
-export type AlertUncheckedUpdateManyWithoutAnalysisInput = {
+export type AlertUncheckedUpdateManyWithoutReadingInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
@@ -672,73 +672,73 @@ export type AlertUncheckedUpdateManyWithoutAnalysisInput = {
 export type AlertSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
-  analysisId?: boolean
+  bpReadingId?: boolean
   alertMessage?: boolean
   alertLevel?: boolean
   isRead?: boolean
   createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
-  analysis?: boolean | Prisma.AnalysisResultDefaultArgs<ExtArgs>
+  reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["alert"]>
 
 export type AlertSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
-  analysisId?: boolean
+  bpReadingId?: boolean
   alertMessage?: boolean
   alertLevel?: boolean
   isRead?: boolean
   createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
-  analysis?: boolean | Prisma.AnalysisResultDefaultArgs<ExtArgs>
+  reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["alert"]>
 
 export type AlertSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
-  analysisId?: boolean
+  bpReadingId?: boolean
   alertMessage?: boolean
   alertLevel?: boolean
   isRead?: boolean
   createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
-  analysis?: boolean | Prisma.AnalysisResultDefaultArgs<ExtArgs>
+  reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["alert"]>
 
 export type AlertSelectScalar = {
   id?: boolean
   userId?: boolean
-  analysisId?: boolean
+  bpReadingId?: boolean
   alertMessage?: boolean
   alertLevel?: boolean
   isRead?: boolean
   createdAt?: boolean
 }
 
-export type AlertOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "analysisId" | "alertMessage" | "alertLevel" | "isRead" | "createdAt", ExtArgs["result"]["alert"]>
+export type AlertOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "bpReadingId" | "alertMessage" | "alertLevel" | "isRead" | "createdAt", ExtArgs["result"]["alert"]>
 export type AlertInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
-  analysis?: boolean | Prisma.AnalysisResultDefaultArgs<ExtArgs>
+  reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }
 export type AlertIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
-  analysis?: boolean | Prisma.AnalysisResultDefaultArgs<ExtArgs>
+  reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }
 export type AlertIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
-  analysis?: boolean | Prisma.AnalysisResultDefaultArgs<ExtArgs>
+  reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }
 
 export type $AlertPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Alert"
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
-    analysis: Prisma.$AnalysisResultPayload<ExtArgs>
+    reading: Prisma.$BloodPressureReadingPayload<ExtArgs>
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
     userId: string
-    analysisId: number
+    bpReadingId: number
     alertMessage: string
     alertLevel: $Enums.AlertLevel
     isRead: boolean
@@ -1138,7 +1138,7 @@ readonly fields: AlertFieldRefs;
 export interface Prisma__AlertClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
-  analysis<T extends Prisma.AnalysisResultDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AnalysisResultDefaultArgs<ExtArgs>>): Prisma.Prisma__AnalysisResultClient<runtime.Types.Result.GetResult<Prisma.$AnalysisResultPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  reading<T extends Prisma.BloodPressureReadingDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.BloodPressureReadingDefaultArgs<ExtArgs>>): Prisma.Prisma__BloodPressureReadingClient<runtime.Types.Result.GetResult<Prisma.$BloodPressureReadingPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1170,7 +1170,7 @@ export interface Prisma__AlertClient<T, Null = never, ExtArgs extends runtime.Ty
 export interface AlertFieldRefs {
   readonly id: Prisma.FieldRef<"Alert", 'Int'>
   readonly userId: Prisma.FieldRef<"Alert", 'String'>
-  readonly analysisId: Prisma.FieldRef<"Alert", 'Int'>
+  readonly bpReadingId: Prisma.FieldRef<"Alert", 'Int'>
   readonly alertMessage: Prisma.FieldRef<"Alert", 'String'>
   readonly alertLevel: Prisma.FieldRef<"Alert", 'AlertLevel'>
   readonly isRead: Prisma.FieldRef<"Alert", 'Boolean'>

@@ -2,7 +2,6 @@ import { UseGuards } from '@nestjs/common';
 import {
   Args,
   Field,
-  Float,
   InputType,
   Int,
   Mutation,

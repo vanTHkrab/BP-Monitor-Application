@@ -280,50 +280,6 @@ export type EnumImageSyncStatusWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedEnumImageSyncStatusFilter<$PrismaModel>
 }
 
-export type FloatFilter<$PrismaModel = never> = {
-  equals?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  in?: number[] | Prisma.ListFloatFieldRefInput<$PrismaModel>
-  notIn?: number[] | Prisma.ListFloatFieldRefInput<$PrismaModel>
-  lt?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  lte?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  gt?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  gte?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedFloatFilter<$PrismaModel> | number
-}
-
-export type EnumBpLevelFilter<$PrismaModel = never> = {
-  equals?: $Enums.BpLevel | Prisma.EnumBpLevelFieldRefInput<$PrismaModel>
-  in?: $Enums.BpLevel[] | Prisma.ListEnumBpLevelFieldRefInput<$PrismaModel>
-  notIn?: $Enums.BpLevel[] | Prisma.ListEnumBpLevelFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedEnumBpLevelFilter<$PrismaModel> | $Enums.BpLevel
-}
-
-export type FloatWithAggregatesFilter<$PrismaModel = never> = {
-  equals?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  in?: number[] | Prisma.ListFloatFieldRefInput<$PrismaModel>
-  notIn?: number[] | Prisma.ListFloatFieldRefInput<$PrismaModel>
-  lt?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  lte?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  gt?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  gte?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedFloatWithAggregatesFilter<$PrismaModel> | number
-  _count?: Prisma.NestedIntFilter<$PrismaModel>
-  _avg?: Prisma.NestedFloatFilter<$PrismaModel>
-  _sum?: Prisma.NestedFloatFilter<$PrismaModel>
-  _min?: Prisma.NestedFloatFilter<$PrismaModel>
-  _max?: Prisma.NestedFloatFilter<$PrismaModel>
-}
-
-export type EnumBpLevelWithAggregatesFilter<$PrismaModel = never> = {
-  equals?: $Enums.BpLevel | Prisma.EnumBpLevelFieldRefInput<$PrismaModel>
-  in?: $Enums.BpLevel[] | Prisma.ListEnumBpLevelFieldRefInput<$PrismaModel>
-  notIn?: $Enums.BpLevel[] | Prisma.ListEnumBpLevelFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedEnumBpLevelWithAggregatesFilter<$PrismaModel> | $Enums.BpLevel
-  _count?: Prisma.NestedIntFilter<$PrismaModel>
-  _min?: Prisma.NestedEnumBpLevelFilter<$PrismaModel>
-  _max?: Prisma.NestedEnumBpLevelFilter<$PrismaModel>
-}
-
 export type EnumAlertLevelFilter<$PrismaModel = never> = {
   equals?: $Enums.AlertLevel | Prisma.EnumAlertLevelFieldRefInput<$PrismaModel>
   in?: $Enums.AlertLevel[] | Prisma.ListEnumAlertLevelFieldRefInput<$PrismaModel>
@@ -677,39 +633,6 @@ export type NestedEnumImageSyncStatusWithAggregatesFilter<$PrismaModel = never> 
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumImageSyncStatusFilter<$PrismaModel>
   _max?: Prisma.NestedEnumImageSyncStatusFilter<$PrismaModel>
-}
-
-export type NestedEnumBpLevelFilter<$PrismaModel = never> = {
-  equals?: $Enums.BpLevel | Prisma.EnumBpLevelFieldRefInput<$PrismaModel>
-  in?: $Enums.BpLevel[] | Prisma.ListEnumBpLevelFieldRefInput<$PrismaModel>
-  notIn?: $Enums.BpLevel[] | Prisma.ListEnumBpLevelFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedEnumBpLevelFilter<$PrismaModel> | $Enums.BpLevel
-}
-
-export type NestedFloatWithAggregatesFilter<$PrismaModel = never> = {
-  equals?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  in?: number[] | Prisma.ListFloatFieldRefInput<$PrismaModel>
-  notIn?: number[] | Prisma.ListFloatFieldRefInput<$PrismaModel>
-  lt?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  lte?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  gt?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  gte?: number | Prisma.FloatFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedFloatWithAggregatesFilter<$PrismaModel> | number
-  _count?: Prisma.NestedIntFilter<$PrismaModel>
-  _avg?: Prisma.NestedFloatFilter<$PrismaModel>
-  _sum?: Prisma.NestedFloatFilter<$PrismaModel>
-  _min?: Prisma.NestedFloatFilter<$PrismaModel>
-  _max?: Prisma.NestedFloatFilter<$PrismaModel>
-}
-
-export type NestedEnumBpLevelWithAggregatesFilter<$PrismaModel = never> = {
-  equals?: $Enums.BpLevel | Prisma.EnumBpLevelFieldRefInput<$PrismaModel>
-  in?: $Enums.BpLevel[] | Prisma.ListEnumBpLevelFieldRefInput<$PrismaModel>
-  notIn?: $Enums.BpLevel[] | Prisma.ListEnumBpLevelFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedEnumBpLevelWithAggregatesFilter<$PrismaModel> | $Enums.BpLevel
-  _count?: Prisma.NestedIntFilter<$PrismaModel>
-  _min?: Prisma.NestedEnumBpLevelFilter<$PrismaModel>
-  _max?: Prisma.NestedEnumBpLevelFilter<$PrismaModel>
 }
 
 export type NestedEnumAlertLevelFilter<$PrismaModel = never> = {
