@@ -11,7 +11,10 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 import { GqlAuthGuard } from '../auth/auth.guard';
-import { getOptionalCurrentUser } from '../auth/helpers/optional-current-user';
+import {
+  getOptionalCurrentUser,
+  type GraphQLContextLike,
+} from '../auth/helpers/optional-current-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { PostService } from './post.service';
@@ -58,7 +61,7 @@ export class PostResolver {
     @Args('category', { nullable: true }) category?: string,
     @Args('limit', { type: () => Int, defaultValue: 100 }) limit?: number,
     @Args('offset', { type: () => Int, defaultValue: 0 }) offset?: number,
-    @Context() context?: any,
+    @Context() context?: GraphQLContextLike,
   ): Promise<PostType[]> {
     const currentUser = await getOptionalCurrentUser(context, this.prisma);
     return this.postService.list(

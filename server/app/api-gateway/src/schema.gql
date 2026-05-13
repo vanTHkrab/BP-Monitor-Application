@@ -47,7 +47,7 @@ type ReadingType {
   pulse: Int!
   status: String!
   measuredAt: DateTime!
-  imageUri: String
+  s3Key: String
   notes: String
   createdAt: DateTime!
 }
@@ -94,7 +94,7 @@ type BPReadingRecordObject {
   diastolic: Int!
   pulse: Int!
   measuredAt: String!
-  imageUrl: String
+  s3Key: String
 }
 
 type ConfirmedImage {
@@ -142,27 +142,25 @@ type CommentType {
   updatedAt: DateTime
 }
 
-type AlertAnalysisType {
+type AlertReadingType {
   id: Int!
   systolic: Int!
   diastolic: Int!
   pulse: Int!
-  confidence: Float!
-  bpLevel: String!
-  analysisNote: String
-  analyzedAt: DateTime!
-  imageUrl: String
+  status: String!
+  measuredAt: DateTime!
+  s3Key: String
 }
 
 type AlertType {
   id: Int!
   userId: String!
-  analysisId: Int!
+  bpReadingId: Int!
   alertMessage: String!
   alertLevel: String!
-  isRead: Boolean!
+  readAt: DateTime
   createdAt: DateTime!
-  analysis: AlertAnalysisType
+  reading: AlertReadingType
 }
 
 type CaregiverLinkType {
@@ -321,7 +319,7 @@ input CreateReadingInput {
   status: String!
   measuredAt: DateTime!
   clientId: String
-  imageUri: String
+  s3Key: String
   notes: String
 }
 
@@ -347,7 +345,7 @@ input AnalyzeBPImageInput {
 
 input SubmitBPReadingInput {
   jobId: String
-  imageUri: String
+  s3Key: String
   systolic: Int!
   diastolic: Int!
   pulse: Int!

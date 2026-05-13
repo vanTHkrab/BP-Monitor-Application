@@ -10,7 +10,7 @@ interface RequestLike {
   raw?: { headers?: Record<string, string | string[] | undefined> };
 }
 
-interface GraphQLContextLike {
+export interface GraphQLContextLike {
   req?: RequestLike;
   reply?: { request?: RequestLike };
 }
@@ -38,9 +38,10 @@ const readAuthHeader = (context: GraphQLContextLike): string | undefined => {
  * Use `GqlAuthGuard` for endpoints that MUST be authenticated.
  */
 export const getOptionalCurrentUser = async (
-  context: GraphQLContextLike,
+  context: GraphQLContextLike | undefined,
   prisma: PrismaService,
 ): Promise<CurrentUserContext | undefined> => {
+  if (!context) return undefined;
   const authHeader = readAuthHeader(context);
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return undefined;
