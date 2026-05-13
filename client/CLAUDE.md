@@ -41,7 +41,7 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 | `store/slices/` | Domain slices: `auth` (+ profile + sessions), `readings` (+ alerts), `community` (posts + comments), `caregivers`, `preferences` (theme + font + security), `network`. |
 | `store/shared/` | Cross-slice helpers: `log` (`logWarn`, `communityDebug`), `client-id` (local-id helpers + `createClientId`), `error-format` (`formatAuthError` for login/register UX + legacy `authErrorToThai`), `mappers` (`xxxFromGql` + sorters). |
 | `types/` | Shared TypeScript types. Add domain types here, not inline. |
-| `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`). |
+| `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`), `image-prepare` (resize + recompress images before they hit the AI / S3 path). |
 
 ## Architectural Conventions
 
