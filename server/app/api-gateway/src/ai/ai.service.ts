@@ -137,15 +137,15 @@ export class AiService {
     diastolic: number;
     pulse: number;
     measuredAt: Date;
-    imageUri: string | null;
+    s3Key: string | null;
   }> {
-    let fallbackImageUri: string | null = null;
+    let fallbackS3Key: string | null = null;
 
     if (input.jobId) {
       const job = await this.getOwnedJob(input.jobId, userId);
       const state = await job.getState();
       if (state === 'completed') {
-        fallbackImageUri =
+        fallbackS3Key =
           this.asAnalysisResult(job.returnvalue)?.roiImageUrl ?? null;
       }
     }
@@ -158,7 +158,7 @@ export class AiService {
         pulse: input.pulse,
         measuredAt: new Date(input.measuredAt),
         status: toBpStatus(input.systolic, input.diastolic),
-        imageUri: input.imageUri ?? fallbackImageUri,
+        s3Key: input.s3Key ?? fallbackS3Key,
       },
     });
 
@@ -168,7 +168,7 @@ export class AiService {
       diastolic: reading.diastolic,
       pulse: reading.pulse,
       measuredAt: reading.measuredAt,
-      imageUri: reading.imageUri,
+      s3Key: reading.s3Key,
     };
   }
 

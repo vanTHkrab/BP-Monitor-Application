@@ -49,9 +49,10 @@ export type BloodPressureReadingMinAggregateOutputType = {
   pulse: number | null
   status: $Enums.BpStatus | null
   measuredAt: Date | null
-  imageUri: string | null
+  s3Key: string | null
   notes: string | null
   createdAt: Date | null
+  updatedAt: Date | null
 }
 
 export type BloodPressureReadingMaxAggregateOutputType = {
@@ -63,9 +64,10 @@ export type BloodPressureReadingMaxAggregateOutputType = {
   pulse: number | null
   status: $Enums.BpStatus | null
   measuredAt: Date | null
-  imageUri: string | null
+  s3Key: string | null
   notes: string | null
   createdAt: Date | null
+  updatedAt: Date | null
 }
 
 export type BloodPressureReadingCountAggregateOutputType = {
@@ -77,9 +79,10 @@ export type BloodPressureReadingCountAggregateOutputType = {
   pulse: number
   status: number
   measuredAt: number
-  imageUri: number
+  s3Key: number
   notes: number
   createdAt: number
+  updatedAt: number
   _all: number
 }
 
@@ -107,9 +110,10 @@ export type BloodPressureReadingMinAggregateInputType = {
   pulse?: true
   status?: true
   measuredAt?: true
-  imageUri?: true
+  s3Key?: true
   notes?: true
   createdAt?: true
+  updatedAt?: true
 }
 
 export type BloodPressureReadingMaxAggregateInputType = {
@@ -121,9 +125,10 @@ export type BloodPressureReadingMaxAggregateInputType = {
   pulse?: true
   status?: true
   measuredAt?: true
-  imageUri?: true
+  s3Key?: true
   notes?: true
   createdAt?: true
+  updatedAt?: true
 }
 
 export type BloodPressureReadingCountAggregateInputType = {
@@ -135,9 +140,10 @@ export type BloodPressureReadingCountAggregateInputType = {
   pulse?: true
   status?: true
   measuredAt?: true
-  imageUri?: true
+  s3Key?: true
   notes?: true
   createdAt?: true
+  updatedAt?: true
   _all?: true
 }
 
@@ -236,9 +242,10 @@ export type BloodPressureReadingGroupByOutputType = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date
-  imageUri: string | null
+  s3Key: string | null
   notes: string | null
   createdAt: Date
+  updatedAt: Date
   _count: BloodPressureReadingCountAggregateOutputType | null
   _avg: BloodPressureReadingAvgAggregateOutputType | null
   _sum: BloodPressureReadingSumAggregateOutputType | null
@@ -273,9 +280,10 @@ export type BloodPressureReadingWhereInput = {
   pulse?: Prisma.IntFilter<"BloodPressureReading"> | number
   status?: Prisma.EnumBpStatusFilter<"BloodPressureReading"> | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
-  imageUri?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
+  s3Key?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
   notes?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
   createdAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   alerts?: Prisma.AlertListRelationFilter
 }
@@ -289,9 +297,10 @@ export type BloodPressureReadingOrderByWithRelationInput = {
   pulse?: Prisma.SortOrder
   status?: Prisma.SortOrder
   measuredAt?: Prisma.SortOrder
-  imageUri?: Prisma.SortOrderInput | Prisma.SortOrder
+  s3Key?: Prisma.SortOrderInput | Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
   alerts?: Prisma.AlertOrderByRelationAggregateInput
 }
@@ -308,9 +317,10 @@ export type BloodPressureReadingWhereUniqueInput = Prisma.AtLeast<{
   pulse?: Prisma.IntFilter<"BloodPressureReading"> | number
   status?: Prisma.EnumBpStatusFilter<"BloodPressureReading"> | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
-  imageUri?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
+  s3Key?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
   notes?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
   createdAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   alerts?: Prisma.AlertListRelationFilter
 }, "id" | "clientId">
@@ -324,9 +334,10 @@ export type BloodPressureReadingOrderByWithAggregationInput = {
   pulse?: Prisma.SortOrder
   status?: Prisma.SortOrder
   measuredAt?: Prisma.SortOrder
-  imageUri?: Prisma.SortOrderInput | Prisma.SortOrder
+  s3Key?: Prisma.SortOrderInput | Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
   _count?: Prisma.BloodPressureReadingCountOrderByAggregateInput
   _avg?: Prisma.BloodPressureReadingAvgOrderByAggregateInput
   _max?: Prisma.BloodPressureReadingMaxOrderByAggregateInput
@@ -346,9 +357,10 @@ export type BloodPressureReadingScalarWhereWithAggregatesInput = {
   pulse?: Prisma.IntWithAggregatesFilter<"BloodPressureReading"> | number
   status?: Prisma.EnumBpStatusWithAggregatesFilter<"BloodPressureReading"> | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeWithAggregatesFilter<"BloodPressureReading"> | Date | string
-  imageUri?: Prisma.StringNullableWithAggregatesFilter<"BloodPressureReading"> | string | null
+  s3Key?: Prisma.StringNullableWithAggregatesFilter<"BloodPressureReading"> | string | null
   notes?: Prisma.StringNullableWithAggregatesFilter<"BloodPressureReading"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"BloodPressureReading"> | Date | string
+  updatedAt?: Prisma.DateTimeWithAggregatesFilter<"BloodPressureReading"> | Date | string
 }
 
 export type BloodPressureReadingCreateInput = {
@@ -358,9 +370,10 @@ export type BloodPressureReadingCreateInput = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date | string
-  imageUri?: string | null
+  s3Key?: string | null
   notes?: string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutReadingsInput
   alerts?: Prisma.AlertCreateNestedManyWithoutReadingInput
 }
@@ -374,9 +387,10 @@ export type BloodPressureReadingUncheckedCreateInput = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date | string
-  imageUri?: string | null
+  s3Key?: string | null
   notes?: string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutReadingInput
 }
 
@@ -387,9 +401,10 @@ export type BloodPressureReadingUpdateInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutReadingsNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutReadingNestedInput
 }
@@ -403,9 +418,10 @@ export type BloodPressureReadingUncheckedUpdateInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutReadingNestedInput
 }
 
@@ -418,9 +434,10 @@ export type BloodPressureReadingCreateManyInput = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date | string
-  imageUri?: string | null
+  s3Key?: string | null
   notes?: string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type BloodPressureReadingUpdateManyMutationInput = {
@@ -430,9 +447,10 @@ export type BloodPressureReadingUpdateManyMutationInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type BloodPressureReadingUncheckedUpdateManyInput = {
@@ -444,9 +462,10 @@ export type BloodPressureReadingUncheckedUpdateManyInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type BloodPressureReadingListRelationFilter = {
@@ -473,9 +492,10 @@ export type BloodPressureReadingCountOrderByAggregateInput = {
   pulse?: Prisma.SortOrder
   status?: Prisma.SortOrder
   measuredAt?: Prisma.SortOrder
-  imageUri?: Prisma.SortOrder
+  s3Key?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type BloodPressureReadingAvgOrderByAggregateInput = {
@@ -494,9 +514,10 @@ export type BloodPressureReadingMaxOrderByAggregateInput = {
   pulse?: Prisma.SortOrder
   status?: Prisma.SortOrder
   measuredAt?: Prisma.SortOrder
-  imageUri?: Prisma.SortOrder
+  s3Key?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type BloodPressureReadingMinOrderByAggregateInput = {
@@ -508,9 +529,10 @@ export type BloodPressureReadingMinOrderByAggregateInput = {
   pulse?: Prisma.SortOrder
   status?: Prisma.SortOrder
   measuredAt?: Prisma.SortOrder
-  imageUri?: Prisma.SortOrder
+  s3Key?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type BloodPressureReadingSumOrderByAggregateInput = {
@@ -587,9 +609,10 @@ export type BloodPressureReadingCreateWithoutUserInput = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date | string
-  imageUri?: string | null
+  s3Key?: string | null
   notes?: string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
   alerts?: Prisma.AlertCreateNestedManyWithoutReadingInput
 }
 
@@ -601,9 +624,10 @@ export type BloodPressureReadingUncheckedCreateWithoutUserInput = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date | string
-  imageUri?: string | null
+  s3Key?: string | null
   notes?: string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutReadingInput
 }
 
@@ -645,9 +669,10 @@ export type BloodPressureReadingScalarWhereInput = {
   pulse?: Prisma.IntFilter<"BloodPressureReading"> | number
   status?: Prisma.EnumBpStatusFilter<"BloodPressureReading"> | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
-  imageUri?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
+  s3Key?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
   notes?: Prisma.StringNullableFilter<"BloodPressureReading"> | string | null
   createdAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"BloodPressureReading"> | Date | string
 }
 
 export type BloodPressureReadingCreateWithoutAlertsInput = {
@@ -657,9 +682,10 @@ export type BloodPressureReadingCreateWithoutAlertsInput = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date | string
-  imageUri?: string | null
+  s3Key?: string | null
   notes?: string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutReadingsInput
 }
 
@@ -672,9 +698,10 @@ export type BloodPressureReadingUncheckedCreateWithoutAlertsInput = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date | string
-  imageUri?: string | null
+  s3Key?: string | null
   notes?: string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type BloodPressureReadingCreateOrConnectWithoutAlertsInput = {
@@ -700,9 +727,10 @@ export type BloodPressureReadingUpdateWithoutAlertsInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutReadingsNestedInput
 }
 
@@ -715,9 +743,10 @@ export type BloodPressureReadingUncheckedUpdateWithoutAlertsInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type BloodPressureReadingCreateManyUserInput = {
@@ -728,9 +757,10 @@ export type BloodPressureReadingCreateManyUserInput = {
   pulse: number
   status: $Enums.BpStatus
   measuredAt: Date | string
-  imageUri?: string | null
+  s3Key?: string | null
   notes?: string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type BloodPressureReadingUpdateWithoutUserInput = {
@@ -740,9 +770,10 @@ export type BloodPressureReadingUpdateWithoutUserInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   alerts?: Prisma.AlertUpdateManyWithoutReadingNestedInput
 }
 
@@ -754,9 +785,10 @@ export type BloodPressureReadingUncheckedUpdateWithoutUserInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutReadingNestedInput
 }
 
@@ -768,9 +800,10 @@ export type BloodPressureReadingUncheckedUpdateManyWithoutUserInput = {
   pulse?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumBpStatusFieldUpdateOperationsInput | $Enums.BpStatus
   measuredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  imageUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  s3Key?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 
@@ -813,9 +846,10 @@ export type BloodPressureReadingSelect<ExtArgs extends runtime.Types.Extensions.
   pulse?: boolean
   status?: boolean
   measuredAt?: boolean
-  imageUri?: boolean
+  s3Key?: boolean
   notes?: boolean
   createdAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   alerts?: boolean | Prisma.BloodPressureReading$alertsArgs<ExtArgs>
   _count?: boolean | Prisma.BloodPressureReadingCountOutputTypeDefaultArgs<ExtArgs>
@@ -830,9 +864,10 @@ export type BloodPressureReadingSelectCreateManyAndReturn<ExtArgs extends runtim
   pulse?: boolean
   status?: boolean
   measuredAt?: boolean
-  imageUri?: boolean
+  s3Key?: boolean
   notes?: boolean
   createdAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["bloodPressureReading"]>
 
@@ -845,9 +880,10 @@ export type BloodPressureReadingSelectUpdateManyAndReturn<ExtArgs extends runtim
   pulse?: boolean
   status?: boolean
   measuredAt?: boolean
-  imageUri?: boolean
+  s3Key?: boolean
   notes?: boolean
   createdAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["bloodPressureReading"]>
 
@@ -860,12 +896,13 @@ export type BloodPressureReadingSelectScalar = {
   pulse?: boolean
   status?: boolean
   measuredAt?: boolean
-  imageUri?: boolean
+  s3Key?: boolean
   notes?: boolean
   createdAt?: boolean
+  updatedAt?: boolean
 }
 
-export type BloodPressureReadingOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "clientId" | "systolic" | "diastolic" | "pulse" | "status" | "measuredAt" | "imageUri" | "notes" | "createdAt", ExtArgs["result"]["bloodPressureReading"]>
+export type BloodPressureReadingOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "clientId" | "systolic" | "diastolic" | "pulse" | "status" | "measuredAt" | "s3Key" | "notes" | "createdAt" | "updatedAt", ExtArgs["result"]["bloodPressureReading"]>
 export type BloodPressureReadingInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   alerts?: boolean | Prisma.BloodPressureReading$alertsArgs<ExtArgs>
@@ -893,9 +930,10 @@ export type $BloodPressureReadingPayload<ExtArgs extends runtime.Types.Extension
     pulse: number
     status: $Enums.BpStatus
     measuredAt: Date
-    imageUri: string | null
+    s3Key: string | null
     notes: string | null
     createdAt: Date
+    updatedAt: Date
   }, ExtArgs["result"]["bloodPressureReading"]>
   composites: {}
 }
@@ -1329,9 +1367,10 @@ export interface BloodPressureReadingFieldRefs {
   readonly pulse: Prisma.FieldRef<"BloodPressureReading", 'Int'>
   readonly status: Prisma.FieldRef<"BloodPressureReading", 'BpStatus'>
   readonly measuredAt: Prisma.FieldRef<"BloodPressureReading", 'DateTime'>
-  readonly imageUri: Prisma.FieldRef<"BloodPressureReading", 'String'>
+  readonly s3Key: Prisma.FieldRef<"BloodPressureReading", 'String'>
   readonly notes: Prisma.FieldRef<"BloodPressureReading", 'String'>
   readonly createdAt: Prisma.FieldRef<"BloodPressureReading", 'DateTime'>
+  readonly updatedAt: Prisma.FieldRef<"BloodPressureReading", 'DateTime'>
 }
     
 

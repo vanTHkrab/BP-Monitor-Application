@@ -42,8 +42,9 @@ export type AlertMinAggregateOutputType = {
   bpReadingId: number | null
   alertMessage: string | null
   alertLevel: $Enums.AlertLevel | null
-  isRead: boolean | null
+  readAt: Date | null
   createdAt: Date | null
+  updatedAt: Date | null
 }
 
 export type AlertMaxAggregateOutputType = {
@@ -52,8 +53,9 @@ export type AlertMaxAggregateOutputType = {
   bpReadingId: number | null
   alertMessage: string | null
   alertLevel: $Enums.AlertLevel | null
-  isRead: boolean | null
+  readAt: Date | null
   createdAt: Date | null
+  updatedAt: Date | null
 }
 
 export type AlertCountAggregateOutputType = {
@@ -62,8 +64,9 @@ export type AlertCountAggregateOutputType = {
   bpReadingId: number
   alertMessage: number
   alertLevel: number
-  isRead: number
+  readAt: number
   createdAt: number
+  updatedAt: number
   _all: number
 }
 
@@ -84,8 +87,9 @@ export type AlertMinAggregateInputType = {
   bpReadingId?: true
   alertMessage?: true
   alertLevel?: true
-  isRead?: true
+  readAt?: true
   createdAt?: true
+  updatedAt?: true
 }
 
 export type AlertMaxAggregateInputType = {
@@ -94,8 +98,9 @@ export type AlertMaxAggregateInputType = {
   bpReadingId?: true
   alertMessage?: true
   alertLevel?: true
-  isRead?: true
+  readAt?: true
   createdAt?: true
+  updatedAt?: true
 }
 
 export type AlertCountAggregateInputType = {
@@ -104,8 +109,9 @@ export type AlertCountAggregateInputType = {
   bpReadingId?: true
   alertMessage?: true
   alertLevel?: true
-  isRead?: true
+  readAt?: true
   createdAt?: true
+  updatedAt?: true
   _all?: true
 }
 
@@ -201,8 +207,9 @@ export type AlertGroupByOutputType = {
   bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead: boolean
+  readAt: Date | null
   createdAt: Date
+  updatedAt: Date
   _count: AlertCountAggregateOutputType | null
   _avg: AlertAvgAggregateOutputType | null
   _sum: AlertSumAggregateOutputType | null
@@ -234,8 +241,9 @@ export type AlertWhereInput = {
   bpReadingId?: Prisma.IntFilter<"Alert"> | number
   alertMessage?: Prisma.StringFilter<"Alert"> | string
   alertLevel?: Prisma.EnumAlertLevelFilter<"Alert"> | $Enums.AlertLevel
-  isRead?: Prisma.BoolFilter<"Alert"> | boolean
+  readAt?: Prisma.DateTimeNullableFilter<"Alert"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   reading?: Prisma.XOR<Prisma.BloodPressureReadingScalarRelationFilter, Prisma.BloodPressureReadingWhereInput>
 }
@@ -246,8 +254,9 @@ export type AlertOrderByWithRelationInput = {
   bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
-  isRead?: Prisma.SortOrder
+  readAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
   reading?: Prisma.BloodPressureReadingOrderByWithRelationInput
 }
@@ -261,8 +270,9 @@ export type AlertWhereUniqueInput = Prisma.AtLeast<{
   bpReadingId?: Prisma.IntFilter<"Alert"> | number
   alertMessage?: Prisma.StringFilter<"Alert"> | string
   alertLevel?: Prisma.EnumAlertLevelFilter<"Alert"> | $Enums.AlertLevel
-  isRead?: Prisma.BoolFilter<"Alert"> | boolean
+  readAt?: Prisma.DateTimeNullableFilter<"Alert"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   reading?: Prisma.XOR<Prisma.BloodPressureReadingScalarRelationFilter, Prisma.BloodPressureReadingWhereInput>
 }, "id">
@@ -273,8 +283,9 @@ export type AlertOrderByWithAggregationInput = {
   bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
-  isRead?: Prisma.SortOrder
+  readAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
   _count?: Prisma.AlertCountOrderByAggregateInput
   _avg?: Prisma.AlertAvgOrderByAggregateInput
   _max?: Prisma.AlertMaxOrderByAggregateInput
@@ -291,15 +302,17 @@ export type AlertScalarWhereWithAggregatesInput = {
   bpReadingId?: Prisma.IntWithAggregatesFilter<"Alert"> | number
   alertMessage?: Prisma.StringWithAggregatesFilter<"Alert"> | string
   alertLevel?: Prisma.EnumAlertLevelWithAggregatesFilter<"Alert"> | $Enums.AlertLevel
-  isRead?: Prisma.BoolWithAggregatesFilter<"Alert"> | boolean
+  readAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Alert"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Alert"> | Date | string
+  updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Alert"> | Date | string
 }
 
 export type AlertCreateInput = {
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAlertsInput
   reading: Prisma.BloodPressureReadingCreateNestedOneWithoutAlertsInput
 }
@@ -310,15 +323,17 @@ export type AlertUncheckedCreateInput = {
   bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type AlertUpdateInput = {
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAlertsNestedInput
   reading?: Prisma.BloodPressureReadingUpdateOneRequiredWithoutAlertsNestedInput
 }
@@ -329,8 +344,9 @@ export type AlertUncheckedUpdateInput = {
   bpReadingId?: Prisma.IntFieldUpdateOperationsInput | number
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type AlertCreateManyInput = {
@@ -339,15 +355,17 @@ export type AlertCreateManyInput = {
   bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type AlertUpdateManyMutationInput = {
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type AlertUncheckedUpdateManyInput = {
@@ -356,8 +374,9 @@ export type AlertUncheckedUpdateManyInput = {
   bpReadingId?: Prisma.IntFieldUpdateOperationsInput | number
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type AlertListRelationFilter = {
@@ -376,8 +395,9 @@ export type AlertCountOrderByAggregateInput = {
   bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
-  isRead?: Prisma.SortOrder
+  readAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type AlertAvgOrderByAggregateInput = {
@@ -391,8 +411,9 @@ export type AlertMaxOrderByAggregateInput = {
   bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
-  isRead?: Prisma.SortOrder
+  readAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type AlertMinOrderByAggregateInput = {
@@ -401,8 +422,9 @@ export type AlertMinOrderByAggregateInput = {
   bpReadingId?: Prisma.SortOrder
   alertMessage?: Prisma.SortOrder
   alertLevel?: Prisma.SortOrder
-  isRead?: Prisma.SortOrder
+  readAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type AlertSumOrderByAggregateInput = {
@@ -501,8 +523,9 @@ export type AlertUncheckedUpdateManyWithoutReadingNestedInput = {
 export type AlertCreateWithoutUserInput = {
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
   reading: Prisma.BloodPressureReadingCreateNestedOneWithoutAlertsInput
 }
 
@@ -511,8 +534,9 @@ export type AlertUncheckedCreateWithoutUserInput = {
   bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type AlertCreateOrConnectWithoutUserInput = {
@@ -550,15 +574,17 @@ export type AlertScalarWhereInput = {
   bpReadingId?: Prisma.IntFilter<"Alert"> | number
   alertMessage?: Prisma.StringFilter<"Alert"> | string
   alertLevel?: Prisma.EnumAlertLevelFilter<"Alert"> | $Enums.AlertLevel
-  isRead?: Prisma.BoolFilter<"Alert"> | boolean
+  readAt?: Prisma.DateTimeNullableFilter<"Alert"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
 }
 
 export type AlertCreateWithoutReadingInput = {
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAlertsInput
 }
 
@@ -567,8 +593,9 @@ export type AlertUncheckedCreateWithoutReadingInput = {
   userId: string
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type AlertCreateOrConnectWithoutReadingInput = {
@@ -602,15 +629,17 @@ export type AlertCreateManyUserInput = {
   bpReadingId: number
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type AlertUpdateWithoutUserInput = {
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   reading?: Prisma.BloodPressureReadingUpdateOneRequiredWithoutAlertsNestedInput
 }
 
@@ -619,8 +648,9 @@ export type AlertUncheckedUpdateWithoutUserInput = {
   bpReadingId?: Prisma.IntFieldUpdateOperationsInput | number
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type AlertUncheckedUpdateManyWithoutUserInput = {
@@ -628,8 +658,9 @@ export type AlertUncheckedUpdateManyWithoutUserInput = {
   bpReadingId?: Prisma.IntFieldUpdateOperationsInput | number
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type AlertCreateManyReadingInput = {
@@ -637,15 +668,17 @@ export type AlertCreateManyReadingInput = {
   userId: string
   alertMessage: string
   alertLevel: $Enums.AlertLevel
-  isRead?: boolean
+  readAt?: Date | string | null
   createdAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type AlertUpdateWithoutReadingInput = {
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAlertsNestedInput
 }
 
@@ -654,8 +687,9 @@ export type AlertUncheckedUpdateWithoutReadingInput = {
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type AlertUncheckedUpdateManyWithoutReadingInput = {
@@ -663,8 +697,9 @@ export type AlertUncheckedUpdateManyWithoutReadingInput = {
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   alertMessage?: Prisma.StringFieldUpdateOperationsInput | string
   alertLevel?: Prisma.EnumAlertLevelFieldUpdateOperationsInput | $Enums.AlertLevel
-  isRead?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 
@@ -675,8 +710,9 @@ export type AlertSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   bpReadingId?: boolean
   alertMessage?: boolean
   alertLevel?: boolean
-  isRead?: boolean
+  readAt?: boolean
   createdAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["alert"]>
@@ -687,8 +723,9 @@ export type AlertSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   bpReadingId?: boolean
   alertMessage?: boolean
   alertLevel?: boolean
-  isRead?: boolean
+  readAt?: boolean
   createdAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["alert"]>
@@ -699,8 +736,9 @@ export type AlertSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   bpReadingId?: boolean
   alertMessage?: boolean
   alertLevel?: boolean
-  isRead?: boolean
+  readAt?: boolean
   createdAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["alert"]>
@@ -711,11 +749,12 @@ export type AlertSelectScalar = {
   bpReadingId?: boolean
   alertMessage?: boolean
   alertLevel?: boolean
-  isRead?: boolean
+  readAt?: boolean
   createdAt?: boolean
+  updatedAt?: boolean
 }
 
-export type AlertOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "bpReadingId" | "alertMessage" | "alertLevel" | "isRead" | "createdAt", ExtArgs["result"]["alert"]>
+export type AlertOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "bpReadingId" | "alertMessage" | "alertLevel" | "readAt" | "createdAt" | "updatedAt", ExtArgs["result"]["alert"]>
 export type AlertInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   reading?: boolean | Prisma.BloodPressureReadingDefaultArgs<ExtArgs>
@@ -741,8 +780,9 @@ export type $AlertPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     bpReadingId: number
     alertMessage: string
     alertLevel: $Enums.AlertLevel
-    isRead: boolean
+    readAt: Date | null
     createdAt: Date
+    updatedAt: Date
   }, ExtArgs["result"]["alert"]>
   composites: {}
 }
@@ -1173,8 +1213,9 @@ export interface AlertFieldRefs {
   readonly bpReadingId: Prisma.FieldRef<"Alert", 'Int'>
   readonly alertMessage: Prisma.FieldRef<"Alert", 'String'>
   readonly alertLevel: Prisma.FieldRef<"Alert", 'AlertLevel'>
-  readonly isRead: Prisma.FieldRef<"Alert", 'Boolean'>
+  readonly readAt: Prisma.FieldRef<"Alert", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Alert", 'DateTime'>
+  readonly updatedAt: Prisma.FieldRef<"Alert", 'DateTime'>
 }
     
 

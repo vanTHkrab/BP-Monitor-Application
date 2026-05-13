@@ -50,48 +50,58 @@ enum PostCategory {
   qa
 }
 
+enum RelationshipType {
+  parent
+  child
+  spouse
+  sibling
+  friend
+  caregiver_professional
+  other
+}
+
 // ──────────────────────── Models ────────────────────────
 
 model User {
-  id                String   @id @default(uuid()) @db.Uuid
-  email             String?  @unique @db.VarChar(255)
-  firstname         String   @db.VarChar(100)
-  lastname          String   @db.VarChar(100)
-  phone             String   @unique @db.VarChar(30)
-  passwordHash      String   @map("password_hash") @db.VarChar(255)
-  role              UserRole @default(patient)
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String?   @unique @db.VarChar(255)
+  firstname         String    @db.VarChar(100)
+  lastname          String    @db.VarChar(100)
+  phone             String    @unique @db.VarChar(30)
+  passwordHash      String    @map("password_hash") @db.VarChar(255)
+  role              UserRole  @default(patient)
   dob               DateTime? @db.Date
   gender            Gender?
   weight            Float?
   height            Float?
-  congenitalDisease String?  @map("congenital_disease") @db.VarChar(255)
-  avatar            String?  @db.VarChar(512)
-  createdAt         DateTime @default(now()) @map("created_at")
+  congenitalDisease String?   @map("congenital_disease") @db.VarChar(255)
+  avatar            String?   @db.VarChar(512)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  images         Image[]
-  alerts         Alert[]
-  caregiverLinks CaregiverPatient[] @relation("CaregiverUser")
-  patientLinks   CaregiverPatient[] @relation("PatientUser")
-  // เพิ่มเติม
-  readings          BloodPressureReading[]
-  posts             Post[]
-  postComments      PostComment[]
-  postCommentLikes  PostCommentLike[]
-  postLikes         PostLike[]
-  sessions          UserSession[]
+  images           Image[]
+  alerts           Alert[]
+  caregiverLinks   CaregiverPatient[]     @relation("CaregiverUser")
+  patientLinks     CaregiverPatient[]     @relation("PatientUser")
+  readings         BloodPressureReading[]
+  posts            Post[]
+  postComments     PostComment[]
+  postCommentLikes PostCommentLike[]
+  postLikes        PostLike[]
+  sessions         UserSession[]
 
   @@map("users")
 }
 
 model UserSession {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  deviceLabel  String?  @map("device_label") @db.VarChar(255)
-  userAgent    String?  @map("user_agent") @db.VarChar(1024)
-  isActive     Boolean  @default(true) @map("is_active")
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  deviceLabel  String?   @map("device_label") @db.VarChar(255)
+  userAgent    String?   @map("user_agent") @db.VarChar(1024)
+  isActive     Boolean   @default(true) @map("is_active")
   revokedAt    DateTime? @map("revoked_at")
-  lastActiveAt DateTime @default(now()) @map("last_active_at")
-  createdAt    DateTime @default(now()) @map("created_at")
+  lastActiveAt DateTime  @default(now()) @map("last_active_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -101,9 +111,10 @@ model UserSession {
 }
 
 model CaregiverPatient {
-  caregiverId  String @map("caregiver_id") @db.Uuid
-  patientId    String @map("patient_id") @db.Uuid
-  relationship String @db.VarChar(100)
+  caregiverId  String           @map("caregiver_id") @db.Uuid
+  patientId    String           @map("patient_id") @db.Uuid
+  relationship RelationshipType
+  createdAt    DateTime         @default(now()) @map("created_at")
 
   caregiver User @relation("CaregiverUser", fields: [caregiverId], references: [id], onDelete: Cascade)
   patient   User @relation("PatientUser", fields: [patientId], references: [id], onDelete: Cascade)
@@ -116,12 +127,13 @@ model CaregiverPatient {
 model Image {
   id                Int             @id @default(autoincrement())
   userId            String          @map("user_id") @db.Uuid
-  imageUrl          String          @map("image_url") @db.VarChar(2048)
+  s3Key             String          @map("s3_key") @db.VarChar(512)
   deviceName        String          @map("device_name") @db.VarChar(255)
   imageQualityScore Float?          @map("image_quality_score")
   syncStatus        ImageSyncStatus @default(pending) @map("sync_status")
   syncedAt          DateTime?       @map("synced_at")
   uploadedAt        DateTime        @default(now()) @map("uploaded_at")
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -136,18 +148,17 @@ model Alert {
   bpReadingId  Int        @map("bp_reading_id")
   alertMessage String     @map("alert_message") @db.VarChar(500)
   alertLevel   AlertLevel @map("alert_level")
-  isRead       Boolean    @default(false) @map("is_read")
+  readAt       DateTime?  @map("read_at")
   createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at")
 
   user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   reading BloodPressureReading @relation(fields: [bpReadingId], references: [id], onDelete: Cascade)
 
   @@index([bpReadingId])
-  @@index([userId, isRead])
-  @@index([createdAt])
+  @@index([userId, readAt, createdAt(sort: Desc)])
   @@map("alerts")
 }
-// table นอกเหนือจากที่กำหนด
 
 // ──────────────────────── New Models ────────────────────────
 
@@ -160,15 +171,15 @@ model BloodPressureReading {
   pulse      Int
   status     BpStatus
   measuredAt DateTime @map("measured_at")
-  imageUri   String?  @map("image_uri") @db.VarChar(2048)
+  s3Key      String?  @map("s3_key") @db.VarChar(512)
   notes      String?  @db.VarChar(500)
   createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   alerts Alert[]
 
-  @@index([userId])
-  @@index([measuredAt])
+  @@index([userId, measuredAt(sort: Desc)])
   @@map("blood_pressure_readings")
 }
 
@@ -185,9 +196,8 @@ model Post {
   likes    PostLike[]
   comments PostComment[]
 
-  @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
   @@index([category])
-  @@index([createdAt])
   @@map("posts")
 }
 
@@ -195,26 +205,27 @@ model PostComment {
   id        Int       @id @default(autoincrement())
   postId    Int       @map("post_id")
   userId    String    @map("user_id") @db.Uuid
-  parentId  Int?      @map("parent_id")        // null = top-level comment
+  parentId  Int?      @map("parent_id") // null = top-level comment
   content   String    @db.Text
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime? @map("updated_at")
 
-  post     Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent   PostComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies  PostComment[] @relation("CommentReplies")
-  likes    PostCommentLike[]
+  post    Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  PostComment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies PostComment[]     @relation("CommentReplies")
+  likes   PostCommentLike[]
 
-  @@index([postId])
+  @@index([postId, createdAt])
   @@index([userId])
   @@index([parentId])
   @@map("post_comments")
 }
 
 model PostCommentLike {
-  userId    String @map("user_id") @db.Uuid
-  commentId Int    @map("comment_id")
+  userId    String   @map("user_id") @db.Uuid
+  commentId Int      @map("comment_id")
+  createdAt DateTime @default(now()) @map("created_at")
 
   user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   comment PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
@@ -224,8 +235,9 @@ model PostCommentLike {
 }
 
 model PostLike {
-  userId String @map("user_id") @db.Uuid
-  postId Int    @map("post_id")
+  userId    String   @map("user_id") @db.Uuid
+  postId    Int      @map("post_id")
+  createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)

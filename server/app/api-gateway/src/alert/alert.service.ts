@@ -8,7 +8,7 @@ type AlertWithReading = {
   bpReadingId: number;
   alertMessage: string;
   alertLevel: string;
-  isRead: boolean;
+  readAt: Date | null;
   createdAt: Date;
   reading?: {
     id: number;
@@ -17,7 +17,7 @@ type AlertWithReading = {
     pulse: number;
     status: string;
     measuredAt: Date;
-    imageUri: string | null;
+    s3Key: string | null;
   };
 };
 
@@ -34,7 +34,7 @@ export class AlertService {
     const rows = await this.prisma.alert.findMany({
       where: {
         userId,
-        ...(unreadOnly ? { isRead: false } : {}),
+        ...(unreadOnly ? { readAt: null } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -48,7 +48,7 @@ export class AlertService {
             pulse: true,
             status: true,
             measuredAt: true,
-            imageUri: true,
+            s3Key: true,
           },
         },
       },
@@ -59,8 +59,8 @@ export class AlertService {
 
   async markRead(userId: string, id: number): Promise<boolean> {
     const result = await this.prisma.alert.updateMany({
-      where: { id, userId },
-      data: { isRead: true },
+      where: { id, userId, readAt: null },
+      data: { readAt: new Date() },
     });
 
     return result.count > 0;
@@ -68,8 +68,8 @@ export class AlertService {
 
   async markAllRead(userId: string): Promise<boolean> {
     await this.prisma.alert.updateMany({
-      where: { userId, isRead: false },
-      data: { isRead: true },
+      where: { userId, readAt: null },
+      data: { readAt: new Date() },
     });
     return true;
   }
@@ -81,7 +81,7 @@ export class AlertService {
       bpReadingId: alert.bpReadingId,
       alertMessage: alert.alertMessage,
       alertLevel: alert.alertLevel,
-      isRead: alert.isRead,
+      readAt: alert.readAt ?? undefined,
       createdAt: alert.createdAt,
       reading: alert.reading
         ? {
@@ -91,7 +91,7 @@ export class AlertService {
             pulse: alert.reading.pulse,
             status: alert.reading.status,
             measuredAt: alert.reading.measuredAt,
-            imageUri: alert.reading.imageUri ?? undefined,
+            s3Key: alert.reading.s3Key ?? undefined,
           }
         : undefined,
     };

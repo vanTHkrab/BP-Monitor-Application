@@ -386,7 +386,7 @@ const readingFromGql = (r: ReadingGql): BloodPressureReading => ({
   pulse: r.pulse,
   status: r.status,
   measuredAt: new Date(r.measuredAt),
-  imageUri: r.imageUri ?? undefined,
+  imageUri: r.s3Key ?? undefined,
   notes: r.notes ?? undefined,
   createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
 });
@@ -424,22 +424,20 @@ const commentFromGql = (c: CommentGql): PostComment => ({
 const alertFromGql = (a: AlertGql): AppAlert => ({
   id: String(a.id),
   userId: a.userId,
-  analysisId: String(a.analysisId),
+  bpReadingId: String(a.bpReadingId),
   alertMessage: a.alertMessage,
   alertLevel: a.alertLevel,
-  isRead: Boolean(a.isRead),
+  readAt: a.readAt ? new Date(a.readAt) : undefined,
   createdAt: new Date(a.createdAt),
-  analysis: a.analysis
+  reading: a.reading
     ? {
-        id: String(a.analysis.id),
-        systolic: a.analysis.systolic,
-        diastolic: a.analysis.diastolic,
-        pulse: a.analysis.pulse,
-        confidence: a.analysis.confidence,
-        bpLevel: a.analysis.bpLevel,
-        analysisNote: a.analysis.analysisNote ?? undefined,
-        analyzedAt: new Date(a.analysis.analyzedAt),
-        imageUrl: a.analysis.imageUrl ?? undefined,
+        id: String(a.reading.id),
+        systolic: a.reading.systolic,
+        diastolic: a.reading.diastolic,
+        pulse: a.reading.pulse,
+        status: a.reading.status,
+        measuredAt: new Date(a.reading.measuredAt),
+        s3Key: a.reading.s3Key ?? undefined,
       }
     : undefined,
 });
@@ -771,9 +769,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   markAlertRead: async (id: string) => {
     const token = get().authToken;
+    const now = new Date();
     set((state) => ({
       alerts: state.alerts.map((alert) =>
-        alert.id === id ? { ...alert, isRead: true } : alert,
+        alert.id === id ? { ...alert, readAt: alert.readAt ?? now } : alert,
       ),
     }));
 
@@ -788,8 +787,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   markAllAlertsRead: async () => {
     const token = get().authToken;
+    const now = new Date();
     set((state) => ({
-      alerts: state.alerts.map((alert) => ({ ...alert, isRead: true })),
+      alerts: state.alerts.map((alert) => ({
+        ...alert,
+        readAt: alert.readAt ?? now,
+      })),
     }));
 
     if (!token) return;

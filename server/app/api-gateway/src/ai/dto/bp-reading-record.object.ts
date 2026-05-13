@@ -18,5 +18,5 @@ export class BPReadingRecordObject {
   measuredAt: string;
 
   @Field(() => String, { nullable: true })
-  imageUrl: string | null;
+  s3Key: string | null;
 }

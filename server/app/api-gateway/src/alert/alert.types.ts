@@ -8,7 +8,7 @@ export class AlertReadingType {
   @Field(() => Int) pulse: number;
   @Field() status: string;
   @Field() measuredAt: Date;
-  @Field({ nullable: true }) imageUri?: string;
+  @Field({ nullable: true }) s3Key?: string;
 }
 
 @ObjectType()
@@ -18,7 +18,7 @@ export class AlertType {
   @Field(() => Int) bpReadingId: number;
   @Field() alertMessage: string;
   @Field() alertLevel: string;
-  @Field() isRead: boolean;
+  @Field({ nullable: true }) readAt?: Date;
   @Field() createdAt: Date;
   @Field(() => AlertReadingType, { nullable: true })
   reading?: AlertReadingType;

@@ -37,16 +37,19 @@ export type PostCommentLikeSumAggregateOutputType = {
 export type PostCommentLikeMinAggregateOutputType = {
   userId: string | null
   commentId: number | null
+  createdAt: Date | null
 }
 
 export type PostCommentLikeMaxAggregateOutputType = {
   userId: string | null
   commentId: number | null
+  createdAt: Date | null
 }
 
 export type PostCommentLikeCountAggregateOutputType = {
   userId: number
   commentId: number
+  createdAt: number
   _all: number
 }
 
@@ -62,16 +65,19 @@ export type PostCommentLikeSumAggregateInputType = {
 export type PostCommentLikeMinAggregateInputType = {
   userId?: true
   commentId?: true
+  createdAt?: true
 }
 
 export type PostCommentLikeMaxAggregateInputType = {
   userId?: true
   commentId?: true
+  createdAt?: true
 }
 
 export type PostCommentLikeCountAggregateInputType = {
   userId?: true
   commentId?: true
+  createdAt?: true
   _all?: true
 }
 
@@ -164,6 +170,7 @@ export type PostCommentLikeGroupByArgs<ExtArgs extends runtime.Types.Extensions.
 export type PostCommentLikeGroupByOutputType = {
   userId: string
   commentId: number
+  createdAt: Date
   _count: PostCommentLikeCountAggregateOutputType | null
   _avg: PostCommentLikeAvgAggregateOutputType | null
   _sum: PostCommentLikeSumAggregateOutputType | null
@@ -192,6 +199,7 @@ export type PostCommentLikeWhereInput = {
   NOT?: Prisma.PostCommentLikeWhereInput | Prisma.PostCommentLikeWhereInput[]
   userId?: Prisma.UuidFilter<"PostCommentLike"> | string
   commentId?: Prisma.IntFilter<"PostCommentLike"> | number
+  createdAt?: Prisma.DateTimeFilter<"PostCommentLike"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   comment?: Prisma.XOR<Prisma.PostCommentScalarRelationFilter, Prisma.PostCommentWhereInput>
 }
@@ -199,6 +207,7 @@ export type PostCommentLikeWhereInput = {
 export type PostCommentLikeOrderByWithRelationInput = {
   userId?: Prisma.SortOrder
   commentId?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
   comment?: Prisma.PostCommentOrderByWithRelationInput
 }
@@ -210,6 +219,7 @@ export type PostCommentLikeWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.PostCommentLikeWhereInput | Prisma.PostCommentLikeWhereInput[]
   userId?: Prisma.UuidFilter<"PostCommentLike"> | string
   commentId?: Prisma.IntFilter<"PostCommentLike"> | number
+  createdAt?: Prisma.DateTimeFilter<"PostCommentLike"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   comment?: Prisma.XOR<Prisma.PostCommentScalarRelationFilter, Prisma.PostCommentWhereInput>
 }, "userId_commentId">
@@ -217,6 +227,7 @@ export type PostCommentLikeWhereUniqueInput = Prisma.AtLeast<{
 export type PostCommentLikeOrderByWithAggregationInput = {
   userId?: Prisma.SortOrder
   commentId?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
   _count?: Prisma.PostCommentLikeCountOrderByAggregateInput
   _avg?: Prisma.PostCommentLikeAvgOrderByAggregateInput
   _max?: Prisma.PostCommentLikeMaxOrderByAggregateInput
@@ -230,9 +241,11 @@ export type PostCommentLikeScalarWhereWithAggregatesInput = {
   NOT?: Prisma.PostCommentLikeScalarWhereWithAggregatesInput | Prisma.PostCommentLikeScalarWhereWithAggregatesInput[]
   userId?: Prisma.UuidWithAggregatesFilter<"PostCommentLike"> | string
   commentId?: Prisma.IntWithAggregatesFilter<"PostCommentLike"> | number
+  createdAt?: Prisma.DateTimeWithAggregatesFilter<"PostCommentLike"> | Date | string
 }
 
 export type PostCommentLikeCreateInput = {
+  createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPostCommentLikesInput
   comment: Prisma.PostCommentCreateNestedOneWithoutLikesInput
 }
@@ -240,9 +253,11 @@ export type PostCommentLikeCreateInput = {
 export type PostCommentLikeUncheckedCreateInput = {
   userId: string
   commentId: number
+  createdAt?: Date | string
 }
 
 export type PostCommentLikeUpdateInput = {
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPostCommentLikesNestedInput
   comment?: Prisma.PostCommentUpdateOneRequiredWithoutLikesNestedInput
 }
@@ -250,20 +265,23 @@ export type PostCommentLikeUpdateInput = {
 export type PostCommentLikeUncheckedUpdateInput = {
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   commentId?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type PostCommentLikeCreateManyInput = {
   userId: string
   commentId: number
+  createdAt?: Date | string
 }
 
 export type PostCommentLikeUpdateManyMutationInput = {
-
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type PostCommentLikeUncheckedUpdateManyInput = {
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   commentId?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type PostCommentLikeListRelationFilter = {
@@ -284,6 +302,7 @@ export type PostCommentLikeUserIdCommentIdCompoundUniqueInput = {
 export type PostCommentLikeCountOrderByAggregateInput = {
   userId?: Prisma.SortOrder
   commentId?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type PostCommentLikeAvgOrderByAggregateInput = {
@@ -293,11 +312,13 @@ export type PostCommentLikeAvgOrderByAggregateInput = {
 export type PostCommentLikeMaxOrderByAggregateInput = {
   userId?: Prisma.SortOrder
   commentId?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type PostCommentLikeMinOrderByAggregateInput = {
   userId?: Prisma.SortOrder
   commentId?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type PostCommentLikeSumOrderByAggregateInput = {
@@ -389,11 +410,13 @@ export type PostCommentLikeUncheckedUpdateManyWithoutCommentNestedInput = {
 }
 
 export type PostCommentLikeCreateWithoutUserInput = {
+  createdAt?: Date | string
   comment: Prisma.PostCommentCreateNestedOneWithoutLikesInput
 }
 
 export type PostCommentLikeUncheckedCreateWithoutUserInput = {
   commentId: number
+  createdAt?: Date | string
 }
 
 export type PostCommentLikeCreateOrConnectWithoutUserInput = {
@@ -428,14 +451,17 @@ export type PostCommentLikeScalarWhereInput = {
   NOT?: Prisma.PostCommentLikeScalarWhereInput | Prisma.PostCommentLikeScalarWhereInput[]
   userId?: Prisma.UuidFilter<"PostCommentLike"> | string
   commentId?: Prisma.IntFilter<"PostCommentLike"> | number
+  createdAt?: Prisma.DateTimeFilter<"PostCommentLike"> | Date | string
 }
 
 export type PostCommentLikeCreateWithoutCommentInput = {
+  createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPostCommentLikesInput
 }
 
 export type PostCommentLikeUncheckedCreateWithoutCommentInput = {
   userId: string
+  createdAt?: Date | string
 }
 
 export type PostCommentLikeCreateOrConnectWithoutCommentInput = {
@@ -466,34 +492,42 @@ export type PostCommentLikeUpdateManyWithWhereWithoutCommentInput = {
 
 export type PostCommentLikeCreateManyUserInput = {
   commentId: number
+  createdAt?: Date | string
 }
 
 export type PostCommentLikeUpdateWithoutUserInput = {
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comment?: Prisma.PostCommentUpdateOneRequiredWithoutLikesNestedInput
 }
 
 export type PostCommentLikeUncheckedUpdateWithoutUserInput = {
   commentId?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type PostCommentLikeUncheckedUpdateManyWithoutUserInput = {
   commentId?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type PostCommentLikeCreateManyCommentInput = {
   userId: string
+  createdAt?: Date | string
 }
 
 export type PostCommentLikeUpdateWithoutCommentInput = {
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPostCommentLikesNestedInput
 }
 
 export type PostCommentLikeUncheckedUpdateWithoutCommentInput = {
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type PostCommentLikeUncheckedUpdateManyWithoutCommentInput = {
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 
@@ -501,6 +535,7 @@ export type PostCommentLikeUncheckedUpdateManyWithoutCommentInput = {
 export type PostCommentLikeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   userId?: boolean
   commentId?: boolean
+  createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   comment?: boolean | Prisma.PostCommentDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["postCommentLike"]>
@@ -508,6 +543,7 @@ export type PostCommentLikeSelect<ExtArgs extends runtime.Types.Extensions.Inter
 export type PostCommentLikeSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   userId?: boolean
   commentId?: boolean
+  createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   comment?: boolean | Prisma.PostCommentDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["postCommentLike"]>
@@ -515,6 +551,7 @@ export type PostCommentLikeSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
 export type PostCommentLikeSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   userId?: boolean
   commentId?: boolean
+  createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   comment?: boolean | Prisma.PostCommentDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["postCommentLike"]>
@@ -522,9 +559,10 @@ export type PostCommentLikeSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
 export type PostCommentLikeSelectScalar = {
   userId?: boolean
   commentId?: boolean
+  createdAt?: boolean
 }
 
-export type PostCommentLikeOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"userId" | "commentId", ExtArgs["result"]["postCommentLike"]>
+export type PostCommentLikeOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"userId" | "commentId" | "createdAt", ExtArgs["result"]["postCommentLike"]>
 export type PostCommentLikeInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   comment?: boolean | Prisma.PostCommentDefaultArgs<ExtArgs>
@@ -547,6 +585,7 @@ export type $PostCommentLikePayload<ExtArgs extends runtime.Types.Extensions.Int
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     userId: string
     commentId: number
+    createdAt: Date
   }, ExtArgs["result"]["postCommentLike"]>
   composites: {}
 }
@@ -974,6 +1013,7 @@ export interface Prisma__PostCommentLikeClient<T, Null = never, ExtArgs extends 
 export interface PostCommentLikeFieldRefs {
   readonly userId: Prisma.FieldRef<"PostCommentLike", 'String'>
   readonly commentId: Prisma.FieldRef<"PostCommentLike", 'Int'>
+  readonly createdAt: Prisma.FieldRef<"PostCommentLike", 'DateTime'>
 }
     
 

@@ -39,34 +39,37 @@ export type ImageSumAggregateOutputType = {
 export type ImageMinAggregateOutputType = {
   id: number | null
   userId: string | null
-  imageUrl: string | null
+  s3Key: string | null
   deviceName: string | null
   imageQualityScore: number | null
   syncStatus: $Enums.ImageSyncStatus | null
   syncedAt: Date | null
   uploadedAt: Date | null
+  updatedAt: Date | null
 }
 
 export type ImageMaxAggregateOutputType = {
   id: number | null
   userId: string | null
-  imageUrl: string | null
+  s3Key: string | null
   deviceName: string | null
   imageQualityScore: number | null
   syncStatus: $Enums.ImageSyncStatus | null
   syncedAt: Date | null
   uploadedAt: Date | null
+  updatedAt: Date | null
 }
 
 export type ImageCountAggregateOutputType = {
   id: number
   userId: number
-  imageUrl: number
+  s3Key: number
   deviceName: number
   imageQualityScore: number
   syncStatus: number
   syncedAt: number
   uploadedAt: number
+  updatedAt: number
   _all: number
 }
 
@@ -84,34 +87,37 @@ export type ImageSumAggregateInputType = {
 export type ImageMinAggregateInputType = {
   id?: true
   userId?: true
-  imageUrl?: true
+  s3Key?: true
   deviceName?: true
   imageQualityScore?: true
   syncStatus?: true
   syncedAt?: true
   uploadedAt?: true
+  updatedAt?: true
 }
 
 export type ImageMaxAggregateInputType = {
   id?: true
   userId?: true
-  imageUrl?: true
+  s3Key?: true
   deviceName?: true
   imageQualityScore?: true
   syncStatus?: true
   syncedAt?: true
   uploadedAt?: true
+  updatedAt?: true
 }
 
 export type ImageCountAggregateInputType = {
   id?: true
   userId?: true
-  imageUrl?: true
+  s3Key?: true
   deviceName?: true
   imageQualityScore?: true
   syncStatus?: true
   syncedAt?: true
   uploadedAt?: true
+  updatedAt?: true
   _all?: true
 }
 
@@ -204,12 +210,13 @@ export type ImageGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
 export type ImageGroupByOutputType = {
   id: number
   userId: string
-  imageUrl: string
+  s3Key: string
   deviceName: string
   imageQualityScore: number | null
   syncStatus: $Enums.ImageSyncStatus
   syncedAt: Date | null
   uploadedAt: Date
+  updatedAt: Date
   _count: ImageCountAggregateOutputType | null
   _avg: ImageAvgAggregateOutputType | null
   _sum: ImageSumAggregateOutputType | null
@@ -238,24 +245,26 @@ export type ImageWhereInput = {
   NOT?: Prisma.ImageWhereInput | Prisma.ImageWhereInput[]
   id?: Prisma.IntFilter<"Image"> | number
   userId?: Prisma.UuidFilter<"Image"> | string
-  imageUrl?: Prisma.StringFilter<"Image"> | string
+  s3Key?: Prisma.StringFilter<"Image"> | string
   deviceName?: Prisma.StringFilter<"Image"> | string
   imageQualityScore?: Prisma.FloatNullableFilter<"Image"> | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFilter<"Image"> | $Enums.ImageSyncStatus
   syncedAt?: Prisma.DateTimeNullableFilter<"Image"> | Date | string | null
   uploadedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }
 
 export type ImageOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  imageUrl?: Prisma.SortOrder
+  s3Key?: Prisma.SortOrder
   deviceName?: Prisma.SortOrder
   imageQualityScore?: Prisma.SortOrderInput | Prisma.SortOrder
   syncStatus?: Prisma.SortOrder
   syncedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
 }
 
@@ -265,24 +274,26 @@ export type ImageWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.ImageWhereInput[]
   NOT?: Prisma.ImageWhereInput | Prisma.ImageWhereInput[]
   userId?: Prisma.UuidFilter<"Image"> | string
-  imageUrl?: Prisma.StringFilter<"Image"> | string
+  s3Key?: Prisma.StringFilter<"Image"> | string
   deviceName?: Prisma.StringFilter<"Image"> | string
   imageQualityScore?: Prisma.FloatNullableFilter<"Image"> | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFilter<"Image"> | $Enums.ImageSyncStatus
   syncedAt?: Prisma.DateTimeNullableFilter<"Image"> | Date | string | null
   uploadedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }, "id">
 
 export type ImageOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  imageUrl?: Prisma.SortOrder
+  s3Key?: Prisma.SortOrder
   deviceName?: Prisma.SortOrder
   imageQualityScore?: Prisma.SortOrderInput | Prisma.SortOrder
   syncStatus?: Prisma.SortOrder
   syncedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
   _count?: Prisma.ImageCountOrderByAggregateInput
   _avg?: Prisma.ImageAvgOrderByAggregateInput
   _max?: Prisma.ImageMaxOrderByAggregateInput
@@ -296,85 +307,93 @@ export type ImageScalarWhereWithAggregatesInput = {
   NOT?: Prisma.ImageScalarWhereWithAggregatesInput | Prisma.ImageScalarWhereWithAggregatesInput[]
   id?: Prisma.IntWithAggregatesFilter<"Image"> | number
   userId?: Prisma.UuidWithAggregatesFilter<"Image"> | string
-  imageUrl?: Prisma.StringWithAggregatesFilter<"Image"> | string
+  s3Key?: Prisma.StringWithAggregatesFilter<"Image"> | string
   deviceName?: Prisma.StringWithAggregatesFilter<"Image"> | string
   imageQualityScore?: Prisma.FloatNullableWithAggregatesFilter<"Image"> | number | null
   syncStatus?: Prisma.EnumImageSyncStatusWithAggregatesFilter<"Image"> | $Enums.ImageSyncStatus
   syncedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Image"> | Date | string | null
   uploadedAt?: Prisma.DateTimeWithAggregatesFilter<"Image"> | Date | string
+  updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Image"> | Date | string
 }
 
 export type ImageCreateInput = {
-  imageUrl: string
+  s3Key: string
   deviceName: string
   imageQualityScore?: number | null
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
+  updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutImagesInput
 }
 
 export type ImageUncheckedCreateInput = {
   id?: number
   userId: string
-  imageUrl: string
+  s3Key: string
   deviceName: string
   imageQualityScore?: number | null
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type ImageUpdateInput = {
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  s3Key?: Prisma.StringFieldUpdateOperationsInput | string
   deviceName?: Prisma.StringFieldUpdateOperationsInput | string
   imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutImagesNestedInput
 }
 
 export type ImageUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.StringFieldUpdateOperationsInput | string
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  s3Key?: Prisma.StringFieldUpdateOperationsInput | string
   deviceName?: Prisma.StringFieldUpdateOperationsInput | string
   imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type ImageCreateManyInput = {
   id?: number
   userId: string
-  imageUrl: string
+  s3Key: string
   deviceName: string
   imageQualityScore?: number | null
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type ImageUpdateManyMutationInput = {
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  s3Key?: Prisma.StringFieldUpdateOperationsInput | string
   deviceName?: Prisma.StringFieldUpdateOperationsInput | string
   imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type ImageUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.StringFieldUpdateOperationsInput | string
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  s3Key?: Prisma.StringFieldUpdateOperationsInput | string
   deviceName?: Prisma.StringFieldUpdateOperationsInput | string
   imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type ImageListRelationFilter = {
@@ -390,12 +409,13 @@ export type ImageOrderByRelationAggregateInput = {
 export type ImageCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  imageUrl?: Prisma.SortOrder
+  s3Key?: Prisma.SortOrder
   deviceName?: Prisma.SortOrder
   imageQualityScore?: Prisma.SortOrder
   syncStatus?: Prisma.SortOrder
   syncedAt?: Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type ImageAvgOrderByAggregateInput = {
@@ -406,23 +426,25 @@ export type ImageAvgOrderByAggregateInput = {
 export type ImageMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  imageUrl?: Prisma.SortOrder
+  s3Key?: Prisma.SortOrder
   deviceName?: Prisma.SortOrder
   imageQualityScore?: Prisma.SortOrder
   syncStatus?: Prisma.SortOrder
   syncedAt?: Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type ImageMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
-  imageUrl?: Prisma.SortOrder
+  s3Key?: Prisma.SortOrder
   deviceName?: Prisma.SortOrder
   imageQualityScore?: Prisma.SortOrder
   syncStatus?: Prisma.SortOrder
   syncedAt?: Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
+  updatedAt?: Prisma.SortOrder
 }
 
 export type ImageSumOrderByAggregateInput = {
@@ -485,22 +507,24 @@ export type IntFieldUpdateOperationsInput = {
 }
 
 export type ImageCreateWithoutUserInput = {
-  imageUrl: string
+  s3Key: string
   deviceName: string
   imageQualityScore?: number | null
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type ImageUncheckedCreateWithoutUserInput = {
   id?: number
-  imageUrl: string
+  s3Key: string
   deviceName: string
   imageQualityScore?: number | null
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type ImageCreateOrConnectWithoutUserInput = {
@@ -535,51 +559,56 @@ export type ImageScalarWhereInput = {
   NOT?: Prisma.ImageScalarWhereInput | Prisma.ImageScalarWhereInput[]
   id?: Prisma.IntFilter<"Image"> | number
   userId?: Prisma.UuidFilter<"Image"> | string
-  imageUrl?: Prisma.StringFilter<"Image"> | string
+  s3Key?: Prisma.StringFilter<"Image"> | string
   deviceName?: Prisma.StringFilter<"Image"> | string
   imageQualityScore?: Prisma.FloatNullableFilter<"Image"> | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFilter<"Image"> | $Enums.ImageSyncStatus
   syncedAt?: Prisma.DateTimeNullableFilter<"Image"> | Date | string | null
   uploadedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"Image"> | Date | string
 }
 
 export type ImageCreateManyUserInput = {
   id?: number
-  imageUrl: string
+  s3Key: string
   deviceName: string
   imageQualityScore?: number | null
   syncStatus?: $Enums.ImageSyncStatus
   syncedAt?: Date | string | null
   uploadedAt?: Date | string
+  updatedAt?: Date | string
 }
 
 export type ImageUpdateWithoutUserInput = {
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  s3Key?: Prisma.StringFieldUpdateOperationsInput | string
   deviceName?: Prisma.StringFieldUpdateOperationsInput | string
   imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type ImageUncheckedUpdateWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  s3Key?: Prisma.StringFieldUpdateOperationsInput | string
   deviceName?: Prisma.StringFieldUpdateOperationsInput | string
   imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type ImageUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
-  imageUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  s3Key?: Prisma.StringFieldUpdateOperationsInput | string
   deviceName?: Prisma.StringFieldUpdateOperationsInput | string
   imageQualityScore?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   syncStatus?: Prisma.EnumImageSyncStatusFieldUpdateOperationsInput | $Enums.ImageSyncStatus
   syncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   uploadedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 
@@ -587,51 +616,55 @@ export type ImageUncheckedUpdateManyWithoutUserInput = {
 export type ImageSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
-  imageUrl?: boolean
+  s3Key?: boolean
   deviceName?: boolean
   imageQualityScore?: boolean
   syncStatus?: boolean
   syncedAt?: boolean
   uploadedAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["image"]>
 
 export type ImageSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
-  imageUrl?: boolean
+  s3Key?: boolean
   deviceName?: boolean
   imageQualityScore?: boolean
   syncStatus?: boolean
   syncedAt?: boolean
   uploadedAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["image"]>
 
 export type ImageSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
-  imageUrl?: boolean
+  s3Key?: boolean
   deviceName?: boolean
   imageQualityScore?: boolean
   syncStatus?: boolean
   syncedAt?: boolean
   uploadedAt?: boolean
+  updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["image"]>
 
 export type ImageSelectScalar = {
   id?: boolean
   userId?: boolean
-  imageUrl?: boolean
+  s3Key?: boolean
   deviceName?: boolean
   imageQualityScore?: boolean
   syncStatus?: boolean
   syncedAt?: boolean
   uploadedAt?: boolean
+  updatedAt?: boolean
 }
 
-export type ImageOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "imageUrl" | "deviceName" | "imageQualityScore" | "syncStatus" | "syncedAt" | "uploadedAt", ExtArgs["result"]["image"]>
+export type ImageOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "s3Key" | "deviceName" | "imageQualityScore" | "syncStatus" | "syncedAt" | "uploadedAt" | "updatedAt", ExtArgs["result"]["image"]>
 export type ImageInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -650,12 +683,13 @@ export type $ImagePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
     userId: string
-    imageUrl: string
+    s3Key: string
     deviceName: string
     imageQualityScore: number | null
     syncStatus: $Enums.ImageSyncStatus
     syncedAt: Date | null
     uploadedAt: Date
+    updatedAt: Date
   }, ExtArgs["result"]["image"]>
   composites: {}
 }
@@ -1082,12 +1116,13 @@ export interface Prisma__ImageClient<T, Null = never, ExtArgs extends runtime.Ty
 export interface ImageFieldRefs {
   readonly id: Prisma.FieldRef<"Image", 'Int'>
   readonly userId: Prisma.FieldRef<"Image", 'String'>
-  readonly imageUrl: Prisma.FieldRef<"Image", 'String'>
+  readonly s3Key: Prisma.FieldRef<"Image", 'String'>
   readonly deviceName: Prisma.FieldRef<"Image", 'String'>
   readonly imageQualityScore: Prisma.FieldRef<"Image", 'Float'>
   readonly syncStatus: Prisma.FieldRef<"Image", 'ImageSyncStatus'>
   readonly syncedAt: Prisma.FieldRef<"Image", 'DateTime'>
   readonly uploadedAt: Prisma.FieldRef<"Image", 'DateTime'>
+  readonly updatedAt: Prisma.FieldRef<"Image", 'DateTime'>
 }
     
 

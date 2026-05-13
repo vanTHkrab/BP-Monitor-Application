@@ -62,3 +62,16 @@ export const PostCategory = {
 } as const
 
 export type PostCategory = (typeof PostCategory)[keyof typeof PostCategory]
+
+
+export const RelationshipType = {
+  parent: 'parent',
+  child: 'child',
+  spouse: 'spouse',
+  sibling: 'sibling',
+  friend: 'friend',
+  caregiver_professional: 'caregiver_professional',
+  other: 'other'
+} as const
+
+export type RelationshipType = (typeof RelationshipType)[keyof typeof RelationshipType]

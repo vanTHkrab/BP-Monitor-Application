@@ -24,7 +24,7 @@ export class ReadingService {
       status: string;
       measuredAt: Date;
       clientId?: string;
-      imageUri?: string;
+      s3Key?: string;
       notes?: string;
     },
   ) {
@@ -47,7 +47,7 @@ export class ReadingService {
         status: data.status as BpStatus,
         measuredAt: data.measuredAt,
         clientId: data.clientId || null,
-        imageUri: data.imageUri || null,
+        s3Key: data.s3Key || null,
         notes: data.notes || null,
       },
     });

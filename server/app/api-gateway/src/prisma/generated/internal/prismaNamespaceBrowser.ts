@@ -93,7 +93,8 @@ export const UserScalarFieldEnum = {
   height: 'height',
   congenitalDisease: 'congenitalDisease',
   avatar: 'avatar',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
@@ -116,7 +117,8 @@ export type UserSessionScalarFieldEnum = (typeof UserSessionScalarFieldEnum)[key
 export const CaregiverPatientScalarFieldEnum = {
   caregiverId: 'caregiverId',
   patientId: 'patientId',
-  relationship: 'relationship'
+  relationship: 'relationship',
+  createdAt: 'createdAt'
 } as const
 
 export type CaregiverPatientScalarFieldEnum = (typeof CaregiverPatientScalarFieldEnum)[keyof typeof CaregiverPatientScalarFieldEnum]
@@ -125,12 +127,13 @@ export type CaregiverPatientScalarFieldEnum = (typeof CaregiverPatientScalarFiel
 export const ImageScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
-  imageUrl: 'imageUrl',
+  s3Key: 's3Key',
   deviceName: 'deviceName',
   imageQualityScore: 'imageQualityScore',
   syncStatus: 'syncStatus',
   syncedAt: 'syncedAt',
-  uploadedAt: 'uploadedAt'
+  uploadedAt: 'uploadedAt',
+  updatedAt: 'updatedAt'
 } as const
 
 export type ImageScalarFieldEnum = (typeof ImageScalarFieldEnum)[keyof typeof ImageScalarFieldEnum]
@@ -142,8 +145,9 @@ export const AlertScalarFieldEnum = {
   bpReadingId: 'bpReadingId',
   alertMessage: 'alertMessage',
   alertLevel: 'alertLevel',
-  isRead: 'isRead',
-  createdAt: 'createdAt'
+  readAt: 'readAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 } as const
 
 export type AlertScalarFieldEnum = (typeof AlertScalarFieldEnum)[keyof typeof AlertScalarFieldEnum]
@@ -158,9 +162,10 @@ export const BloodPressureReadingScalarFieldEnum = {
   pulse: 'pulse',
   status: 'status',
   measuredAt: 'measuredAt',
-  imageUri: 'imageUri',
+  s3Key: 's3Key',
   notes: 'notes',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 } as const
 
 export type BloodPressureReadingScalarFieldEnum = (typeof BloodPressureReadingScalarFieldEnum)[keyof typeof BloodPressureReadingScalarFieldEnum]
@@ -194,7 +199,8 @@ export type PostCommentScalarFieldEnum = (typeof PostCommentScalarFieldEnum)[key
 
 export const PostCommentLikeScalarFieldEnum = {
   userId: 'userId',
-  commentId: 'commentId'
+  commentId: 'commentId',
+  createdAt: 'createdAt'
 } as const
 
 export type PostCommentLikeScalarFieldEnum = (typeof PostCommentLikeScalarFieldEnum)[keyof typeof PostCommentLikeScalarFieldEnum]
@@ -202,7 +208,8 @@ export type PostCommentLikeScalarFieldEnum = (typeof PostCommentLikeScalarFieldE
 
 export const PostLikeScalarFieldEnum = {
   userId: 'userId',
-  postId: 'postId'
+  postId: 'postId',
+  createdAt: 'createdAt'
 } as const
 
 export type PostLikeScalarFieldEnum = (typeof PostLikeScalarFieldEnum)[keyof typeof PostLikeScalarFieldEnum]

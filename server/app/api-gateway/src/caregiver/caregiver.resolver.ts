@@ -9,7 +9,9 @@ import { CaregiverLinkType } from './caregiver.types';
 export class CaregiverResolver {
   constructor(private readonly caregiverService: CaregiverService) {}
 
-  @Query(() => [CaregiverLinkType], { description: 'รายการผู้ดูแล/ผู้ป่วยที่เชื่อมกับบัญชี' })
+  @Query(() => [CaregiverLinkType], {
+    description: 'รายการผู้ดูแล/ผู้ป่วยที่เชื่อมกับบัญชี',
+  })
   @UseGuards(GqlAuthGuard)
   async caregiverLinks(
     @CurrentUser() user: { id: string },
@@ -17,7 +19,9 @@ export class CaregiverResolver {
     return this.caregiverService.list(user.id);
   }
 
-  @Mutation(() => CaregiverLinkType, { description: 'เพิ่มผู้ป่วยด้วยเบอร์โทรศัพท์' })
+  @Mutation(() => CaregiverLinkType, {
+    description: 'เพิ่มผู้ป่วยด้วยเบอร์โทรศัพท์',
+  })
   @UseGuards(GqlAuthGuard)
   async addCaregiverPatient(
     @CurrentUser() user: { id: string },

@@ -358,7 +358,7 @@ export const GQL_CONFIRM_IMAGE_UPLOAD = `
 export const GQL_READINGS = `
   query Readings($limit: Int, $offset: Int) {
     readings(limit: $limit, offset: $offset) {
-      id userId clientId systolic diastolic pulse status measuredAt imageUri notes createdAt
+      id userId clientId systolic diastolic pulse status measuredAt s3Key notes createdAt
     }
   }
 `;
@@ -366,7 +366,7 @@ export const GQL_READINGS = `
 export const GQL_CREATE_READING = `
   mutation CreateReading($input: CreateReadingInput!) {
     createReading(input: $input) {
-      id userId clientId systolic diastolic pulse status measuredAt imageUri notes createdAt
+      id userId clientId systolic diastolic pulse status measuredAt s3Key notes createdAt
     }
   }
 `;
@@ -458,21 +458,19 @@ export const GQL_ALERTS = `
     alerts(limit: $limit, offset: $offset, unreadOnly: $unreadOnly) {
       id
       userId
-      analysisId
+      bpReadingId
       alertMessage
       alertLevel
-      isRead
+      readAt
       createdAt
-      analysis {
+      reading {
         id
         systolic
         diastolic
         pulse
-        confidence
-        bpLevel
-        analysisNote
-        analyzedAt
-        imageUrl
+        status
+        measuredAt
+        s3Key
       }
     }
   }

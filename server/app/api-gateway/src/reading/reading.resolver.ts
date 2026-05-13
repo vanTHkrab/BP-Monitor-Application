@@ -23,7 +23,7 @@ export class ReadingType {
   @Field(() => Int) pulse: number;
   @Field() status: string;
   @Field() measuredAt: Date;
-  @Field({ nullable: true }) imageUri?: string;
+  @Field({ nullable: true }) s3Key?: string;
   @Field({ nullable: true }) notes?: string;
   @Field() createdAt: Date;
 }
@@ -36,7 +36,7 @@ export class CreateReadingInput {
   @Field() status: string;
   @Field() measuredAt: Date;
   @Field({ nullable: true }) clientId?: string;
-  @Field({ nullable: true }) imageUri?: string;
+  @Field({ nullable: true }) s3Key?: string;
   @Field({ nullable: true }) notes?: string;
 }
 
@@ -61,7 +61,7 @@ export class ReadingResolver {
       pulse: r.pulse,
       status: r.status,
       measuredAt: r.measuredAt,
-      imageUri: r.imageUri ?? undefined,
+      s3Key: r.s3Key ?? undefined,
       notes: r.notes ?? undefined,
       createdAt: r.createdAt,
     }));
@@ -83,7 +83,7 @@ export class ReadingResolver {
       pulse: r.pulse,
       status: r.status,
       measuredAt: r.measuredAt,
-      imageUri: r.imageUri ?? undefined,
+      s3Key: r.s3Key ?? undefined,
       notes: r.notes ?? undefined,
       createdAt: r.createdAt,
     };

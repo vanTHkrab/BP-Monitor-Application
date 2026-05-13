@@ -107,7 +107,7 @@ export default function HomeScreen() {
         title: alert.alertLevel === 'critical' ? 'แจ้งเตือนความดันระดับวิกฤต' : 'แจ้งเตือนผลวัดความดัน',
         body: alert.alertMessage,
         createdAt: alert.createdAt,
-        readAt: alert.isRead ? alert.createdAt : undefined,
+        readAt: alert.readAt,
       }));
       const items = serverItems.length > 0 ? serverItems : notifications;
       return items.filter((item) => !item.readAt).length;
@@ -122,7 +122,7 @@ export default function HomeScreen() {
       title: alert.alertLevel === 'critical' ? 'แจ้งเตือนความดันระดับวิกฤต' : 'แจ้งเตือนผลวัดความดัน',
       body: alert.alertMessage,
       createdAt: alert.createdAt,
-      readAt: alert.isRead ? alert.createdAt : undefined,
+      readAt: alert.readAt,
     }));
 
     return serverItems.length > 0 ? serverItems : notifications;

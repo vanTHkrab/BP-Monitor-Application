@@ -44,7 +44,7 @@ export class AiResolver {
       diastolic: reading.diastolic,
       pulse: reading.pulse,
       measuredAt: reading.measuredAt.toISOString(),
-      imageUrl: reading.imageUri ?? null,
+      s3Key: reading.s3Key ?? null,
     };
   }
 }

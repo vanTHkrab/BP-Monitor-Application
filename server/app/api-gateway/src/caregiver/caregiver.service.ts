@@ -5,13 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { RelationshipType } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CaregiverLinkType } from './caregiver.types';
 
 type CaregiverLinkWithUsers = {
   caregiverId: string;
   patientId: string;
-  relationship: string;
+  relationship: RelationshipType;
   caregiver: {
     firstname: string;
     lastname: string;
@@ -22,6 +23,27 @@ type CaregiverLinkWithUsers = {
     lastname: string;
     phone: string;
   };
+};
+
+const VALID_RELATIONSHIPS: ReadonlySet<RelationshipType> = new Set([
+  'parent',
+  'child',
+  'spouse',
+  'sibling',
+  'friend',
+  'caregiver_professional',
+  'other',
+]);
+
+const parseRelationship = (raw: string): RelationshipType => {
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  if (VALID_RELATIONSHIPS.has(normalized as RelationshipType)) {
+    return normalized as RelationshipType;
+  }
+  return 'other';
 };
 
 @Injectable()
@@ -49,11 +71,11 @@ export class CaregiverService {
     relationship: string,
   ): Promise<CaregiverLinkType> {
     const cleanPhone = patientPhone.trim();
-    const cleanRelationship = relationship.trim() || 'caregiver';
-
     if (!cleanPhone) {
       throw new BadRequestException('กรุณากรอกเบอร์โทรศัพท์ผู้ป่วย');
     }
+
+    const relationshipEnum = parseRelationship(relationship);
 
     const patient = await this.prisma.user.findUnique({
       where: { phone: cleanPhone },
@@ -85,7 +107,7 @@ export class CaregiverService {
       data: {
         caregiverId,
         patientId: patient.id,
-        relationship: cleanRelationship,
+        relationship: relationshipEnum,
       },
       include: {
         caregiver: { select: { firstname: true, lastname: true, phone: true } },
