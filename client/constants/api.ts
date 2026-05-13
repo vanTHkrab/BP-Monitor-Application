@@ -203,6 +203,18 @@ export async function graphqlRequest<T = unknown>(
       );
     }
 
+    // Prefer the standard HTTP `Retry-After` header but fall back to a custom
+    // `extensions.retryAfterSec` (lifted from NestJS HttpException body by the
+    // gateway's errorFormatter) so the throttle countdown still works even
+    // when the server hasn't set the header.
+    const readRetryAfter = (firstError: GqlError | undefined): number | null => {
+      const headerRaw = res.headers.get("Retry-After");
+      const headerParsed = headerRaw ? Number(headerRaw) : NaN;
+      if (Number.isFinite(headerParsed)) return headerParsed;
+      const ext = firstError?.extensions?.retryAfterSec;
+      return typeof ext === "number" && Number.isFinite(ext) ? ext : null;
+    };
+
     if (!res.ok) {
       const firstError = json.errors?.[0];
       const code =
@@ -213,11 +225,7 @@ export async function graphqlRequest<T = unknown>(
         (json.errors && json.errors.length > 0
           ? formatGqlErrors(json.errors)
           : null) || `HTTP ${res.status}`;
-      const retryAfterRaw = res.headers.get("Retry-After");
-      const retryAfterParsed = retryAfterRaw ? Number(retryAfterRaw) : NaN;
-      const retryAfterSec = Number.isFinite(retryAfterParsed)
-        ? retryAfterParsed
-        : null;
+      const retryAfterSec = readRetryAfter(firstError);
       if (__DEV__) {
         console.warn(`[GraphQL] ${operationName} HTTP error`, {
           status: res.status,
@@ -240,15 +248,18 @@ export async function graphqlRequest<T = unknown>(
           ? firstError.extensions.code
           : null;
       const msg = formatGqlErrors(json.errors);
+      const retryAfterSec = readRetryAfter(firstError);
       if (__DEV__) {
         console.warn(`[GraphQL] ${operationName} GraphQL error`, {
           code,
+          retryAfterSec,
           message: msg,
         });
       }
       throw new GraphQLClientError(`${operationName} failed: ${msg}`, {
         code,
         httpStatus: res.status,
+        retryAfterSec,
       });
     }
 
@@ -342,6 +353,12 @@ export const GQL_UPDATE_PROFILE = `
 export const GQL_CHANGE_PASSWORD = `
   mutation ChangePassword($input: ChangePasswordInput!) {
     changePassword(input: $input)
+  }
+`;
+
+export const GQL_VERIFY_PASSWORD = `
+  mutation VerifyPassword($password: String!) {
+    verifyPassword(password: $password)
   }
 `;
 

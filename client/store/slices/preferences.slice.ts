@@ -1,6 +1,6 @@
-import { GQL_LOGIN, graphqlRequest } from "@/constants/api";
+import { GQL_VERIFY_PASSWORD, graphqlRequest } from "@/constants/api";
 import { FontSizePreference } from "@/types";
-import type { LoginMutation } from "@/types/graphql";
+import type { VerifyPasswordMutation } from "@/types/graphql";
 import { errorMessage } from "@/types/graphql";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { StateCreator } from "zustand";
@@ -117,16 +117,15 @@ export const createPreferencesSlice: StateCreator<
   },
 
   unlockSensitiveData: async (password) => {
-    const currentUser = get().user;
-    if (!currentUser) return false;
+    const token = get().authToken;
+    if (!token) return false;
 
     try {
-      await graphqlRequest<LoginMutation>(GQL_LOGIN, {
-        input: {
-          phone: currentUser.phone,
-          password,
-        },
-      });
+      await graphqlRequest<VerifyPasswordMutation>(
+        GQL_VERIFY_PASSWORD,
+        { password },
+        token,
+      );
       set({ sensitiveDataUnlocked: true });
       return true;
     } catch (error) {

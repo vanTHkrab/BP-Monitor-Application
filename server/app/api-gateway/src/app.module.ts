@@ -56,11 +56,36 @@ import { CaregiverModule } from './caregiver/caregiver.module';
             (original instanceof HttpException
               ? httpStatusToGqlCode(original.getStatus())
               : 'INTERNAL_SERVER_ERROR');
+
+          // Lift custom fields from HttpException response body into extensions
+          // so the client can dispatch on them (e.g. `retryAfterSec` from the
+          // login / verify-password throttle). The NestJS envelope keys
+          // (statusCode / message / error) are intentionally dropped — `code`
+          // is already derived from the HTTP status above.
+          const extraExtensions: Record<string, unknown> = {};
+          if (original instanceof HttpException) {
+            const response = original.getResponse();
+            if (
+              response &&
+              typeof response === 'object' &&
+              !Array.isArray(response)
+            ) {
+              for (const [key, value] of Object.entries(
+                response as Record<string, unknown>,
+              )) {
+                if (key === 'statusCode' || key === 'message' || key === 'error') {
+                  continue;
+                }
+                extraExtensions[key] = value;
+              }
+            }
+          }
+
           return {
             message: err.message,
             locations: err.locations,
             path: err.path,
-            extensions: { ...err.extensions, code },
+            extensions: { ...err.extensions, ...extraExtensions, code },
           };
         });
         return {

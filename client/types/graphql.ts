@@ -58,6 +58,10 @@ export interface ChangePasswordMutation {
   changePassword: boolean;
 }
 
+export interface VerifyPasswordMutation {
+  verifyPassword: boolean;
+}
+
 export interface LogoutMutation {
   logout: boolean;
 }

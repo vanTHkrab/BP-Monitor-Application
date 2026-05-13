@@ -78,14 +78,26 @@ export class AuthResolver {
   @Mutation(() => Boolean, { description: 'เปลี่ยนรหัสผ่านผู้ใช้' })
   @UseGuards(GqlAuthGuard)
   async changePassword(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: { id: string; sessionId: string },
     @Args('input') input: ChangePasswordInput,
   ): Promise<boolean> {
     return this.authService.changePassword(
       user.id,
+      user.sessionId,
       input.currentPassword,
       input.newPassword,
     );
+  }
+
+  @Mutation(() => Boolean, {
+    description: 'ยืนยันรหัสผ่าน (สำหรับปลดล็อกข้อมูลละเอียดอ่อน)',
+  })
+  @UseGuards(GqlAuthGuard)
+  async verifyPassword(
+    @CurrentUser() user: { id: string },
+    @Args('password') password: string,
+  ): Promise<boolean> {
+    return this.authService.verifyPassword(user.id, password);
   }
 
   @Query(() => [SessionObject], { description: 'ประวัติการเข้าสู่ระบบ' })

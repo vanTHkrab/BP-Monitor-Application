@@ -1,5 +1,7 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -17,8 +19,22 @@ import { RegisterInput } from './dto/register.input';
 import { UserObject } from './dto/user.object';
 import { Gender, JwtPayload } from './types/auth.types';
 
+// Verify-password throttle (per-userId, in-memory). Tighter than the login
+// throttle because the caller is already authenticated — a wrong guess on
+// this endpoint means someone with the user's token is fishing for the
+// password. Move to Redis alongside the login throttle migration (PLAN P0 #2).
+const VERIFY_PASSWORD_WINDOW_MS = 5 * 60 * 1000;
+const VERIFY_PASSWORD_MAX_ATTEMPTS = 3;
+
+interface VerifyAttempt {
+  count: number;
+  windowStart: number;
+}
+
 @Injectable()
 export class AuthService {
+  private readonly verifyAttempts = new Map<string, VerifyAttempt>();
+
   constructor(private readonly prisma: PrismaService) {}
 
   async register(
@@ -65,7 +81,7 @@ export class AuthService {
     const session = await this.prisma.userSession.create({
       data: {
         userId: user.id,
-        deviceLabel: 'Registered Session',
+        deviceLabel: input.deviceLabel || 'Mobile App',
         userAgent: userAgent || null,
       },
     });
@@ -174,6 +190,7 @@ export class AuthService {
 
   async changePassword(
     userId: string,
+    currentSessionId: string,
     currentPassword: string,
     newPassword: string,
   ): Promise<boolean> {
@@ -197,6 +214,56 @@ export class AuthService {
       data: { passwordHash },
     });
 
+    // Revoke every other active session so a leaked token elsewhere stops
+    // working as soon as the user changes their password. The current
+    // session is intentionally kept — the user is still using this device.
+    await this.logoutAllDevices(userId, currentSessionId);
+
+    return true;
+  }
+
+  // Verify the current user's password without minting a new token or
+  // creating a session — used by the client's "unlock sensitive data" flow.
+  // Throttled per-userId so a stolen device can't brute-force the password
+  // by spamming this endpoint.
+  async verifyPassword(userId: string, password: string): Promise<boolean> {
+    const now = Date.now();
+    const entry = this.verifyAttempts.get(userId);
+
+    if (entry && now - entry.windowStart <= VERIFY_PASSWORD_WINDOW_MS) {
+      if (entry.count >= VERIFY_PASSWORD_MAX_ATTEMPTS) {
+        const retryAfterSec = Math.ceil(
+          (VERIFY_PASSWORD_WINDOW_MS - (now - entry.windowStart)) / 1000,
+        );
+        throw new HttpException(
+          {
+            message: 'ยืนยันรหัสผ่านบ่อยเกินไป กรุณารอแล้วลองใหม่',
+            retryAfterSec,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new UnauthorizedException('ไม่พบผู้ใช้');
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      if (entry && now - entry.windowStart <= VERIFY_PASSWORD_WINDOW_MS) {
+        entry.count += 1;
+      } else {
+        this.verifyAttempts.set(userId, { count: 1, windowStart: now });
+      }
+      throw new UnauthorizedException('รหัสผ่านไม่ถูกต้อง');
+    }
+
+    // Success → clear any failed-attempt counter for this user.
+    this.verifyAttempts.delete(userId);
     return true;
   }
 
