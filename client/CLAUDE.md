@@ -25,7 +25,7 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 ## Important Paths
 
 | Path | Responsibility |
-|---|---|
+| --- | --- |
 | `app/` | Route screens (Expo Router file-based). All navigation lives here. |
 | `app/(tabs)/` | The bottom-tab navigator. Tab bar in `_layout.tsx`. |
 | `components/` | Cross-screen UI primitives. Reuse before adding. |
@@ -34,16 +34,25 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 | `data/local-db.ts` | SQLite schema + helpers for the offline queues. |
 | `hooks/use-camera-analysis.ts` | The state machine for BP image capture → AI analysis → save. |
 | `lib/graphql-client.ts` | Multipart-aware GraphQL client used by the AI image-upload path. |
+| `lib/graphql-error.ts` | `GraphQLClientError` class — typed error thrown by `graphqlRequest` carrying `code` (server's `extensions.code`), `httpStatus`, and `retryAfterSec`. |
+| `lib/error-message.ts` | General `formatError(error)` — hides raw English in production, surfaces it as `devDetail` in `__DEV__`. Use this for non-auth flows. |
 | `services/camera.service.ts` | `analyzeImage` (upload + poll) and `submitReading`. |
-| `store/useAppStore.ts` | The single Zustand store. Auth, readings, posts, comments, alerts, caregivers, sessions, theme, security all live here. |
+| `store/use-app-store.ts` | Composer for the single Zustand store. Imports and merges every slice — keep slim. |
+| `store/slices/` | Domain slices: `auth` (+ profile + sessions), `readings` (+ alerts), `community` (posts + comments), `caregivers`, `preferences` (theme + font + security), `network`. |
+| `store/shared/` | Cross-slice helpers: `log` (`logWarn`, `communityDebug`), `client-id` (local-id helpers + `createClientId`), `error-format` (`formatAuthError` for login/register UX + legacy `authErrorToThai`), `mappers` (`xxxFromGql` + sorters). |
 | `types/` | Shared TypeScript types. Add domain types here, not inline. |
-| `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`. |
+| `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`). |
 
 ## Architectural Conventions
 
-- **One store**: do not introduce a second Zustand store or a context-based
-  state holder. Add new actions/selectors to `useAppStore.ts`. The store is
-  long but the convention is consistent.
+- **One store, multiple slices**: there is exactly one Zustand store
+  (`useAppStore`). It is composed from slice files under `store/slices/`
+  using Zustand's slice pattern — each slice is a `StateCreator<AppState,
+  [], [], MySlice>` so cross-slice `get()` is fully typed and `set()` can
+  update fields from any slice atomically. Don't introduce a second
+  Zustand store or a context-based state holder. Add new state/actions to
+  the slice they belong to; if a new domain doesn't fit any slice, create a
+  new `xxx.slice.ts` and wire it into [use-app-store.ts](./store/use-app-store.ts).
 - **Optimistic UI**: writes update the store first, then either succeed
   remotely (no extra work) or fall back to the SQLite queue. Reads reconcile
   on the next `fetchX` call.
@@ -54,6 +63,17 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 - **Error visibility**: catch blocks in store actions should call
   `logWarn(scope, message, error, details?)`. It's `__DEV__`-guarded so it
   stays out of production logs. Don't add bare `catch {}`.
+- **User-facing errors are inline, not Alert**: for forms (login, register,
+  any future input flow), surface validation and server errors via
+  `CustomInput.error` (inline under the field) or a banner above the form —
+  not `Alert.alert`. Reserve Alert for permission prompts (camera, photo
+  library) and one-shot confirmations (logout, delete). Never leak the
+  server's `extensions.code` or raw English `message` into a dialog. For
+  login/register, run the thrown `GraphQLClientError` through
+  `formatAuthError(error, { context })` which returns
+  `{ message, field, retryAfterSec }` — dispatch `message` to the right
+  field via `authErrorField` and show a deadline-based countdown when
+  `authErrorRetryAfterSec` is set (HTTP 429 from login throttle).
 - **Auth token**: always go through `setAuthToken` / `getAuthToken` /
   `clearAuthToken` from `constants/api.ts`. They handle the SecureStore vs.
   AsyncStorage (web) split. Never read or write the token directly.
@@ -118,7 +138,7 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 - Preserve cross-platform behavior: iOS, Android, and Expo web all run this
   code. Anything platform-specific belongs behind `Platform.OS` checks or in
   `.ios.tsx` / `.android.tsx` / `.web.tsx` siblings.
-- Keep state changes aligned with the patterns in `store/useAppStore.ts`
+- Keep state changes aligned with the patterns in `store/use-app-store.ts`
   (optimistic update → remote → reconcile).
 - Prefer small, focused changes. Do not refactor unrelated screens while
   fixing or adding a feature.

@@ -2,7 +2,7 @@ import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { Colors } from "@/constants/colors";
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore } from "@/store/use-app-store";
 import { getFontClass } from "@/utils/font-scale";
 import { toDisplayImageUri } from "@/utils/storage-image";
 import { useFocusEffect } from "@react-navigation/native";

@@ -4,7 +4,7 @@ import { CustomInput } from '@/components/custom-input';
 import { GradientBackground } from '@/components/gradient-background';
 import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors';
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';

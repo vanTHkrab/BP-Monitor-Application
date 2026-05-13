@@ -3,7 +3,7 @@ import { BPReadingCard } from '@/components/bp-reading-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { ReadingDetailModal } from '@/components/reading-detail-modal';
 import { TabButtons } from '@/components/tab-buttons';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading, TimeFilter } from '@/types';
 import { ExportDataType, ExportFormat, shareReadingsExport } from '@/utils/export-data';
 import { getFontClass, getFontNumber } from '@/utils/font-scale';

@@ -1,4 +1,4 @@
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore } from "@/store/use-app-store";
 
 describe("useAppStore — smoke", () => {
   beforeEach(() => {

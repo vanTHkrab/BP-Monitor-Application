@@ -2,7 +2,7 @@ import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animat
 import { CommunityPostCard } from '@/components/community-post-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/tab-buttons';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { PostComment } from '@/types';
 import { getFontClass, getFontNumber } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';

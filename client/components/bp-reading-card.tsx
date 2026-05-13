@@ -1,6 +1,6 @@
 import { Colors, type BPStatus } from '@/constants/colors';
 import { formatShortDate, getRelativeTime } from '@/data/mockData';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading } from '@/types';
 import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';

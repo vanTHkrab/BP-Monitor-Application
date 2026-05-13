@@ -3,8 +3,9 @@ import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { TabButtons } from "@/components/tab-buttons";
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore } from "@/store/use-app-store";
 import { getFontClass } from "@/utils/font-scale";
+import { formatThaiPhone, stripPhoneDigits } from "@/utils/phone-format";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,6 +24,19 @@ import {
 } from "react-native";
 
 cssInterop(LinearGradient, { className: "style" });
+
+type RegisterField =
+  | "firstname"
+  | "lastname"
+  | "phone"
+  | "email"
+  | "dob"
+  | "weight"
+  | "height"
+  | "password"
+  | "confirmPassword";
+
+type FieldErrors = Partial<Record<RegisterField, string>>;
 
 export default function RegisterScreen() {
   const [isLoading, setIsLoading] = useState(false);
@@ -44,6 +58,9 @@ export default function RegisterScreen() {
   const [registerAvatarUri, setRegisterAvatarUri] = useState<string | null>(
     null,
   );
+
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [generalError, setGeneralError] = useState<string | null>(null);
 
   const { register, clearAuthError } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
@@ -71,6 +88,22 @@ export default function RegisterScreen() {
     large: "text-sm",
     xlarge: "text-base",
   });
+
+  const clearFieldError = (field: RegisterField) => {
+    setErrors((prev) => {
+      if (prev[field] === undefined) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const bindInput =
+    (field: RegisterField, setter: (v: string) => void) => (text: string) => {
+      setter(text);
+      clearFieldError(field);
+      if (generalError) setGeneralError(null);
+    };
 
   const pickRegisterAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -123,120 +156,124 @@ export default function RegisterScreen() {
     ]);
   };
 
+  // Returns the validated form payload, or null when any field is invalid.
+  // All inline errors are populated via setErrors before returning null.
+  const validate = (): {
+    firstname: string;
+    lastname: string;
+    phone: string;
+    email: string;
+    dob: string;
+    weight?: number;
+    height?: number;
+  } | null => {
+    const next: FieldErrors = {};
+    const firstname = registerFirstname.trim();
+    const lastname = registerLastname.trim();
+    const phone = stripPhoneDigits(registerPhone);
+    const email = registerEmail.trim();
+    const dob = registerDob.trim();
+    const weightStr = registerWeight.trim();
+    const heightStr = registerHeight.trim();
+
+    if (!firstname) next.firstname = "กรุณากรอกชื่อ";
+    if (!lastname) next.lastname = "กรุณากรอกนามสกุล";
+
+    if (!phone) {
+      next.phone = "กรุณากรอกเบอร์โทรศัพท์";
+    } else if (!/^\d{9,10}$/.test(phone)) {
+      next.phone = "เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก";
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      next.email = "รูปแบบอีเมลไม่ถูกต้อง";
+    }
+
+    if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+      next.dob = "วันเกิดต้องอยู่ในรูปแบบ YYYY-MM-DD";
+    }
+
+    let weight: number | undefined;
+    if (weightStr) {
+      const n = Number(weightStr);
+      if (!Number.isFinite(n) || n <= 0) {
+        next.weight = "น้ำหนักต้องเป็นตัวเลขมากกว่า 0";
+      } else {
+        weight = n;
+      }
+    }
+
+    let height: number | undefined;
+    if (heightStr) {
+      const n = Number(heightStr);
+      if (!Number.isFinite(n) || n <= 0) {
+        next.height = "ส่วนสูงต้องเป็นตัวเลขมากกว่า 0";
+      } else {
+        height = n;
+      }
+    }
+
+    if (!registerPassword) {
+      next.password = "กรุณากรอกรหัสผ่าน";
+    } else if (registerPassword.length < 6) {
+      next.password = "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร";
+    }
+
+    if (!confirmPassword) {
+      next.confirmPassword = "กรุณายืนยันรหัสผ่าน";
+    } else if (registerPassword && confirmPassword !== registerPassword) {
+      next.confirmPassword = "รหัสผ่านไม่ตรงกัน";
+    }
+
+    if (Object.keys(next).length > 0) {
+      setErrors(next);
+      return null;
+    }
+
+    return { firstname, lastname, phone, email, dob, weight, height };
+  };
+
   const handleRegister = async () => {
-    if (
-      !registerFirstname ||
-      !registerLastname ||
-      !registerPhone ||
-      !registerPassword ||
-      !confirmPassword
-    ) {
-      Alert.alert("ข้อผิดพลาด", "กรุณากรอกข้อมูลให้ครบถ้วน");
-      return;
-    }
-
-    if (registerPassword !== confirmPassword) {
-      Alert.alert("ข้อผิดพลาด", "รหัสผ่านไม่ตรงกัน");
-      return;
-    }
-
-    if (registerPassword.length < 6) {
-      Alert.alert("ข้อผิดพลาด", "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
-      return;
-    }
-
-    if (
-      registerEmail.trim() &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerEmail.trim())
-    ) {
-      Alert.alert("ข้อผิดพลาด", "รูปแบบอีเมลไม่ถูกต้อง");
-      return;
-    }
-
-    if (registerDob.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(registerDob.trim())) {
-      Alert.alert("ข้อผิดพลาด", "วันเกิดต้องอยู่ในรูปแบบ YYYY-MM-DD");
-      return;
-    }
-
-    const parsedWeight = registerWeight.trim()
-      ? Number(registerWeight)
-      : undefined;
-    const parsedHeight = registerHeight.trim()
-      ? Number(registerHeight)
-      : undefined;
-
-    if (
-      registerWeight.trim() &&
-      (parsedWeight === undefined ||
-        !Number.isFinite(parsedWeight) ||
-        parsedWeight <= 0)
-    ) {
-      Alert.alert("ข้อผิดพลาด", "น้ำหนักต้องเป็นตัวเลขมากกว่า 0");
-      return;
-    }
-
-    if (
-      registerHeight.trim() &&
-      (parsedHeight === undefined ||
-        !Number.isFinite(parsedHeight) ||
-        parsedHeight <= 0)
-    ) {
-      Alert.alert("ข้อผิดพลาด", "ส่วนสูงต้องเป็นตัวเลขมากกว่า 0");
-      return;
-    }
+    setErrors({});
+    setGeneralError(null);
+    const validated = validate();
+    if (!validated) return;
 
     setIsLoading(true);
     try {
       clearAuthError();
-      const success = await register({
-        firstname: registerFirstname.trim(),
-        lastname: registerLastname.trim(),
-        phone: registerPhone.trim(),
+      const ok = await register({
+        firstname: validated.firstname,
+        lastname: validated.lastname,
+        phone: validated.phone,
         password: registerPassword,
-        email: registerEmail.trim() || undefined,
-        dob: registerDob.trim() || undefined,
+        email: validated.email || undefined,
+        dob: validated.dob || undefined,
         gender: registerGender || undefined,
-        weight: parsedWeight,
-        height: parsedHeight,
+        weight: validated.weight,
+        height: validated.height,
         congenitalDisease: registerCongenitalDisease.trim() || undefined,
         avatarUri: registerAvatarUri,
       });
-      if (success) {
-        const { authErrorCode, authErrorMessage, authErrorRawMessage } =
-          useAppStore.getState();
-        if (authErrorCode || authErrorMessage || authErrorRawMessage) {
-          const detail = [
-            "ลงทะเบียนสำเร็จแล้ว แต่การอัปโหลดรูปโปรไฟล์ไม่สำเร็จ",
-            authErrorMessage ? authErrorMessage : null,
-            authErrorCode ? `(${authErrorCode})` : null,
-            authErrorRawMessage ? authErrorRawMessage : null,
-          ]
-            .filter(Boolean)
-            .join("\n");
-          Alert.alert("แจ้งเตือน", detail);
-        }
-        setRegisterAvatarUri(null);
-        setRegisterEmail("");
-        setRegisterDob("");
-        setRegisterGender("");
-        setRegisterWeight("");
-        setRegisterHeight("");
-        setRegisterCongenitalDisease("");
+
+      if (ok) {
         router.replace("/(tabs)" as Href);
-      } else {
-        const { authErrorCode, authErrorMessage, authErrorRawMessage } =
-          useAppStore.getState();
-        const detail = [
-          authErrorMessage || "ไม่สามารถลงทะเบียนได้",
-          authErrorCode ? `(${authErrorCode})` : null,
-          authErrorRawMessage ? authErrorRawMessage : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
-        Alert.alert("ข้อผิดพลาด", detail);
+        return;
       }
-    } catch {
-      Alert.alert("ข้อผิดพลาด", "เกิดข้อผิดพลาดในการลงทะเบียน");
+
+      const s = useAppStore.getState();
+      const message =
+        s.authErrorMessage ?? "ไม่สามารถลงทะเบียนได้ กรุณาลองใหม่";
+      switch (s.authErrorField) {
+        case "phone":
+          setErrors({ phone: message });
+          break;
+        case "password":
+          setErrors({ password: message });
+          break;
+        default:
+          setGeneralError(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -267,6 +304,12 @@ export default function RegisterScreen() {
     (isDark
       ? "bg-[#0F172A] border-[#334155] shadow-black/40"
       : "bg-[#F9FAFB] border-[#E2E8F0] shadow-black/10");
+
+  const bannerClassName =
+    "flex-row items-start rounded-2xl p-3 mb-4 border " +
+    (isDark
+      ? "bg-[#3F1D1D] border-[#7F1D1D]"
+      : "bg-red-50 border-red-200");
 
   return (
     <GradientBackground>
@@ -337,6 +380,26 @@ export default function RegisterScreen() {
                   />
                 </View>
 
+                {generalError && (
+                  <View className={bannerClassName}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={20}
+                      color="#EF4444"
+                      style={{ marginTop: 1, marginRight: 8 }}
+                    />
+                    <Text
+                      className={
+                        captionClassName +
+                        " flex-1 font-semibold " +
+                        (isDark ? "text-red-300" : "text-red-700")
+                      }
+                    >
+                      {generalError}
+                    </Text>
+                  </View>
+                )}
+
                 <View className="items-center mb-4">
                   <Pressable
                     onPress={openRegisterAvatarOptions}
@@ -371,38 +434,45 @@ export default function RegisterScreen() {
                 <CustomInput
                   placeholder="ชื่อ"
                   value={registerFirstname}
-                  onChangeText={setRegisterFirstname}
+                  onChangeText={bindInput("firstname", setRegisterFirstname)}
                   icon="person-outline"
+                  error={errors.firstname}
                 />
 
                 <CustomInput
                   placeholder="นามสกุล"
                   value={registerLastname}
-                  onChangeText={setRegisterLastname}
+                  onChangeText={bindInput("lastname", setRegisterLastname)}
                   icon="person-outline"
+                  error={errors.lastname}
                 />
 
                 <CustomInput
                   placeholder="เบอร์โทรศัพท์"
                   value={registerPhone}
-                  onChangeText={setRegisterPhone}
+                  onChangeText={bindInput("phone", (text) =>
+                    setRegisterPhone(formatThaiPhone(text)),
+                  )}
                   icon="call-outline"
                   keyboardType="phone-pad"
+                  error={errors.phone}
                 />
 
                 <CustomInput
                   placeholder="อีเมล (ไม่บังคับ)"
                   value={registerEmail}
-                  onChangeText={setRegisterEmail}
+                  onChangeText={bindInput("email", setRegisterEmail)}
                   icon="mail-outline"
                   keyboardType="email-address"
+                  error={errors.email}
                 />
 
                 <CustomInput
                   placeholder="วันเกิด YYYY-MM-DD (ไม่บังคับ)"
                   value={registerDob}
-                  onChangeText={setRegisterDob}
+                  onChangeText={bindInput("dob", setRegisterDob)}
                   icon="calendar-outline"
+                  error={errors.dob}
                 />
 
                 <View className="mb-4">
@@ -455,9 +525,10 @@ export default function RegisterScreen() {
                     <CustomInput
                       placeholder="น้ำหนัก (กก.)"
                       value={registerWeight}
-                      onChangeText={setRegisterWeight}
+                      onChangeText={bindInput("weight", setRegisterWeight)}
                       icon="barbell-outline"
                       keyboardType="numeric"
+                      error={errors.weight}
                     />
                   </View>
                   <View className="w-3" />
@@ -465,9 +536,10 @@ export default function RegisterScreen() {
                     <CustomInput
                       placeholder="ส่วนสูง (ซม.)"
                       value={registerHeight}
-                      onChangeText={setRegisterHeight}
+                      onChangeText={bindInput("height", setRegisterHeight)}
                       icon="resize-outline"
                       keyboardType="numeric"
+                      error={errors.height}
                     />
                   </View>
                 </View>
@@ -482,17 +554,19 @@ export default function RegisterScreen() {
                 <CustomInput
                   placeholder="รหัสผ่าน"
                   value={registerPassword}
-                  onChangeText={setRegisterPassword}
+                  onChangeText={bindInput("password", setRegisterPassword)}
                   icon="lock-closed-outline"
                   secureTextEntry
+                  error={errors.password}
                 />
 
                 <CustomInput
                   placeholder="ยืนยันรหัสผ่าน"
                   value={confirmPassword}
-                  onChangeText={setConfirmPassword}
+                  onChangeText={bindInput("confirmPassword", setConfirmPassword)}
                   icon="lock-closed-outline"
                   secureTextEntry
+                  error={errors.confirmPassword}
                 />
 
                 <View className="mt-2">
@@ -529,7 +603,6 @@ export default function RegisterScreen() {
                     นโยบายความเป็นส่วนตัว
                   </Text>
                 </Text>
-
               </View>
             </FadeInView>
           </View>

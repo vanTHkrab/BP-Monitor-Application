@@ -1,6 +1,6 @@
 import { AppLoadingScreen } from "@/components/app-loading-screen";
 import { initLocalDb } from "@/data/local-db";
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore } from "@/store/use-app-store";
 import NetInfo from "@react-native-community/netinfo";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
