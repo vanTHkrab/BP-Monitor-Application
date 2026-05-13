@@ -128,5 +128,6 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
   ships to phones.
 - Don't store sensitive data in `AsyncStorage`. Use `expo-secure-store` for
   anything credentials-adjacent.
-- If a fix touches `server/proto/` or the GraphQL contract, call out the
-  cross-cutting impact in the PR.
+- If a fix touches the GraphQL contract (operations in `constants/api.ts`
+  or schema in `server/app/api-gateway/`), call out the cross-cutting
+  impact in the PR.

@@ -7,16 +7,22 @@ This file provides guidance for AI-assisted changes in server-side projects.
 
 ## Project Summary
 
-The `server/` directory contains backend services and shared protocol definitions:
+The `server/` directory contains backend services:
 - `app/api-gateway/`: NestJS API gateway
 - `app/ai-service/`: FastAPI AI service (Python)
 
+The two communicate over a Redis pub/sub channel (`analyze_bp_image` /
+`analyze_bp_image.reply`); shapes are owned by [api-gateway/src/ai/](./app/api-gateway/src/ai/)
+on the NestJS side and mirrored by [ai-service/src/ai_service/main.py](./app/ai-service/src/ai_service/main.py).
+
 ## Important Paths
 
-- `app/api-gateway/src/`: Main NestJS source code
+- `app/api-gateway/src/`: NestJS source code
 - `app/api-gateway/test/`: API gateway tests
-- `app/ai-service/main.py`: AI service entry point
-- `app/ai-service/pyproject.toml`: Python dependencies
+- `app/ai-service/main.py`: FastAPI entry shim (re-exports `ai_service.main`)
+- `app/ai-service/src/ai_service/main.py`: actual FastAPI app + Redis listener
+- `app/ai-service/tests/`: AI service tests
+- `app/ai-service/pyproject.toml`: Python dependencies (managed by `uv`)
 
 ## Commands
 
@@ -42,4 +48,5 @@ uv run fastapi dev main.py
 - Follow NestJS conventions in `api-gateway/src/` and keep tests in `api-gateway/test/`.
 - Follow FastAPI and Python conventions in `ai-service/`.
 - Do not mix Node.js and Python dependency updates without clear need.
-- If `proto/` changes are required, ensure compatibility expectations are called out.
+- The gateway ↔ ai-service contract is the Redis channel name + payload shape.
+  Changing either side requires updating the other in the same change.
