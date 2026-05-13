@@ -17,7 +17,7 @@ For repo-wide guidance, see the root `CLAUDE.md`.
 | Runtime | Expo SDK 54, React Native 0.81, React 19 |
 | Routing | Expo Router 6 (file-based, `app/`) |
 | Styling | NativeWind 4 (Tailwind for RN), `expo-linear-gradient` |
-| State | Zustand 5 (single store in `store/useAppStore.ts`) |
+| State | Zustand 5 (single store in `store/use-app-store.ts`) |
 | Persistence | `expo-sqlite` (offline queue), `expo-secure-store` (auth token), `@react-native-async-storage/async-storage` (preferences) |
 | Network | GraphQL over `fetch` (custom client in `constants/api.ts` and `lib/graphql-client.ts`), `socket.io-client` for real-time chat |
 | Camera / Media | `expo-camera`, `expo-image-picker`, `expo-image` |
@@ -91,7 +91,10 @@ client/
 ├── hooks/                     # use-camera-analysis, use-color-scheme, use-theme-color
 ├── lib/                       # graphql-client.ts (multipart-aware GraphQL client)
 ├── services/                  # camera.service.ts (BP image upload + analysis polling)
-├── store/                     # useAppStore.ts (single Zustand store)
+├── store/                     # Single Zustand store composed from slices
+│   ├── use-app-store.ts         # Composer — merges every slice
+│   ├── slices/                # auth, readings, community, caregivers, preferences, network
+│   └── shared/                # log, client-id, error-format, mappers
 ├── types/                     # Shared TypeScript types
 ├── utils/                     # export-data.ts, reminders.ts, font-scale.ts, upload-image.ts
 ├── assets/                    # Fonts, images, sounds

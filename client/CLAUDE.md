@@ -35,15 +35,22 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 | `hooks/use-camera-analysis.ts` | The state machine for BP image capture → AI analysis → save. |
 | `lib/graphql-client.ts` | Multipart-aware GraphQL client used by the AI image-upload path. |
 | `services/camera.service.ts` | `analyzeImage` (upload + poll) and `submitReading`. |
-| `store/useAppStore.ts` | The single Zustand store. Auth, readings, posts, comments, alerts, caregivers, sessions, theme, security all live here. |
+| `store/use-app-store.ts` | Composer for the single Zustand store. Imports and merges every slice — keep slim. |
+| `store/slices/` | Domain slices: `auth` (+ profile + sessions), `readings` (+ alerts), `community` (posts + comments), `caregivers`, `preferences` (theme + font + security), `network`. |
+| `store/shared/` | Cross-slice helpers: `log` (`logWarn`, `communityDebug`), `client-id` (local-id helpers + `createClientId`), `error-format` (`authErrorToThai`), `mappers` (`xxxFromGql` + sorters). |
 | `types/` | Shared TypeScript types. Add domain types here, not inline. |
 | `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`. |
 
 ## Architectural Conventions
 
-- **One store**: do not introduce a second Zustand store or a context-based
-  state holder. Add new actions/selectors to `useAppStore.ts`. The store is
-  long but the convention is consistent.
+- **One store, multiple slices**: there is exactly one Zustand store
+  (`useAppStore`). It is composed from slice files under `store/slices/`
+  using Zustand's slice pattern — each slice is a `StateCreator<AppState,
+  [], [], MySlice>` so cross-slice `get()` is fully typed and `set()` can
+  update fields from any slice atomically. Don't introduce a second
+  Zustand store or a context-based state holder. Add new state/actions to
+  the slice they belong to; if a new domain doesn't fit any slice, create a
+  new `xxx.slice.ts` and wire it into [use-app-store.ts](./store/use-app-store.ts).
 - **Optimistic UI**: writes update the store first, then either succeed
   remotely (no extra work) or fall back to the SQLite queue. Reads reconcile
   on the next `fetchX` call.
@@ -118,7 +125,7 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 - Preserve cross-platform behavior: iOS, Android, and Expo web all run this
   code. Anything platform-specific belongs behind `Platform.OS` checks or in
   `.ios.tsx` / `.android.tsx` / `.web.tsx` siblings.
-- Keep state changes aligned with the patterns in `store/useAppStore.ts`
+- Keep state changes aligned with the patterns in `store/use-app-store.ts`
   (optimistic update → remote → reconcile).
 - Prefer small, focused changes. Do not refactor unrelated screens while
   fixing or adding a feature.

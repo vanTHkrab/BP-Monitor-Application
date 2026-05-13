@@ -1,7 +1,7 @@
 import { Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { getFontNumber } from '@/utils/font-scale';
 
 export type ThemedTextProps = TextProps & {

@@ -1,4 +1,4 @@
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { useColorScheme as useRNColorScheme } from 'react-native';
 
 export function useColorScheme() {

@@ -3,7 +3,7 @@ import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { MenuItem } from "@/components/menu-item";
 import { Colors } from "@/constants/colors";
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore } from "@/store/use-app-store";
 import { getFontClass } from "@/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";

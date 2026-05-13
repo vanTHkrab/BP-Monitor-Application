@@ -3,7 +3,7 @@ import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { TabButtons } from "@/components/tab-buttons";
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore } from "@/store/use-app-store";
 import { getFontClass } from "@/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";

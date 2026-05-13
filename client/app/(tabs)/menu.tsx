@@ -2,7 +2,7 @@ import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animat
 import { CustomButton } from '@/components/custom-button';
 import { GradientBackground } from '@/components/gradient-background';
 import { MenuItem } from '@/components/menu-item';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { getFontClass } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';

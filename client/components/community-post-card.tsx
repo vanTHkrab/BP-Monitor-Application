@@ -1,4 +1,4 @@
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { CommunityPost } from '@/types';
 import { getFontClass, getFontNumber } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';

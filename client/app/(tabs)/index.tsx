@@ -2,7 +2,7 @@ import { AnimatedPressable, FadeInView, PulseView, ScaleOnMount } from '@/compon
 import { GradientBackground } from '@/components/gradient-background';
 import { Colors, getStatusText, type BPStatus } from '@/constants/colors';
 import { formatThaiDate } from '@/data/mockData';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { shareReadingsExport } from '@/utils/export-data';
 import { getFontClass, getFontNumber } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';

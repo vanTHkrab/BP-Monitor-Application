@@ -1,4 +1,4 @@
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import { getFontNumber } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';

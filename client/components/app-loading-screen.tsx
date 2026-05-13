@@ -1,4 +1,4 @@
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore } from '@/store/use-app-store';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Text, useColorScheme, View } from 'react-native';
 import Animated, {

@@ -1,4 +1,4 @@
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore } from "@/store/use-app-store";
 import { getFontClass } from "@/utils/font-scale";
 import { Text, View } from "react-native";
 
