@@ -1,5 +1,5 @@
 import { useAppStore } from "@/store/useAppStore";
-import { Redirect } from "expo-router";
+import { Href, Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 
 export default function IndexPage() {
@@ -19,5 +19,5 @@ export default function IndexPage() {
     return <Redirect href="/(tabs)" />;
   }
 
-  return <Redirect href="/auth" />;
+  return <Redirect href={"/login" as Href} />;
 }
