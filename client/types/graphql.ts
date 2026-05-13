@@ -97,7 +97,7 @@ export interface ReadingGql {
   pulse: number;
   status: BloodPressureReading["status"];
   measuredAt: Iso;
-  imageUri?: string | null;
+  s3Key?: string | null;
   notes?: string | null;
   createdAt?: Iso | null;
 }
@@ -190,27 +190,25 @@ export interface ToggleCommentLikeMutation {
 
 // ── Alerts ──
 
-export interface AlertAnalysisGql {
+export interface AlertReadingGql {
   id: string | number;
   systolic: number;
   diastolic: number;
   pulse: number;
-  confidence: number;
-  bpLevel: string;
-  analysisNote?: string | null;
-  analyzedAt: Iso;
-  imageUrl?: string | null;
+  status: string;
+  measuredAt: Iso;
+  s3Key?: string | null;
 }
 
 export interface AlertGql {
   id: string | number;
   userId: string;
-  analysisId: string | number;
+  bpReadingId: string | number;
   alertMessage: string;
   alertLevel: AppAlert["alertLevel"];
-  isRead: boolean | number;
+  readAt?: Iso | null;
   createdAt: Iso;
-  analysis?: AlertAnalysisGql | null;
+  reading?: AlertReadingGql | null;
 }
 
 export interface AlertsQuery {

@@ -2,24 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertType } from './alert.types';
 
-type AlertWithAnalysis = {
+type AlertWithReading = {
   id: number;
   userId: string;
-  analysisId: number;
+  bpReadingId: number;
   alertMessage: string;
   alertLevel: string;
-  isRead: boolean;
+  readAt: Date | null;
   createdAt: Date;
-  analysis?: {
+  reading?: {
     id: number;
     systolic: number;
     diastolic: number;
-    pulseRate: number;
-    confidenceScore: number;
-    bpLevel: string;
-    analysisNote: string | null;
-    analyzedAt: Date;
-    image?: { imageUrl: string } | null;
+    pulse: number;
+    status: string;
+    measuredAt: Date;
+    s3Key: string | null;
   };
 };
 
@@ -36,15 +34,21 @@ export class AlertService {
     const rows = await this.prisma.alert.findMany({
       where: {
         userId,
-        ...(unreadOnly ? { isRead: false } : {}),
+        ...(unreadOnly ? { readAt: null } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
       include: {
-        analysis: {
-          include: {
-            image: { select: { imageUrl: true } },
+        reading: {
+          select: {
+            id: true,
+            systolic: true,
+            diastolic: true,
+            pulse: true,
+            status: true,
+            measuredAt: true,
+            s3Key: true,
           },
         },
       },
@@ -55,8 +59,8 @@ export class AlertService {
 
   async markRead(userId: string, id: number): Promise<boolean> {
     const result = await this.prisma.alert.updateMany({
-      where: { id, userId },
-      data: { isRead: true },
+      where: { id, userId, readAt: null },
+      data: { readAt: new Date() },
     });
 
     return result.count > 0;
@@ -64,32 +68,30 @@ export class AlertService {
 
   async markAllRead(userId: string): Promise<boolean> {
     await this.prisma.alert.updateMany({
-      where: { userId, isRead: false },
-      data: { isRead: true },
+      where: { userId, readAt: null },
+      data: { readAt: new Date() },
     });
     return true;
   }
 
-  private toAlertType(alert: AlertWithAnalysis): AlertType {
+  private toAlertType(alert: AlertWithReading): AlertType {
     return {
       id: alert.id,
       userId: alert.userId,
-      analysisId: alert.analysisId,
+      bpReadingId: alert.bpReadingId,
       alertMessage: alert.alertMessage,
       alertLevel: alert.alertLevel,
-      isRead: alert.isRead,
+      readAt: alert.readAt ?? undefined,
       createdAt: alert.createdAt,
-      analysis: alert.analysis
+      reading: alert.reading
         ? {
-            id: alert.analysis.id,
-            systolic: alert.analysis.systolic,
-            diastolic: alert.analysis.diastolic,
-            pulse: alert.analysis.pulseRate,
-            confidence: alert.analysis.confidenceScore,
-            bpLevel: alert.analysis.bpLevel,
-            analysisNote: alert.analysis.analysisNote ?? undefined,
-            analyzedAt: alert.analysis.analyzedAt,
-            imageUrl: alert.analysis.image?.imageUrl ?? undefined,
+            id: alert.reading.id,
+            systolic: alert.reading.systolic,
+            diastolic: alert.reading.diastolic,
+            pulse: alert.reading.pulse,
+            status: alert.reading.status,
+            measuredAt: alert.reading.measuredAt,
+            s3Key: alert.reading.s3Key ?? undefined,
           }
         : undefined,
     };

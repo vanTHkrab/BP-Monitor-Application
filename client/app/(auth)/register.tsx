@@ -22,19 +22,11 @@ import {
   View,
 } from "react-native";
 
-type AuthTab = "login" | "register";
-
 cssInterop(LinearGradient, { className: "style" });
 
-export default function AuthScreen() {
-  const [activeTab, setActiveTab] = useState<AuthTab>("login");
+export default function RegisterScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
-  // Login form
-  const [loginPhone, setLoginPhone] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-
-  // Register form
   const [registerFirstname, setRegisterFirstname] = useState("");
   const [registerLastname, setRegisterLastname] = useState("");
   const [registerPhone, setRegisterPhone] = useState("");
@@ -53,10 +45,11 @@ export default function AuthScreen() {
     null,
   );
 
-  const { login, register, clearAuthError } = useAppStore();
+  const { register, clearAuthError } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === "dark";
+
   const titleClassName = getFontClass(fontSizePreference, {
     xsmall: "text-[24px]",
     small: "text-[26px]",
@@ -128,37 +121,6 @@ export default function AuthScreen() {
       { text: "เลือกรูปจากแกลเลอรี", onPress: () => void pickRegisterAvatar() },
       { text: "ยกเลิก", style: "cancel" },
     ]);
-  };
-
-  const handleLogin = async () => {
-    if (!loginPhone || !loginPassword) {
-      Alert.alert("ข้อผิดพลาด", "กรุณากรอกข้อมูลให้ครบถ้วน");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      clearAuthError();
-      const success = await login(loginPhone, loginPassword);
-      if (success) {
-        router.replace("/(tabs)" as Href);
-      } else {
-        const { authErrorCode, authErrorMessage, authErrorRawMessage } =
-          useAppStore.getState();
-        const detail = [
-          authErrorMessage || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
-          authErrorCode ? `(${authErrorCode})` : null,
-          authErrorRawMessage ? authErrorRawMessage : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
-        Alert.alert("ข้อผิดพลาด", detail);
-      }
-    } catch {
-      Alert.alert("ข้อผิดพลาด", "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleRegister = async () => {
@@ -349,7 +311,9 @@ export default function AuthScreen() {
                 </Text>
                 <Text
                   className={
-                    isDark ? `${bodyClassName} text-slate-300` : `${bodyClassName} text-[#7F8C8D]`
+                    isDark
+                      ? `${bodyClassName} text-slate-300`
+                      : `${bodyClassName} text-[#7F8C8D]`
                   }
                 >
                   ติดตามความดันโลหิตอย่างง่ายดาย
@@ -357,240 +321,215 @@ export default function AuthScreen() {
               </View>
             </ScaleOnMount>
 
-            {/* Auth Card */}
+            {/* Register Card */}
             <FadeInView delay={200}>
               <View className={authCardClassName}>
-                {/* Tabs */}
                 <View className="mb-6">
                   <TabButtons
                     tabs={authTabs}
-                    activeTab={activeTab}
-                    onTabChange={(key) => setActiveTab(key as AuthTab)}
+                    activeTab="register"
+                    onTabChange={(key) => {
+                      if (key === "login") {
+                        router.replace("/login" as Href);
+                      }
+                    }}
                     variant="default"
                   />
                 </View>
 
-                {/* Login Form */}
-                {activeTab === "login" && (
-                  <FadeInView delay={100}>
-                    <View className="pt-2">
-                      <CustomInput
-                        placeholder="เบอร์โทรศัพท์"
-                        value={loginPhone}
-                        onChangeText={setLoginPhone}
-                        icon="person-outline"
-                        keyboardType="phone-pad"
-                      />
-
-                      <CustomInput
-                        placeholder="รหัสผ่าน"
-                        value={loginPassword}
-                        onChangeText={setLoginPassword}
-                        icon="lock-closed-outline"
-                        secureTextEntry
-                      />
-
-                      {/* <Pressable onPress={() => {}} className="self-end mb-5 -mt-2">
-                        <Text className="text-[#3498DB] text-sm font-semibold">ลืมรหัสผ่าน?</Text>
-                      </Pressable> */}
-
-                      <CustomButton
-                        title="เข้าสู่ระบบ"
-                        onPress={handleLogin}
-                        loading={isLoading}
-                        size="large"
-                      />
+                <View className="items-center mb-4">
+                  <Pressable
+                    onPress={openRegisterAvatarOptions}
+                    className="items-center"
+                  >
+                    <View className={avatarBoxClassName}>
+                      {registerAvatarUri ? (
+                        <Image
+                          source={{ uri: registerAvatarUri }}
+                          className="w-full h-full"
+                        />
+                      ) : (
+                        <Ionicons
+                          name="person"
+                          size={40}
+                          color={isDark ? "#64748B" : "#94A3B8"}
+                        />
+                      )}
                     </View>
-                  </FadeInView>
-                )}
+                    <Text
+                      className={
+                        captionClassName + " text-[#3498DB] font-bold mt-3"
+                      }
+                    >
+                      {registerAvatarUri
+                        ? "เปลี่ยนรูปโปรไฟล์"
+                        : "เพิ่มรูปโปรไฟล์"}
+                    </Text>
+                  </Pressable>
+                </View>
 
-                {/* Register Form */}
-                {activeTab === "register" && (
-                  <FadeInView delay={100}>
-                    <View className="pt-2">
-                      <View className="items-center mb-4">
+                <CustomInput
+                  placeholder="ชื่อ"
+                  value={registerFirstname}
+                  onChangeText={setRegisterFirstname}
+                  icon="person-outline"
+                />
+
+                <CustomInput
+                  placeholder="นามสกุล"
+                  value={registerLastname}
+                  onChangeText={setRegisterLastname}
+                  icon="person-outline"
+                />
+
+                <CustomInput
+                  placeholder="เบอร์โทรศัพท์"
+                  value={registerPhone}
+                  onChangeText={setRegisterPhone}
+                  icon="call-outline"
+                  keyboardType="phone-pad"
+                />
+
+                <CustomInput
+                  placeholder="อีเมล (ไม่บังคับ)"
+                  value={registerEmail}
+                  onChangeText={setRegisterEmail}
+                  icon="mail-outline"
+                  keyboardType="email-address"
+                />
+
+                <CustomInput
+                  placeholder="วันเกิด YYYY-MM-DD (ไม่บังคับ)"
+                  value={registerDob}
+                  onChangeText={setRegisterDob}
+                  icon="calendar-outline"
+                />
+
+                <View className="mb-4">
+                  <Text
+                    className={
+                      isDark
+                        ? `${captionClassName} font-semibold text-slate-300 mb-2 ml-1`
+                        : `${captionClassName} font-semibold text-[#64748B] mb-2 ml-1`
+                    }
+                  >
+                    เพศ (ไม่บังคับ)
+                  </Text>
+                  <View className="flex-row">
+                    {genderOptions.map((option, index) => {
+                      const active = registerGender === option.key;
+                      return (
                         <Pressable
-                          onPress={openRegisterAvatarOptions}
-                          className="items-center"
-                        >
-                          <View className={avatarBoxClassName}>
-                            {registerAvatarUri ? (
-                              <Image
-                                source={{ uri: registerAvatarUri }}
-                                className="w-full h-full"
-                              />
-                            ) : (
-                              <Ionicons
-                                name="person"
-                                size={40}
-                                color={isDark ? "#64748B" : "#94A3B8"}
-                              />
-                            )}
-                          </View>
-                          <Text className={captionClassName + " text-[#3498DB] font-bold mt-3"}>
-                            {registerAvatarUri
-                              ? "เปลี่ยนรูปโปรไฟล์"
-                              : "เพิ่มรูปโปรไฟล์"}
-                          </Text>
-                        </Pressable>
-                      </View>
-
-                      <CustomInput
-                        placeholder="ชื่อ"
-                        value={registerFirstname}
-                        onChangeText={setRegisterFirstname}
-                        icon="person-outline"
-                      />
-
-                      <CustomInput
-                        placeholder="นามสกุล"
-                        value={registerLastname}
-                        onChangeText={setRegisterLastname}
-                        icon="person-outline"
-                      />
-
-                      <CustomInput
-                        placeholder="เบอร์โทรศัพท์"
-                        value={registerPhone}
-                        onChangeText={setRegisterPhone}
-                        icon="call-outline"
-                        keyboardType="phone-pad"
-                      />
-
-                      <CustomInput
-                        placeholder="อีเมล (ไม่บังคับ)"
-                        value={registerEmail}
-                        onChangeText={setRegisterEmail}
-                        icon="mail-outline"
-                        keyboardType="email-address"
-                      />
-
-                      <CustomInput
-                        placeholder="วันเกิด YYYY-MM-DD (ไม่บังคับ)"
-                        value={registerDob}
-                        onChangeText={setRegisterDob}
-                        icon="calendar-outline"
-                      />
-
-                      <View className="mb-4">
-                        <Text
+                          key={option.key}
+                          onPress={() => setRegisterGender(option.key)}
                           className={
-                            isDark
-                              ? `${captionClassName} font-semibold text-slate-300 mb-2 ml-1`
-                              : `${captionClassName} font-semibold text-[#64748B] mb-2 ml-1`
+                            "flex-1 rounded-[14px] border-2 py-3 items-center " +
+                            (active
+                              ? "border-[#5DADE2] bg-[#EBF5FB]"
+                              : isDark
+                                ? "border-[#334155] bg-[#0B1220]"
+                                : "border-[#94A3B8] bg-[#F8FAFC]") +
+                            (index === 1 ? " mx-2" : "")
                           }
                         >
-                          เพศ (ไม่บังคับ)
-                        </Text>
-                        <View className="flex-row">
-                          {genderOptions.map((option, index) => {
-                            const active = registerGender === option.key;
-                            return (
-                              <Pressable
-                                key={option.key}
-                                onPress={() => setRegisterGender(option.key)}
-                                className={
-                                  "flex-1 rounded-[14px] border-2 py-3 items-center " +
-                                  (active
-                                    ? "border-[#5DADE2] bg-[#EBF5FB]"
-                                    : isDark
-                                      ? "border-[#334155] bg-[#0B1220]"
-                                      : "border-[#94A3B8] bg-[#F8FAFC]") +
-                                  (index === 1 ? " mx-2" : "")
-                                }
-                              >
-                                <Text
-                                  className={
-                                    `${captionClassName} ` +
-                                    (active
-                                      ? "text-[#3498DB] font-bold"
-                                      : isDark
-                                        ? "text-slate-300 font-semibold"
-                                        : "text-slate-600 font-semibold")
-                                  }
-                                >
-                                  {option.label}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </View>
+                          <Text
+                            className={
+                              `${captionClassName} ` +
+                              (active
+                                ? "text-[#3498DB] font-bold"
+                                : isDark
+                                  ? "text-slate-300 font-semibold"
+                                  : "text-slate-600 font-semibold")
+                            }
+                          >
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
 
-                      <View className="flex-row">
-                        <View className="flex-1">
-                          <CustomInput
-                            placeholder="น้ำหนัก (กก.)"
-                            value={registerWeight}
-                            onChangeText={setRegisterWeight}
-                            icon="barbell-outline"
-                            keyboardType="numeric"
-                          />
-                        </View>
-                        <View className="w-3" />
-                        <View className="flex-1">
-                          <CustomInput
-                            placeholder="ส่วนสูง (ซม.)"
-                            value={registerHeight}
-                            onChangeText={setRegisterHeight}
-                            icon="resize-outline"
-                            keyboardType="numeric"
-                          />
-                        </View>
-                      </View>
+                <View className="flex-row">
+                  <View className="flex-1">
+                    <CustomInput
+                      placeholder="น้ำหนัก (กก.)"
+                      value={registerWeight}
+                      onChangeText={setRegisterWeight}
+                      icon="barbell-outline"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View className="w-3" />
+                  <View className="flex-1">
+                    <CustomInput
+                      placeholder="ส่วนสูง (ซม.)"
+                      value={registerHeight}
+                      onChangeText={setRegisterHeight}
+                      icon="resize-outline"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
 
-                      <CustomInput
-                        placeholder="โรคประจำตัว (ไม่บังคับ)"
-                        value={registerCongenitalDisease}
-                        onChangeText={setRegisterCongenitalDisease}
-                        icon="medkit-outline"
-                      />
+                <CustomInput
+                  placeholder="โรคประจำตัว (ไม่บังคับ)"
+                  value={registerCongenitalDisease}
+                  onChangeText={setRegisterCongenitalDisease}
+                  icon="medkit-outline"
+                />
 
-                      <CustomInput
-                        placeholder="รหัสผ่าน"
-                        value={registerPassword}
-                        onChangeText={setRegisterPassword}
-                        icon="lock-closed-outline"
-                        secureTextEntry
-                      />
+                <CustomInput
+                  placeholder="รหัสผ่าน"
+                  value={registerPassword}
+                  onChangeText={setRegisterPassword}
+                  icon="lock-closed-outline"
+                  secureTextEntry
+                />
 
-                      <CustomInput
-                        placeholder="ยืนยันรหัสผ่าน"
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                        icon="lock-closed-outline"
-                        secureTextEntry
-                      />
+                <CustomInput
+                  placeholder="ยืนยันรหัสผ่าน"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  icon="lock-closed-outline"
+                  secureTextEntry
+                />
 
-                      <View className="mt-2">
-                        <CustomButton
-                          title="ลงทะเบียน"
-                          onPress={handleRegister}
-                          loading={isLoading}
-                          size="large"
-                          variant="secondary"
-                        />
-                      </View>
+                <View className="mt-2">
+                  <CustomButton
+                    title="ลงทะเบียน"
+                    onPress={handleRegister}
+                    loading={isLoading}
+                    size="large"
+                    variant="secondary"
+                  />
+                </View>
 
-                      <Text
-                        className={
-                          isDark
-                            ? `text-center mt-5 ${captionClassName} text-slate-300 leading-[18px]`
-                            : `text-center mt-5 ${captionClassName} text-[#64748B] leading-[18px]`
-                        }
-                      >
-                        การลงทะเบียนหมายความว่าคุณยอมรับ{" "}
-                        <Text className={captionClassName + " text-[#3498DB] font-semibold"}>
-                          เงื่อนไขการใช้งาน
-                        </Text>{" "}
-                        และ{" "}
-                        <Text className={captionClassName + " text-[#3498DB] font-semibold"}>
-                          นโยบายความเป็นส่วนตัว
-                        </Text>
-                      </Text>
-                    </View>
-                  </FadeInView>
-                )}
+                <Text
+                  className={
+                    isDark
+                      ? `text-center mt-5 ${captionClassName} text-slate-300 leading-[18px]`
+                      : `text-center mt-5 ${captionClassName} text-[#64748B] leading-[18px]`
+                  }
+                >
+                  การลงทะเบียนหมายความว่าคุณยอมรับ{" "}
+                  <Text
+                    className={
+                      captionClassName + " text-[#3498DB] font-semibold"
+                    }
+                  >
+                    เงื่อนไขการใช้งาน
+                  </Text>{" "}
+                  และ{" "}
+                  <Text
+                    className={
+                      captionClassName + " text-[#3498DB] font-semibold"
+                    }
+                  >
+                    นโยบายความเป็นส่วนตัว
+                  </Text>
+                </Text>
+
               </View>
             </FadeInView>
           </View>
@@ -598,13 +537,7 @@ export default function AuthScreen() {
           {/* Footer */}
           <FadeInView delay={400}>
             <View className="py-6">
-              <Text
-                className={
-                  isDark
-                    ? `text-center text-white ${captionClassName}`
-                    : `text-center text-white ${captionClassName}`
-                }
-              >
+              <Text className={`text-center text-white ${captionClassName}`}>
                 Copyright©2025 BP Monitor App
               </Text>
             </View>

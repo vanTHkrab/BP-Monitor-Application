@@ -141,7 +141,7 @@ export class PresignedUploadService {
     const image = await this.prisma.image.create({
       data: {
         userId,
-        imageUrl: key,
+        s3Key: key,
         deviceName: 'blood-pressure-monitor',
         syncStatus: 'synced',
         syncedAt: new Date(),

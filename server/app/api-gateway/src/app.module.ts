@@ -2,7 +2,7 @@ import { HttpException, Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { MercuriusDriver, MercuriusDriverConfig } from '@nestjs/mercurius';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import type { GraphQLError, GraphQLFormattedError } from 'graphql';
+import type { GraphQLFormattedError } from 'graphql';
 import Redis from 'ioredis';
 import { join } from 'path';
 
@@ -46,10 +46,10 @@ import { CaregiverModule } from './caregiver/caregiver.module';
       subscription: true,
       errorFormatter: (execution) => {
         const errors = execution.errors?.map((err): GraphQLFormattedError => {
-          const original = (err as GraphQLError).originalError;
+          const original = err.originalError;
           const existingCode =
             typeof err.extensions?.code === 'string'
-              ? (err.extensions.code as string)
+              ? err.extensions.code
               : null;
           const code =
             existingCode ??

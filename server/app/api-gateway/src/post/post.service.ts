@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PostCategory } from '../prisma/generated/enums';
 
 @Injectable()
 export class PostService {
@@ -11,7 +12,7 @@ export class PostService {
     offset: number,
     currentUserId?: string,
   ) {
-    const where = category ? { category: category as any } : {};
+    const where = category ? { category: category as PostCategory } : {};
 
     const posts = await this.prisma.post.findMany({
       where,
@@ -19,7 +20,9 @@ export class PostService {
       take: limit,
       skip: offset,
       include: {
-        user: { select: { id: true, firstname: true, lastname: true, avatar: true } },
+        user: {
+          select: { id: true, firstname: true, lastname: true, avatar: true },
+        },
         likes: { select: { userId: true } },
         _count: { select: { likes: true, comments: true } },
       },
@@ -51,7 +54,9 @@ export class PostService {
       const existing = await this.prisma.post.findUnique({
         where: { clientId: data.clientId },
         include: {
-          user: { select: { id: true, firstname: true, lastname: true, avatar: true } },
+          user: {
+            select: { id: true, firstname: true, lastname: true, avatar: true },
+          },
           _count: { select: { likes: true, comments: true } },
         },
       });
@@ -65,11 +70,13 @@ export class PostService {
       data: {
         userId,
         content: data.content.trim(),
-        category: data.category as any,
+        category: data.category as PostCategory,
         clientId: data.clientId || null,
       },
       include: {
-        user: { select: { id: true, firstname: true, lastname: true, avatar: true } },
+        user: {
+          select: { id: true, firstname: true, lastname: true, avatar: true },
+        },
         _count: { select: { likes: true, comments: true } },
       },
     });
@@ -91,7 +98,9 @@ export class PostService {
       where: { id: postId },
       data: patch,
       include: {
-        user: { select: { id: true, firstname: true, lastname: true, avatar: true } },
+        user: {
+          select: { id: true, firstname: true, lastname: true, avatar: true },
+        },
         _count: { select: { likes: true, comments: true } },
       },
     });

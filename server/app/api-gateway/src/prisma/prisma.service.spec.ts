@@ -9,7 +9,7 @@ jest.mock('./generated/client', () => ({
     $connect = jest.fn();
     $disconnect = jest.fn();
 
-    constructor(_options?: unknown) {}
+    constructor() {}
   },
 }));
 

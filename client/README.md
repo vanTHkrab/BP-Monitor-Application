@@ -68,8 +68,11 @@ pnpm --dir client lint
 client/
 ├── app/                       # Expo Router routes (file-based)
 │   ├── _layout.tsx            # Root layout: theme + network + notifications bootstrap
-│   ├── index.tsx              # Auth gate → tabs or /auth
-│   ├── auth.tsx               # Login + register
+│   ├── index.tsx              # Auth gate → tabs or /login
+│   ├── (auth)/                # Auth screens (route group, no URL prefix)
+│   │   ├── _layout.tsx        # Stack layout for auth group
+│   │   ├── login.tsx          # Login form
+│   │   └── register.tsx       # Register form + avatar picker
 │   ├── (tabs)/                # Main bottom-tab navigator
 │   │   ├── _layout.tsx        # Tab bar config
 │   │   ├── index.tsx          # Home dashboard + readings chart

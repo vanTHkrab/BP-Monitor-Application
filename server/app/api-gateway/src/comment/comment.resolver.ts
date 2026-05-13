@@ -1,7 +1,10 @@
 import { UseGuards } from '@nestjs/common';
 import { Args, Context, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { GqlAuthGuard } from '../auth/auth.guard';
-import { getOptionalCurrentUser } from '../auth/helpers/optional-current-user';
+import {
+  getOptionalCurrentUser,
+  type GraphQLContextLike,
+} from '../auth/helpers/optional-current-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { CommentService } from './comment.service';
@@ -22,7 +25,7 @@ export class CommentResolver {
   async postComments(
     @Args('postId', { type: () => Int }) postId: number,
     @Args('parentId', { type: () => Int, nullable: true }) parentId: number,
-    @Context() context: any,
+    @Context() context: GraphQLContextLike,
   ): Promise<CommentType[]> {
     const currentUser = await getOptionalCurrentUser(context, this.prisma);
     return this.commentService.list(postId, parentId ?? null, currentUser?.id);

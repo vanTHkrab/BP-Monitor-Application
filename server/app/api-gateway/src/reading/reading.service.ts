@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AlertLevel, BpStatus } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -23,7 +24,7 @@ export class ReadingService {
       status: string;
       measuredAt: Date;
       clientId?: string;
-      imageUri?: string;
+      s3Key?: string;
       notes?: string;
     },
   ) {
@@ -43,20 +44,19 @@ export class ReadingService {
         systolic: data.systolic,
         diastolic: data.diastolic,
         pulse: data.pulse,
-        status: data.status as any,
+        status: data.status as BpStatus,
         measuredAt: data.measuredAt,
         clientId: data.clientId || null,
-        imageUri: data.imageUri || null,
+        s3Key: data.s3Key || null,
         notes: data.notes || null,
       },
     });
 
-    await this.createManualAnalysisAndAlert(userId, {
+    await this.createAlertForReading(userId, reading.id, {
       systolic: data.systolic,
       diastolic: data.diastolic,
       pulse: data.pulse,
       status: data.status,
-      imageUri: data.imageUri,
     });
 
     return reading;
@@ -72,77 +72,29 @@ export class ReadingService {
     return this.prisma.bloodPressureReading.delete({ where: { id } });
   }
 
-  private async createManualAnalysisAndAlert(
+  private async createAlertForReading(
     userId: string,
+    readingId: number,
     data: {
       systolic: number;
       diastolic: number;
       pulse: number;
       status: string;
-      imageUri?: string;
     },
   ) {
-    if (!data.imageUri) {
-      return;
-    }
-
-    let image = await this.prisma.image.findFirst({
-      where: {
-        userId,
-        imageUrl: data.imageUri,
-      },
-      include: { analysisResult: true },
-    });
-
-    if (!image) {
-      image = await this.prisma.image.create({
-        data: {
-          userId,
-          imageUrl: data.imageUri,
-          deviceName: 'manual-entry',
-          syncStatus: 'synced',
-          syncedAt: new Date(),
-        },
-        include: { analysisResult: true },
-      });
-    }
-
-    if (image.analysisResult) {
-      return;
-    }
-
-    const bpLevel =
-      data.status === 'elevated'
-        ? 'elevated'
-        : data.status === 'high' || data.status === 'critical'
-          ? 'highRisk'
-          : 'normal';
-
-    const analysis = await this.prisma.analysisResult.create({
-      data: {
-        imageId: image.id,
-        systolic: data.systolic,
-        diastolic: data.diastolic,
-        pulseRate: data.pulse,
-        confidenceScore: 1,
-        bpLevel: bpLevel as any,
-        analysisNote:
-          'Manual entry: บันทึกค่าด้วยผู้ใช้ระหว่างรอโมเดล OCR/ROI ทำงานจริง',
-      },
-    });
-
     if (data.status === 'normal') {
       return;
     }
 
-    const alertLevel = data.status === 'critical' ? 'critical' : 'warning';
+    const alertLevel: AlertLevel =
+      data.status === 'critical' ? 'critical' : 'warning';
     const alertMessage = this.getAlertMessage(data.status, data);
 
     await this.prisma.alert.create({
       data: {
         userId,
-        analysisId: analysis.id,
-        alertLevel: alertLevel as any,
+        bpReadingId: readingId,
+        alertLevel,
         alertMessage,
       },
     });

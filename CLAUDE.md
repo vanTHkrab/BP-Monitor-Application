@@ -33,12 +33,17 @@ BP-Monitor-Application/
 ├── client/        # Expo + React Native mobile app
 ├── web/           # Next.js dashboard (App Router)
 ├── server/
-│   ├── app/
-│   │   ├── api-gateway/   # NestJS gateway (Prisma + GraphQL)
-│   │   └── ai-service/    # FastAPI AI service (Python, uv)
-│   └── proto/             # Shared protocol definitions
+│   └── app/
+│       ├── api-gateway/   # NestJS gateway (Prisma + GraphQL)
+│       └── ai-service/    # FastAPI AI service (Python, uv)
 └── infra/                 # Docker Compose for backend + web
 ```
+
+The gateway ↔ ai-service wire contract lives on a Redis pub/sub channel
+(`analyze_bp_image` / `analyze_bp_image.reply`); shapes are owned by
+[api-gateway/src/ai/dto/](./server/app/api-gateway/src/ai/dto/) on the
+NestJS side and mirrored by [ai-service/src/ai_service/main.py](./server/app/ai-service/src/ai_service/main.py).
+No separate shared-types package.
 
 ## Cross-cutting rules
 
@@ -50,10 +55,18 @@ BP-Monitor-Application/
    the per-project `CLAUDE.md` before writing new code there.
 4. **Dependencies** — Don't mix Node.js and Python dependency bumps unless the
    task requires it.
-5. **Shared protocol** — If `server/proto/` changes, call out compatibility
-   expectations for both client and server consumers.
-6. **Docs alongside code** — When structure or commands change, update the
-   relevant `README.md` / `CLAUDE.md` in the same change.
+5. **Gateway ↔ AI wire contract** — The Redis channels `analyze_bp_image` /
+   `analyze_bp_image.reply` and their payload shapes are a contract between
+   `api-gateway/src/ai/` and `ai-service/src/ai_service/`. Changing one side
+   without the other will silently break the AI flow.
+6. **Docs alongside code** — Any code change that affects something documented
+   (file structure, paths, routes, commands, conventions, dependencies, env
+   vars, API contracts) must update every Markdown file that mentions it in
+   the same change. That includes `README.md`, `CLAUDE.md`, `AGENTS.md`, and
+   any per-service docs. Before finishing, grep for the old name/path across
+   `*.md` and reconcile root and per-project docs so they agree with each
+   other *and* with the current code — stale snippets in one file silently
+   contradict another.
 
 ## Running things
 

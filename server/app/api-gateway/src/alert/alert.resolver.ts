@@ -29,7 +29,9 @@ export class AlertResolver {
     return this.alertService.markRead(user.id, id);
   }
 
-  @Mutation(() => Boolean, { description: 'ทำเครื่องหมายว่าอ่านแจ้งเตือนทั้งหมดแล้ว' })
+  @Mutation(() => Boolean, {
+    description: 'ทำเครื่องหมายว่าอ่านแจ้งเตือนทั้งหมดแล้ว',
+  })
   @UseGuards(GqlAuthGuard)
   async markAllAlertsRead(
     @CurrentUser() user: { id: string },

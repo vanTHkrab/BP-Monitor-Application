@@ -51,7 +51,7 @@ export default function MenuScreen() {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            router.replace('/auth' as Href);
+            router.replace('/login' as Href);
           },
         },
       ]

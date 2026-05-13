@@ -18,7 +18,7 @@ export class SubmitBPReadingInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
-  imageUri?: string;
+  s3Key?: string;
 
   @Field(() => Int)
   @IsInt()

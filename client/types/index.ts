@@ -23,7 +23,9 @@ export interface BloodPressureReading {
   diastolic: number; // ค่าล่าง (DIA)
   pulse: number; // ชีพจร
   measuredAt: Date;
-  imageUri?: string; // รูปถ่ายเครื่องวัด
+  // S3 key when the image is stored remotely, or a local file:// URI for
+  // readings that haven't synced yet.
+  imageUri?: string;
   notes?: string;
   status: BPStatus;
   clientId?: string;
@@ -77,27 +79,25 @@ export interface PostComment {
   isLiked?: boolean;
 }
 
-export interface AppAlertAnalysis {
+export interface AppAlertReading {
   id: string;
   systolic: number;
   diastolic: number;
   pulse: number;
-  confidence: number;
-  bpLevel: string;
-  analysisNote?: string;
-  analyzedAt: Date;
-  imageUrl?: string;
+  status: BPStatus | string;
+  measuredAt: Date;
+  s3Key?: string;
 }
 
 export interface AppAlert {
   id: string;
   userId: string;
-  analysisId: string;
+  bpReadingId: string;
   alertMessage: string;
   alertLevel: "warning" | "critical" | string;
-  isRead: boolean;
+  readAt?: Date;
   createdAt: Date;
-  analysis?: AppAlertAnalysis;
+  reading?: AppAlertReading;
 }
 
 export interface CaregiverLink {
