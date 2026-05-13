@@ -76,4 +76,10 @@ export class RegisterInput {
   @IsString()
   @MaxLength(500)
   congenitalDisease?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  deviceLabel?: string;
 }

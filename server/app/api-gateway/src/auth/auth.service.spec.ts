@@ -117,7 +117,7 @@ describe('AuthService', () => {
       expect(prisma.userSession.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-1',
-          deviceLabel: 'Registered Session',
+          deviceLabel: 'Mobile App',
           userAgent: 'ua/1',
         },
       });
@@ -262,8 +262,14 @@ describe('AuthService', () => {
       bcryptMock.compare.mockResolvedValueOnce(true as never);
       bcryptMock.hash.mockResolvedValueOnce('new-hash' as never);
       prisma.user.update.mockResolvedValueOnce(baseUser);
+      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 2 });
 
-      const ok = await service.changePassword('user-1', 'old', 'new-password');
+      const ok = await service.changePassword(
+        'user-1',
+        'sess-current',
+        'old',
+        'new-password',
+      );
 
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
@@ -272,20 +278,93 @@ describe('AuthService', () => {
       expect(ok).toBe(true);
     });
 
+    it('revokes other active sessions but keeps the current one', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(baseUser);
+      bcryptMock.compare.mockResolvedValueOnce(true as never);
+      bcryptMock.hash.mockResolvedValueOnce('new-hash' as never);
+      prisma.user.update.mockResolvedValueOnce(baseUser);
+      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 2 });
+
+      await service.changePassword(
+        'user-1',
+        'sess-current',
+        'old',
+        'new-password',
+      );
+
+      expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-1',
+          isActive: true,
+          NOT: { id: 'sess-current' },
+        },
+        data: { isActive: false, revokedAt: expect.any(Date) },
+      });
+    });
+
     it('rejects wrong current password', async () => {
       prisma.user.findUnique.mockResolvedValueOnce(baseUser);
       bcryptMock.compare.mockResolvedValueOnce(false as never);
       await expect(
-        service.changePassword('user-1', 'wrong', 'new-password'),
+        service.changePassword(
+          'user-1',
+          'sess-current',
+          'wrong',
+          'new-password',
+        ),
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.userSession.updateMany).not.toHaveBeenCalled();
     });
 
     it('rejects when user is missing', async () => {
       prisma.user.findUnique.mockResolvedValueOnce(null);
       await expect(
-        service.changePassword('user-x', 'old', 'new'),
+        service.changePassword('user-x', 'sess-current', 'old', 'new'),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe('verifyPassword', () => {
+    it('returns true when the password matches', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(baseUser);
+      bcryptMock.compare.mockResolvedValueOnce(true as never);
+
+      const ok = await service.verifyPassword('user-1', 'correct');
+
+      expect(ok).toBe(true);
+    });
+
+    it('rejects when the password does not match', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(baseUser);
+      bcryptMock.compare.mockResolvedValueOnce(false as never);
+      await expect(
+        service.verifyPassword('user-1', 'wrong'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('rejects when the user no longer exists', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.verifyPassword('user-x', 'whatever'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('throws 429 after 3 failed attempts within the window', async () => {
+      prisma.user.findUnique.mockResolvedValue(baseUser);
+      bcryptMock.compare.mockResolvedValue(false as never);
+
+      for (let i = 0; i < 3; i++) {
+        await expect(
+          service.verifyPassword('user-throttle', 'wrong'),
+        ).rejects.toBeInstanceOf(UnauthorizedException);
+      }
+
+      // 4th attempt should trip the throttle (HTTP 429), regardless of
+      // whether the password is correct this time.
+      await expect(
+        service.verifyPassword('user-throttle', 'wrong'),
+      ).rejects.toMatchObject({ status: 429 });
     });
   });
 

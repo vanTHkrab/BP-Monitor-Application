@@ -5,7 +5,7 @@ import { ActivityIndicator, View } from "react-native";
 export default function IndexPage() {
   const { isAuthenticated, authInitialized } = useAppStore();
 
-  // ยังไม่รู้สถานะ auth → แสดง loading
+  // Not known auth status -> show loading
   if (!authInitialized) {
     return (
       <View className="flex-1 items-center justify-center bg-[#72C9F7]">
@@ -14,7 +14,7 @@ export default function IndexPage() {
     );
   }
 
-  // รู้สถานะแล้ว → redirect (ปลอดภัยกับ Android)
+  // Know auth status -> redirect (safe on Android)
   if (isAuthenticated) {
     return <Redirect href="/(tabs)" />;
   }
