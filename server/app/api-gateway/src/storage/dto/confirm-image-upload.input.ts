@@ -1,5 +1,5 @@
 import { Field, InputType } from '@nestjs/graphql';
-import { IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsString, MaxLength } from 'class-validator';
 import { ImageKind } from '../types/storage.types';
 
 @InputType()
@@ -10,5 +10,6 @@ export class ConfirmImageUploadInput {
   key: string;
 
   @Field(() => ImageKind)
+  @IsEnum(ImageKind)
   kind: ImageKind;
 }

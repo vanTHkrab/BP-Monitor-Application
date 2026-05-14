@@ -8,6 +8,7 @@
       "Read(**/.env.development)",
       "Read(**/secrets/**)",
       "Bash(git * main)",
+      "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)"
     ],

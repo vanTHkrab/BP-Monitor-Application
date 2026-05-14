@@ -56,6 +56,15 @@ incidents, ข้อตกลงที่หาในโค้ดไม่เจ
 - **Mercurius `errorFormatter` signature** — ต้องคืน
   `{ statusCode: 200, response: { data, errors } }` ไม่ใช่คืน execution
   result ตรงๆ (ดู app.module.ts)
+- **`@Field(() => MyEnum)` ไม่นับเป็น class-validator decorator** —
+  incident 2026-05-14: `RequestImageUploadInput.kind` กับ
+  `ConfirmImageUploadInput.kind` มีแต่ `@Field(() => ImageKind)` ไม่มี
+  `@IsEnum(ImageKind)` → ทุก request ที่ส่ง `kind` เข้ามาเจอ
+  `forbidNonWhitelisted` reject ด้วย 400 ก่อนเข้า resolver. Bug ติด
+  ตั้งแต่ commit `03e91eb` ที่เปิด presigned upload flow เพราะ unit test
+  เรียก service ตรงๆ ไม่ผ่าน pipe. ต่อไป enum field ทุกตัวต้องใส่
+  `@IsEnum` ด้วย และ error formatter เพิ่มไว้ surface
+  `extensions.validationErrors` ใน dev เพื่อกัน blind spot นี้ซ้ำ
 
 ---
 

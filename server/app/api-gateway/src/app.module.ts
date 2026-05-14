@@ -60,8 +60,10 @@ import { CaregiverModule } from './caregiver/caregiver.module';
           // Lift custom fields from HttpException response body into extensions
           // so the client can dispatch on them (e.g. `retryAfterSec` from the
           // login / verify-password throttle). The NestJS envelope keys
-          // (statusCode / message / error) are intentionally dropped — `code`
-          // is already derived from the HTTP status above.
+          // (statusCode / error) are dropped — `code` already encodes status.
+          // `message` is dropped in production (avoid leaking raw text) but
+          // surfaced in dev as `validationErrors` when class-validator returns
+          // its constraint array, so failed inputs are debuggable from logs.
           const extraExtensions: Record<string, unknown> = {};
           if (original instanceof HttpException) {
             const response = original.getResponse();
@@ -73,7 +75,16 @@ import { CaregiverModule } from './caregiver/caregiver.module';
               for (const [key, value] of Object.entries(
                 response as Record<string, unknown>,
               )) {
-                if (key === 'statusCode' || key === 'message' || key === 'error') {
+                if (key === 'statusCode' || key === 'error') {
+                  continue;
+                }
+                if (key === 'message') {
+                  if (
+                    process.env.NODE_ENV !== 'production' &&
+                    Array.isArray(value)
+                  ) {
+                    extraExtensions.validationErrors = value;
+                  }
                   continue;
                 }
                 extraExtensions[key] = value;
