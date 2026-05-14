@@ -6,6 +6,7 @@ import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontClass } from '@/utils/font-scale';
+import { prepareImageForAnalysis } from '@/utils/image-prepare';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -27,6 +28,7 @@ export default function CameraScreen() {
   const [cameraMountError, setCameraMountError] = useState<string | null>(null);
   const [cameraKey, setCameraKey] = useState(0);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   // ─── Modal / form state ───────────────────────────────────────────────────────
@@ -45,15 +47,20 @@ export default function CameraScreen() {
   const { phase, prefill, isSaving, analyze, save, reset: resetAnalysis } = useCameraAnalysis();
 
   // Auto-fill form when AI returns confident readings.
-  // Only write into empty fields so the user's manual edits aren't clobbered
-  // when the AI result lands after they've already started typing.
+  // Functional setState reads the *current* value at update time, so a slow
+  // AI response can't overwrite characters the user typed in the meantime
+  // (the closure pitfall that the previous `!systolic.trim()` check fell
+  // into).
   useEffect(() => {
-    if (prefill.systolic && !systolic.trim()) setSystolic(String(prefill.systolic));
-    if (prefill.diastolic && !diastolic.trim()) setDiastolic(String(prefill.diastolic));
-    if (prefill.pulse && !pulse.trim()) setPulse(String(prefill.pulse));
-    // intentionally only depends on prefill — re-running on every keystroke
-    // would defeat the empty-field guard above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (prefill.systolic !== undefined) {
+      setSystolic((prev) => (prev.trim() ? prev : String(prefill.systolic)));
+    }
+    if (prefill.diastolic !== undefined) {
+      setDiastolic((prev) => (prev.trim() ? prev : String(prefill.diastolic)));
+    }
+    if (prefill.pulse !== undefined) {
+      setPulse((prev) => (prev.trim() ? prev : String(prefill.pulse)));
+    }
   }, [prefill]);
 
   // ─── Derived ──────────────────────────────────────────────────────────────────
@@ -92,15 +99,32 @@ export default function CameraScreen() {
   };
 
   // ─── Camera actions ───────────────────────────────────────────────────────────
+  // Drop `base64: true` — the camera was emitting the full base64-encoded
+  // payload on every shot just for us to discard it; only `photo.uri` is
+  // actually consumed downstream. The base64 alone is ~7 MB for an iPhone
+  // capture and was a real OOM hazard on lower-end Android devices.
   const takePicture = async () => {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current || isCapturing) return;
+    setIsCapturing(true);
     try {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.8 });
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
       if (!photo) return;
-      setCapturedImage(photo.uri);
-      void analyze(photo.uri); // kick off AI in background
+      // Resize before showing the preview / kicking off AI so the rest of
+      // the flow (S3 upload, OCR) sees a sanely-sized image. We pass the
+      // dimensions explicitly (the camera returns them) so the helper
+      // doesn't have to call `Image.getSize` — that path could hang on a
+      // just-written URI and leave the capture UI stuck.
+      const prepared = await prepareImageForAnalysis(
+        photo.uri,
+        photo.width,
+        photo.height,
+      );
+      setCapturedImage(prepared);
+      void analyze(prepared);
     } catch {
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
+    } finally {
+      setIsCapturing(false);
     }
   };
 
@@ -111,8 +135,14 @@ export default function CameraScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setCapturedImage(result.assets[0].uri);
-      void analyze(result.assets[0].uri); // kick off AI in background
+      const asset = result.assets[0];
+      const prepared = await prepareImageForAnalysis(
+        asset.uri,
+        asset.width,
+        asset.height,
+      );
+      setCapturedImage(prepared);
+      void analyze(prepared);
     }
   };
 
@@ -161,12 +191,17 @@ export default function CameraScreen() {
     }
 
     try {
-      const id = await save({ imageUri: capturedImage, systolic: sys, diastolic: dia, pulse: hr });
+      const ok = await save({ imageUri: capturedImage, systolic: sys, diastolic: dia, pulse: hr });
 
-      if (!id) {
+      if (!ok) {
         Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้');
         return;
       }
+
+      // Dismiss the entry sheet before showing the status Alert so the alert
+      // doesn't stack on top of an open modal — looks like two layers of
+      // chrome to the user, especially on Android.
+      setShowEntryModal(false);
 
       const proceed = () => { resetAll(); router.back(); };
       const status: BPStatus = getBPStatus(sys, dia);
@@ -231,6 +266,17 @@ export default function CameraScreen() {
   }
 
   // ─── UI helpers ───────────────────────────────────────────────────────────────
+  // Retake clears just the photo + AI state and closes the entry sheet so the
+  // user lands back on the camera. The form values (SYS / DIA / HR) are
+  // intentionally kept — if they already typed something, asking them to
+  // re-enter it on every retake would be punishing. Use `resetAll` for the
+  // hard reset (post-save / leaving the screen).
+  const retake = () => {
+    setCapturedImage(null);
+    setShowEntryModal(false);
+    resetAnalysis();
+  };
+
   const resetAll = () => {
     setCapturedImage(null);
     setShowEntryModal(false);
@@ -252,7 +298,6 @@ export default function CameraScreen() {
     Boolean(capturedImage) && !!systolic.trim() && !!diastolic.trim() && !!pulse.trim();
 
   const isAnalyzing = phase !== 'idle' && phase !== 'done' && phase !== 'failed';
-  const isCapturing = false; // reserved for future capture-phase indicator
   const tabBarTotalHeight = 80;
   const captionClassName = getFontClass(fontSizePreference, {
     small: 'text-[11px]',
@@ -336,7 +381,7 @@ export default function CameraScreen() {
                     className="absolute inset-0"
                     facing="back"
                     onMountError={(e) =>
-                      setCameraMountError(String((e as any)?.message ?? 'ไม่สามารถเปิดกล้องได้'))
+                      setCameraMountError(e.message || 'ไม่สามารถเปิดกล้องได้')
                     }
                     onCameraReady={() => setIsCameraReady(true)}
                   />
@@ -386,7 +431,11 @@ export default function CameraScreen() {
                   </AnimatedPressable>
                   
                   {/* Capture Button - Center */}
-                  <AnimatedPressable onPress={takePicture} className="items-center">
+                  <AnimatedPressable
+                    onPress={takePicture}
+                    disabled={isCapturing}
+                    className="items-center"
+                  >
                     <View className="w-[76px] h-[76px] bg-white/30 rounded-full items-center justify-center p-1">
                       <View className="w-full h-full bg-white rounded-[34px] items-center justify-center">
                         <Ionicons name="camera" size={32} color="#D97706" />
@@ -445,11 +494,17 @@ export default function CameraScreen() {
 
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.8)']}
-              className={(Platform.OS === 'ios' ? 'pb-10' : 'pb-6') + ' absolute bottom-0 left-0 right-0 px-4 py-6'}
+              className="absolute bottom-0 left-0 right-0 px-4 pt-6"
+              // Reserve space for the (tabs) bottom bar — without this the
+              // retake / confirm row sits behind the tab bar and is
+              // unreachable, especially noticeable when the AI badge has
+              // already moved on (the user sees "วิเคราะห์ไม่สำเร็จ" at the
+              // top with no controls at the bottom).
+              style={{ paddingBottom: tabBarTotalHeight + 16 }}
             >
               <View className="flex-row justify-center space-x-3">
                 <AnimatedPressable
-                  onPress={resetAll}
+                  onPress={retake}
                   className="flex-1 rounded-2xl overflow-hidden shadow-lg"
                 >
                   <LinearGradient
@@ -544,11 +599,20 @@ export default function CameraScreen() {
                   </View>
                 </ScrollView>
 
-                {/* Actions */}
+                {/* Actions — close lives on the X icon at top right of the
+                    sheet; the bottom row gives the two flow-changing actions:
+                    retake (back to camera, keep typed values) and save. */}
                 <View className="flex-row space-x-3 mt-2">
-                  <AnimatedPressable onPress={() => setShowEntryModal(false)} className="flex-1 rounded-2xl overflow-hidden">
-                    <LinearGradient colors={['#9CA3AF', '#6B7280']} className="flex-row items-center justify-center py-3.5">
-                      <Text className="text-white font-bold text-[15px]">ปิด</Text>
+                  <AnimatedPressable
+                    onPress={retake}
+                    className="flex-1 rounded-2xl overflow-hidden"
+                  >
+                    <LinearGradient
+                      colors={['#EF4444', '#DC2626']}
+                      className="flex-row items-center justify-center py-3.5"
+                    >
+                      <Ionicons name="refresh" size={18} color="white" />
+                      <Text className="text-white font-bold text-[15px] ml-2">ถ่ายใหม่</Text>
                     </LinearGradient>
                   </AnimatedPressable>
 

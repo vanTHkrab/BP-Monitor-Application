@@ -53,8 +53,12 @@ pnpm prisma migrate dev       # apply pending migrations
   `PrismaService`. The resolver injects the service.
 - **Validation.** Inputs go through global `ValidationPipe` configured in
   `main.ts` (`whitelist`, `forbidNonWhitelisted`, `transform`). Add
-  class-validator decorators to every `@InputType` field. Don't validate
-  manually inside resolvers/services — let the pipe do it.
+  class-validator decorators to every `@InputType` field — including
+  enums (`@IsEnum(MyEnum)`). `@Field(() => MyEnum)` alone is GraphQL
+  metadata only; without a class-validator decorator the field is
+  non-whitelisted and `forbidNonWhitelisted` will 400 the request before
+  it ever reaches the resolver. Don't validate manually inside
+  resolvers/services — let the pipe do it.
 - **Errors.** Throw NestJS HttpException subclasses (`UnauthorizedException`,
   `ForbiddenException`, `ConflictException`, `BadRequestException`,
   `NotFoundException`). The `errorFormatter` in `app.module.ts` maps the
@@ -130,3 +134,4 @@ pnpm prisma migrate dev       # apply pending migrations
 - [AGENT.md](./AGENT.md) — agent-style architecture overview
 - [PLAN.md](./PLAN.md) — roadmap and known gaps
 - [MEMORY.md](./MEMORY.md) — durable facts worth remembering across sessions
+- [../../docs/API.md](../../docs/API.md) — GraphQL contract reference for client developers (auth, error codes, operation catalogue, image-upload flow)

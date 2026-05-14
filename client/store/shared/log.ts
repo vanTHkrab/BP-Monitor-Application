@@ -29,3 +29,11 @@ export const communityWarn = (
   error?: unknown,
   details?: Record<string, unknown>,
 ) => logWarn("Community", message, error, details);
+
+export const cameraDebug = (
+  message: string,
+  details?: Record<string, unknown>,
+) => {
+  if (!__DEV__) return;
+  console.log(`[Camera] ${message}`, details ?? {});
+};

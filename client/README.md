@@ -135,8 +135,13 @@ client/
 
 - All API calls go through `graphqlRequest` in `constants/api.ts`. It attaches
   the bearer token, sets a 30-second timeout, and normalizes errors.
-- File uploads (avatars, BP images) use `lib/graphql-client.ts` for multipart
-  GraphQL, then call `uploadImageToS3` (in `utils/upload-image.ts`).
+- File uploads (avatars, BP images) go through the presigned-URL flow
+  (`requestImageUpload` → PUT to S3 → `confirmImageUpload`) — see
+  `utils/upload-image.ts → uploadImageViaPresign` (avatars + sync of
+  reading-attached photos) and `services/camera.service.ts → analyzeImage`
+  (camera capture + AI analysis). On native both paths stream the file
+  via `FileSystem.uploadAsync` from `expo-file-system/legacy`; on web they
+  fall back to `fetch + Blob` (RN's Blob can't take ArrayBuffer).
 - The AI image-analysis pipeline is in `services/camera.service.ts`:
   `analyzeImage` uploads the photo, then polls `analysisJob(jobId)` until the
   AI service returns `done` or `failed`.

@@ -32,16 +32,16 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 | `constants/api.ts` | GraphQL endpoint resolver, token storage, all GraphQL operation strings. |
 | `constants/colors.ts` | BP-status thresholds + Tailwind color tokens. |
 | `data/local-db.ts` | SQLite schema + helpers for the offline queues. |
-| `hooks/use-camera-analysis.ts` | The state machine for BP image capture → AI analysis → save. |
+| `hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry. |
 | `lib/graphql-client.ts` | Multipart-aware GraphQL client used by the AI image-upload path. |
 | `lib/graphql-error.ts` | `GraphQLClientError` class — typed error thrown by `graphqlRequest` carrying `code` (server's `extensions.code`), `httpStatus`, and `retryAfterSec`. |
 | `lib/error-message.ts` | General `formatError(error)` — hides raw English in production, surfaces it as `devDetail` in `__DEV__`. Use this for non-auth flows. |
-| `services/camera.service.ts` | `analyzeImage` (upload + poll) and `submitReading`. |
+| `services/camera.service.ts` | `analyzeImage`: presigned upload + enqueue AI + poll. Returns `uploadedUrl` so the caller can hand it to `createReading` without re-uploading. Reading persistence itself lives in the store, not here. |
 | `store/use-app-store.ts` | Composer for the single Zustand store. Imports and merges every slice — keep slim. |
 | `store/slices/` | Domain slices: `auth` (+ profile + sessions), `readings` (+ alerts), `community` (posts + comments), `caregivers`, `preferences` (theme + font + security), `network`. |
 | `store/shared/` | Cross-slice helpers: `log` (`logWarn`, `communityDebug`), `client-id` (local-id helpers + `createClientId`), `error-format` (`formatAuthError` for login/register UX + legacy `authErrorToThai`), `mappers` (`xxxFromGql` + sorters). |
 | `types/` | Shared TypeScript types. Add domain types here, not inline. |
-| `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`). |
+| `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`), `image-prepare` (resize + recompress images before they hit the AI / S3 path). |
 
 ## Architectural Conventions
 
@@ -94,7 +94,13 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
   IDs ad-hoc with `Math.random().slice(...)`.
 - **Image uploads**: BP images use the multipart path in
   `services/camera.service.ts`; avatars and other one-shot uploads use
-  `utils/upload-image.ts → uploadImageToS3`.
+  `utils/upload-image.ts → uploadImageViaPresign`. Both paths share the
+  same wire flow (presign → PUT → confirm) but **must not** use
+  `new Blob([Uint8Array])` for the PUT body — RN's Blob refuses
+  ArrayBuffer/Uint8Array at runtime even though the TS types accept it.
+  On native, stream the file with `FileSystem.uploadAsync` from
+  `expo-file-system/legacy` (`uploadType: BINARY_CONTENT`); the
+  fetch+Blob path is web-only.
 - **Local-only IDs are strings prefixed with `local-` (readings) or
   `local-post-` (posts)**. Use the `isLocalReadingId`/`isLocalPostId` helpers
   in the store; don't string-match these prefixes elsewhere.

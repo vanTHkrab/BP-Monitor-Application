@@ -224,7 +224,10 @@ export const createReadingsSlice: StateCreator<
             status,
             measuredAt: measuredAt.toISOString(),
             clientId,
-            imageUri: imageUri ?? null,
+            // Server's `CreateReadingInput` accepts `s3Key` (was renamed from
+            // `imageUri` in schema PR B). The local SQLite column stays
+            // `imageUri` — translation happens only at the GraphQL boundary.
+            s3Key: imageUri ?? null,
             notes: input.notes ?? null,
           },
         },
@@ -322,7 +325,7 @@ export const createReadingsSlice: StateCreator<
                   measuredAt: row.measuredAt,
                   clientId:
                     row.clientId || `local-${currentUser.id}-${row.id}`,
-                  imageUri,
+                  s3Key: imageUri,
                   notes: row.notes ?? null,
                 },
               },

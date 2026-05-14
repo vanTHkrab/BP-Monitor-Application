@@ -1,10 +1,11 @@
 import { Field, InputType, Int } from '@nestjs/graphql';
-import { IsInt, IsMimeType, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsMimeType, IsString, Max, Min } from 'class-validator';
 import { MAX_IMAGE_BYTES, ImageKind } from '../types/storage.types';
 
 @InputType()
 export class RequestImageUploadInput {
   @Field(() => ImageKind)
+  @IsEnum(ImageKind)
   kind: ImageKind;
 
   @Field(() => String)
