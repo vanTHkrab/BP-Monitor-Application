@@ -1,4 +1,6 @@
 import { File } from "expo-file-system";
+import * as LegacyFileSystem from "expo-file-system/legacy";
+import { Platform } from "react-native";
 import {
   GQL_CONFIRM_IMAGE_UPLOAD,
   GQL_REQUEST_IMAGE_UPLOAD,
@@ -65,14 +67,24 @@ export const uploadImageViaPresign = async ({
   const mimeType = getMimeTypeFromUri(uri);
   const serverKind = SERVER_IMAGE_KIND[kind];
 
-  let bytes: Uint8Array;
+  // On native we hand the file URI to FileSystem.uploadAsync so the binary
+  // streams from disk straight to S3 — RN's Blob does not accept ArrayBuffer
+  // inputs, so the browser-style fetch+Blob path is web-only.
+  const isWeb = Platform.OS === "web";
+
+  let size: number;
+  let webBytes: Uint8Array | null = null;
   try {
-    bytes = await new File(uri).bytes();
+    if (isWeb) {
+      webBytes = await new File(uri).bytes();
+      size = webBytes.byteLength;
+    } else {
+      size = new File(uri).size;
+    }
   } catch (error) {
     console.error(`[S3 presign] file-read-failed kind=${kind} uri=${uri}`, error);
     throw error;
   }
-  const size = bytes.byteLength;
 
   console.log(
     `[S3 presign] start kind=${kind} mimeType=${mimeType} size=${size}B`,
@@ -98,26 +110,38 @@ export const uploadImageViaPresign = async ({
   const headers: Record<string, string> = {};
   for (const h of presign.headers) headers[h.name] = h.value;
 
-  let putRes: Response;
+  let putStatus: number;
+  let putBody = "";
   try {
-    // Cast: expo-file-system returns Uint8Array<ArrayBuffer>, but TS widens
-    // the generic at the call site so BlobPart's strict typing rejects it.
-    const body = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType });
-    putRes = await fetch(presign.uploadUrl, {
-      method: "PUT",
-      headers,
-      body,
-    });
+    if (isWeb) {
+      // Cast: expo-file-system returns Uint8Array<ArrayBuffer>, but TS widens
+      // the generic at the call site so BlobPart's strict typing rejects it.
+      const body = new Blob([webBytes as Uint8Array<ArrayBuffer>], {
+        type: mimeType,
+      });
+      const res = await fetch(presign.uploadUrl, { method: "PUT", headers, body });
+      putStatus = res.status;
+      if (!res.ok) putBody = await res.text().catch(() => "");
+    } else {
+      const result = await LegacyFileSystem.uploadAsync(presign.uploadUrl, uri, {
+        httpMethod: "PUT",
+        headers,
+        uploadType: LegacyFileSystem.FileSystemUploadType.BINARY_CONTENT,
+      });
+      putStatus = result.status;
+      if (result.status < 200 || result.status >= 300) {
+        putBody = result.body ?? "";
+      }
+    }
   } catch (error) {
     console.error(`[S3 presign] put-failed kind=${kind} key=${presign.key}`, error);
     throw error;
   }
-  if (!putRes.ok) {
-    const body = await putRes.text().catch(() => "");
+  if (putStatus < 200 || putStatus >= 300) {
     console.error(
-      `[S3 presign] put-rejected kind=${kind} key=${presign.key} status=${putRes.status} body=${body.slice(0, 200)}`,
+      `[S3 presign] put-rejected kind=${kind} key=${presign.key} status=${putStatus} body=${putBody.slice(0, 200)}`,
     );
-    throw new Error(`S3 upload rejected (${putRes.status})`);
+    throw new Error(`S3 upload rejected (${putStatus})`);
   }
 
   // 3. Confirm — server verifies the object and persists records as needed.

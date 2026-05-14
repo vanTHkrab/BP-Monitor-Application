@@ -82,7 +82,13 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
   IDs ad-hoc with `Math.random().slice(...)`.
 - **Image uploads**: BP images use the multipart path in
   `services/camera.service.ts`; avatars and other one-shot uploads use
-  `utils/upload-image.ts → uploadImageToS3`.
+  `utils/upload-image.ts → uploadImageViaPresign`. Both paths share the
+  same wire flow (presign → PUT → confirm) but **must not** use
+  `new Blob([Uint8Array])` for the PUT body — RN's Blob refuses
+  ArrayBuffer/Uint8Array at runtime even though the TS types accept it.
+  On native, stream the file with `FileSystem.uploadAsync` from
+  `expo-file-system/legacy` (`uploadType: BINARY_CONTENT`); the
+  fetch+Blob path is web-only.
 - **Local-only IDs are strings prefixed with `local-` (readings) or
   `local-post-` (posts)**. Use the `isLocalReadingId`/`isLocalPostId` helpers
   in the store; don't string-match these prefixes elsewhere.

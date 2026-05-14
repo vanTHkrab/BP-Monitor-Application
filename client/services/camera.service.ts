@@ -1,6 +1,9 @@
 import { File } from 'expo-file-system';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 import { getAuthToken } from '@/constants/api';
 import { gqlRequest } from '@/lib/graphql-client';
+import { cameraDebug } from '@/store/shared/log';
 import type {
   AnalysisJob,
   AnalysisResult,
@@ -93,8 +96,19 @@ async function uploadToS3(
   signal?: AbortSignal,
 ): Promise<{ key: string; url: string; mimeType: string }> {
   const mimeType = uriToMime(imageUri);
-  const bytes = await new File(imageUri).bytes();
-  const size = bytes.byteLength;
+  // RN's Blob refuses ArrayBuffer/Uint8Array, so on native we hand the
+  // file URI to FileSystem.uploadAsync and stream the binary from disk to
+  // S3 without ever materializing a Blob. Web has a real Blob so we keep
+  // the fetch+Blob path there for parity.
+  const isWeb = Platform.OS === 'web';
+  let size: number;
+  let webBytes: Uint8Array | null = null;
+  if (isWeb) {
+    webBytes = await new File(imageUri).bytes();
+    size = webBytes.byteLength;
+  } else {
+    size = new File(imageUri).size;
+  }
 
   const presign = await gqlRequest<{ requestImageUpload: PresignedUpload }>({
     query: REQUEST_IMAGE_UPLOAD_MUTATION,
@@ -105,21 +119,41 @@ async function uploadToS3(
   });
 
   const { uploadUrl, key, headers } = presign.requestImageUpload;
+  cameraDebug('presign issued', {
+    key,
+    mimeType,
+    size,
+    expiresAt: presign.requestImageUpload.expiresAt,
+  });
   const headerMap: Record<string, string> = {};
   for (const h of headers) headerMap[h.name] = h.value;
 
-  // Cast: expo-file-system returns Uint8Array<ArrayBuffer>, but the generic
-  // collapses at this call site so BlobPart's strict typing rejects it.
-  const body = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType });
-  const putRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: headerMap,
-    body,
-    signal,
-  });
-  if (!putRes.ok) {
-    throw new Error(`S3 upload rejected (${putRes.status})`);
+  let putStatus: number;
+  if (isWeb) {
+    // Cast: expo-file-system returns Uint8Array<ArrayBuffer>, but the generic
+    // collapses at this call site so BlobPart's strict typing rejects it.
+    const body = new Blob([webBytes as Uint8Array<ArrayBuffer>], { type: mimeType });
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: headerMap,
+      body,
+      signal,
+    });
+    putStatus = putRes.status;
+  } else {
+    // uploadAsync has no AbortSignal hook; the parent flow's cancellation
+    // is enforced by the GraphQL polling step that follows.
+    const result = await LegacyFileSystem.uploadAsync(uploadUrl, imageUri, {
+      httpMethod: 'PUT',
+      headers: headerMap,
+      uploadType: LegacyFileSystem.FileSystemUploadType.BINARY_CONTENT,
+    });
+    putStatus = result.status;
   }
+  if (putStatus < 200 || putStatus >= 300) {
+    throw new Error(`S3 upload rejected (${putStatus})`);
+  }
+  cameraDebug('S3 PUT ok', { key, status: putStatus });
 
   const confirmed = await gqlRequest<{ confirmImageUpload: ConfirmedImage }>({
     query: CONFIRM_IMAGE_UPLOAD_MUTATION,
@@ -127,6 +161,11 @@ async function uploadToS3(
       input: { key, kind: 'BLOOD_PRESSURE_READING' },
     },
     signal,
+  });
+  cameraDebug('confirmImageUpload ok', {
+    key: confirmed.confirmImageUpload.key,
+    imageId: confirmed.confirmImageUpload.imageId,
+    url: confirmed.confirmImageUpload.url,
   });
 
   return {
@@ -162,6 +201,7 @@ async function pollUntilDone(jobId: string, options: PollOptions = {}): Promise<
     const job = data.analysisJob;
 
     if (job.status !== lastStatus) {
+      cameraDebug('analysisJob status', { jobId, from: lastStatus, to: job.status });
       lastStatus = job.status;
       onStatusChange?.(job.status);
     }
@@ -211,11 +251,21 @@ export async function analyzeImage(
   });
 
   const initial = enqueued.analyzeBPImage;
+  cameraDebug('analyzeBPImage enqueued', {
+    jobId: initial.jobId,
+    status: initial.status,
+    s3Key: key,
+  });
   if (initial.status === 'done') {
     return { job: initial, result: initial.result ?? null, uploadedUrl: url };
   }
 
   const completed = await pollUntilDone(initial.jobId, options);
+  cameraDebug('analyzeBPImage finished', {
+    jobId: completed.jobId,
+    status: completed.status,
+    hasResult: !!completed.result,
+  });
   return {
     job: completed,
     result: completed.result ?? null,
