@@ -90,7 +90,29 @@ export default function RootLayout() {
       try {
         await initLocalDb();
         if (cancelled) return;
+
+        // Seed network state from ground truth before initAuth runs, so
+        // requests fired during auth init don't race against the default
+        // optimistic isOnline=true.
+        const initialNet = await NetInfo.fetch();
+        if (cancelled) return;
+        setNetworkStatus(
+          Boolean(
+            initialNet.isConnected &&
+              initialNet.isInternetReachable !== false,
+          ),
+        );
+
         await useAppStore.getState().initAuth();
+        if (cancelled) return;
+
+        // Flush queues hydrated by initAuth, if we're online. The NetInfo
+        // listener below only fires sync on offline→online edges, so this
+        // covers the "started online with pending items" case.
+        if (useAppStore.getState().isOnline) {
+          void syncPendingReadings();
+          void syncPendingPosts();
+        }
       } catch (error) {
         if (__DEV__) console.warn("[Bootstrap] init failed", error);
       }
@@ -101,8 +123,12 @@ export default function RootLayout() {
       const isOnline = Boolean(
         state.isConnected && state.isInternetReachable !== false,
       );
+      const wasOnline = useAppStore.getState().isOnline;
       setNetworkStatus(isOnline);
-      if (isOnline) {
+      // Only flush queues on offline→online transitions, not on every event
+      // (NetInfo emits on signal/type changes too). The sync mutex would
+      // dedupe redundant calls anyway, but avoiding the trigger is cleaner.
+      if (isOnline && !wasOnline) {
         void syncPendingReadings();
         void syncPendingPosts();
       }
