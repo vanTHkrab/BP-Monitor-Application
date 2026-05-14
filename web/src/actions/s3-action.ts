@@ -113,7 +113,7 @@ export async function getConnection(): Promise<S3ConnectionResult> {
             data: {
                 bucketName: storageService.bucketName,
                 provider,
-                region: process.env.S3_REGION || 'auto',
+                region: process.env.S3_DEFAULT_REGION || process.env.S3_REGION || 'auto',
                 endpoint: process.env.S3_ENDPOINT,
             },
         };

@@ -38,8 +38,10 @@ class StorageService {
         const accessKeyId = this.requireEnv('S3_ACCESS_KEY_ID');
         const secretAccessKey = this.requireEnv('S3_SECRET_ACCESS_KEY');
         
-        // AWS typically uses a specific region, Cloudflare R2 often uses 'auto'
-        const region = process.env.S3_REGION || 'auto'; 
+        // AWS typically uses a specific region, Cloudflare R2 often uses 'auto'.
+        // Accept both S3_DEFAULT_REGION (matches .env.example) and S3_REGION for
+        // compatibility with older configs.
+        const region = process.env.S3_DEFAULT_REGION || process.env.S3_REGION || 'auto';
         const endpoint = process.env.S3_ENDPOINT; 
 
         // Base configuration required by all providers
