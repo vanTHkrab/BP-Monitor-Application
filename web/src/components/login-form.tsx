@@ -81,7 +81,7 @@ export function LoginForm({
                 <Button type="submit">Login</Button>
                 <FieldDescription className="text-center">
                   Don&apos;t have an account? <a href="#">Sign up</a><br/>
-                  <Link href="dashboard">Dashboard</Link>
+                  <Link href="/overview">Dashboard</Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>
