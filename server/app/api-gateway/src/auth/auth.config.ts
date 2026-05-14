@@ -26,5 +26,10 @@ export const getJwtSecret = (): string => {
   return cachedSecret;
 };
 
-export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '30d';
+// 7d is a deliberate trade-off: long enough that mobile users don't re-login
+// every day, short enough that a leaked token's exposure window is bounded.
+// Override via env when running a flow that needs a longer-lived token
+// (e.g. integration tests). When refresh-token rotation lands this should
+// drop further (target: 15m access + 7d refresh).
+export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '7d';
 export const BCRYPT_SALT_ROUNDS = 10;

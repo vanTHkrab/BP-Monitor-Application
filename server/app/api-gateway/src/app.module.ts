@@ -3,7 +3,6 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { MercuriusDriver, MercuriusDriverConfig } from '@nestjs/mercurius';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import type { GraphQLFormattedError } from 'graphql';
-import Redis from 'ioredis';
 import { join } from 'path';
 
 // Map a NestJS HttpException status to the Apollo-style string codes the
@@ -27,6 +26,7 @@ const httpStatusToGqlCode = (status: number): string => {
 import { AppResolver } from './app.resolver';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { ReadingModule } from './reading/reading.module';
 import { PostModule } from './post/post.module';
@@ -73,7 +73,11 @@ import { CaregiverModule } from './caregiver/caregiver.module';
               for (const [key, value] of Object.entries(
                 response as Record<string, unknown>,
               )) {
-                if (key === 'statusCode' || key === 'message' || key === 'error') {
+                if (
+                  key === 'statusCode' ||
+                  key === 'message' ||
+                  key === 'error'
+                ) {
                   continue;
                 }
                 extraExtensions[key] = value;
@@ -107,6 +111,8 @@ import { CaregiverModule } from './caregiver/caregiver.module';
     ]),
     // == Database Module ==
     PrismaModule,
+    // == Shared infrastructure ==
+    RedisModule,
     // == Feature Modules ==
     AuthModule,
     ReadingModule,
@@ -117,28 +123,6 @@ import { CaregiverModule } from './caregiver/caregiver.module';
     AlertModule,
     CaregiverModule,
   ],
-  providers: [
-    {
-      // Create a Redis client instance and provide it for injection
-      // lazyConnect: won't throw if Redis is unavailable (AI Service is optional)
-      provide: 'REDIS_CLIENT',
-      useFactory: () => {
-        const redis = new Redis({
-          host: 'localhost',
-          port: 6379,
-          lazyConnect: true,
-          maxRetriesPerRequest: 1,
-          retryStrategy: () => null, // don't retry — Redis is optional
-        });
-        redis.on('error', () => {}); // suppress connection errors
-        redis.connect().catch(() => {}); // attempt connect but don't fail
-        return redis;
-      },
-    },
-    // == Core App Providers ==
-    AppService,
-    AppResolver,
-    // == AI Providers ==
-  ],
+  providers: [AppService, AppResolver],
 })
 export class AppModule {}

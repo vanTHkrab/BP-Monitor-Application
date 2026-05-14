@@ -124,6 +124,41 @@ export const clearAuthToken = async (): Promise<void> => {
   await AsyncStorage.removeItem(TOKEN_KEY);
 };
 
+// ── Session-expired handler ──
+
+// Registered once at app bootstrap (by the auth slice) so any GraphQL
+// transport in this codebase can notify the store when the server rejects
+// our token. We keep it module-level instead of importing the store here
+// because `constants/api.ts` is imported by the slices themselves — a
+// direct import would form an import cycle.
+
+type UnauthenticatedHandler = () => void | Promise<void>;
+let unauthenticatedHandler: UnauthenticatedHandler | null = null;
+
+export const setUnauthenticatedHandler = (
+  handler: UnauthenticatedHandler | null,
+): void => {
+  unauthenticatedHandler = handler;
+};
+
+/**
+ * Notify the registered handler that the server rejected our token. Safe to
+ * call from any GraphQL transport. Fire-and-forget — the calling code should
+ * still throw whatever error it was going to throw; this just kicks off the
+ * client-side cleanup in parallel.
+ */
+export const fireUnauthenticated = (): void => {
+  if (!unauthenticatedHandler) return;
+  try {
+    const result = unauthenticatedHandler();
+    if (result && typeof (result as Promise<void>).then === "function") {
+      (result as Promise<void>).catch(() => {});
+    }
+  } catch {
+    // Handler errors must never bubble — we're already in an error path.
+  }
+};
+
 // ── GraphQL Request ──
 
 interface GqlError {
@@ -215,6 +250,18 @@ export async function graphqlRequest<T = unknown>(
       return typeof ext === "number" && Number.isFinite(ext) ? ext : null;
     };
 
+    // Only fire the auto-logout handler when a token was actually sent.
+    // A 401 / UNAUTHENTICATED on an anonymous request (login, register) just
+    // means "wrong credentials" — auto-logging-out the not-logged-in user
+    // would be nonsense and would race with the login mutation's own error
+    // handling.
+    const handleAuthFailure = (code: string | null): void => {
+      if (!token) return;
+      if (res.status === 401 || code === "UNAUTHENTICATED") {
+        fireUnauthenticated();
+      }
+    };
+
     if (!res.ok) {
       const firstError = json.errors?.[0];
       const code =
@@ -234,6 +281,7 @@ export async function graphqlRequest<T = unknown>(
           message: msg,
         });
       }
+      handleAuthFailure(code);
       throw new GraphQLClientError(`${operationName} failed: ${msg}`, {
         code,
         httpStatus: res.status,
@@ -256,6 +304,7 @@ export async function graphqlRequest<T = unknown>(
           message: msg,
         });
       }
+      handleAuthFailure(code);
       throw new GraphQLClientError(`${operationName} failed: ${msg}`, {
         code,
         httpStatus: res.status,

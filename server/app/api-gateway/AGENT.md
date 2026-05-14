@@ -51,7 +51,8 @@ Gateway ไม่รู้จัก business logic ของ AI — แค่ส
 4. **NestJS pipeline** บน resolver:
    - `@UseGuards(GqlAuthGuard)` → verify JWT (`getJwtSecret()`) → ตรวจ
      `userSession.isActive` → throttled `lastActiveAt` update → attach
-     `{ id, phone, sessionId }` เข้า context
+     `{ id, sessionId }` เข้า context (phone hydrate จาก DB เมื่อ resolver
+     ต้องใช้)
    - `ValidationPipe` (global) → validate `@Args` against class-validator
      decorators → `BadRequestException` ถ้าไม่ผ่าน
    - Resolver method body → call service
@@ -69,7 +70,7 @@ Gateway ไม่รู้จัก business logic ของ AI — แค่ส
             │   register/login   │
             └──────────┬─────────┘
                        │ create userSession (isActive=true)
-                       │ sign JWT { sub, phone, sid }
+                       │ sign JWT { sub, sid }
                        ▼
             ┌────────────────────┐
             │ Authenticated      │ ← every request: JWT verify + session active check
@@ -85,9 +86,12 @@ Gateway ไม่รู้จัก business logic ของ AI — แค่ส
        └────────────────┘
 ```
 
-- **Token expiry** 30 วัน (config: `JWT_EXPIRES_IN`)
+- **Token expiry** 7 วัน default (config: `JWT_EXPIRES_IN`)
+- **JWT payload** = `{sub, sid}` เท่านั้น — phone และ PII อื่นไม่ใส่ใน token,
+  hydrate จาก DB เมื่อ resolver ต้องใช้
 - **Session revocation** เป็น authoritative — ต่อให้ token ยังไม่หมดอายุ
-  ถ้า session ถูก revoke = guard reject
+  ถ้า session ถูก revoke = guard reject. Client จับ 401 / `UNAUTHENTICATED`
+  ที่ token-bearing request แล้ว auto-logout (`handleSessionExpired`)
 - **No refresh token** ในตอนนี้ (อยู่ใน PLAN.md P0 #1)
 
 ---
@@ -97,13 +101,14 @@ Gateway ไม่รู้จัก business logic ของ AI — แค่ส
 ```
 AppModule
 ├── GraphQLModule (Mercurius driver, errorFormatter)
-├── ClientsModule (Redis transport for AI_SERVICE)
+├── ClientsModule (Redis transport for AI_SERVICE pub/sub)
 ├── PrismaModule [global]
+├── RedisModule  [global]   (REDIS_CLIENT — ioredis k/v client)
 ├── AuthModule
 │   ├── AuthService
 │   ├── AuthResolver
 │   ├── GqlAuthGuard (used by other modules via UseGuards)
-│   └── LoginThrottleGuard
+│   └── LoginThrottleGuard (consumes REDIS_CLIENT)
 ├── ReadingModule
 ├── PostModule
 ├── AiModule          (depends on AuthModule for guard)

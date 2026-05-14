@@ -18,11 +18,12 @@ GraphQL contract is **schema-first via decorators**: `*.types.ts` /
 | Path | Responsibility |
 |---|---|
 | `src/main.ts` | bootstrap, global `ValidationPipe`, CORS, listen |
-| `src/app.module.ts` | GraphQL driver config + `errorFormatter` (stamps `extensions.code`), Redis client provider, feature module wiring |
+| `src/app.module.ts` | GraphQL driver config + `errorFormatter` (stamps `extensions.code`), feature module wiring |
+| `src/redis/redis.module.ts` | `@Global()` provider of `REDIS_CLIENT` (ioredis). Lazy-connects + suppresses errors — consumers check `redis.status === 'ready'` and degrade if not |
 | `src/auth/` | register/login/me, JWT guard, login throttler, sessions, password change, account deletion |
-| `src/auth/auth.config.ts` | `getJwtSecret()` (fail-fast on missing/short), `JWT_EXPIRES_IN`, `BCRYPT_SALT_ROUNDS` |
+| `src/auth/auth.config.ts` | `getJwtSecret()` (fail-fast on missing/short), `JWT_EXPIRES_IN` (default `7d`), `BCRYPT_SALT_ROUNDS` |
 | `src/auth/auth.guard.ts` | `GqlAuthGuard` — verifies JWT, checks session active, throttled `lastActiveAt` update |
-| `src/auth/login-throttle.guard.ts` | in-memory rate limiter for login mutation (5/15min/phone) |
+| `src/auth/login-throttle.guard.ts` | Redis-backed rate limiter for login mutation (5/15min/phone) — atomic INCR + PEXPIRE Lua script, falls back to per-process in-memory map if Redis isn't ready |
 | `src/reading/`, `src/post/`, `src/comment/`, `src/alert/`, `src/caregiver/` | feature modules — same shape: `*.module.ts`, `*.resolver.ts`, `*.service.ts`, `*.types.ts` |
 | `src/ai/` | bridges GraphQL to AI service over Redis transport |
 | `src/storage/` | S3 upload helpers (profile + BP image) |
@@ -109,9 +110,11 @@ pnpm prisma migrate dev       # apply pending migrations
   the code the client expects, or extend the mapping in both places.
 - The mobile client also reads the standard `Retry-After` response header
   when present and uses it to drive a live "please wait N seconds"
-  countdown for the login throttle. If you keep / replace the in-memory
-  throttle guard, setting `Retry-After: <seconds>` on the 429 response
-  upgrades the UX from a generic "try again later" to a real timer.
+  countdown for the login throttle. The current throttle returns
+  `retryAfterSec` in the HttpException body (lifted into
+  `extensions.retryAfterSec` by `errorFormatter`); setting a real
+  `Retry-After: <seconds>` header on the 429 response would let
+  proxies/clients that don't parse GraphQL extensions still cooperate.
 - The web dashboard hits the same GraphQL endpoint. Any breaking schema
   change ships to two clients.
 - The AI service expects payloads on the Redis channel `analyze_bp_image`

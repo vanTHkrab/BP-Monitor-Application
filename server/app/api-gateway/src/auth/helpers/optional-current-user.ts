@@ -60,7 +60,6 @@ export const getOptionalCurrentUser = async (
 
     return {
       id: payload.sub,
-      phone: payload.phone,
       sessionId: payload.sid,
     };
   } catch {

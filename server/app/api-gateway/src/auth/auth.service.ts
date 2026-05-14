@@ -86,7 +86,7 @@ export class AuthService {
       },
     });
 
-    const token = this.signToken(user.id, user.phone, session.id);
+    const token = this.signToken(user.id, session.id);
     return { token, user: this.toUserType(user) };
   }
 
@@ -115,7 +115,7 @@ export class AuthService {
       },
     });
 
-    const token = this.signToken(user.id, user.phone, session.id);
+    const token = this.signToken(user.id, session.id);
     return { token, user: this.toUserType(user) };
   }
 
@@ -340,8 +340,8 @@ export class AuthService {
 
   // ── Helpers ──
 
-  private signToken(userId: string, phone: string, sessionId: string): string {
-    const payload: JwtPayload = { sub: userId, phone, sid: sessionId };
+  private signToken(userId: string, sessionId: string): string {
+    const payload: JwtPayload = { sub: userId, sid: sessionId };
     const options: jwt.SignOptions = {
       expiresIn: JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
     };

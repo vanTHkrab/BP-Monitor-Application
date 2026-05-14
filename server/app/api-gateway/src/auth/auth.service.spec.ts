@@ -122,7 +122,7 @@ describe('AuthService', () => {
         },
       });
       expect(jwtMock.sign).toHaveBeenCalledWith(
-        { sub: 'user-1', phone: baseUser.phone, sid: 'sess-1' },
+        { sub: 'user-1', sid: 'sess-1' },
         expect.any(String),
         expect.any(Object),
       );

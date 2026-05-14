@@ -77,6 +77,18 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 - **Auth token**: always go through `setAuthToken` / `getAuthToken` /
   `clearAuthToken` from `constants/api.ts`. They handle the SecureStore vs.
   AsyncStorage (web) split. Never read or write the token directly.
+- **Session-expired auto-logout**: the GraphQL transports
+  (`graphqlRequest` in `constants/api.ts`, `gqlRequest` / `gqlUpload` in
+  `lib/graphql-client.ts`) call `fireUnauthenticated()` when the server
+  returns HTTP 401 or `extensions.code === 'UNAUTHENTICATED'` on a
+  **token-bearing** request. The auth slice registers the handler via
+  `setUnauthenticatedHandler` at store-composition time; it dispatches to
+  `handleSessionExpired()` which idempotently clears local state and
+  shows a Thai banner on the login screen. Don't re-implement 401
+  handling in individual slices — let the transport fire and the slice
+  action will run once. New GraphQL transports MUST call
+  `fireUnauthenticated()` on the same conditions, or session revocation
+  from another device won't propagate.
 - **Client IDs for offline records** must come from `createClientId(prefix,
   userId)`. It combines timestamp + 120 bits of randomness. Don't generate
   IDs ad-hoc with `Math.random().slice(...)`.

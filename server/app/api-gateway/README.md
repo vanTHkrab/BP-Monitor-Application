@@ -38,7 +38,7 @@ curl -s http://localhost:3000/graphql \
 |---|---|---|
 | `DATABASE_URL` | ✓ | Postgres connection string. Host ต้อง resolve ได้จากเครื่องที่รัน gateway (อย่าใช้ docker service name ถ้ารัน native) |
 | `JWT_SECRET` | ✓ | **อย่างน้อย 32 ตัวอักษร** สุ่มจริง — gateway จะปฏิเสธการบูตถ้าสั้นกว่านั้นหรือไม่ตั้ง |
-| `JWT_EXPIRES_IN` | – | default `30d` |
+| `JWT_EXPIRES_IN` | – | default `7d`. Override with shorter values for stricter environments; longer values widen the exposure window of a leaked token |
 | `S3_*` | ✓ ถ้าใช้ upload | provider, key, bucket, endpoint |
 | `PORT` | – | default `3000` |
 
@@ -69,9 +69,10 @@ pnpm prisma migrate dev # create + apply migration
 ```
 src/
 ├── main.ts              # bootstrap (Fastify + global ValidationPipe)
-├── app.module.ts        # GraphQL config, error formatter, Redis client wiring
+├── app.module.ts        # GraphQL config, error formatter, feature module wiring
 ├── schema.gql           # auto-generated from decorators (do not edit)
 ├── auth/                # register/login/me, JWT guard, throttle, sessions
+├── redis/               # global REDIS_CLIENT provider (ioredis)
 ├── reading/             # BP readings CRUD
 ├── post/                # community posts
 ├── comment/             # post comments
@@ -100,7 +101,7 @@ src/
 ## Auth flow
 
 1. Client ส่ง `register` หรือ `login` mutation → gateway สร้าง `userSession`
-   row + sign JWT (`{ sub: userId, phone, sid: sessionId }`) → คืน `{ token, user }`
+   row + sign JWT (`{ sub: userId, sid: sessionId }`) → คืน `{ token, user }`
 2. Client เก็บ token ใน SecureStore แล้วใส่ `Authorization: Bearer <token>`
    ในทุก request ถัดไป
 3. `GqlAuthGuard` verify JWT → ตรวจว่า session ยัง `isActive` →
@@ -110,7 +111,7 @@ src/
 
 หมายเหตุด้านความปลอดภัย:
 - bcrypt rounds = 10 (OWASP minimum)
-- Login throttle: 5 ครั้ง / 15 นาที / phone (ดู `auth/login-throttle.guard.ts`)
+- Login throttle: 5 ครั้ง / 15 นาที / phone — Redis-backed counter (atomic INCR + PEXPIRE) ที่ persist ข้าม gateway restart และ share ระหว่าง instance; ตกกลับ in-memory ถ้า Redis ไม่ ready (ดู `auth/login-throttle.guard.ts`)
 - ไม่มี refresh token ในตอนนี้ (ดู PLAN.md)
 
 ---
@@ -129,7 +130,7 @@ AI service (FastAPI) ฟัง Redis pub/sub ที่ port 6379 ตามที
 |---|---|
 | `getaddrinfo EAI_AGAIN <host>` | `DATABASE_URL` ใช้ host ที่ DNS ไม่รู้จัก (เช่น docker service name แต่รัน native) |
 | Boot fail "JWT_SECRET is not set" | ตั้งค่าใน `.env` ตามคำแนะนำด้านบน |
-| Login ตอบ HTTP 429 | ติด rate limit — รอครบ 15 นาทีหรือ restart gateway (counter เป็น in-memory) |
+| Login ตอบ HTTP 429 | ติด rate limit — รอครบ 15 นาที. Counter อยู่ใน Redis (หรือ in-memory ถ้า Redis ดับ) → restart gateway **ไม่ล้าง** counter เว้นแต่ Redis ดับด้วย |
 | GraphQL error `[BAD_USER_INPUT]` | input ไม่ผ่าน class-validator เช่น password < 8 ตัว |
 | Schema ไม่อัปเดต | `pnpm start:dev` regen `schema.gql` อัตโนมัติ; ถ้าค้าง restart |
 
