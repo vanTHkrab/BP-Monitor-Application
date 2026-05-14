@@ -69,7 +69,6 @@ export class GqlAuthGuard implements CanActivate {
       // Attach to context so @CurrentUser() can read it
       gqlContext.user = {
         id: payload.sub,
-        phone: payload.phone,
         sessionId: payload.sid,
       };
       return true;

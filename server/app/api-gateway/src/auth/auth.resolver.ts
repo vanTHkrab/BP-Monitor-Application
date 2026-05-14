@@ -55,8 +55,10 @@ export class AuthResolver {
   ): Promise<AuthPayloadObject> {
     const result = await this.authService.login(input, readUserAgent(context));
     // Successful login → reset the per-phone counter so legitimate retries
-    // after a typo don't accumulate against the user.
-    this.loginThrottle.reset(input.phone);
+    // after a typo don't accumulate against the user. Fire-and-forget: a
+    // failed Redis DEL shouldn't block returning a successful login, and the
+    // counter has a TTL so it self-heals.
+    void this.loginThrottle.reset(input.phone);
     return result;
   }
 

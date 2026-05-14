@@ -13,13 +13,18 @@ incidents, ข้อตกลงที่หาในโค้ดไม่เจ
   เป็น mobile + dashboard ที่ต้องการ shape เดียวกันแต่ field ต่างกัน
 - **Session table แยกจาก user** — ไม่ใช้ stateless JWT อย่างเดียว เพื่อให้
   revoke ได้ทันทีและมีหน้า "อุปกรณ์ที่ login อยู่"
-- **Login throttle เป็น in-memory ก่อน** — ยอม trade-off เพราะ deploy
-  เริ่มต้น = single instance. เมื่อจะ scale หลาย instance ต้อง refactor
-  เป็น Redis (PLAN.md P0 #2)
+- ~~**Login throttle เป็น in-memory ก่อน**~~ — เริ่มจาก in-memory เพื่อให้ ship
+  เร็ว, **อัปเกรดเป็น Redis-backed เมื่อ 2026-05-14**
+  (`login-throttle.guard.ts` และ `redis/redis.module.ts`). ใช้ Lua script
+  `INCR` + `PEXPIRE` แบบ atomic; fall back ไป in-memory ถ้า Redis ไม่ ready
 - **bcrypt 10 rounds** — OWASP minimum, ยอม trade-off กับ login latency
   (ประมาณ 80-100ms ที่ rounds=10 บน laptop ปัจจุบัน)
-- **JWT 30 วัน + ไม่มี refresh token** — รู้ว่าเสี่ยงสูง วาง roadmap
-  เปลี่ยนใน PLAN.md P0 #1 อย่ารอจนหลัง prod
+- ~~**JWT 30 วัน**~~ → **JWT 7 วัน** (2026-05-14) ลด exposure window ของ
+  token ที่รั่ว. ยังไม่มี refresh token — roadmap อยู่ใน PLAN.md P0 #1
+- **JWT payload = `{sub, sid}` เท่านั้น** (2026-05-14) — ไม่ใส่ `phone`
+  หรือ PII อื่น. Token รั่ว = ไม่เปิดเผยข้อมูลผูกบัญชี; user context
+  ที่ resolver ต้องการ field อื่น ให้ hydrate จาก DB ผ่าน `@CurrentUser` +
+  query เพิ่ม
 - **ใช้ Redis เป็น optional dependency** — ตัดสินใจตอนสร้าง app.module.ts:
   AI service ดับไม่ควรทำให้ทั้ง gateway ดับด้วย
 - **`autoSchemaFile`** = `src/schema.gql` (ไม่ใช่ in-memory) — เพื่อให้
@@ -50,7 +55,7 @@ incidents, ข้อตกลงที่หาในโค้ดไม่เจ
   native, หรือ docker-compose service name ถ้ารันใน compose network เดียวกัน
 - **`schema.gql` ถูกเขียนทับเสมอ** เมื่อ start gateway — อย่า commit แล้ว
   คาดว่าจะถูก preserve, มันจะ regen ตาม decorator ปัจจุบัน
-- **`expiresIn: '30d'` กับ TypeScript** — `jsonwebtoken` ต้องการ type
+- **`expiresIn: '7d'` กับ TypeScript** — `jsonwebtoken` ต้องการ type
   `StringValue` (จาก `ms`) ไม่ใช่ `string` ทั่วไป → cast เป็น
   `jwt.SignOptions['expiresIn']` ใน `signToken()` (ดู auth.service.ts)
 - **Mercurius `errorFormatter` signature** — ต้องคืน

@@ -12,6 +12,7 @@ import {
   getAuthToken,
   graphqlRequest,
   setAuthToken,
+  setUnauthenticatedHandler,
 } from "@/constants/api";
 import { clearUserLocalData } from "@/data/local-db";
 import { LoginSession, User } from "@/types";
@@ -82,6 +83,13 @@ export interface AuthSlice {
     avatarUri?: string | null;
   }) => Promise<boolean>;
   logout: () => Promise<void>;
+  /**
+   * Wipe local auth state when the server has already rejected our token
+   * (401 / UNAUTHENTICATED). Skips the server revoke that `logout()` does —
+   * the token is dead anyway, calling logout with it just produces noise.
+   * Triggered by the GraphQL transports via `setUnauthenticatedHandler`.
+   */
+  handleSessionExpired: () => Promise<void>;
   clearAuthError: () => void;
 
   // ── Profile actions ──
@@ -113,7 +121,17 @@ export interface AuthSlice {
 export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
   set,
   get,
-) => ({
+) => {
+  // Install the session-expired handler exactly once when the store is
+  // composed. The GraphQL transports in constants/api.ts and lib/graphql-client.ts
+  // call `fireUnauthenticated()` when the server rejects our token; that
+  // routes here so we can wipe state without needing an import cycle back
+  // into the store.
+  setUnauthenticatedHandler(() => {
+    void get().handleSessionExpired();
+  });
+
+  return {
   isAuthenticated: false,
   user: null,
   authInitialized: false,
@@ -289,6 +307,33 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
     });
   },
 
+  handleSessionExpired: async () => {
+    // Idempotent: concurrent failed requests will all fire the handler;
+    // only the first call should clear state. Subsequent calls return
+    // early once authToken is null.
+    if (!get().authToken) return;
+    await clearAuthToken();
+    set({
+      isAuthenticated: false,
+      user: null,
+      authToken: null,
+      readings: [],
+      posts: [],
+      commentsByPostId: {},
+      alerts: [],
+      caregiverLinks: [],
+      sessions: [],
+      sensitiveDataUnlocked: false,
+      // Surface a banner on the login screen so the redirect doesn't look
+      // like an unexplained app reset.
+      authErrorCode: "auth/session-expired",
+      authErrorMessage: "เซสชันของคุณหมดอายุ กรุณาเข้าสู่ระบบใหม่",
+      authErrorRawMessage: null,
+      authErrorField: null,
+      authErrorRetryAfterSec: null,
+    });
+  },
+
   clearAuthError: () => {
     set({
       authErrorCode: null,
@@ -451,4 +496,5 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
       return false;
     }
   },
-});
+  };
+};
