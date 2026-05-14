@@ -67,6 +67,20 @@ No separate shared-types package.
    `*.md` and reconcile root and per-project docs so they agree with each
    other *and* with the current code — stale snippets in one file silently
    contradict another.
+7. **English for developer-facing content** — All Markdown docs (`README.md`,
+   `CLAUDE.md`, `MEMORY.md`, `STRUCTURE.md`, `PLAN.md`, `API.md`, …), code
+   comments, commit messages, PR bodies, and internal log/debug strings must
+   be in English. This keeps the project legible to AI agents and future
+   contributors regardless of language. **Exceptions** — strings that
+   surface to end users stay in Thai by design: `HttpException` messages
+   that bubble to mobile UI, GraphQL field `description`s rendered in client
+   UI, and any user-facing copy in `client/` / `web/` components. When in
+   doubt, ask: *would a future contributor reading this file ever see it
+   without the UI around it?* If yes (a dev would read it raw), English. If
+   no (the user always sees it through formatted UI), Thai is fine. Existing
+   Thai docs aren't required to be rewritten en masse — translate
+   opportunistically when you touch a section, but don't make a drive-by
+   pass just for language.
 
 ## Running things
 
