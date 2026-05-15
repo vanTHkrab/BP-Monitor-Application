@@ -36,6 +36,12 @@ export interface PendingPostActionRow {
   updatedAt: string;
 }
 
+export interface PendingAvatarUploadRow {
+  userId: string;
+  localUri: string;
+  createdAt: string;
+}
+
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 const getDb = async (): Promise<SQLite.SQLiteDatabase | null> => {
@@ -83,6 +89,12 @@ export const initLocalDb = async (): Promise<void> => {
       content TEXT,
       category TEXT,
       updatedAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS pending_avatar_uploads (
+      userId TEXT PRIMARY KEY,
+      localUri TEXT NOT NULL,
+      createdAt TEXT NOT NULL
     );
     `,
   );
@@ -283,6 +295,79 @@ export const deletePendingPostAction = async (id: number): Promise<void> => {
   await db.runAsync(`DELETE FROM pending_post_actions WHERE id = ?;`, [id]);
 };
 
+export const upsertPendingAvatarUpload = async (
+  row: PendingAvatarUploadRow,
+): Promise<void> => {
+  const db = await getDb();
+  if (!db) return;
+  // userId is PRIMARY KEY, so INSERT OR REPLACE collapses repeated picks
+  // into a single "latest wins" row — matching the avatar UX.
+  await db.runAsync(
+    `INSERT OR REPLACE INTO pending_avatar_uploads (userId, localUri, createdAt)
+     VALUES (?, ?, ?);`,
+    [row.userId, row.localUri, row.createdAt],
+  );
+};
+
+export const getPendingAvatarUpload = async (
+  userId: string,
+): Promise<PendingAvatarUploadRow | null> => {
+  const db = await getDb();
+  if (!db) return null;
+  const row = await db.getFirstAsync<PendingAvatarUploadRow>(
+    `SELECT userId, localUri, createdAt FROM pending_avatar_uploads WHERE userId = ?;`,
+    [userId],
+  );
+  return row ?? null;
+};
+
+export const deletePendingAvatarUpload = async (
+  userId: string,
+): Promise<void> => {
+  const db = await getDb();
+  if (!db) return;
+  await db.runAsync(`DELETE FROM pending_avatar_uploads WHERE userId = ?;`, [
+    userId,
+  ]);
+};
+
+export interface DebugTableDump {
+  name: string;
+  rowCount: number;
+  rows: Record<string, unknown>[];
+}
+
+/**
+ * Dev-only: dump every user table in the SQLite database for the debug
+ * screen. Caps rows per table at 50 (rowid DESC) so large queues don't
+ * blow up the screen. Returns an empty array on web (no SQLite).
+ */
+export const debugListTables = async (): Promise<DebugTableDump[]> => {
+  const db = await getDb();
+  if (!db) return [];
+  const tables = await db.getAllAsync<{ name: string }>(
+    `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;`,
+  );
+
+  const results: DebugTableDump[] = [];
+  for (const t of tables ?? []) {
+    // Table name comes from sqlite_master so quoting is enough; this code
+    // path is __DEV__-only and never sees untrusted input.
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      `SELECT * FROM "${t.name}" ORDER BY rowid DESC LIMIT 50;`,
+    );
+    const countRow = await db.getFirstAsync<{ c: number }>(
+      `SELECT COUNT(*) as c FROM "${t.name}";`,
+    );
+    results.push({
+      name: t.name,
+      rowCount: countRow?.c ?? rows.length,
+      rows: rows ?? [],
+    });
+  }
+  return results;
+};
+
 export const clearUserLocalData = async (userId: string): Promise<void> => {
   const db = await getDb();
   if (!db) return;
@@ -290,6 +375,9 @@ export const clearUserLocalData = async (userId: string): Promise<void> => {
   await db.runAsync(`DELETE FROM pending_readings WHERE userId = ?;`, [userId]);
   await db.runAsync(`DELETE FROM local_posts WHERE userId = ?;`, [userId]);
   await db.runAsync(`DELETE FROM pending_post_actions WHERE userId = ?;`, [
+    userId,
+  ]);
+  await db.runAsync(`DELETE FROM pending_avatar_uploads WHERE userId = ?;`, [
     userId,
   ]);
 };

@@ -348,16 +348,12 @@ export default function ProfileScreen() {
         return;
       }
 
+      // Avatar goes through the offline queue (auth.slice → upload-image).
+      // The call is optimistic: it persists the pick in SQLite and the sync
+      // mutex flushes whenever the device is online, so a network hiccup at
+      // save-time no longer loses the picked photo.
       if (avatar && avatar !== user.avatar && !/^https?:\/\//i.test(avatar)) {
-        const okAvatar = await uploadMyAvatar(avatar);
-        if (!okAvatar) {
-          Alert.alert(
-            "ข้อผิดพลาด",
-            "บันทึกข้อมูลได้ แต่ไม่สามารถอัปโหลดรูปโปรไฟล์ได้",
-          );
-          setIsEditing(false);
-          return;
-        }
+        await uploadMyAvatar(avatar);
       }
 
       Alert.alert("สำเร็จ", "บันทึกข้อมูลเรียบร้อย");

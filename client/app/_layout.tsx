@@ -42,6 +42,7 @@ export default function RootLayout() {
   const setNetworkStatus = useAppStore((s) => s.setNetworkStatus);
   const syncPendingReadings = useAppStore((s) => s.syncPendingReadings);
   const syncPendingPosts = useAppStore((s) => s.syncPendingPosts);
+  const syncPendingAvatar = useAppStore((s) => s.syncPendingAvatar);
   const lockSensitiveData = useAppStore((s) => s.lockSensitiveData);
 
   // รอ theme + auth hydrate เสร็จก่อน hide splash — กัน flash ของหน้าจอเปล่า
@@ -112,6 +113,7 @@ export default function RootLayout() {
         if (useAppStore.getState().isOnline) {
           void syncPendingReadings();
           void syncPendingPosts();
+          void syncPendingAvatar();
         }
       } catch (error) {
         if (__DEV__) console.warn("[Bootstrap] init failed", error);
@@ -131,6 +133,7 @@ export default function RootLayout() {
       if (isOnline && !wasOnline) {
         void syncPendingReadings();
         void syncPendingPosts();
+        void syncPendingAvatar();
       }
     });
 
@@ -138,6 +141,7 @@ export default function RootLayout() {
       if (nextState !== "active") {
         void syncPendingReadings();
         void syncPendingPosts();
+        void syncPendingAvatar();
         lockSensitiveData();
       } else if (userId) {
         void loadReminderSettings(userId).then((settings) =>
@@ -168,6 +172,7 @@ export default function RootLayout() {
     setNetworkStatus,
     syncPendingReadings,
     syncPendingPosts,
+    syncPendingAvatar,
     userId,
   ]);
 
