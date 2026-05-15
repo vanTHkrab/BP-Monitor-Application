@@ -38,7 +38,7 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 | `lib/error-message.ts` | General `formatError(error)` — hides raw English in production, surfaces it as `devDetail` in `__DEV__`. Use this for non-auth flows. |
 | `services/camera.service.ts` | `analyzeImage`: presigned upload + enqueue AI + poll. Returns `uploadedUrl` so the caller can hand it to `createReading` without re-uploading. Reading persistence itself lives in the store, not here. |
 | `store/use-app-store.ts` | Composer for the single Zustand store. Imports and merges every slice — keep slim. |
-| `store/slices/` | Domain slices: `auth` (+ profile + sessions), `readings` (+ alerts), `community` (posts + comments), `caregivers`, `preferences` (theme + font + security), `network`. |
+| `store/slices/` | Domain slices: `auth` (+ sessions), `profile` (me + avatar queue), `readings` (+ alerts), `community` (posts + comments), `caregivers`, `preferences` (theme + font + security), `network`. |
 | `store/shared/` | Cross-slice helpers: `log` (`logWarn`, `communityDebug`), `client-id` (local-id helpers + `createClientId`), `error-format` (`formatAuthError` for login/register UX + legacy `authErrorToThai`), `mappers` (`xxxFromGql` + sorters). |
 | `types/` | Shared TypeScript types. Add domain types here, not inline. |
 | `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`), `image-prepare` (resize + recompress images before they hit the AI / S3 path). |
