@@ -173,6 +173,21 @@ type CaregiverLinkType {
   patientPhone: String!
 }
 
+type DebugStorageItemType {
+  source: String!
+  refId: String!
+  rawKey: String
+  s3Exists: Boolean!
+  s3ContentLength: Float
+  note: String
+}
+
+type DebugMyStorageType {
+  generatedAt: DateTime!
+  userId: String!
+  items: [DebugStorageItemType!]!
+}
+
 type Query {
   hello: String!
 
@@ -197,6 +212,11 @@ type Query {
 
   """รายการผู้ดูแล/ผู้ป่วยที่เชื่อมกับบัญชี"""
   caregiverLinks: [CaregiverLinkType!]!
+
+  """
+  Dev-only: cross-tier media diff (DB ↔ S3) for the current user. Disabled in production.
+  """
+  debugMyStorage: DebugMyStorageType!
 }
 
 type Mutation {

@@ -622,3 +622,23 @@ export const GQL_REMOVE_CAREGIVER_PATIENT = `
     removeCaregiverPatient(caregiverId: $caregiverId, patientId: $patientId)
   }
 `;
+
+// __DEV__-only: cross-tier media diff for the signed-in user. The server
+// resolver returns 403 when NODE_ENV === 'production', so the page that
+// calls this should be __DEV__-gated too.
+export const GQL_DEBUG_MY_STORAGE = `
+  query DebugMyStorage {
+    debugMyStorage {
+      generatedAt
+      userId
+      items {
+        source
+        refId
+        rawKey
+        s3Exists
+        s3ContentLength
+        note
+      }
+    }
+  }
+`;
