@@ -34,6 +34,18 @@ const sections: {
     title: "FileSystem",
     description: "document / cache directory contents",
   },
+  {
+    href: "/debug/uploads" as Href,
+    icon: "cloud-upload-outline",
+    title: "Uploads",
+    description: "Thumbnails ของ media ที่ pending / synced แล้ว",
+  },
+  {
+    href: "/debug/diff" as Href,
+    icon: "git-compare-outline",
+    title: "Cross-tier diff",
+    description: "เทียบ SQLite · Store · DB · S3 — หา inconsistency",
+  },
 ];
 
 export default function DebugHub() {
