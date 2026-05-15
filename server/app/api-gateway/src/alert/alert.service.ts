@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { AlertType } from './alert.types';
 
 type AlertWithReading = {
@@ -23,7 +24,10 @@ type AlertWithReading = {
 
 @Injectable()
 export class AlertService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async list(
     userId: string,
@@ -54,7 +58,7 @@ export class AlertService {
       },
     });
 
-    return rows.map((alert) => this.toAlertType(alert));
+    return Promise.all(rows.map((alert) => this.toAlertType(alert)));
   }
 
   async markRead(userId: string, id: number): Promise<boolean> {
@@ -74,7 +78,10 @@ export class AlertService {
     return true;
   }
 
-  private toAlertType(alert: AlertWithReading): AlertType {
+  private async toAlertType(alert: AlertWithReading): Promise<AlertType> {
+    const signedS3Key = alert.reading
+      ? await this.storage.signImageKey(alert.reading.s3Key)
+      : null;
     return {
       id: alert.id,
       userId: alert.userId,
@@ -91,7 +98,7 @@ export class AlertService {
             pulse: alert.reading.pulse,
             status: alert.reading.status,
             measuredAt: alert.reading.measuredAt,
-            s3Key: alert.reading.s3Key ?? undefined,
+            s3Key: signedS3Key ?? undefined,
           }
         : undefined,
     };

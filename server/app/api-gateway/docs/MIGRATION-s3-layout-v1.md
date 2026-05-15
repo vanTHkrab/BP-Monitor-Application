@@ -41,8 +41,9 @@ backfill + cut-read pattern instead.
 ### 1. Deploy code
 
 The code in this branch already writes new objects to the v1 layout.
-Legacy prefixes are still in `ALLOWED_IMAGE_PREFIXES` so existing
-`/storage/image?key=...` requests keep working until the copy completes.
+Legacy prefixes are still in `ALLOWED_IMAGE_PREFIXES` so the signed-URL
+extractor (`StorageService.signImageKey`) keeps recognising existing keys
+until the copy completes.
 
 After deploy, **no new objects** land in the legacy paths.
 
@@ -156,9 +157,9 @@ After migration:
 - **Block Public Access**: ON for `users/`, `tmp/`, `training/`.
 - **Public CDN origin** allowed only for `app/static/*` and
   `app/defaults/*` (system assets, no PII).
-- Every URL the client renders for user data goes through either:
-  - A presigned GET URL the gateway mints, or
-  - The gateway's `/storage/image?key=...` stream endpoint (auth-gated).
+- Every URL the client renders for user data is a presigned GET URL the
+  gateway mints inline on the resolver response (see
+  `StorageService.signImageKey`). There is no auth-gated stream endpoint.
 
 ## Migration script (TypeScript / Node)
 

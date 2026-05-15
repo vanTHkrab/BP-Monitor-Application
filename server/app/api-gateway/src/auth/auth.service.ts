@@ -8,6 +8,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import {
   BCRYPT_SALT_ROUNDS,
   JWT_EXPIRES_IN,
@@ -35,7 +36,10 @@ interface VerifyAttempt {
 export class AuthService {
   private readonly verifyAttempts = new Map<string, VerifyAttempt>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async register(
     input: RegisterInput,
@@ -68,7 +72,7 @@ export class AuthService {
         phone: input.phone,
         email: input.email ?? null,
         passwordHash,
-        avatar: input.avatar || null,
+        avatar: this.storage.normalizeStorageValue(input.avatar),
         role: 'patient',
         dob: input.dob ?? null,
         gender: (input.gender as Gender | undefined) ?? null,
@@ -87,7 +91,7 @@ export class AuthService {
     });
 
     const token = this.signToken(user.id, session.id);
-    return { token, user: this.toUserType(user) };
+    return { token, user: await this.toUserType(user) };
   }
 
   async login(
@@ -116,7 +120,7 @@ export class AuthService {
     });
 
     const token = this.signToken(user.id, session.id);
-    return { token, user: this.toUserType(user) };
+    return { token, user: await this.toUserType(user) };
   }
 
   async me(userId: string): Promise<UserObject> {
@@ -178,7 +182,11 @@ export class AuthService {
     if (data.congenitalDisease !== undefined) {
       patch.congenitalDisease = data.congenitalDisease || null;
     }
-    if (data.avatar !== undefined) patch.avatar = data.avatar || null;
+    if (data.avatar !== undefined) {
+      // Strip any signed-URL query strings (or accept a bare key) so the DB
+      // only ever holds a stable storage key. Reads sign on the fly.
+      patch.avatar = this.storage.normalizeStorageValue(data.avatar);
+    }
 
     const user = await this.prisma.user.update({
       where: { id: userId },
@@ -348,7 +356,7 @@ export class AuthService {
     return jwt.sign(payload, getJwtSecret(), options);
   }
 
-  private toUserType(user: {
+  private async toUserType(user: {
     id: string;
     email: string | null;
     firstname: string;
@@ -362,14 +370,15 @@ export class AuthService {
     weight: number | null;
     height: number | null;
     congenitalDisease: string | null;
-  }): UserObject {
+  }): Promise<UserObject> {
+    const signedAvatar = await this.storage.signImageKey(user.avatar);
     return {
       id: user.id,
       email: user.email ?? undefined,
       firstname: user.firstname,
       lastname: user.lastname,
       phone: user.phone,
-      avatar: user.avatar ?? undefined,
+      avatar: signedAvatar ?? undefined,
       role: user.role,
       createdAt: user.createdAt,
       dob: user.dob ?? undefined,

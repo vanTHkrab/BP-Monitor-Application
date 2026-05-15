@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { AuthService } from './auth.service';
 
 jest.mock('bcrypt');
@@ -78,8 +79,18 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     prisma = buildPrismaMock();
+    const storage: Pick<StorageService, 'signImageKey' | 'normalizeStorageValue'> = {
+      signImageKey: jest.fn(async (v: string | null | undefined) => v ?? null),
+      normalizeStorageValue: jest.fn(
+        (v: string | null | undefined) => v ?? null,
+      ),
+    };
     const moduleRef = await Test.createTestingModule({
-      providers: [AuthService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: StorageService, useValue: storage },
+      ],
     }).compile();
 
     service = moduleRef.get(AuthService);

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { CommentType } from './comment.types';
 
 type CommentWithCounts = {
@@ -29,7 +30,10 @@ type CommentWithCounts = {
 
 @Injectable()
 export class CommentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async list(
     postId: number,
@@ -49,7 +53,9 @@ export class CommentService {
       },
     });
 
-    return rows.map((comment) => this.toCommentType(comment, currentUserId));
+    return Promise.all(
+      rows.map((comment) => this.toCommentType(comment, currentUserId)),
+    );
   }
 
   async create(
@@ -184,17 +190,18 @@ export class CommentService {
     return true;
   }
 
-  private toCommentType(
+  private async toCommentType(
     comment: CommentWithCounts,
     currentUserId?: string,
-  ): CommentType {
+  ): Promise<CommentType> {
+    const userAvatar = await this.storage.signImageKey(comment.user.avatar);
     return {
       id: comment.id,
       postId: comment.postId,
       userId: comment.userId,
       parentId: comment.parentId ?? undefined,
       userName: `${comment.user.firstname} ${comment.user.lastname}`.trim(),
-      userAvatar: comment.user.avatar ?? undefined,
+      userAvatar: userAvatar ?? undefined,
       content: comment.content,
       likes: comment._count.likes,
       replies: comment._count.replies,
