@@ -166,6 +166,14 @@ export default function MenuScreen() {
               title="เกี่ยวกับ"
               onPress={() => router.push('/about' as Href)}
             />
+
+            {__DEV__ && (
+              <MenuItem
+                icon="bug-outline"
+                title="Debug · ข้อมูลในแอป"
+                onPress={() => router.push('/debug' as Href)}
+              />
+            )}
           </FadeInView>
         </View>
 
