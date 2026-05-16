@@ -14,11 +14,16 @@ import {
   createPreferencesSlice,
 } from "./slices/preferences.slice";
 import {
+  type ProfileSlice,
+  createProfileSlice,
+} from "./slices/profile.slice";
+import {
   type ReadingsSlice,
   createReadingsSlice,
 } from "./slices/readings.slice";
 
 export type AppState = AuthSlice &
+  ProfileSlice &
   ReadingsSlice &
   CommunitySlice &
   CaregiversSlice &
@@ -27,6 +32,7 @@ export type AppState = AuthSlice &
 
 export const useAppStore = create<AppState>()((...a) => ({
   ...createAuthSlice(...a),
+  ...createProfileSlice(...a),
   ...createReadingsSlice(...a),
   ...createCommunitySlice(...a),
   ...createCaregiversSlice(...a),

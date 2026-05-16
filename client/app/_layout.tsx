@@ -1,6 +1,7 @@
 import { AppLoadingScreen } from "@/components/app-loading-screen";
 import { initLocalDb } from "@/data/local-db";
 import { useAppStore } from "@/store/use-app-store";
+import { cleanupExpiredImages } from "@/utils/image-cache";
 import NetInfo from "@react-native-community/netinfo";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -42,6 +43,7 @@ export default function RootLayout() {
   const setNetworkStatus = useAppStore((s) => s.setNetworkStatus);
   const syncPendingReadings = useAppStore((s) => s.syncPendingReadings);
   const syncPendingPosts = useAppStore((s) => s.syncPendingPosts);
+  const syncPendingAvatar = useAppStore((s) => s.syncPendingAvatar);
   const lockSensitiveData = useAppStore((s) => s.lockSensitiveData);
 
   // รอ theme + auth hydrate เสร็จก่อน hide splash — กัน flash ของหน้าจอเปล่า
@@ -90,6 +92,8 @@ export default function RootLayout() {
       try {
         await initLocalDb();
         if (cancelled) return;
+        // Best-effort image-cache GC; runs once per launch and never throws.
+        void cleanupExpiredImages();
 
         // Seed network state from ground truth before initAuth runs, so
         // requests fired during auth init don't race against the default
@@ -112,6 +116,7 @@ export default function RootLayout() {
         if (useAppStore.getState().isOnline) {
           void syncPendingReadings();
           void syncPendingPosts();
+          void syncPendingAvatar();
         }
       } catch (error) {
         if (__DEV__) console.warn("[Bootstrap] init failed", error);
@@ -131,6 +136,7 @@ export default function RootLayout() {
       if (isOnline && !wasOnline) {
         void syncPendingReadings();
         void syncPendingPosts();
+        void syncPendingAvatar();
       }
     });
 
@@ -138,6 +144,7 @@ export default function RootLayout() {
       if (nextState !== "active") {
         void syncPendingReadings();
         void syncPendingPosts();
+        void syncPendingAvatar();
         lockSensitiveData();
       } else if (userId) {
         void loadReminderSettings(userId).then((settings) =>
@@ -168,6 +175,7 @@ export default function RootLayout() {
     setNetworkStatus,
     syncPendingReadings,
     syncPendingPosts,
+    syncPendingAvatar,
     userId,
   ]);
 

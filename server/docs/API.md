@@ -297,6 +297,24 @@ See the mobile-side workflow at
 [`client/services/camera.service.ts`](../../client/services/camera.service.ts)
 (`analyzeImage`).
 
+#### Image rendering — signed URLs (no public bucket endpoint)
+
+Every server field that exposes a stored object (`User.avatar`,
+`Post.userAvatar`, `Comment.userAvatar`, `Reading.s3Key`,
+`Alert.reading.s3Key`) is a **short-lived signed GET URL** the gateway
+mints inline via `StorageService.signImageKey`. Default TTL is 10 minutes.
+
+- The bucket itself stays private; there is **no** `/storage/image?key=...`
+  stream endpoint.
+- The DB stores the bare S3 key (e.g. `users/{userId}/profile/avatar/{uuid}.jpg`).
+  Writes coming from the client (e.g. `updateProfile(input: { avatar })`,
+  `createReading(input: { s3Key })`) are normalized with
+  `StorageService.normalizeStorageValue` before insert so signed-URL query
+  strings never reach storage.
+- Clients should treat the returned URL as opaque and **render it directly**.
+  When it 403s past TTL, refetch the parent query — don't try to refresh
+  the URL out-of-band.
+
 #### Error cases tied to the image flow
 
 | Code / Message | Where | Cause |

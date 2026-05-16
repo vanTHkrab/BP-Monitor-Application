@@ -16,6 +16,16 @@ export interface User {
   congenitalDisease?: string;
 }
 
+export type ReadingSyncStatus =
+  // Confirmed by the server (id is the remote integer id).
+  | "synced"
+  // Local row, no image OR image is already an https URL (S3 PUT done) —
+  // only the GraphQL create call is pending.
+  | "pending"
+  // Local row whose image is still a file:// URI; both S3 upload and the
+  // GraphQL create are pending.
+  | "pending-image";
+
 export interface BloodPressureReading {
   id: string;
   userId: string;
@@ -30,6 +40,7 @@ export interface BloodPressureReading {
   status: BPStatus;
   clientId?: string;
   createdAt?: Date;
+  syncStatus?: ReadingSyncStatus;
 }
 
 export type BPStatus = "low" | "normal" | "elevated" | "high" | "critical";

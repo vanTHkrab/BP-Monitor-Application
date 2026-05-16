@@ -1,12 +1,14 @@
+import { UIImage } from '@/components/ui/image';
 import { Colors, type BPStatus } from '@/constants/colors';
 import { formatShortDate } from '@/data/mockData';
+import { useResolvedImageUri } from '@/hooks/use-resolved-image-uri';
 import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading } from '@/types';
 import { getFontClass } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
-import { Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 interface ReadingDetailModalProps {
   reading: BloodPressureReading | null;
@@ -39,7 +41,9 @@ export function ReadingDetailModal({
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
-  const [imageFailed, setImageFailed] = useState(false);
+  const resolvedImageUri = useResolvedImageUri(
+    reading?.imageUri ? toDisplayImageUri(reading.imageUri) : undefined,
+  );
 
   const titleClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-lg',
@@ -74,10 +78,6 @@ export function ReadingDetailModal({
     large: 'text-[48px]',
     xlarge: 'text-[54px]',
   });
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [reading?.id, visible]);
 
   if (!reading) return null;
 
@@ -159,7 +159,11 @@ export function ReadingDetailModal({
                   แหล่งข้อมูล
                 </Text>
                 <Text className={bodyClassName + ' mt-2 font-bold text-gray-800 dark:text-slate-100'}>
-                  {reading.id.startsWith('local-') ? 'รอซิงก์' : 'Supabase'}
+                  {reading.syncStatus === 'pending-image'
+                    ? 'รอซิงก์รูป'
+                    : reading.syncStatus === 'pending'
+                      ? 'รอซิงก์'
+                      : 'ซิงก์แล้ว'}
                 </Text>
               </View>
             </View>
@@ -174,27 +178,26 @@ export function ReadingDetailModal({
               <Text className={bodyClassName + ' font-bold text-gray-800 dark:text-slate-100 mb-3'}>
                 รูปเครื่องวัดความดัน
               </Text>
-              {reading.imageUri && !imageFailed ? (
-                <Image
-                  source={{ uri: toDisplayImageUri(reading.imageUri) }}
-                  className="w-full h-56 rounded-2xl bg-slate-100 dark:bg-slate-800"
-                  resizeMode="cover"
-                  onError={() => setImageFailed(true)}
-                />
-              ) : (
-                <View className="h-44 rounded-2xl bg-slate-100 dark:bg-slate-800 items-center justify-center px-4">
-                  <Ionicons
-                    name={reading.imageUri ? 'image-outline' : 'camera-outline'}
-                    size={34}
-                    color={isDark ? '#94A3B8' : '#64748B'}
-                  />
-                  <Text className={captionClassName + ' mt-2 text-center text-gray-500 dark:text-slate-400'}>
-                    {reading.imageUri
-                      ? 'โหลดรูปไม่ได้ อาจเป็น URL ส่วนตัวหรือเครือข่ายยังไม่พร้อม'
-                      : 'รายการนี้ยังไม่มีรูปเครื่องวัดความดัน'}
-                  </Text>
-                </View>
-              )}
+              <UIImage
+                source={reading.imageUri ? resolvedImageUri ?? toDisplayImageUri(reading.imageUri) : null}
+                className="w-full h-56 rounded-2xl bg-slate-100 dark:bg-slate-800"
+                contentFit="cover"
+                recyclingKey={reading.id}
+                fallback={
+                  <View className="h-44 rounded-2xl bg-slate-100 dark:bg-slate-800 items-center justify-center px-4">
+                    <Ionicons
+                      name={reading.imageUri ? 'image-outline' : 'camera-outline'}
+                      size={34}
+                      color={isDark ? '#94A3B8' : '#64748B'}
+                    />
+                    <Text className={captionClassName + ' mt-2 text-center text-gray-500 dark:text-slate-400'}>
+                      {reading.imageUri
+                        ? 'โหลดรูปไม่ได้ อาจเป็น URL ส่วนตัวหรือเครือข่ายยังไม่พร้อม'
+                        : 'รายการนี้ยังไม่มีรูปเครื่องวัดความดัน'}
+                    </Text>
+                  </View>
+                }
+              />
             </View>
 
             <View className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-700 p-4">

@@ -35,6 +35,7 @@ import { StorageModule } from './storage/storage.module';
 import { CommentModule } from './comment/comment.module';
 import { AlertModule } from './alert/alert.module';
 import { CaregiverModule } from './caregiver/caregiver.module';
+import { DebugModule } from './debug/debug.module';
 
 @Module({
   imports: [
@@ -129,6 +130,7 @@ import { CaregiverModule } from './caregiver/caregiver.module';
     CommentModule,
     AlertModule,
     CaregiverModule,
+    DebugModule,
   ],
   providers: [AppService, AppResolver],
 })

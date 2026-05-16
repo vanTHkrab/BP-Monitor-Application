@@ -1,10 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PostCategory } from '../prisma/generated/enums';
+import { StorageService } from '../storage/storage.service';
+
+type PostWithIncludes = {
+  id: number;
+  userId: string;
+  clientId: string | null;
+  content: string;
+  category: string;
+  createdAt: Date;
+  updatedAt: Date | null;
+  user: {
+    id: string;
+    firstname: string;
+    lastname: string;
+    avatar: string | null;
+  };
+  likes?: Array<{ userId: string }>;
+  _count: { likes: number; comments: number };
+};
 
 @Injectable()
 export class PostService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async list(
     category: string | null,
@@ -28,22 +50,7 @@ export class PostService {
       },
     });
 
-    return posts.map((p) => ({
-      id: p.id,
-      userId: p.userId,
-      clientId: p.clientId ?? undefined,
-      userName: `${p.user.firstname} ${p.user.lastname}`.trim(),
-      userAvatar: p.user.avatar ?? undefined,
-      content: p.content,
-      category: p.category,
-      likes: p._count.likes,
-      comments: p._count.comments,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt ?? undefined,
-      isLiked: currentUserId
-        ? p.likes.some((l) => l.userId === currentUserId)
-        : false,
-    }));
+    return Promise.all(posts.map((p) => this.toPostShape(p, currentUserId)));
   }
 
   async create(
@@ -62,11 +69,11 @@ export class PostService {
       });
 
       if (existing && existing.userId === userId) {
-        return existing;
+        return this.toPostShape(existing, userId);
       }
     }
 
-    return this.prisma.post.create({
+    const created = await this.prisma.post.create({
       data: {
         userId,
         content: data.content.trim(),
@@ -80,6 +87,8 @@ export class PostService {
         _count: { select: { likes: true, comments: true } },
       },
     });
+
+    return this.toPostShape(created, userId);
   }
 
   async update(
@@ -94,7 +103,7 @@ export class PostService {
     if (data.content) patch.content = data.content;
     if (data.category) patch.category = data.category;
 
-    return this.prisma.post.update({
+    const updated = await this.prisma.post.update({
       where: { id: postId },
       data: patch,
       include: {
@@ -104,6 +113,8 @@ export class PostService {
         _count: { select: { likes: true, comments: true } },
       },
     });
+
+    return this.toPostShape(updated, userId);
   }
 
   async delete(userId: string, postId: number) {
@@ -129,5 +140,25 @@ export class PostService {
       data: { userId, postId },
     });
     return true; // liked
+  }
+
+  private async toPostShape(p: PostWithIncludes, currentUserId?: string) {
+    const userAvatar = await this.storage.signImageKey(p.user.avatar);
+    return {
+      id: p.id,
+      userId: p.userId,
+      clientId: p.clientId ?? undefined,
+      userName: `${p.user.firstname} ${p.user.lastname}`.trim(),
+      userAvatar: userAvatar ?? undefined,
+      content: p.content,
+      category: p.category,
+      likes: p._count.likes,
+      comments: p._count.comments,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt ?? undefined,
+      isLiked: currentUserId
+        ? (p.likes ?? []).some((l) => l.userId === currentUserId)
+        : false,
+    };
   }
 }

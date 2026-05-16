@@ -37,6 +37,19 @@ re-prioritize work.
 
 ### Offline-First Sync
 - SQLite-backed pending-reading queue (`data/local-db.ts`)
+- **Hybrid SQLite mirror** — `pending_readings` doubles as the cache of
+  confirmed server rows (`syncStatus` + `remoteId` columns). `fetchReadings`
+  upserts every remote row; `syncPendingReadings` / `createReading` mark
+  rows synced in place rather than deleting. History survives reinstall
+  and renders offline before the network round-trip
+  (`hydratePendingReadings` is awaited at boot).
+- **7-day image cache** (`utils/image-cache.ts` + `hooks/use-resolved-image-uri.ts`)
+  — signed S3 GET URLs (10-min TTL) are downloaded to `Paths.cache`
+  keyed by the extracted S3 path so URL rotation is transparent.
+  Cleanup runs once per app launch.
+- `syncStatus` surfaced on `BloodPressureReading` (`pending` / `pending-image`
+  / `synced`); the reading-detail modal reads it for the "รอซิงก์" /
+  "รอซิงก์รูป" / "ซิงก์แล้ว" label instead of string-matching the id.
 - Local-first community posts with deferred sync
 - Promise-based sync mutex to prevent concurrent double-syncs
 - Image upload to S3 with retain-as-pending fallback on failure
@@ -103,6 +116,67 @@ re-prioritize work.
 - [ ] **Pull-to-refresh** on history and chat tabs.
 - [ ] **Empty states** for first-run users on home, history, chat, alerts.
 - [ ] **Date-range picker** in history (currently filter is coarse).
+
+### Profile screen hardening (from senior review)
+
+Findings from a senior pass over [app/profile.tsx](./app/profile.tsx).
+Most are independent and ship as separate small PRs; **#1 and #2 are
+load-bearing** (auth bypass + data loss visible to the patient) and
+should land first, ideally together.
+
+- [ ] **#1 — Biometric unlock must verify server password before
+  flipping `sensitiveDataUnlocked`.** Currently bypassed via direct
+  `useAppStore.setState(...)` from the screen at
+  [profile.tsx:289](./app/profile.tsx#L289), while the password path
+  round-trips `GQL_VERIFY_PASSWORD`. Two sub-fixes:
+  (a) gate biometric-pref enablement on a prior verified password,
+  and (b) move the flip into a `preferences` slice action so it doesn't
+  reach across slice boundaries.
+- [ ] **#2 — Gate `useEffect([user])` on `!isEditing`** so a
+  `useFocusEffect`-triggered `fetchMyProfile()` doesn't overwrite
+  in-progress edits.
+  [profile.tsx:129-140](./app/profile.tsx#L129-L140)
+- [ ] **#3 — Convert form validation Alerts to inline
+  `CustomInput.error`.** Violates the documented "errors are inline,
+  not Alert" convention in [CLAUDE.md](./CLAUDE.md).
+  [profile.tsx:298-330](./app/profile.tsx#L298-L330)
+- [ ] **#4 — Per-field selectors instead of full `useAppStore()`
+  destructure.** Current code re-renders the whole form on every
+  unrelated store mutation (community posts arriving, network flips,
+  etc.). Same file already uses selectors on lines 84-85 — pattern is
+  inconsistent.
+  [profile.tsx:73-83](./app/profile.tsx#L73-L83)
+- [ ] **#5 — Move `lastProfileLeaveAt` off module-global state.**
+  `let` at module scope is invisible to dev tools and the cleanup fires
+  on `hideSensitiveData` toggle while focused, producing false "leave"
+  timestamps. Better model: "last unlock at" in the `preferences` slice,
+  plus `AppState` background detection.
+  [profile.tsx:42](./app/profile.tsx#L42)
+- [ ] **#6 — "Cancel" must revert form fields to the current `user.*`
+  values.** Today it only flips the read-only flag; edited values
+  remain in local state.
+  [profile.tsx:383](./app/profile.tsx#L383)
+- [ ] **#7 — Drop the screen-side avatar guard.** The
+  `avatar !== user.avatar` comparison races the `useEffect` reset and
+  duplicates the slice's own `^https?://` short-circuit. Let the slice
+  decide.
+  [profile.tsx:355-357](./app/profile.tsx#L355-L357)
+- [ ] **#8 — Move stats reduction off the render path.** `useMemo`
+  over the full `readings` array recomputes whenever readings change.
+  Expose a memoized selector on the readings slice or query an
+  aggregate from the gateway.
+  [profile.tsx:174-199](./app/profile.tsx#L174-L199)
+- [ ] **#9 — Wrap the form in `KeyboardAvoidingView`.** iOS keyboard
+  covers the Save button and the height/weight inputs.
+- [ ] **#10 — `accessibilityLabel` on icon-only `TouchableOpacity`.**
+  Back arrow, edit toggle, avatar camera button render as bare
+  "button" to TalkBack/VoiceOver — relevant for a patient-facing
+  medical app, especially elderly users.
+
+> Out of scope for this list (per the "no refactor noise" rule at the
+> bottom of this file): the hex-literal theming drift in the gender
+> pill and the duplicated check inside `uploadMyAvatar`. Park those
+> as inline notes in the PR that touches the file.
 
 ---
 

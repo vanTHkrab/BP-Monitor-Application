@@ -2,6 +2,41 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type ConfirmedImage {
+  """Canonical key after the object is moved out of pending/."""
+  key: String!
+
+  """Public/storage URL to embed or fetch later."""
+  url: String!
+
+  """Image row id — populated only for BLOOD_PRESSURE_READING uploads."""
+  imageId: Int
+}
+
+type HttpHeader {
+  name: String!
+  value: String!
+}
+
+type PresignedUpload {
+  """Presigned URL — client PUTs the image body here."""
+  uploadUrl: String!
+
+  """Echo back to confirmImageUpload after PUT succeeds."""
+  key: String!
+
+  """Headers required on the PUT request."""
+  headers: [HttpHeader!]!
+
+  """URL becomes invalid at this time."""
+  expiresAt: DateTime!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
 type UserType {
   id: String!
   email: String
@@ -17,11 +52,6 @@ type UserType {
   height: Float
   congenitalDisease: String
 }
-
-"""
-A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
-"""
-scalar DateTime
 
 type AuthPayload {
   token: String!
@@ -97,36 +127,6 @@ type BPReadingRecordObject {
   s3Key: String
 }
 
-type ConfirmedImage {
-  """Canonical key after the object is moved out of pending/."""
-  key: String!
-
-  """Public/storage URL to embed or fetch later."""
-  url: String!
-
-  """Image row id — populated only for BLOOD_PRESSURE_READING uploads."""
-  imageId: Int
-}
-
-type HttpHeader {
-  name: String!
-  value: String!
-}
-
-type PresignedUpload {
-  """Presigned URL — client PUTs the image body here."""
-  uploadUrl: String!
-
-  """Echo back to confirmImageUpload after PUT succeeds."""
-  key: String!
-
-  """Headers required on the PUT request."""
-  headers: [HttpHeader!]!
-
-  """URL becomes invalid at this time."""
-  expiresAt: DateTime!
-}
-
 type CommentType {
   id: Int!
   postId: Int!
@@ -173,6 +173,21 @@ type CaregiverLinkType {
   patientPhone: String!
 }
 
+type DebugStorageItemType {
+  source: String!
+  refId: String!
+  rawKey: String
+  s3Exists: Boolean!
+  s3ContentLength: Float
+  note: String
+}
+
+type DebugMyStorageType {
+  generatedAt: DateTime!
+  userId: String!
+  items: [DebugStorageItemType!]!
+}
+
 type Query {
   hello: String!
 
@@ -197,6 +212,11 @@ type Query {
 
   """รายการผู้ดูแล/ผู้ป่วยที่เชื่อมกับบัญชี"""
   caregiverLinks: [CaregiverLinkType!]!
+
+  """
+  Dev-only: cross-tier media diff (DB ↔ S3) for the current user. Disabled in production.
+  """
+  debugMyStorage: DebugMyStorageType!
 }
 
 type Mutation {
@@ -224,6 +244,12 @@ type Mutation {
   """ลบข้อมูลผู้ใช้ทั้งหมด"""
   deleteMyData: Boolean!
 
+  """ขอ presigned URL เพื่ออัปโหลดรูปตรงสู่ S3"""
+  requestImageUpload(input: RequestImageUploadInput!): PresignedUpload!
+
+  """ยืนยันการอัปโหลด หลัง PUT ไป S3 สำเร็จ"""
+  confirmImageUpload(input: ConfirmImageUploadInput!): ConfirmedImage!
+
   """บันทึกค่าความดันโลหิต"""
   createReading(input: CreateReadingInput!): ReadingType!
 
@@ -245,12 +271,6 @@ type Mutation {
   """จัดคิวให้ AI วิเคราะห์รูป BP ที่อัปขึ้น S3 แล้ว (presigned flow)"""
   analyzeBPImage(input: AnalyzeBPImageInput!): AnalysisJob!
   submitBPReading(input: SubmitBPReadingInput!): BPReadingRecordObject!
-
-  """ขอ presigned URL เพื่ออัปโหลดรูปตรงสู่ S3"""
-  requestImageUpload(input: RequestImageUploadInput!): PresignedUpload!
-
-  """ยืนยันการอัปโหลด หลัง PUT ไป S3 สำเร็จ"""
-  confirmImageUpload(input: ConfirmImageUploadInput!): ConfirmedImage!
 
   """สร้างความคิดเห็นใหม่"""
   createComment(input: CreateCommentInput!): CommentType!
@@ -316,6 +336,26 @@ input ChangePasswordInput {
   newPassword: String!
 }
 
+input RequestImageUploadInput {
+  kind: ImageKind!
+  mimeType: String!
+
+  """File size in bytes (used to constrain the presigned PUT)"""
+  size: Int!
+}
+
+"""Kind of image being uploaded — drives folder placement."""
+enum ImageKind {
+  PROFILE
+  BLOOD_PRESSURE_READING
+}
+
+input ConfirmImageUploadInput {
+  """Key returned by requestImageUpload"""
+  key: String!
+  kind: ImageKind!
+}
+
 input CreateReadingInput {
   systolic: Int!
   diastolic: Int!
@@ -354,26 +394,6 @@ input SubmitBPReadingInput {
   diastolic: Int!
   pulse: Int!
   measuredAt: String!
-}
-
-input RequestImageUploadInput {
-  kind: ImageKind!
-  mimeType: String!
-
-  """File size in bytes (used to constrain the presigned PUT)"""
-  size: Int!
-}
-
-"""Kind of image being uploaded — drives folder placement."""
-enum ImageKind {
-  PROFILE
-  BLOOD_PRESSURE_READING
-}
-
-input ConfirmImageUploadInput {
-  """Key returned by requestImageUpload"""
-  key: String!
-  kind: ImageKind!
 }
 
 input CreateCommentInput {

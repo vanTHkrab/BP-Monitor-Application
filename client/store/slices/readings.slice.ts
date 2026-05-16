@@ -10,11 +10,20 @@ import {
 import { getBPStatus } from "@/constants/colors";
 import {
   deletePendingReading,
+  deleteSyncedReadingByRemoteId,
   insertPendingReading,
+  listLocalReadings,
   listPendingReadings,
+  markReadingSynced,
+  upsertSyncedReading,
 } from "@/data/local-db";
 import { AppAlert, BloodPressureReading } from "@/types";
-import type { AlertsQuery, ReadingsQuery } from "@/types/graphql";
+import type {
+  AlertsQuery,
+  CreateReadingMutation,
+  ReadingGql,
+  ReadingsQuery,
+} from "@/types/graphql";
 import { uploadImageViaPresign } from "@/utils/upload-image";
 import type { StateCreator } from "zustand";
 import {
@@ -27,10 +36,40 @@ import { logWarn } from "../shared/log";
 import {
   alertFromGql,
   readingFromGql,
-  readingFromPending,
+  readingFromRow,
   sortReadingsDesc,
 } from "../shared/mappers";
 import type { AppState } from "../use-app-store";
+
+// Mirror a server row into the SQLite cache. Best-effort: a failed write
+// just means the row won't survive a kill before the next fetch — not a
+// reason to bubble an error to the UI.
+const cacheRemoteReading = async (
+  userId: string,
+  gql: ReadingGql,
+): Promise<void> => {
+  try {
+    await upsertSyncedReading({
+      userId,
+      clientId: gql.clientId ?? null,
+      remoteId: Number(gql.id),
+      systolic: gql.systolic,
+      diastolic: gql.diastolic,
+      pulse: gql.pulse,
+      measuredAt: new Date(gql.measuredAt).toISOString(),
+      imageUri: gql.s3Key ?? null,
+      notes: gql.notes ?? null,
+      status: gql.status,
+      createdAt: gql.createdAt
+        ? new Date(gql.createdAt).toISOString()
+        : new Date().toISOString(),
+    });
+  } catch (error) {
+    logWarn("Readings", "cacheRemoteReading failed", error, {
+      remoteId: gql.id,
+    });
+  }
+};
 
 // Promise-based mutex: concurrent callers await the same in-flight sync
 // instead of racing past a boolean flag and double-syncing.
@@ -68,6 +107,7 @@ export const createReadingsSlice: StateCreator<
 
   fetchReadings: async () => {
     const token = get().authToken;
+    const currentUser = get().user;
     if (!token) return;
 
     try {
@@ -77,7 +117,19 @@ export const createReadingsSlice: StateCreator<
         token,
       );
       const remote = data.readings.map(readingFromGql);
-      const pending = get().readings.filter((r) => isLocalReadingId(r.id));
+      // Persist every server row into SQLite so reinstalls keep history
+      // and the next launch can render offline. Best-effort; errors logged
+      // inside cacheRemoteReading.
+      if (currentUser) {
+        for (const gql of data.readings) {
+          await cacheRemoteReading(currentUser.id, gql);
+        }
+      }
+      // Keep optimistic / queued rows that haven't reached the server yet —
+      // those are identified by syncStatus, not by id prefix anymore.
+      const pending = get().readings.filter(
+        (r) => r.syncStatus && r.syncStatus !== "synced",
+      );
       set({ readings: sortReadingsDesc([...pending, ...remote]) });
     } catch (error) {
       logWarn("Readings", "fetchReadings failed", error);
@@ -181,6 +233,7 @@ export const createReadingsSlice: StateCreator<
     const pendingId = await insertPendingReading({
       userId: currentUser.id,
       clientId,
+      syncStatus: imageReadyForRemote ? "pending" : "pending-image",
       systolic,
       diastolic,
       pulse,
@@ -204,6 +257,7 @@ export const createReadingsSlice: StateCreator<
         notes: input.notes,
         status,
         createdAt: new Date(),
+        syncStatus: imageReadyForRemote ? "pending" : "pending-image",
       };
       set((state) => ({
         readings: sortReadingsDesc([localReading, ...state.readings]),
@@ -214,7 +268,7 @@ export const createReadingsSlice: StateCreator<
     if (!imageReadyForRemote) return Boolean(pendingId);
 
     try {
-      await graphqlRequest(
+      const result = await graphqlRequest<CreateReadingMutation>(
         GQL_CREATE_READING,
         {
           input: {
@@ -233,15 +287,31 @@ export const createReadingsSlice: StateCreator<
         },
         token,
       );
+      const remote = result.createReading;
+      const remoteReading = readingFromGql(remote);
       if (pendingId) {
-        await deletePendingReading(pendingId);
+        // Promote the pending row to synced (keep it in the cache) rather
+        // than delete + refetch — keeps offline history intact across kills.
+        await markReadingSynced(
+          pendingId,
+          Number(remote.id),
+          remote.s3Key ?? null,
+        );
         set((state) => ({
-          readings: state.readings.filter(
-            (r) => r.id !== toLocalReadingId(pendingId),
+          readings: sortReadingsDesc(
+            state.readings.map((r) =>
+              r.id === toLocalReadingId(pendingId) ? remoteReading : r,
+            ),
           ),
         }));
+      } else {
+        // No pending row was created (web / SQLite unavailable) — fall back
+        // to direct cache write so refetch on this device still works.
+        await cacheRemoteReading(currentUser.id, remote);
+        set((state) => ({
+          readings: sortReadingsDesc([remoteReading, ...state.readings]),
+        }));
       }
-      void get().fetchReadings();
       void get().fetchAlerts();
       return true;
     } catch (error) {
@@ -276,22 +346,29 @@ export const createReadingsSlice: StateCreator<
         logWarn("Readings", "deleteReading remote failed", error, { id });
       }
     }
+    // Also evict the row from the local mirror so it doesn't reappear on
+    // next hydrate. Server delete already gone through above (or failed —
+    // either way we trust the UI intent here).
+    const remoteIdNum = Number(id);
+    if (Number.isFinite(remoteIdNum)) {
+      await deleteSyncedReadingByRemoteId(currentUser.id, remoteIdNum);
+    }
     set((state) => ({
       readings: state.readings.filter((r) => r.id !== id),
     }));
   },
 
+  // Loads every locally-cached reading (pending queue + synced mirror) so
+  // the UI has history on first frame, before fetchReadings round-trips.
   hydratePendingReadings: async () => {
     const currentUser = get().user;
     if (!currentUser) return;
-    const pending = await listPendingReadings(currentUser.id);
-    const pendingReadings = pending.map(readingFromPending);
-    set((state) => {
-      const nonLocal = state.readings.filter((r) => !isLocalReadingId(r.id));
-      return {
-        readings: sortReadingsDesc([...pendingReadings, ...nonLocal]),
-      };
-    });
+    const rows = await listLocalReadings(currentUser.id);
+    const localReadings = rows.map(readingFromRow);
+    // Drop everything else in state — local cache is the source of truth
+    // until fetchReadings reconciles. Any in-memory ghost rows from another
+    // user/session would otherwise leak through.
+    set({ readings: sortReadingsDesc(localReadings) });
   },
 
   syncPendingReadings: async () => {
@@ -314,7 +391,7 @@ export const createReadingsSlice: StateCreator<
               });
             }
 
-            await graphqlRequest(
+            const result = await graphqlRequest<CreateReadingMutation>(
               GQL_CREATE_READING,
               {
                 input: {
@@ -331,10 +408,18 @@ export const createReadingsSlice: StateCreator<
               },
               token,
             );
-            await deletePendingReading(row.id);
+            const remote = result.createReading;
+            const remoteReading = readingFromGql(remote);
+            await markReadingSynced(
+              row.id,
+              Number(remote.id),
+              remote.s3Key ?? null,
+            );
             set((state) => ({
-              readings: state.readings.filter(
-                (r) => r.id !== toLocalReadingId(row.id),
+              readings: sortReadingsDesc(
+                state.readings.map((r) =>
+                  r.id === toLocalReadingId(row.id) ? remoteReading : r,
+                ),
               ),
             }));
           } catch (error) {
@@ -346,7 +431,6 @@ export const createReadingsSlice: StateCreator<
             );
           }
         }
-        void get().fetchReadings();
         void get().fetchAlerts();
       } finally {
         syncReadingsPromise = null;

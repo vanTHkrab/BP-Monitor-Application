@@ -32,10 +32,15 @@ export const sortCommentsAsc = (items: PostComment[]) =>
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
 
-export const readingFromPending = (row: {
+// Maps a SQLite row to the in-memory shape. Handles both pending rows
+// (remoteId NULL → id = `local-<pk>`) and synced mirror rows (remoteId set
+// → id = `String(remoteId)`), so hydration can return both in one pass.
+export const readingFromRow = (row: {
   id: number;
   userId: string;
   clientId: string | null;
+  remoteId: number | null;
+  syncStatus: "pending" | "pending-image" | "synced";
   systolic: number;
   diastolic: number;
   pulse: number;
@@ -44,19 +49,43 @@ export const readingFromPending = (row: {
   notes: string | null;
   status: string;
   createdAt: string;
-}): BloodPressureReading => ({
-  id: toLocalReadingId(row.id),
-  userId: row.userId,
-  clientId: row.clientId ?? undefined,
-  systolic: Number(row.systolic),
-  diastolic: Number(row.diastolic),
-  pulse: Number(row.pulse),
-  measuredAt: new Date(row.measuredAt),
-  imageUri: row.imageUri ?? undefined,
-  notes: row.notes ?? undefined,
-  status: row.status as BloodPressureReading["status"],
-  createdAt: new Date(row.createdAt),
-});
+}): BloodPressureReading => {
+  const imageUri = row.imageUri ?? undefined;
+  if (row.syncStatus === "synced" && row.remoteId != null) {
+    return {
+      id: String(row.remoteId),
+      userId: row.userId,
+      clientId: row.clientId ?? undefined,
+      systolic: Number(row.systolic),
+      diastolic: Number(row.diastolic),
+      pulse: Number(row.pulse),
+      measuredAt: new Date(row.measuredAt),
+      imageUri,
+      notes: row.notes ?? undefined,
+      status: row.status as BloodPressureReading["status"],
+      createdAt: new Date(row.createdAt),
+      syncStatus: "synced",
+    };
+  }
+  return {
+    id: toLocalReadingId(row.id),
+    userId: row.userId,
+    clientId: row.clientId ?? undefined,
+    systolic: Number(row.systolic),
+    diastolic: Number(row.diastolic),
+    pulse: Number(row.pulse),
+    measuredAt: new Date(row.measuredAt),
+    imageUri,
+    notes: row.notes ?? undefined,
+    status: row.status as BloodPressureReading["status"],
+    createdAt: new Date(row.createdAt),
+    syncStatus: row.syncStatus,
+  };
+};
+
+// Deprecated alias: kept so existing callers in the sync slice don't churn.
+// New code should use readingFromRow.
+export const readingFromPending = readingFromRow;
 
 export const postFromLocal = (row: {
   id: number;
@@ -110,6 +139,7 @@ export const readingFromGql = (r: ReadingGql): BloodPressureReading => ({
   imageUri: r.s3Key ?? undefined,
   notes: r.notes ?? undefined,
   createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
+  syncStatus: "synced",
 });
 
 export const postFromGql = (p: PostGql): CommunityPost => ({

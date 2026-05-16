@@ -78,21 +78,7 @@ export class PostResolver {
     @CurrentUser() user: { id: string },
     @Args('input') input: CreatePostInput,
   ): Promise<PostType> {
-    const p = await this.postService.create(user.id, input);
-    return {
-      id: p.id,
-      userId: p.userId,
-      clientId: p.clientId ?? undefined,
-      userName: `${p.user.firstname} ${p.user.lastname}`.trim(),
-      userAvatar: p.user.avatar ?? undefined,
-      content: p.content,
-      category: p.category,
-      likes: p._count.likes,
-      comments: p._count.comments,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt ?? undefined,
-      isLiked: false,
-    };
+    return this.postService.create(user.id, input);
   }
 
   @Mutation(() => Boolean, { description: 'แก้ไขโพสต์' })

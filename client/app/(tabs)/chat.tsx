@@ -2,6 +2,7 @@ import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animat
 import { CommunityPostCard } from '@/components/community-post-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/tab-buttons';
+import { Avatar } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/use-app-store';
 import { PostComment } from '@/types';
 import { getFontClass, getFontNumber } from '@/utils/font-scale';
@@ -10,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -629,17 +630,17 @@ export default function CommunityScreen() {
                         }
                       >
                         <View className="flex-row items-start">
-                          <View className="w-10 h-10 rounded-full overflow-hidden bg-sky-100 dark:bg-slate-800 items-center justify-center mr-3">
-                            {comment.userAvatar ? (
-                              <Image
-                                source={{ uri: toDisplayImageUri(comment.userAvatar) }}
-                                className="w-full h-full"
-                                resizeMode="cover"
-                              />
-                            ) : (
-                              <Ionicons name="person" size={20} color="#7E57C2" />
-                            )}
-                          </View>
+                          <Avatar
+                            uri={comment.userAvatar ? toDisplayImageUri(comment.userAvatar) : undefined}
+                            name={comment.userName}
+                            size="md"
+                            className="w-10 h-10 bg-sky-100 mr-3"
+                            fallback={
+                              <View className="w-10 h-10 rounded-full overflow-hidden bg-sky-100 dark:bg-slate-800 items-center justify-center mr-3">
+                                <Ionicons name="person" size={20} color="#7E57C2" />
+                              </View>
+                            }
+                          />
                           <View className="flex-1">
                             <View className="flex-row items-center justify-between">
                               <Text className={(isDark ? 'text-slate-100' : 'text-[#111827]') + ' ' + bodyClassName + ' font-bold'}>

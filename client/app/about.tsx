@@ -1,11 +1,12 @@
 import { GradientBackground } from '@/components/gradient-background';
+import { UIImage } from '@/components/ui/image';
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import { Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 export default function AboutScreen() {
   const themePreference = useAppStore((s) => s.themePreference);
@@ -41,10 +42,10 @@ export default function AboutScreen() {
         {/* App Info */}
         <View className="items-center py-8">
           <View className="w-24 h-24 bg-white dark:bg-slate-900 rounded-2xl items-center justify-center shadow-lg mb-4 border border-transparent dark:border-slate-700">
-            <Image
-              source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Tux.svg/800px-Tux.svg.png' }}
+            <UIImage
+              source="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg"
               className="w-16 h-16"
-              resizeMode="contain"
+              contentFit="contain"
             />
           </View>
           <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100"}>BP Monitor</Text>

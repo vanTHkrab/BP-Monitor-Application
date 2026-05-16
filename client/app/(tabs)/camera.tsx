@@ -2,6 +2,7 @@ import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animat
 import { CustomButton } from '@/components/custom-button';
 import { CustomInput } from '@/components/custom-input';
 import { GradientBackground } from '@/components/gradient-background';
+import { UIImage } from '@/components/ui/image';
 import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors';
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
 import { useAppStore } from '@/store/use-app-store';
@@ -14,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Text, View } from 'react-native';
 
 cssInterop(LinearGradient, { className: 'style' });
 cssInterop(CameraView, { className: 'style' });
@@ -462,7 +463,7 @@ export default function CameraScreen() {
         ) : (
           /* ── Image preview ── */
           <View className="flex-1">
-            <Image source={{ uri: capturedImage }} className="flex-1" resizeMode="contain" />
+            <UIImage source={capturedImage} className="flex-1" contentFit="contain" />
 
             {/* AI analysis status badge */}
             {phase !== 'idle' && (
