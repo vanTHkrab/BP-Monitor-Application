@@ -31,7 +31,7 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 | `components/` | Cross-screen UI primitives. Reuse before adding. |
 | `constants/api.ts` | GraphQL endpoint resolver, token storage, all GraphQL operation strings. |
 | `constants/colors.ts` | BP-status thresholds + Tailwind color tokens. |
-| `data/local-db.ts` | SQLite schema + helpers for the offline queues. |
+| `data/local-db.ts` | SQLite schema + helpers. `pending_readings` is both the offline queue **and** the mirror of synced readings (rows carry a `syncStatus` of `pending` / `pending-image` / `synced` and a `remoteId` once confirmed); `cached_images` tracks 7-day-cached image files keyed by extracted S3 path. |
 | `hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry. |
 | `lib/graphql-client.ts` | Multipart-aware GraphQL client used by the AI image-upload path. |
 | `lib/graphql-error.ts` | `GraphQLClientError` class — typed error thrown by `graphqlRequest` carrying `code` (server's `extensions.code`), `httpStatus`, and `retryAfterSec`. |
@@ -41,7 +41,9 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 | `store/slices/` | Domain slices: `auth` (+ sessions), `profile` (me + avatar queue), `readings` (+ alerts), `community` (posts + comments), `caregivers`, `preferences` (theme + font + security), `network`. |
 | `store/shared/` | Cross-slice helpers: `log` (`logWarn`, `communityDebug`), `client-id` (local-id helpers + `createClientId`), `error-format` (`formatAuthError` for login/register UX + legacy `authErrorToThai`), `mappers` (`xxxFromGql` + sorters). |
 | `types/` | Shared TypeScript types. Add domain types here, not inline. |
-| `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`), `image-prepare` (resize + recompress images before they hit the AI / S3 path). |
+| `utils/` | `export-data` (CSV/PDF), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`), `image-prepare` (resize + recompress images before they hit the AI / S3 path), `image-cache` (`resolveImageUri` / `cleanupExpiredImages` — downloads signed S3 images into `Paths.cache` keyed by extracted S3 path, 7-day TTL). |
+| `hooks/use-resolved-image-uri.ts` | React hook over `image-cache` — feeds remote URI on mount, swaps to the `file://` once `resolveImageUri` returns. Used by `reading-detail-modal` so signed-URL rotation is transparent and history images render offline. |
+| `components/ui/avatar.tsx`, `components/ui/image.tsx` | UI primitives. `UIImage` wraps `expo-image` with NativeWind className, internal error state, and a fallback slot. `Avatar` composes it with initials / Ionicons fallback and xs–xl sizes. Use these instead of `<Image>` from `react-native`. |
 
 ## Architectural Conventions
 

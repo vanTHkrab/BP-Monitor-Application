@@ -2,6 +2,7 @@ import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animat
 import { CustomButton } from '@/components/custom-button';
 import { GradientBackground } from '@/components/gradient-background';
 import { MenuItem } from '@/components/menu-item';
+import { Avatar } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontClass } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
@@ -10,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React from 'react';
-import { Alert, Image, ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -95,18 +96,22 @@ export default function MenuScreen() {
               colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#FFFFFF']}
               className="flex-row items-center p-4"
             >
-              <View className="w-[60px] h-[60px] rounded-full overflow-hidden mr-3.5">
-                {user?.avatar ? (
-                  <Image source={{ uri: toDisplayImageUri(user.avatar) }} className="w-full h-full" />
-                ) : (
-                  <LinearGradient
-                    colors={['#7E57C2', '#5E35B1']}
-                    className="w-full h-full items-center justify-center"
-                  >
-                    <Ionicons name="person" size={32} color="white" />
-                  </LinearGradient>
-                )}
-              </View>
+              <Avatar
+                uri={user?.avatar ? toDisplayImageUri(user.avatar) : undefined}
+                name={user?.firstname}
+                size="lg"
+                className="w-[60px] h-[60px] mr-3.5"
+                fallback={
+                  <View className="w-[60px] h-[60px] rounded-full overflow-hidden mr-3.5">
+                    <LinearGradient
+                      colors={['#7E57C2', '#5E35B1']}
+                      className="w-full h-full items-center justify-center"
+                    >
+                      <Ionicons name="person" size={32} color="white" />
+                    </LinearGradient>
+                  </View>
+                }
+              />
               <View className="flex-1">
                 <Text className={(isDark ? `${headingClassName} font-bold text-slate-200 mb-1` : `${headingClassName} font-bold text-[#2C3E50] mb-1`)}>
                   {user?.firstname || 'ผู้ใช้'}

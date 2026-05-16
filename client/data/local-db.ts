@@ -1,10 +1,17 @@
 import * as SQLite from "expo-sqlite";
 import { Platform } from "react-native";
 
+// One table now serves both roles: an offline queue (rows with remoteId
+// NULL) and a local mirror cache of synced server rows (remoteId set). The
+// "pending_readings" name stays for migration friendliness.
+export type LocalReadingSyncStatus = "pending" | "pending-image" | "synced";
+
 export interface PendingReadingRow {
   id: number;
   userId: string;
   clientId: string | null;
+  remoteId: number | null;
+  syncStatus: LocalReadingSyncStatus;
   systolic: number;
   diastolic: number;
   pulse: number;
@@ -13,6 +20,7 @@ export interface PendingReadingRow {
   notes: string | null;
   status: string;
   createdAt: string;
+  updatedAt: string | null;
 }
 
 export interface LocalPostRow {
@@ -42,6 +50,18 @@ export interface PendingAvatarUploadRow {
   createdAt: string;
 }
 
+// Image cache: maps a stable S3 key (extracted from a signed GET URL) to
+// a file:// path inside the app's cache directory. Signed URLs rotate
+// every 10 minutes so caching by raw URL is pointless; the S3 key is the
+// only stable identity. Caller is responsible for the actual download —
+// this table just remembers what's already on disk.
+export interface CachedImageRow {
+  remoteKey: string;
+  localPath: string;
+  fetchedAt: string;
+  byteSize: number | null;
+}
+
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 const getDb = async (): Promise<SQLite.SQLiteDatabase | null> => {
@@ -60,6 +80,8 @@ export const initLocalDb = async (): Promise<void> => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userId TEXT NOT NULL,
       clientId TEXT,
+      remoteId INTEGER,
+      syncStatus TEXT NOT NULL DEFAULT 'pending',
       systolic REAL NOT NULL,
       diastolic REAL NOT NULL,
       pulse REAL NOT NULL,
@@ -67,7 +89,8 @@ export const initLocalDb = async (): Promise<void> => {
       imageUri TEXT,
       notes TEXT,
       status TEXT NOT NULL,
-      createdAt TEXT NOT NULL
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT
     );
 
     CREATE TABLE IF NOT EXISTS local_posts (
@@ -96,6 +119,13 @@ export const initLocalDb = async (): Promise<void> => {
       localUri TEXT NOT NULL,
       createdAt TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS cached_images (
+      remoteKey TEXT PRIMARY KEY,
+      localPath TEXT NOT NULL,
+      fetchedAt TEXT NOT NULL,
+      byteSize INTEGER
+    );
     `,
   );
 
@@ -116,10 +146,18 @@ export const initLocalDb = async (): Promise<void> => {
   };
 
   await ensureColumn("pending_readings", "clientId", "TEXT");
+  await ensureColumn("pending_readings", "remoteId", "INTEGER");
+  await ensureColumn(
+    "pending_readings",
+    "syncStatus",
+    "TEXT NOT NULL DEFAULT 'pending'",
+  );
+  await ensureColumn("pending_readings", "updatedAt", "TEXT");
   await ensureColumn("local_posts", "clientId", "TEXT");
 
   await db.execAsync(
     `CREATE UNIQUE INDEX IF NOT EXISTS pending_readings_client_id_unique ON pending_readings(clientId);
+     CREATE UNIQUE INDEX IF NOT EXISTS pending_readings_remote_id_unique ON pending_readings(remoteId) WHERE remoteId IS NOT NULL;
      CREATE UNIQUE INDEX IF NOT EXISTS local_posts_client_id_unique ON local_posts(clientId);`,
   );
 
@@ -147,16 +185,19 @@ export const initLocalDb = async (): Promise<void> => {
 };
 
 export const insertPendingReading = async (
-  row: Omit<PendingReadingRow, "id">,
+  row: Omit<PendingReadingRow, "id" | "remoteId" | "updatedAt"> & {
+    syncStatus: LocalReadingSyncStatus;
+  },
 ): Promise<number | null> => {
   const db = await getDb();
   if (!db) return null;
   const result = await db.runAsync(
-    `INSERT INTO pending_readings (userId, clientId, systolic, diastolic, pulse, measuredAt, imageUri, notes, status, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, notes, status, createdAt, updatedAt)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       row.userId,
       row.clientId,
+      row.syncStatus,
       row.systolic,
       row.diastolic,
       row.pulse,
@@ -165,6 +206,7 @@ export const insertPendingReading = async (
       row.notes,
       row.status,
       row.createdAt,
+      row.createdAt,
     ],
   );
   return typeof result.lastInsertRowId === "number"
@@ -172,13 +214,33 @@ export const insertPendingReading = async (
     : null;
 };
 
+// Returns ONLY rows that still need syncing (queue semantics, used by
+// syncPendingReadings). For history rendering use listLocalReadings.
 export const listPendingReadings = async (
   userId: string,
 ): Promise<PendingReadingRow[]> => {
   const db = await getDb();
   if (!db) return [];
   const rows = await db.getAllAsync<PendingReadingRow>(
-    `SELECT * FROM pending_readings WHERE userId = ? ORDER BY datetime(measuredAt) DESC;`,
+    `SELECT * FROM pending_readings
+       WHERE userId = ? AND syncStatus != 'synced'
+       ORDER BY datetime(measuredAt) DESC;`,
+    [userId],
+  );
+  return rows ?? [];
+};
+
+// Returns every row for the user (pending + synced mirror). Used by
+// hydratePendingReadings so the UI can render history offline / before
+// fetchReadings completes.
+export const listLocalReadings = async (
+  userId: string,
+): Promise<PendingReadingRow[]> => {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.getAllAsync<PendingReadingRow>(
+    `SELECT * FROM pending_readings WHERE userId = ?
+       ORDER BY datetime(measuredAt) DESC;`,
     [userId],
   );
   return rows ?? [];
@@ -188,6 +250,125 @@ export const deletePendingReading = async (id: number): Promise<void> => {
   const db = await getDb();
   if (!db) return;
   await db.runAsync(`DELETE FROM pending_readings WHERE id = ?;`, [id]);
+};
+
+// Upsert a server-confirmed row into the local mirror. Keyed by clientId
+// first (so the row we inserted optimistically gets promoted to synced
+// in-place), falling back to remoteId for rows that originated on another
+// device.
+export const upsertSyncedReading = async (
+  row: Omit<PendingReadingRow, "id" | "syncStatus" | "updatedAt"> & {
+    remoteId: number;
+  },
+): Promise<void> => {
+  const db = await getDb();
+  if (!db) return;
+  const updatedAt = new Date().toISOString();
+  if (row.clientId) {
+    const existing = await db.getFirstAsync<{ id: number }>(
+      `SELECT id FROM pending_readings WHERE clientId = ?;`,
+      [row.clientId],
+    );
+    if (existing) {
+      await db.runAsync(
+        `UPDATE pending_readings
+           SET userId = ?, remoteId = ?, syncStatus = 'synced',
+               systolic = ?, diastolic = ?, pulse = ?,
+               measuredAt = ?, imageUri = ?, notes = ?, status = ?,
+               updatedAt = ?
+         WHERE id = ?;`,
+        [
+          row.userId,
+          row.remoteId,
+          row.systolic,
+          row.diastolic,
+          row.pulse,
+          row.measuredAt,
+          row.imageUri,
+          row.notes,
+          row.status,
+          updatedAt,
+          existing.id,
+        ],
+      );
+      return;
+    }
+  }
+  const existingByRemote = await db.getFirstAsync<{ id: number }>(
+    `SELECT id FROM pending_readings WHERE remoteId = ?;`,
+    [row.remoteId],
+  );
+  if (existingByRemote) {
+    await db.runAsync(
+      `UPDATE pending_readings
+         SET userId = ?, clientId = ?, syncStatus = 'synced',
+             systolic = ?, diastolic = ?, pulse = ?,
+             measuredAt = ?, imageUri = ?, notes = ?, status = ?,
+             updatedAt = ?
+       WHERE id = ?;`,
+      [
+        row.userId,
+        row.clientId,
+        row.systolic,
+        row.diastolic,
+        row.pulse,
+        row.measuredAt,
+        row.imageUri,
+        row.notes,
+        row.status,
+        updatedAt,
+        existingByRemote.id,
+      ],
+    );
+    return;
+  }
+  await db.runAsync(
+    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, notes, status, createdAt, updatedAt)
+     VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    [
+      row.userId,
+      row.clientId,
+      row.remoteId,
+      row.systolic,
+      row.diastolic,
+      row.pulse,
+      row.measuredAt,
+      row.imageUri,
+      row.notes,
+      row.status,
+      row.createdAt,
+      updatedAt,
+    ],
+  );
+};
+
+// Flip a previously-pending row to synced and stamp the server id. Used
+// when createReading / syncPendingReadings completes a queued row.
+export const markReadingSynced = async (
+  localId: number,
+  remoteId: number,
+  imageUri: string | null,
+): Promise<void> => {
+  const db = await getDb();
+  if (!db) return;
+  await db.runAsync(
+    `UPDATE pending_readings
+       SET remoteId = ?, syncStatus = 'synced', imageUri = ?, updatedAt = ?
+     WHERE id = ?;`,
+    [remoteId, imageUri, new Date().toISOString(), localId],
+  );
+};
+
+export const deleteSyncedReadingByRemoteId = async (
+  userId: string,
+  remoteId: number,
+): Promise<void> => {
+  const db = await getDb();
+  if (!db) return;
+  await db.runAsync(
+    `DELETE FROM pending_readings WHERE userId = ? AND remoteId = ?;`,
+    [userId, remoteId],
+  );
 };
 
 export const insertLocalPost = async (
@@ -366,6 +547,60 @@ export const debugListTables = async (): Promise<DebugTableDump[]> => {
     });
   }
   return results;
+};
+
+export const getCachedImage = async (
+  remoteKey: string,
+): Promise<CachedImageRow | null> => {
+  const db = await getDb();
+  if (!db) return null;
+  const row = await db.getFirstAsync<CachedImageRow>(
+    `SELECT remoteKey, localPath, fetchedAt, byteSize FROM cached_images WHERE remoteKey = ?;`,
+    [remoteKey],
+  );
+  return row ?? null;
+};
+
+export const upsertCachedImage = async (row: {
+  remoteKey: string;
+  localPath: string;
+  byteSize?: number | null;
+}): Promise<void> => {
+  const db = await getDb();
+  if (!db) return;
+  await db.runAsync(
+    `INSERT OR REPLACE INTO cached_images (remoteKey, localPath, fetchedAt, byteSize)
+     VALUES (?, ?, ?, ?);`,
+    [
+      row.remoteKey,
+      row.localPath,
+      new Date().toISOString(),
+      row.byteSize ?? null,
+    ],
+  );
+};
+
+export const deleteCachedImage = async (remoteKey: string): Promise<void> => {
+  const db = await getDb();
+  if (!db) return;
+  await db.runAsync(`DELETE FROM cached_images WHERE remoteKey = ?;`, [
+    remoteKey,
+  ]);
+};
+
+// Returns rows whose fetchedAt is older than the cutoff so the caller can
+// delete both the file and the row in one pass.
+export const listExpiredCachedImages = async (
+  beforeIso: string,
+): Promise<CachedImageRow[]> => {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.getAllAsync<CachedImageRow>(
+    `SELECT remoteKey, localPath, fetchedAt, byteSize FROM cached_images
+       WHERE datetime(fetchedAt) < datetime(?);`,
+    [beforeIso],
+  );
+  return rows ?? [];
 };
 
 export const clearUserLocalData = async (userId: string): Promise<void> => {

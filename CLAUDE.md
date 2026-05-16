@@ -73,7 +73,9 @@ Key boundaries and design choices a senior should respect:
   Postgres via GraphQL, with a SQLite fallback queue. Reconciliation is on
   the next `fetchX`. The client owns its truth until the server confirms.
 - **Single source of truth per concern** — Postgres (via Prisma) owns
-  persistent state; SQLite is a queue, not a cache; Redis is a transport,
+  persistent state; SQLite holds the offline queue **and** a mirror of
+  confirmed readings (so reinstall + offline launch keep history visible)
+  plus a 7-day file cache for signed S3 image URLs; Redis is a transport,
   not a store; S3 owns media bytes.
 - **Wire contracts are duck-typed** — GraphQL schema, Redis payload shapes,
   and S3 key layout are the only stable cross-process surfaces. Treat
@@ -236,10 +238,13 @@ The repo has a handful of high-leverage / high-blast-radius surfaces. These
 are the parts where a senior eye matters most — they look ordinary but
 misbehave subtly when changed without context:
 
-- **Offline-first integrity (mobile).** The SQLite queue + sync mutexes in
+- **Offline-first integrity (mobile).** The SQLite mirror + sync mutexes in
   `client/store/slices/` are the contract between "user tapped save" and
-  "server confirmed save." Partial sync, duplicate sync, and lost mutex
-  releases all manifest as data loss visible only to the patient.
+  "server confirmed save." `pending_readings` doubles as the synced-row
+  mirror (`syncStatus` distinguishes queue vs cache), so a sync now marks
+  rows synced in place rather than deleting them — partial sync, duplicate
+  sync, lost mutex releases, **and** stale-mirror drift all manifest as
+  data loss visible only to the patient.
 - **Gateway ↔ AI Redis wire.** The `analyze_bp_image` /
   `analyze_bp_image.reply` channels are typed only by convention. A field
   rename on one side and a stale deploy on the other will fail silently —

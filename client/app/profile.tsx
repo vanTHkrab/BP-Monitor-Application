@@ -1,10 +1,10 @@
 import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
+import { Avatar } from "@/components/ui/avatar";
 import { Colors } from "@/constants/colors";
 import { useAppStore } from "@/store/use-app-store";
 import { getFontClass } from "@/utils/font-scale";
-import { toDisplayImageUri } from "@/utils/storage-image";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -14,7 +14,6 @@ import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
-  Image,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -449,22 +448,16 @@ export default function ProfileScreen() {
                 onPress={isEditing ? openAvatarOptions : undefined}
                 activeOpacity={isEditing ? 0.7 : 1}
               >
-                <View className="w-28 h-28 rounded-full bg-white dark:bg-slate-900 overflow-hidden border-4 border-white dark:border-slate-700 shadow-lg">
-                  {avatar ? (
-                    <Image
-                      source={{ uri: toDisplayImageUri(avatar) }}
-                      className="w-full h-full"
-                    />
-                  ) : (
-                    <View className="w-full h-full items-center justify-center bg-gray-200 dark:bg-slate-800">
-                      <Ionicons
-                        name="person"
-                        size={48}
-                        color={Colors.text.secondary}
-                      />
-                    </View>
-                  )}
-                </View>
+                <Avatar
+                  uri={avatar}
+                  name={
+                    [user?.firstname, user?.lastname]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
+                  size="xl"
+                  className="border-4 border-white dark:border-slate-700 shadow-lg"
+                />
                 {isEditing && (
                   <View className="absolute bottom-0 right-0 w-8 h-8 bg-blue-500 rounded-full items-center justify-center">
                     <Ionicons name="camera" size={16} color="white" />

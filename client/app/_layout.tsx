@@ -1,6 +1,7 @@
 import { AppLoadingScreen } from "@/components/app-loading-screen";
 import { initLocalDb } from "@/data/local-db";
 import { useAppStore } from "@/store/use-app-store";
+import { cleanupExpiredImages } from "@/utils/image-cache";
 import NetInfo from "@react-native-community/netinfo";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -91,6 +92,8 @@ export default function RootLayout() {
       try {
         await initLocalDb();
         if (cancelled) return;
+        // Best-effort image-cache GC; runs once per launch and never throws.
+        void cleanupExpiredImages();
 
         // Seed network state from ground truth before initAuth runs, so
         // requests fired during auth init don't race against the default

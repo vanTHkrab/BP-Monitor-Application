@@ -142,13 +142,15 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
           sensitiveDataUnlocked: false,
         });
 
-        // Fetch data
+        // Hydrate the local readings cache first so history renders
+        // immediately (including reinstalled-device cold start). The
+        // network fetch then reconciles in the background.
+        await get().hydratePendingReadings();
         void get().fetchReadings();
         void get().fetchPosts();
         void get().fetchAlerts();
         void get().fetchCaregiverLinks();
         void get().fetchSessions();
-        void get().hydratePendingReadings();
         void get().hydratePendingPosts();
         // Avatar hydration runs *after* the server `me` set above, so the
         // local URI overrides the stale remote one if a previous pick is

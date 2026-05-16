@@ -6,8 +6,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import React from 'react';
-import { Image, Share, Text, View } from 'react-native';
+import { Share, Text, View } from 'react-native';
 import { AnimatedPressable } from './animated-components';
+import { Avatar } from './ui/avatar';
+import { UIImage } from './ui/image';
 
 cssInterop(LinearGradient, { className: 'style' });
 
@@ -116,11 +118,10 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
   const syncLabel = post.syncStatus === 'local' ? 'บันทึกในเครื่อง' : post.syncStatus === 'pending-update' ? 'รอซิงก์' : null;
   const syncBadgeColor = post.syncStatus === 'local' ? '#FF8A45' : '#7E57C2';
 
-  const [avatarFailed, setAvatarFailed] = React.useState(false);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [contentLineCount, setContentLineCount] = React.useState(0);
   const [hasMeasuredContent, setHasMeasuredContent] = React.useState(false);
-  const hasAvatarUri = Boolean(post.userAvatar) && !avatarFailed;
+  const avatarUri = post.userAvatar ? toDisplayImageUri(post.userAvatar) : undefined;
   const shouldShowReadMore =
     contentLineCount > COLLAPSED_CONTENT_LINES ||
     post.content.trim().length > READ_MORE_CHARACTER_THRESHOLD;
@@ -146,14 +147,17 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
       >
         {/* Header */}
         <View className="flex-row items-center mb-3">
-          <View className="w-[42px] h-[42px] rounded-full overflow-hidden">
-            <Image
-              source={hasAvatarUri ? { uri: toDisplayImageUri(post.userAvatar) } : DEFAULT_AVATAR}
-              className="w-full h-full"
-              resizeMode="cover"
-              onError={() => setAvatarFailed(true)}
-            />
-          </View>
+          <Avatar
+            uri={avatarUri}
+            name={post.userName}
+            size="md"
+            className="w-[42px] h-[42px]"
+            fallback={
+              <View className="w-[42px] h-[42px] rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800">
+                <UIImage source={DEFAULT_AVATAR} className="w-full h-full" contentFit="cover" />
+              </View>
+            }
+          />
           <View className="flex-1 ml-2.5">
             <Text className={(isDark ? 'text-slate-100' : 'text-[#2C3E50]') + ' ' + titleClassName + ' font-semibold'}>
               {post.userName}

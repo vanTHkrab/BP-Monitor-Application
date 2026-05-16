@@ -1,5 +1,6 @@
 import { AnimatedPressable, FadeInView, PulseView, ScaleOnMount } from '@/components/animated-components';
 import { GradientBackground } from '@/components/gradient-background';
+import { Avatar } from '@/components/ui/avatar';
 import { Colors, getStatusText, type BPStatus } from '@/constants/colors';
 import { formatThaiDate } from '@/data/mockData';
 import { useAppStore } from '@/store/use-app-store';
@@ -17,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Linking, Modal, ScrollView, Text, View } from 'react-native';
+import { Alert, Linking, Modal, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -290,25 +291,25 @@ export default function HomeScreen() {
         <FadeInView delay={100}>
           <View className="flex-row justify-between items-center px-4 py-4">
             <View className="flex-row items-center">
-              <View
+              <Avatar
+                uri={user?.avatar ? toDisplayImageUri(user.avatar) : undefined}
+                name={user?.firstname}
+                size="md"
                 className={
                   (isDark ? 'bg-[#0F172A]' : 'bg-white') +
-                  ' w-[50px] h-[50px] rounded-full overflow-hidden mr-3 shadow-md'
+                  ' w-[50px] h-[50px] mr-3 shadow-md'
                 }
-              >
-                {user?.avatar ? (
-                  <Image source={{ uri: toDisplayImageUri(user.avatar) }} className="w-full h-full" />
-                ) : (
+                fallback={
                   <View
                     className={
                       (isDark ? 'bg-[#111827]' : 'bg-[#F0F0F0]') +
-                      ' w-full h-full items-center justify-center'
+                      ' w-[50px] h-[50px] rounded-full overflow-hidden mr-3 shadow-md items-center justify-center'
                     }
                   >
                     <Ionicons name="person" size={24} color={Colors.text.secondary} />
                   </View>
-                )}
-              </View>
+                }
+              />
               <Text className={greetingClassName + ' font-semibold ' + textPrimaryClassName}>
                 สวัสดี, คุณ {user?.firstname || 'ผู้ใช้'}
               </Text>
