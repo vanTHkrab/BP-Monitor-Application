@@ -109,6 +109,7 @@ type AnalysisResult {
   roiImageUrl: String
   rawText: String
   status: String!
+  modelVersion: String
 }
 
 type AnalysisJob {
