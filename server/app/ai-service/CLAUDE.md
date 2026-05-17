@@ -33,26 +33,10 @@ it the service replies with a structured error ("missing imageUrl").
 | Path | Responsibility |
 | --- | --- |
 | `main.py` | entry shim — re-exports `app` from `ai_service.main` so `uv run fastapi dev main.py` works without exposing the package layout |
-| `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds the engine registry, wires the Redis listener. Keep thin — only orchestration belongs here |
-| `src/ai_service/handlers.py` | Redis pub/sub handler — parses `ocrEngine`, dispatches via `EngineRegistry`, emits `engine` + `metrics` in the reply. Owns the wire contract |
-| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence threshold, timeouts) |
-| `src/ai_service/analyzer/engines.py` | `EngineRegistry`, `AnalysisMetrics`, `build_registry()` — loads all three M2.2 engines side-by-side and resolves per-request selection |
-| `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector |
-| `src/ai_service/analyzer/yolo.py` | `YoloDetector` — onnxruntime session, letterbox preprocess, anchor decode + NMS post-process. Loaded once, shared across engines |
-| `src/ai_service/analyzer/preprocessing.py` | `letterbox()` (shared by detector and any future ROI preprocess) |
-| `src/ai_service/analyzer/validation.py` | range + sys>dia sanity (`is_value_in_range`, `is_reading_consistent`) |
-| `src/ai_service/analyzer/types.py` | `AnalysisResult`, `FieldReading`, `BoundingBox`, `BPClass`, `AnalysisStatus`, `PipelineMetrics` — shared dataclasses |
-| `src/ai_service/analyzer/ocr/base.py` | `OCRReader` Protocol + `OCRResult` — the seam every engine implements |
-| `src/ai_service/analyzer/ocr/crnn.py` | `CRNNEngine` + `CRNNSession` — ONNX int8 CRNN, ~30 ms/image |
-| `src/ai_service/analyzer/ocr/ssocr.py` | `SSOCREngine` — rule-based 7-segment OCR; `use_classifiers` flag toggles the `ssocr_cnn` (full ensemble) vs `ssocr` (rule-only baseline) mode |
-| `src/ai_service/analyzer/ocr/cnn_classifiers.py` | ONNX CNN (`classify_by_cnn_2ch`) + numpy KNN (`classify_by_knn`) + template match + `detect_brand`. Configured once at lifespan via `set_models_dir()`; consumed by `ssocr.py` |
-| `src/ai_service/storage/fetch.py` | async `fetch_image()` (presigned URL → BGR ndarray) + `ImageFetchError` |
-| `models/yolo12n.onnx` | YOLOv12n detector, 5 BP-specific classes, exported with `nms=False` (11.5 MB). **Also bundled verbatim in the mobile app** at `client/assets/models/yolo12n.onnx` for on-device pre-flight (see [../../../client/CLAUDE.md](../../../client/CLAUDE.md)). When you retrain, the mobile copy must be refreshed in the same change — `client/scripts/verify-yolo-model.mjs` runs on every `pnpm start` and fails the dev build on SHA256 drift. |
-| `models/crnn_int8.onnx` | Trained 7-seg CRNN, ONNX int8 (1.2 MB) — `crnn` engine |
-| `models/cnn_2ch_distilled_*_int8.onnx` | Distilled 2-channel CNN (global/sys/dia/pul, ~0.6 MB each = 2.5 MB total) — `ssocr_cnn` engine |
-| `models/templates.npz` | KNN exemplars + mean templates for `ssocr_cnn` (~58 MB) |
-| `tests/` | `pytest-asyncio` suite across `test_config`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`. Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
-| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
+| `src/ai_service/main.py` | actual FastAPI app + Redis subscriber/publisher; stub `build_mock_response()` lives here |
+| `src/ai_service/__init__.py` | package marker (empty) |
+| `tests/test_main.py` | pytest-asyncio tests for `handle_message`, `reply`, `reply_error` |
+| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
 | `Dockerfile` | container build for prod/staging |
 | `PLAN.md` | roadmap + design decisions for the OCR pipeline |
 

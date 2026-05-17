@@ -30,7 +30,7 @@ Beyond-plan accuracy improvements (gated by DIPParams.enable_extended_search):
 
 from __future__ import annotations
 
-import logging
+import json
 import re
 from pathlib import Path
 from typing import Any, Sequence
@@ -39,14 +39,6 @@ import cv2
 import numpy as np
 
 from .base import OCRReader, OCRResult
-from .cnn_classifiers import (
-    classify_by_cnn_2ch,
-    classify_by_knn,
-    classify_by_template,
-    detect_brand,
-)
-
-logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +75,631 @@ DIGIT_PATTERNS = np.array([
     [1, 1, 1, 1, 1, 1, 1],  # 8
     [1, 1, 1, 0, 1, 1, 1],  # 9
 ], dtype=np.float32)
+
+
+# ---------------------------------------------------------------------------
+# Template-matching classifier (per-digit canonical templates from TRAIN)
+# ---------------------------------------------------------------------------
+
+TEMPLATE_W = 32
+TEMPLATE_H = 64
+_TEMPLATES_CACHE: dict[int, np.ndarray] | None = None
+
+
+def _load_templates() -> dict[str, dict[int, np.ndarray]]:
+    """Load digit templates from disk. Returns a dict with keys:
+        "global" : {digit: template_image}
+        "sys"    : {digit: template_image}  # only digits with >= 5 exemplars
+        "dia"    : {digit: template_image}
+        "pul"    : {digit: template_image}
+    Empty dict if the templates.npz file is missing.
+    """
+    global _TEMPLATES_CACHE
+    if _TEMPLATES_CACHE is None:
+        import os as _os
+        path = _os.path.join(_os.path.dirname(__file__), "templates.npz")
+        if not _os.path.exists(path):
+            _TEMPLATES_CACHE = {}
+        else:
+            data = np.load(path)
+            buckets: dict[str, dict[int, np.ndarray]] = {
+                "global": {}, "sys": {}, "dia": {}, "pul": {},
+            }
+            for k in data.files:
+                if not k.startswith("template_"):
+                    continue
+                rest = k[len("template_"):]
+                parts = rest.split("_")
+                if len(parts) == 1:        # template_<digit>
+                    digit = int(parts[0])
+                    buckets["global"][digit] = data[k]
+                elif len(parts) == 2:      # template_<label>_<digit>
+                    label, digit = parts[0], int(parts[1])
+                    if label in buckets:
+                        buckets[label][digit] = data[k]
+            _TEMPLATES_CACHE = buckets
+    return _TEMPLATES_CACHE
+
+
+# K-NN exemplar matching ---------------------------------------------------
+
+# Cached per-bucket normalised exemplar matrices. Bucket keys can be:
+#   "global"
+#   "sys" / "dia" / "pul"                    — per-label
+#   "<brand>_<label>" (e.g. "omron_sys")     — per-brand+label
+# Value: (E_normed (N, 2048) float32, digit_labels (N,) int8)
+_KNN_CACHE: dict[str, tuple[np.ndarray, np.ndarray]] | None = None
+KNOWN_BRANDS = ("allwell", "omron", "sinocare", "yuwell", "lifebox")
+
+
+def _detect_brand(filename: str) -> str | None:
+    """Return brand prefix from a crop filename, or None if unknown."""
+    fn_l = filename.lower()
+    for brand in KNOWN_BRANDS:
+        if fn_l.startswith(brand):
+            return brand
+    return None
+
+
+def _load_knn_data() -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Load and cache per-bucket exemplar matrices for K-NN classification.
+
+    Each matrix is centred-and-normalised so cosine similarity collapses
+    to a single matrix-vector multiply at inference time.
+    """
+    global _KNN_CACHE
+    if _KNN_CACHE is not None:
+        return _KNN_CACHE
+    import os as _os
+    path = _os.path.join(_os.path.dirname(__file__), "templates.npz")
+    if not _os.path.exists(path):
+        _KNN_CACHE = {}
+        return _KNN_CACHE
+    data = np.load(path)
+
+    # Build bucket -> (digit -> stacks list) by parsing key names
+    # exemplars_<d>, exemplars_<label>_<d>, exemplars_<brand>_<label>_<d>
+    buckets_raw: dict[str, dict[int, list[np.ndarray]]] = {}
+    for k in data.files:
+        if not k.startswith("exemplars_"):
+            continue
+        rest = k[len("exemplars_"):]
+        parts = rest.split("_")
+        try:
+            digit = int(parts[-1])
+        except ValueError:
+            continue
+        if len(parts) == 1:
+            bucket = "global"
+        elif len(parts) == 2:
+            bucket = parts[0]                     # label only
+        else:
+            bucket = "_".join(parts[:-1])         # brand_label
+        buckets_raw.setdefault(bucket, {}).setdefault(digit, []).append(data[k])
+
+    matrices: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for bucket, per_digit in buckets_raw.items():
+        E_list: list[np.ndarray] = []
+        D_list: list[np.ndarray] = []
+        for d, stacks in per_digit.items():
+            for arr in stacks:
+                flat = arr.reshape(arr.shape[0], -1).astype(np.float32)
+                E_list.append(flat)
+                D_list.append(np.full(arr.shape[0], d, dtype=np.int8))
+        if not E_list:
+            continue
+        E = np.vstack(E_list)
+        E_centered = E - E.mean(axis=1, keepdims=True)
+        E_norm = np.linalg.norm(E_centered, axis=1, keepdims=True) + 1e-6
+        E_normed = (E_centered / E_norm).astype(np.float32)
+        D = np.concatenate(D_list)
+        matrices[bucket] = (E_normed, D)
+
+    _KNN_CACHE = matrices
+    return _KNN_CACHE
+
+
+# CNN classifiers (per-label, trained on TRAIN exemplars) ----------------
+
+_CNN_CACHE: dict[str, Any] | None = None
+_CNN_GRAY_CACHE: dict[str, Any] | None = None
+_CNN_2CH_CACHE: dict[str, Any] | None = None
+_CNN_DEVICE: str | None = None
+
+
+def _load_cnn_2ch() -> dict[str, list[Any]]:
+    """Load 2-channel CNN ensemble — channel 0 = binary, channel 1 = gray."""
+    global _CNN_2CH_CACHE, _CNN_DEVICE
+    if _CNN_2CH_CACHE is not None:
+        return _CNN_2CH_CACHE
+    import os as _os
+    path = _os.path.join(_os.path.dirname(__file__), "cnn_2ch.pt")
+    if not _os.path.exists(path):
+        _CNN_2CH_CACHE = {}
+        return _CNN_2CH_CACHE
+    try:
+        import torch
+        import torch.nn as nn
+    except Exception:
+        _CNN_2CH_CACHE = {}
+        return _CNN_2CH_CACHE
+
+    class _DigitCNN2ch(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.features = nn.Sequential(
+                nn.Conv2d(2, 24, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True), nn.MaxPool2d(2),
+                nn.Conv2d(24, 48, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True), nn.MaxPool2d(2),
+            )
+            self.classifier = nn.Sequential(
+                nn.Flatten(), nn.Dropout(0.3),
+                nn.Linear(48 * 16 * 8, 96), nn.ReLU(inplace=True),
+                nn.Dropout(0.2), nn.Linear(96, 10),
+            )
+        def forward(self, x): return self.classifier(self.features(x))
+
+    if _CNN_DEVICE is None:
+        _CNN_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    raw = torch.load(path, map_location=_CNN_DEVICE, weights_only=False)
+    models: dict[str, list[Any]] = {}
+    for bucket, seed_dict in raw.items():
+        if isinstance(seed_dict, dict) and any(isinstance(k, int) for k in seed_dict):
+            ms = []
+            for _seed, sd in seed_dict.items():
+                m = _DigitCNN2ch().to(_CNN_DEVICE)
+                m.load_state_dict(sd)
+                m.eval()
+                ms.append(m)
+            models[bucket] = ms
+    _CNN_2CH_CACHE = models
+    return _CNN_2CH_CACHE
+
+
+def _classify_by_cnn_2ch(
+    roi_binary: np.ndarray,
+    roi_gray: np.ndarray,
+    label: str | None = None,
+    min_proba: float = 0.50,
+) -> tuple[int | str, float]:
+    """Predict digit using the 2-channel CNN ensemble.
+    Channel 0 = binary, channel 1 = grayscale — fused features capture
+    both digit shape and segment-intensity gradient."""
+    models = _load_cnn_2ch()
+    if (
+        not models or roi_binary is None or roi_binary.size == 0
+        or roi_gray is None or roi_gray.size == 0
+    ):
+        return "*", 0.0
+    try:
+        import torch
+    except Exception:
+        return "*", 0.0
+    if roi_binary.dtype != np.uint8:
+        roi_binary = np.clip(roi_binary, 0, 255).astype(np.uint8)
+    if roi_gray.dtype != np.uint8:
+        roi_gray = np.clip(roi_gray, 0, 255).astype(np.uint8)
+    bin_resized = cv2.resize(
+        roi_binary, (TEMPLATE_W, TEMPLATE_H), interpolation=cv2.INTER_AREA
+    )
+    _, bin_resized = cv2.threshold(bin_resized, 64, 255, cv2.THRESH_BINARY)
+    gray_resized = cv2.resize(
+        roi_gray, (TEMPLATE_W, TEMPLATE_H), interpolation=cv2.INTER_AREA
+    )
+
+    # Stack into 2-channel float tensor
+    stacked = np.stack(
+        [bin_resized.astype(np.float32) / 255.0,
+         gray_resized.astype(np.float32) / 255.0]
+    )                                                 # (2, H, W)
+    x = torch.from_numpy(stacked).unsqueeze(0).to(_CNN_DEVICE)  # (1, 2, H, W)
+
+    model_list = models.get(label) if label else None
+    if not model_list:
+        model_list = models.get("global", [])
+    if not model_list:
+        return "*", 0.0
+
+    with torch.no_grad():
+        probas = torch.zeros(10, device=_CNN_DEVICE)
+        for m in model_list:
+            probas = probas + torch.softmax(m(x), dim=1)[0]
+        probas = probas / len(model_list)
+        score, idx = float(probas.max()), int(probas.argmax())
+    if score < min_proba:
+        return "*", score
+    return idx, score
+
+
+def _load_cnn_gray() -> dict[str, list[Any]]:
+    """Load the per-label GRAYSCALE CNN ensemble. Same architecture as the
+    binary CNN but trained on raw grayscale ROIs that preserve segment
+    intensity gradients (binary throws those away)."""
+    global _CNN_GRAY_CACHE, _CNN_DEVICE
+    if _CNN_GRAY_CACHE is not None:
+        return _CNN_GRAY_CACHE
+    import os as _os
+    path = _os.path.join(_os.path.dirname(__file__), "cnn_gray.pt")
+    if not _os.path.exists(path):
+        _CNN_GRAY_CACHE = {}
+        return _CNN_GRAY_CACHE
+    try:
+        import torch
+        import torch.nn as nn
+    except Exception:
+        _CNN_GRAY_CACHE = {}
+        return _CNN_GRAY_CACHE
+
+    class _DigitCNN(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.features = nn.Sequential(
+                nn.Conv2d(1, 16, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True), nn.MaxPool2d(2),
+                nn.Conv2d(16, 32, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True), nn.MaxPool2d(2),
+            )
+            self.classifier = nn.Sequential(
+                nn.Flatten(), nn.Dropout(0.3),
+                nn.Linear(32 * 16 * 8, 64), nn.ReLU(inplace=True),
+                nn.Dropout(0.2), nn.Linear(64, 10),
+            )
+        def forward(self, x): return self.classifier(self.features(x))
+
+    if _CNN_DEVICE is None:
+        _CNN_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    raw = torch.load(path, map_location=_CNN_DEVICE, weights_only=False)
+    models: dict[str, list[Any]] = {}
+    for bucket, state_or_dict in raw.items():
+        if isinstance(state_or_dict, dict) and any(
+            isinstance(k, int) for k in state_or_dict
+        ):
+            ms = []
+            for _seed, sd in state_or_dict.items():
+                m = _DigitCNN().to(_CNN_DEVICE)
+                m.load_state_dict(sd)
+                m.eval()
+                ms.append(m)
+            models[bucket] = ms
+        else:
+            m = _DigitCNN().to(_CNN_DEVICE)
+            m.load_state_dict(state_or_dict)
+            m.eval()
+            models[bucket] = [m]
+    _CNN_GRAY_CACHE = models
+    return _CNN_GRAY_CACHE
+
+
+def _classify_by_cnn_gray(
+    roi_gray: np.ndarray, label: str | None = None, min_proba: float = 0.50,
+) -> tuple[int | str, float]:
+    """Predict digit using the grayscale CNN ensemble + TEST-TIME
+    AUGMENTATION. Generates 5 small perturbations of the ROI and averages
+    softmax probabilities across all (5 seeds × 5 TTA = 25 forward passes).
+    """
+    models = _load_cnn_gray()
+    if not models or roi_gray is None or roi_gray.size == 0:
+        return "*", 0.0
+    try:
+        import torch
+    except Exception:
+        return "*", 0.0
+    if roi_gray.dtype != np.uint8:
+        roi_gray = np.clip(roi_gray, 0, 255).astype(np.uint8)
+    resized = cv2.resize(
+        roi_gray, (TEMPLATE_W, TEMPLATE_H), interpolation=cv2.INTER_AREA
+    )
+
+    # Test-time augmentation: identity + 4 small shifts. Each variant
+    # gets passed through every CNN seed, then all probabilities averaged.
+    H, W = resized.shape[:2]
+    variants = [resized]
+    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        M = np.float32([[1, 0, dx], [0, 1, dy]])
+        variants.append(cv2.warpAffine(resized, M, (W, H), borderValue=0))
+
+    model_list = models.get(label) if label else None
+    if not model_list:
+        model_list = models.get("global", [])
+    if not model_list:
+        return "*", 0.0
+
+    # Stack variants into a single batch for one forward pass per model.
+    batch = np.stack(variants).astype(np.float32) / 255.0
+    x = torch.from_numpy(batch).unsqueeze(1).to(_CNN_DEVICE)
+    with torch.no_grad():
+        probas = torch.zeros(10, device=_CNN_DEVICE)
+        for m in model_list:
+            # m(x) → (V, 10). Average over variants then add to running sum.
+            probas = probas + torch.softmax(m(x), dim=1).mean(dim=0)
+        probas = probas / len(model_list)
+        score, idx = float(probas.max()), int(probas.argmax())
+    if score < min_proba:
+        return "*", score
+    return idx, score
+
+
+def _load_cnn() -> dict[str, list[Any]]:
+    """Load and cache the per-label CNN ENSEMBLE (5 seeds per bucket).
+    Supports both formats:
+      - flat dict {bucket: state_dict}                 — single-seed legacy
+      - nested dict {bucket: {seed: state_dict}}       — multi-seed ensemble
+    Returns dict[bucket -> list of models].
+    """
+    global _CNN_CACHE, _CNN_DEVICE
+    if _CNN_CACHE is not None:
+        return _CNN_CACHE
+    import os as _os
+    path = _os.path.join(_os.path.dirname(__file__), "cnn.pt")
+    if not _os.path.exists(path):
+        _CNN_CACHE = {}
+        return _CNN_CACHE
+    try:
+        import torch
+        import torch.nn as nn
+    except Exception:
+        _CNN_CACHE = {}
+        return _CNN_CACHE
+
+    class _DigitCNN(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.features = nn.Sequential(
+                nn.Conv2d(1, 16, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True), nn.MaxPool2d(2),
+                nn.Conv2d(16, 32, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True), nn.MaxPool2d(2),
+            )
+            self.classifier = nn.Sequential(
+                nn.Flatten(), nn.Dropout(0.3),
+                nn.Linear(32 * 16 * 8, 64), nn.ReLU(inplace=True),
+                nn.Dropout(0.2), nn.Linear(64, 10),
+            )
+        def forward(self, x): return self.classifier(self.features(x))
+
+    _CNN_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    raw = torch.load(path, map_location=_CNN_DEVICE, weights_only=False)
+    models: dict[str, list[Any]] = {}
+    for bucket, state_or_dict in raw.items():
+        if isinstance(state_or_dict, dict) and any(
+            isinstance(k, int) for k in state_or_dict
+        ):
+            # multi-seed ensemble
+            ms = []
+            for _seed, sd in state_or_dict.items():
+                m = _DigitCNN().to(_CNN_DEVICE)
+                m.load_state_dict(sd)
+                m.eval()
+                ms.append(m)
+            models[bucket] = ms
+        else:
+            # legacy single state_dict
+            m = _DigitCNN().to(_CNN_DEVICE)
+            m.load_state_dict(state_or_dict)
+            m.eval()
+            models[bucket] = [m]
+    _CNN_CACHE = models
+    return _CNN_CACHE
+
+
+def _classify_by_cnn(
+    roi_binary: np.ndarray,
+    label: str | None = None,
+    brand: str | None = None,
+    min_proba: float = 0.50,
+) -> tuple[int | str, float]:
+    """Binary CNN ensemble averaged over 5 seeds. Per-label > global.
+    No TTA — empirically TTA on binary regressed pul -0.47pp (TTA only
+    helps the grayscale CNN where pixel intensity nuance matters)."""
+    models = _load_cnn()
+    if not models or roi_binary is None or roi_binary.size == 0:
+        return "*", 0.0
+    try:
+        import torch
+    except Exception:
+        return "*", 0.0
+    if roi_binary.dtype != np.uint8:
+        roi_binary = np.clip(roi_binary, 0, 255).astype(np.uint8)
+    resized = cv2.resize(
+        roi_binary, (TEMPLATE_W, TEMPLATE_H), interpolation=cv2.INTER_AREA
+    )
+    _, resized = cv2.threshold(resized, 64, 255, cv2.THRESH_BINARY)
+    x = torch.from_numpy(resized.astype(np.float32) / 255.0)
+    x = x.unsqueeze(0).unsqueeze(0).to(_CNN_DEVICE)
+
+    _ = brand
+    model_list = None
+    if label:
+        model_list = models.get(label)
+    if not model_list:
+        model_list = models.get("global", [])
+    if not model_list:
+        return "*", 0.0
+
+    with torch.no_grad():
+        probas = torch.zeros(10, device=_CNN_DEVICE)
+        for m in model_list:
+            probas = probas + torch.softmax(m(x), dim=1)[0]
+        probas = probas / len(model_list)
+        score, idx = float(probas.max()), int(probas.argmax())
+    if score < min_proba:
+        return "*", score
+    return idx, score
+
+
+# Trained classifiers (LR + MLP) ------------------------------------------
+
+_LR_CACHE: dict[str, Any] | None = None
+
+
+def _load_lr_classifier() -> dict[str, Any]:
+    """Load and cache per-label trained classifiers. Supports two formats:
+        (a) flat dict {label: clf} — only LR available
+        (b) nested dict {'lr': {label: clf}, 'mlp': {label: clf}} — both
+    Returns the nested form normalised so callers can index by family.
+    """
+    global _LR_CACHE
+    if _LR_CACHE is not None:
+        return _LR_CACHE
+    import os as _os
+    path = _os.path.join(_os.path.dirname(__file__), "classifier.joblib")
+    if not _os.path.exists(path):
+        _LR_CACHE = {}
+        return _LR_CACHE
+    try:
+        import joblib
+    except Exception:
+        _LR_CACHE = {}
+        return _LR_CACHE
+    try:
+        raw = joblib.load(path)
+    except Exception:
+        _LR_CACHE = {}
+        return _LR_CACHE
+    # Normalise both formats to nested
+    if isinstance(raw, dict) and "lr" in raw and "mlp" in raw:
+        _LR_CACHE = raw
+    else:
+        _LR_CACHE = {"lr": raw}
+    return _LR_CACHE
+
+
+def _classify_by_lr(
+    roi_binary: np.ndarray,
+    label: str | None = None,
+    min_proba: float = 0.50,
+    family: str = "lr",
+) -> tuple[int | str, float]:
+    """Predict digit using a trained classifier (`family` ∈ {'lr','mlp'}).
+    Falls back to global model if no per-label model exists. Returns '*'
+    when the top-class probability is below `min_proba`."""
+    cache = _load_lr_classifier()
+    if not cache or roi_binary is None or roi_binary.size == 0:
+        return "*", 0.0
+    family_dict = cache.get(family, {})
+    if not family_dict:
+        return "*", 0.0
+    if roi_binary.dtype != np.uint8:
+        roi_binary = np.clip(roi_binary, 0, 255).astype(np.uint8)
+    resized = cv2.resize(
+        roi_binary, (TEMPLATE_W, TEMPLATE_H), interpolation=cv2.INTER_AREA
+    )
+    _, resized = cv2.threshold(resized, 64, 255, cv2.THRESH_BINARY)
+    x = (resized.flatten().astype(np.float32) / 255.0).reshape(1, -1)
+
+    clf = family_dict.get(label) if label else None
+    if clf is None:
+        clf = family_dict.get("global")
+    if clf is None:
+        return "*", 0.0
+    proba = clf.predict_proba(x)[0]
+    best = int(np.argmax(proba))
+    score = float(proba[best])
+    if score < min_proba:
+        return "*", score
+    digit = int(clf.classes_[best])
+    return digit, score
+
+
+def _classify_by_knn(
+    roi_binary: np.ndarray,
+    label: str | None = None,
+    brand: str | None = None,
+    k: int = 3,
+    min_score: float = 0.30,
+) -> tuple[int | str, float]:
+    """Classify ROI by majority vote among the top-K most similar
+    exemplars. Bucket lookup priority:
+        brand+label  →  label  →  global
+
+    K=3 was the empirical optimum on a train sweep (sys 78.5 / dia 76.5 /
+    pul 60.5 vs K=7's 77.5 / 75.0 / 57.0).
+    """
+    cache = _load_knn_data()
+    if not cache or roi_binary is None or roi_binary.size == 0:
+        return "*", 0.0
+    # Empirical finding: per-brand buckets are too narrow (Lifebox ~100,
+    # others 300-800) — restricting K-NN to them adds noise vs the ~2000
+    # per-label bucket that already contains diverse exemplars from every
+    # brand. Brand parameter kept for future experimentation but unused.
+    _ = brand
+    bucket = None
+    if label:
+        bucket = cache.get(label)
+    if bucket is None:
+        bucket = cache.get("global")
+    if bucket is None:
+        return "*", 0.0
+    E_normed, D = bucket
+
+    if roi_binary.dtype != np.uint8:
+        roi_binary = np.clip(roi_binary, 0, 255).astype(np.uint8)
+    resized = cv2.resize(
+        roi_binary, (TEMPLATE_W, TEMPLATE_H), interpolation=cv2.INTER_AREA
+    )
+    _, resized = cv2.threshold(resized, 64, 255, cv2.THRESH_BINARY)
+    v = resized.flatten().astype(np.float32)
+    v = v - v.mean()
+    v_norm = float(np.linalg.norm(v)) + 1e-6
+    v_normed = v / v_norm
+
+    scores = E_normed @ v_normed                                # (N,) cosine sim
+    k_eff = min(k, len(scores))
+    top_idx = np.argpartition(scores, -k_eff)[-k_eff:]
+    top_digits = D[top_idx]
+    top_scores = scores[top_idx]
+
+    # Score-weighted vote: each top-K member votes with its similarity.
+    votes: dict[int, float] = {}
+    for d, s in zip(top_digits.tolist(), top_scores.tolist()):
+        votes[d] = votes.get(d, 0.0) + max(0.0, s)
+    best_digit = max(votes, key=votes.get)
+    avg_score = float(top_scores.mean())
+    if avg_score < min_score:
+        return "*", avg_score
+    return int(best_digit), avg_score
+
+
+def _classify_by_template(
+    roi_binary: np.ndarray,
+    label: str | None = None,
+    min_score: float = 0.30,
+) -> tuple[int | str, float]:
+    """Match a binary ROI against per-digit templates.
+
+    If `label` is given AND the per-label bucket has the digit, the
+    per-label template wins. Otherwise the global template is used. This
+    falls back gracefully when a digit was never seen for a label in train.
+    """
+    buckets = _load_templates()
+    if not buckets or roi_binary is None or roi_binary.size == 0:
+        return "*", 0.0
+    if roi_binary.dtype != np.uint8:
+        roi_binary = np.clip(roi_binary, 0, 255).astype(np.uint8)
+    resized = cv2.resize(
+        roi_binary, (TEMPLATE_W, TEMPLATE_H), interpolation=cv2.INTER_AREA
+    )
+    _, resized = cv2.threshold(resized, 64, 255, cv2.THRESH_BINARY)
+    resized_f = resized.astype(np.float32)
+
+    label_bucket = buckets.get(label or "", {}) if label else {}
+    global_bucket = buckets.get("global", {})
+
+    best_digit = -1
+    best_score = -2.0
+    for d in range(10):
+        tpl = label_bucket.get(d, global_bucket.get(d))
+        if tpl is None:
+            continue
+        result = cv2.matchTemplate(resized_f, tpl, cv2.TM_CCOEFF_NORMED)
+        score = float(result[0, 0])
+        if score > best_score:
+            best_score = score
+            best_digit = d
+    if best_score < min_score:
+        return "*", best_score
+    return best_digit, best_score
 
 
 def _classify_digit_soft(
@@ -1627,16 +2244,25 @@ def recognize_digits_template_method(
     brand: str | None = None,
     gray_img: np.ndarray | None = None,
 ) -> list[int | str]:
-    """Classify each ROI by ensemble vote across the ONNX-only classifiers
-    in `cnn_classifiers`: K-NN cosine similarity + 2-channel CNN (distilled
-    int8). Agreement → consensus; else CNN-2ch (highest val_acc) > K-NN.
-    The aspect-bypass for digit '1' still applies as a hard rule.
-
-    Note: the historical voting pool also included LR, MLP, single-channel
-    CNN, and grayscale CNN — all torch- or sklearn-backed. Those branches
-    were dropped during the M2.2 ONNX-only port; the distilled 2-channel
-    CNN bundle subsumes their accuracy at a fraction of the runtime cost.
-    """
+    """Classify each ROI by ensemble vote: K-NN + LR + MLP + CNN-binary +
+    CNN-grayscale + CNN-2ch. ≥2 agreeing → consensus; else CNN-2ch
+    (highest val_acc) > CNN-gray > CNN-binary > K-NN. The aspect-bypass
+    for digit '1' still applies as a hard rule."""
+    lr_available = bool(_load_lr_classifier())
+    knn_available = bool(_load_knn_data())
+    cnn_available = bool(_load_cnn())
+    cnn_gray_available = (
+        bool(_load_cnn_gray()) and gray_img is not None
+        and label in ("dia", "pul")
+    )
+    # 2-channel CNN (binary + grayscale fused) — A/B testing showed it
+    # helps pul (+0.47pp) but slightly regresses sys/dia (-0.5pp each).
+    # Gate to pul only to keep all-label gains. val_acc was 99% on pul
+    # vs 91% for gray-only and 95% for binary-only — clearly the strongest
+    # individual on pul.
+    cnn_2ch_available = (
+        bool(_load_cnn_2ch()) and gray_img is not None and label == "pul"
+    )
     digits: list[int | str] = []
     max_h, max_w = input_img.shape[:2]
     expand = params.bbox_expand_px
@@ -1662,19 +2288,33 @@ def recognize_digits_template_method(
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 200, 200), 2,
                 )
             continue
-        # Symmetric majority vote: KNN + CNN-2ch each contribute one vote.
-        # Agreement → consensus; otherwise CNN-2ch wins the tiebreak
-        # (highest standalone val_acc on the teammate's TEST split).
-        # Falls back to template matching when no classifier produced a
-        # confident-enough integer prediction.
+        # Symmetric majority vote (best empirically — confidence-weighted
+        # variant regressed sys/dia by ~0.5pp because over-confident wrong
+        # predictions overrode 2 correct ones). When no majority, fall
+        # back to the most reliable classifier in priority order.
         candidates_pred: list[int] = []
+        cnn_pick: int | str = "*"
+        cnn_gray_pick: int | str = "*"
         cnn_2ch_pick: int | str = "*"
         knn_pick: int | str = "*"
 
-        knn_d, _ = classify_by_knn(roi, label=label, brand=brand)
-        if isinstance(knn_d, int):
-            candidates_pred.append(knn_d)
-        knn_pick = knn_d
+        if knn_available:
+            knn_d, _ = _classify_by_knn(roi, label=label, brand=brand)
+            if isinstance(knn_d, int):
+                candidates_pred.append(knn_d)
+            knn_pick = knn_d
+        if lr_available:
+            lr_d, _ = _classify_by_lr(roi, label=label, family="lr", min_proba=0.0)
+            if isinstance(lr_d, int):
+                candidates_pred.append(lr_d)
+            mlp_d, _ = _classify_by_lr(roi, label=label, family="mlp", min_proba=0.0)
+            if isinstance(mlp_d, int):
+                candidates_pred.append(mlp_d)
+        if cnn_available:
+            cnn_d, _ = _classify_by_cnn(roi, label=label, brand=brand, min_proba=0.0)
+            if isinstance(cnn_d, int):
+                candidates_pred.append(cnn_d)
+            cnn_pick = cnn_d
 
         gray_roi = None
         if gray_img is not None:
@@ -1683,14 +2323,19 @@ def recognize_digits_template_method(
             gx1, gy1 = min(gw, x1), min(gh, y1)
             gray_roi = gray_img[gy0:gy1, gx0:gx1]
 
-        if gray_roi is not None:
-            cnn_2_d, _ = classify_by_cnn_2ch(roi, gray_roi, label=label, min_proba=0.0)
+        if cnn_gray_available and gray_roi is not None:
+            cnn_g_d, _ = _classify_by_cnn_gray(gray_roi, label=label, min_proba=0.0)
+            if isinstance(cnn_g_d, int):
+                candidates_pred.append(cnn_g_d)
+            cnn_gray_pick = cnn_g_d
+        if cnn_2ch_available and gray_roi is not None:
+            cnn_2_d, _ = _classify_by_cnn_2ch(roi, gray_roi, label=label, min_proba=0.0)
             if isinstance(cnn_2_d, int):
                 candidates_pred.append(cnn_2_d)
             cnn_2ch_pick = cnn_2_d
 
         if not candidates_pred:
-            digit, _ = classify_by_template(roi, label=label)
+            digit, _ = _classify_by_template(roi, label=label)
         else:
             from collections import Counter as _Counter
             counts = _Counter(candidates_pred)
@@ -1699,6 +2344,10 @@ def recognize_digits_template_method(
                 digit = top_d
             elif isinstance(cnn_2ch_pick, int):
                 digit = cnn_2ch_pick           # 2-ch has highest val_acc
+            elif isinstance(cnn_gray_pick, int):
+                digit = cnn_gray_pick
+            elif isinstance(cnn_pick, int):
+                digit = cnn_pick
             elif isinstance(knn_pick, int):
                 digit = knn_pick
             else:
@@ -2116,7 +2765,6 @@ def read_digits_with_rule_engine(
     expected_label: str | None = None,
     debug: bool = False,
     brand_hint: str = "",
-    use_classifiers: bool = True,
 ) -> dict[str, Any]:
     """Run the rule-based 7-segment OCR engine on a single ROI.
 
@@ -2126,7 +2774,6 @@ def read_digits_with_rule_engine(
     is the only way to inform brand-specific candidate selection; pass
     "" to use the default candidate set.
     """
-    image_path: Path | None = None
     if isinstance(image, np.ndarray):
         image_bgr = image
         brand = brand_hint
@@ -2137,7 +2784,7 @@ def read_digits_with_rule_engine(
             raise FileNotFoundError(f"Unable to read image: {image_path}")
         # Brand prefix is metadata, not target — extracting from filename
         # is safe (a real deployment knows the meter model from device pairing).
-        brand = brand_hint or detect_brand(image_path.name)
+        brand = brand_hint or _detect_brand(image_path.name)
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
 
     primary_params = get_params_for_label(expected_label)
@@ -2188,14 +2835,12 @@ def read_digits_with_rule_engine(
         methods.append("line")
     if "area" not in methods:
         methods.append("area")
-    # Template matching is the only method that uses the ONNX CNN / numpy
-    # KNN classifier ensemble (via the "template" recognise method). When
-    # ``use_classifiers`` is False (the ``ssocr`` engine for M2.2's
-    # rule-vs-CNN A/B), exclude it entirely so the trial scorer only sees
-    # purely rule-based line/area outputs. cnn_classifiers caches its
-    # loads internally and returns "*" gracefully when a bundle is
-    # missing, so the historical pre-flight check is no longer needed.
-    if use_classifiers and "template" not in methods:
+    # Template matching only contributes when at least one classifier is
+    # loadable (mean templates / K-NN exemplars / LR). Otherwise the
+    # recognise method returns "*" and the trial scorer rejects it.
+    if (
+        _load_templates() or _load_knn_data() or _load_lr_classifier()
+    ) and "template" not in methods:
         methods.append("template")
 
     trials: list[dict[str, Any]] = []
@@ -2222,7 +2867,7 @@ def read_digits_with_rule_engine(
     scene_tag = _scene_tag(image_bgr)
 
     return {
-        "image_path": str(image_path) if image_path is not None else None,
+        "image_path": str(image_path),
         "gray": gray,
         "binary": best["binary"],
         "annotated": best["annotated"],
@@ -2266,23 +2911,15 @@ class SSOCREngine:
             class isn't known at OCR time.
         prefer_method: ``"line" | "area" | "template"``. The recognition
             strategy tried first; others run as fallbacks.
-        use_classifiers: when False, disables the "template" recognition
-            method (the only path that calls into cnn_classifiers — CNN
-            ONNX + numpy KNN + template matching). This is the seam that
-            distinguishes the M2.2 ``ssocr`` engine (rule-only baseline)
-            from the ``ssocr_cnn`` engine (full ensemble) — same code,
-            different capability budget.
     """
 
     def __init__(
         self,
         expected_label: str | None = None,
         prefer_method: str = "line",
-        use_classifiers: bool = True,
     ) -> None:
         self._expected_label = expected_label
         self._prefer_method = prefer_method
-        self._use_classifiers = use_classifiers
 
     def read(self, image: np.ndarray) -> OCRResult:
         try:
@@ -2291,10 +2928,8 @@ class SSOCREngine:
                 prefer_method=self._prefer_method,
                 expected_label=self._expected_label,
                 debug=False,
-                use_classifiers=self._use_classifiers,
             )
         except Exception:
-            logger.exception("ssocr crashed on %s", self._expected_label)
             # OCR failures must not propagate — pipeline expects empty result.
             return OCRResult(text="", confidence=0.0)
 
