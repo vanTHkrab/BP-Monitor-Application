@@ -14,19 +14,26 @@ export interface AnalysisResult {
   roiImageUrl: string | null;
   rawText: string | null;
   status: BPReadingStatus;
+  // ONNX export date (YYYY-MM-DD) of the YOLO detector that produced this
+  // reading. Nullable for jobs enqueued before ai-service started sending it.
+  modelVersion: string | null;
 }
 
 // What the gateway enqueues to BullMQ for the AI worker to consume.
-// s3Key replaces the previous imageBase64 payload — the image lives in S3
-// and ai-service fetches it from there.
+// s3Key is the canonical reference; imageUrl is a presigned GET URL the
+// worker generates at enqueue time so ai-service can fetch the bytes
+// without holding S3 credentials of its own.
 export interface AnalysisJobPayload {
   jobId: string;
   userId: string;
   s3Key: string;
+  imageUrl: string;
   mimeType: string;
 }
 
-// Shape returned by the Redis-backed AI service.
+// Shape returned by the Redis-backed AI service. ``model_version`` and
+// ``status`` are additive (ai-service started sending them when the real
+// pipeline replaced the stub — older payloads omit them).
 export interface AiServiceAnalysisResponse {
   confidence: number;
   systolic: number;
@@ -34,5 +41,7 @@ export interface AiServiceAnalysisResponse {
   pulse: number;
   roi_image_url?: string | null;
   raw_text?: string | null;
+  model_version?: string | null;
+  status?: BPReadingStatus;
   error?: string;
 }

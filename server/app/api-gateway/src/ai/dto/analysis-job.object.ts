@@ -28,6 +28,12 @@ export class AnalysisResultObject {
 
   @Field(() => String)
   status: string; // 'success' | 'low_confidence' | 'unreadable'
+
+  // ONNX export date (YYYY-MM-DD) of the YOLO detector. Surfaced for
+  // client-side traceability — "which model produced this reading?" — so
+  // an OCR regression can be linked to a specific retrain.
+  @Field(() => String, { nullable: true })
+  modelVersion?: string | null;
 }
 
 @ObjectType('AnalysisJob')

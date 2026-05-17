@@ -26,7 +26,7 @@ export class AiProcessor extends WorkerHost {
     }
 
     const payload = this.parseJobPayload(job.data as unknown);
-    const { jobId, userId, s3Key, mimeType } = payload;
+    const { jobId, userId, s3Key, imageUrl, mimeType } = payload;
     this.logger.log(
       `Processing job ${jobId} for user ${userId} s3Key=${s3Key}`,
     );
@@ -38,6 +38,7 @@ export class AiProcessor extends WorkerHost {
             jobId,
             userId,
             s3Key,
+            imageUrl,
             mimeType,
           })
           .pipe(timeout(55_000)),
@@ -67,7 +68,12 @@ export class AiProcessor extends WorkerHost {
         confidence,
         roiImageUrl: data.roi_image_url ?? null,
         rawText: data.raw_text ?? null,
-        status: this.toAnalysisStatus(readings, confidence),
+        // Trust ai-service's status when it sends one (the real pipeline
+        // applies cross-field rules like sys > dia that the gateway can't
+        // re-derive from confidence alone). Fall back to local derivation
+        // for backward compatibility with payloads that omit the field.
+        status: data.status ?? this.toAnalysisStatus(readings, confidence),
+        modelVersion: data.model_version ?? null,
       };
 
       this.logger.log(`Job ${jobId} done with confidence ${confidence}`);
@@ -100,6 +106,7 @@ export class AiProcessor extends WorkerHost {
     }
 
     const payload = value as Record<string, unknown>;
+    const status = this.parseStatus(payload.status);
 
     return {
       confidence:
@@ -114,8 +121,24 @@ export class AiProcessor extends WorkerHost {
           ? payload.roi_image_url
           : null,
       raw_text: typeof payload.raw_text === 'string' ? payload.raw_text : null,
+      model_version:
+        typeof payload.model_version === 'string'
+          ? payload.model_version
+          : null,
+      status,
       error: typeof payload.error === 'string' ? payload.error : undefined,
     };
+  }
+
+  private parseStatus(value: unknown): BPReadingStatus | undefined {
+    if (
+      value === 'success' ||
+      value === 'low_confidence' ||
+      value === 'unreadable'
+    ) {
+      return value;
+    }
+    return undefined;
   }
 
   private parseJobPayload(value: unknown): AnalysisJobPayload {
@@ -124,17 +147,18 @@ export class AiProcessor extends WorkerHost {
     }
 
     const payload = value as Record<string, unknown>;
-    const { jobId, userId, s3Key, mimeType } = payload;
+    const { jobId, userId, s3Key, imageUrl, mimeType } = payload;
 
     if (
       typeof jobId !== 'string' ||
       typeof userId !== 'string' ||
       typeof s3Key !== 'string' ||
+      typeof imageUrl !== 'string' ||
       typeof mimeType !== 'string'
     ) {
       throw new Error('AI queue payload is missing required fields');
     }
 
-    return { jobId, userId, s3Key, mimeType };
+    return { jobId, userId, s3Key, imageUrl, mimeType };
   }
 }
