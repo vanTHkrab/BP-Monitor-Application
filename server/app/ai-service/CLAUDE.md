@@ -24,7 +24,7 @@ contract is stable — the stub stays valid until the real pipeline lands.
 | `src/ai_service/main.py` | actual FastAPI app + Redis subscriber/publisher; stub `build_mock_response()` lives here |
 | `src/ai_service/__init__.py` | package marker (empty) |
 | `tests/test_main.py` | pytest-asyncio tests for `handle_message`, `reply`, `reply_error` |
-| `pyproject.toml` | `uv` deps (`fastapi[standard]`, `redis`, dev: `pytest`, `pytest-asyncio`) |
+| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
 | `Dockerfile` | container build for prod/staging |
 | `PLAN.md` | roadmap for real OCR pipeline |
 

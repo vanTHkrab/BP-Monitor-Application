@@ -3,6 +3,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock* ./
 RUN uv sync --frozen || uv sync
+COPY models/ ./models/
 
 FROM base AS dev
 COPY . .
