@@ -116,10 +116,15 @@ export const resolveImageUri = async (
     });
     return target.uri;
   } catch (error) {
-    logWarn("ImageCache", "download failed; using remote URI", error, {
+    // The URL is one of ours but we couldn't fetch it — almost always
+    // means the 10-minute signed URL has already expired. Returning the
+    // remote URI would just let <Image> hit it again and re-fail; return
+    // undefined so the consumer (useResolvedImageUri) re-renders into
+    // the fallback slot instead of staying stuck on a stale URL.
+    logWarn("ImageCache", "download failed; surfacing fallback", error, {
       s3Key,
     });
-    return remoteUri;
+    return undefined;
   }
 };
 

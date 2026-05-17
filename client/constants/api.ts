@@ -298,10 +298,16 @@ export async function graphqlRequest<T = unknown>(
       const msg = formatGqlErrors(json.errors);
       const retryAfterSec = readRetryAfter(firstError);
       if (__DEV__) {
+        // Surface the gateway's class-validator constraint array (lifted
+        // into extensions.validationErrors by errorFormatter in dev mode)
+        // so the offending field is visible without tailing server stdout.
+        const validationErrors = firstError?.extensions?.validationErrors;
         console.warn(`[GraphQL] ${operationName} GraphQL error`, {
           code,
           retryAfterSec,
           message: msg,
+          validationErrors,
+          variables,
         });
       }
       handleAuthFailure(code);
