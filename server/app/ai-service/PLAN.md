@@ -170,7 +170,7 @@ with global env):
 
 | Env var | Default | Notes |
 | --- | --- | --- |
-| `AI_MODEL_PATH` | `models/yolo12n.onnx` (relative to `ai-service/`) | resolved against `Path(__file__).resolve().parents[2]`, not `os.getcwd()` |
+| `AI_DETECTOR_PATH` | `models/yolo12n.onnx` (relative to `ai-service/`) | resolved against `Path(__file__).resolve().parents[2]`, not `os.getcwd()`. Renamed from `AI_MODEL_PATH` to avoid pydantic v2's protected `model_*` namespace and to leave room for a separate OCR-model env var later. |
 | `AI_OCR_ENGINE` | `ssocr` | switch for future engines |
 | `AI_DEVICE_MODE` | `cpu` | `cpu` \| `cuda` (requires `onnxruntime-gpu`) |
 | `AI_CONFIDENCE_THRESHOLD` | `0.5` | YOLO box confidence floor |
