@@ -39,6 +39,19 @@ const getMimeTypeFromUri = (uri: string) => {
 export const isRemoteImageUri = (uri?: string | null) =>
   Boolean(uri && /^https?:\/\//i.test(uri));
 
+// Thrown when the local file URI can't be read — typically because the
+// device cache that held the captured image was evicted between save and
+// sync. Callers (e.g. the offline-queue sync) use this to drop the image
+// and proceed with the rest of the record instead of retrying forever.
+export class LocalImageMissingError extends Error {
+  readonly uri: string;
+  constructor(uri: string) {
+    super(`Local image not readable: ${uri}`);
+    this.name = "LocalImageMissingError";
+    this.uri = uri;
+  }
+}
+
 /**
  * Upload an image directly to S3 via a presigned URL.
  *
@@ -79,11 +92,21 @@ export const uploadImageViaPresign = async ({
       webBytes = await new File(uri).bytes();
       size = webBytes.byteLength;
     } else {
-      size = new File(uri).size;
+      // `File#size` returns `number | null` — null when the path can't be
+      // stat'd (file evicted, never existed, sandbox path stale).
+      const native = new File(uri).size;
+      if (native == null) throw new LocalImageMissingError(uri);
+      size = native;
     }
   } catch (error) {
-    console.error(`[S3 presign] file-read-failed kind=${kind} uri=${uri}`, error);
-    throw error;
+    if (error instanceof LocalImageMissingError) throw error;
+    console.warn(`[S3 presign] file-read-failed kind=${kind} uri=${uri}`, error);
+    throw new LocalImageMissingError(uri);
+  }
+
+  if (!Number.isFinite(size) || size <= 0) {
+    console.warn(`[S3 presign] file-empty kind=${kind} uri=${uri} size=${size}`);
+    throw new LocalImageMissingError(uri);
   }
 
   console.log(
