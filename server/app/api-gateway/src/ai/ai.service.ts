@@ -9,6 +9,7 @@ import { Job, Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import type { BpStatus } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { S3StorageClient } from '../storage/s3-storage.client';
 import { ImageKind, isFinalKeyOwnedBy } from '../storage/types/storage.types';
 import { AnalysisJobObject } from './dto/analysis-job.object';
 import { SubmitBPReadingInput } from './dto/submit-bp-reading.input';
@@ -19,6 +20,12 @@ export const AI_JOB_ANALYZE = 'analyze-bp-image';
 
 const RETAIN_COMPLETED_SECONDS = 60 * 60; // 1 hour
 const RETAIN_FAILED_SECONDS = 24 * 60 * 60; // 24 hours
+
+// Presigned GET URL lifetime. Long enough to cover BullMQ retry backoff
+// (3 attempts at 2 s exponential) plus ai-service inference (~5-10 s)
+// with comfortable headroom; short enough that a leaked URL expires
+// before it's useful for replay.
+const IMAGE_URL_TTL_SECONDS = 600;
 
 // Keep thresholds in sync with client status labeling to avoid mismatched badges.
 function toBpStatus(systolic: number, diastolic: number): BpStatus {
@@ -45,12 +52,16 @@ export class AiService {
     @InjectQueue(AI_QUEUE)
     private readonly aiQueue: Queue<AnalysisJobPayload, AnalysisResult>,
     private readonly prisma: PrismaService,
+    private readonly s3: S3StorageClient,
   ) {}
 
   /**
    * Enqueue analysis for an image already present in S3 (presigned flow).
    * The caller must have run requestImageUpload + confirmImageUpload before
-   * calling this; the key is verified to belong to the user.
+   * calling this; the key is verified to belong to the user. A short-lived
+   * presigned GET URL is generated and embedded in the job payload so the
+   * ai-service worker can fetch the image without holding S3 credentials
+   * of its own.
    */
   async enqueueFromKey(
     s3Key: string,
@@ -58,7 +69,14 @@ export class AiService {
     userId: string,
   ): Promise<AnalysisJobObject> {
     this.assertBPKeyOwnedBy(userId, s3Key);
-    return this.enqueue({ jobId: randomUUID(), userId, s3Key, mimeType });
+    const imageUrl = await this.s3.presignGet(s3Key, IMAGE_URL_TTL_SECONDS);
+    return this.enqueue({
+      jobId: randomUUID(),
+      userId,
+      s3Key,
+      imageUrl,
+      mimeType,
+    });
   }
 
   private async enqueue(
@@ -228,6 +246,7 @@ export class AiService {
       roiImageUrl: parsed.roiImageUrl ?? null,
       rawText: parsed.rawText ?? null,
       status,
+      modelVersion: parsed.modelVersion ?? null,
     };
   }
 }

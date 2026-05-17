@@ -122,9 +122,14 @@ pnpm prisma migrate dev       # apply pending migrations
 - The web dashboard hits the same GraphQL endpoint. Any breaking schema
   change ships to two clients.
 - The AI service expects payloads on the Redis channel `analyze_bp_image`
-  with the shape produced by `src/ai/ai.service.ts`; replies come back on
-  `analyze_bp_image.reply` and are consumed there too. The Python side
-  mirrors this contract in [ai-service/src/ai_service/main.py](../../ai-service/src/ai_service/main.py)
+  with the shape produced by `src/ai/ai.process.ts` (`{ jobId, userId,
+  s3Key, imageUrl, mimeType }` — `imageUrl` is a presigned GET URL that
+  `AiService.enqueueFromKey` generates via `S3StorageClient.presignGet`
+  at enqueue time, valid for 10 minutes). Replies come back on
+  `analyze_bp_image.reply` and are consumed in `ai.process.ts` too
+  (`{ confidence, systolic, diastolic, pulse, raw_text, roi_image_url,
+  model_version, status }`). The Python side mirrors this contract in
+  [ai-service/src/ai_service/handlers.py](../../ai-service/src/ai_service/handlers.py)
   — changing one side requires updating the other.
 
 ## Pointers

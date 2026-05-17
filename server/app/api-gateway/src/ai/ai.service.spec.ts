@@ -9,14 +9,21 @@ jest.mock('../prisma/prisma.service', () => ({
 }));
 
 import { PrismaService } from '../prisma/prisma.service';
+import { S3StorageClient } from '../storage/s3-storage.client';
 import { AI_QUEUE, AiService } from './ai.service';
 
 describe('AiService', () => {
   let service: AiService;
   let queue: { add: jest.Mock; getJob: jest.Mock };
+  let s3: { presignGet: jest.Mock };
 
   beforeEach(async () => {
     queue = { add: jest.fn().mockResolvedValue(undefined), getJob: jest.fn() };
+    s3 = {
+      presignGet: jest
+        .fn()
+        .mockResolvedValue('https://example.com/presigned?sig=fake'),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -26,6 +33,7 @@ describe('AiService', () => {
           provide: PrismaService,
           useValue: { bloodPressureReading: { create: jest.fn() } },
         },
+        { provide: S3StorageClient, useValue: s3 },
       ],
     }).compile();
 
@@ -39,25 +47,30 @@ describe('AiService', () => {
   describe('enqueueFromKey', () => {
     const validKey = 'users/user-1/bp/readings/2026-05/abc.jpg';
 
-    it('enqueues job with s3Key payload', async () => {
+    it('presigns the s3 key and enqueues job with imageUrl in payload', async () => {
       const result = await service.enqueueFromKey(
         validKey,
         'image/jpeg',
         'user-1',
       );
+      expect(s3.presignGet).toHaveBeenCalledWith(validKey, 600);
       expect(queue.add).toHaveBeenCalledTimes(1);
       const [, payload] = queue.add.mock.calls[0];
       expect(payload.s3Key).toBe(validKey);
       expect(payload.userId).toBe('user-1');
       expect(payload.mimeType).toBe('image/jpeg');
+      expect(payload.imageUrl).toBe('https://example.com/presigned?sig=fake');
       expect(result.status).toBe('pending');
     });
 
-    it('rejects keys owned by another user', async () => {
+    it('rejects keys owned by another user before presigning', async () => {
       const otherKey = 'users/user-2/bp/readings/2026-05/abc.jpg';
       await expect(
         service.enqueueFromKey(otherKey, 'image/jpeg', 'user-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
+      // Ownership check must run BEFORE we hand the key to the presigner —
+      // otherwise we leak the existence of another user's keys via 200/404 differences.
+      expect(s3.presignGet).not.toHaveBeenCalled();
       expect(queue.add).not.toHaveBeenCalled();
     });
 
@@ -66,6 +79,7 @@ describe('AiService', () => {
       await expect(
         service.enqueueFromKey(wrongFeature, 'image/jpeg', 'user-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(s3.presignGet).not.toHaveBeenCalled();
     });
 
     it('rejects keys with path traversal', async () => {
@@ -73,6 +87,7 @@ describe('AiService', () => {
       await expect(
         service.enqueueFromKey(badKey, 'image/jpeg', 'user-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(s3.presignGet).not.toHaveBeenCalled();
     });
   });
 });

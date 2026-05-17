@@ -25,7 +25,7 @@ import type {
   ReadingsQuery,
 } from "@/types/graphql";
 import { resolveImageUri } from "@/utils/image-cache";
-import { uploadImageViaPresign } from "@/utils/upload-image";
+import { LocalImageMissingError, uploadImageViaPresign } from "@/utils/upload-image";
 import type { StateCreator } from "zustand";
 import {
   createClientId,
@@ -400,11 +400,22 @@ export const createReadingsSlice: StateCreator<
           try {
             let imageUri = row.imageUri ?? null;
             if (imageUri && !/^https?:\/\//i.test(imageUri)) {
-              imageUri = await uploadImageViaPresign({
-                uri: imageUri,
-                kind: "blood-pressure",
-                token,
-              });
+              try {
+                imageUri = await uploadImageViaPresign({
+                  uri: imageUri,
+                  kind: "blood-pressure",
+                  token,
+                });
+              } catch (error) {
+                if (!(error instanceof LocalImageMissingError)) throw error;
+                logWarn(
+                  "Sync",
+                  "local image missing for pending reading; syncing BP values without image",
+                  error,
+                  { localId: row.id, clientId: row.clientId, uri: imageUri },
+                );
+                imageUri = null;
+              }
             }
 
             const result = await graphqlRequest<CreateReadingMutation>(
