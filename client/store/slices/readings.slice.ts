@@ -24,6 +24,7 @@ import type {
   ReadingGql,
   ReadingsQuery,
 } from "@/types/graphql";
+import { resolveImageUri } from "@/utils/image-cache";
 import { uploadImageViaPresign } from "@/utils/upload-image";
 import type { StateCreator } from "zustand";
 import {
@@ -40,6 +41,19 @@ import {
   sortReadingsDesc,
 } from "../shared/mappers";
 import type { AppState } from "../use-app-store";
+
+// Fire-and-forget image cache primer. The server hands back a 10-minute
+// signed GET URL; if we wait until the user opens the detail-modal that
+// URL is often expired and the download fails permanently. By calling
+// this right after a row enters SQLite (sync, create, fetch) we cache
+// while the URL is still valid. resolveImageUri is a no-op when a fresh
+// cache entry already exists, so calling it per-row in fetchReadings
+// stays cheap.
+const prewarmImageCache = (uri: string | null | undefined): void => {
+  if (!uri) return;
+  if (!/^https?:\/\//i.test(uri)) return;
+  void resolveImageUri(uri).catch(() => {});
+};
 
 // Mirror a server row into the SQLite cache. Best-effort: a failed write
 // just means the row won't survive a kill before the next fetch — not a
@@ -64,6 +78,7 @@ const cacheRemoteReading = async (
         ? new Date(gql.createdAt).toISOString()
         : new Date().toISOString(),
     });
+    prewarmImageCache(gql.s3Key);
   } catch (error) {
     logWarn("Readings", "cacheRemoteReading failed", error, {
       remoteId: gql.id,
@@ -297,6 +312,7 @@ export const createReadingsSlice: StateCreator<
           Number(remote.id),
           remote.s3Key ?? null,
         );
+        prewarmImageCache(remote.s3Key);
         set((state) => ({
           readings: sortReadingsDesc(
             state.readings.map((r) =>
@@ -415,6 +431,7 @@ export const createReadingsSlice: StateCreator<
               Number(remote.id),
               remote.s3Key ?? null,
             );
+            prewarmImageCache(remote.s3Key);
             set((state) => ({
               readings: sortReadingsDesc(
                 state.readings.map((r) =>

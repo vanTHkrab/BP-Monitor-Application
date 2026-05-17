@@ -23,11 +23,14 @@ export const useResolvedImageUri = (
     };
     resolveImageUri(remoteUri)
       .then((next) => {
-        if (active && next) setResolved(next);
+        // Replace state even when `next` is undefined — that's the cache
+        // signaling "download failed, don't keep showing the stale URL"
+        // so the consumer can fall through to its fallback UI.
+        if (active) setResolved(next);
       })
       .catch(() => {
-        // resolveImageUri logs internally and returns the remote URI on
-        // failure; if it threw anyway, keep whatever we already have.
+        // resolveImageUri logs internally; if it threw anyway, leave the
+        // last good URI in place rather than blanking the image.
       });
     return () => {
       active = false;

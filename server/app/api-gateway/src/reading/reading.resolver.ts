@@ -9,8 +9,17 @@ import {
   Query,
   Resolver,
 } from '@nestjs/graphql';
+import {
+  IsDate,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { GqlAuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { BpStatus } from '../prisma/generated/enums';
 import { StorageService } from '../storage/storage.service';
 import { ReadingService } from './reading.service';
 
@@ -31,14 +40,46 @@ export class ReadingType {
 
 @InputType()
 export class CreateReadingInput {
-  @Field(() => Int) systolic: number;
-  @Field(() => Int) diastolic: number;
-  @Field(() => Int) pulse: number;
-  @Field() status: string;
-  @Field() measuredAt: Date;
-  @Field({ nullable: true }) clientId?: string;
-  @Field({ nullable: true }) s3Key?: string;
-  @Field({ nullable: true }) notes?: string;
+  // Every field needs a class-validator decorator alongside @Field — the
+  // global ValidationPipe runs with `whitelist: true` + `forbidNonWhitelisted: true`
+  // and strips / 400s any property the validator doesn't know about.
+  @Field(() => Int)
+  @IsInt()
+  systolic: number;
+
+  @Field(() => Int)
+  @IsInt()
+  diastolic: number;
+
+  @Field(() => Int)
+  @IsInt()
+  pulse: number;
+
+  @Field()
+  @IsEnum(BpStatus)
+  status: string;
+
+  @Field()
+  @IsDate()
+  measuredAt: Date;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  clientId?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  s3Key?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
 }
 
 @Resolver()
