@@ -68,16 +68,6 @@ export class AnalysisResultObject {
   // an OCR regression can be linked to a specific retrain.
   @Field(() => String, { nullable: true })
   modelVersion?: string | null;
-
-  // OCR engine that handled this request — ``crnn`` / ``ssocr_cnn`` /
-  // ``ssocr``. Nullable for backward compatibility with pre-M2.2 replies
-  // and for the dev chip to hide itself when production traffic returns
-  // no engine field.
-  @Field(() => String, { nullable: true })
-  engine?: string | null;
-
-  @Field(() => AnalysisMetricsObject, { nullable: true })
-  metrics?: AnalysisMetricsObject | null;
 }
 
 @ObjectType('AnalysisJob')

@@ -36,7 +36,7 @@ export class AiProcessor extends WorkerHost {
     }
 
     const payload = this.parseJobPayload(job.data as unknown);
-    const { jobId, userId, s3Key, imageUrl, mimeType, ocrEngine } = payload;
+    const { jobId, userId, s3Key, imageUrl, mimeType } = payload;
     this.logger.log(
       `Processing job ${jobId} for user ${userId} s3Key=${s3Key} engine=${ocrEngine ?? '(default)'}`,
     );
@@ -91,8 +91,6 @@ export class AiProcessor extends WorkerHost {
         // for backward compatibility with payloads that omit the field.
         status: data.status ?? this.toAnalysisStatus(readings, confidence),
         modelVersion: data.model_version ?? null,
-        engine: data.engine ?? null,
-        metrics,
       };
 
       // Write imageQualityScore back to the Image row keyed by s3Key.
@@ -190,8 +188,6 @@ export class AiProcessor extends WorkerHost {
 
     const payload = value as Record<string, unknown>;
     const status = this.parseStatus(payload.status);
-    const engine = this.parseEngine(payload.engine);
-    const metrics = this.parseMetrics(payload.metrics, engine);
 
     return {
       confidence:
@@ -211,13 +207,6 @@ export class AiProcessor extends WorkerHost {
           ? payload.model_version
           : null,
       status,
-      engine,
-      metrics,
-      image_quality_score:
-        typeof payload.image_quality_score === 'number' &&
-        Number.isFinite(payload.image_quality_score)
-          ? payload.image_quality_score
-          : null,
       error: typeof payload.error === 'string' ? payload.error : undefined,
     };
   }
@@ -233,61 +222,13 @@ export class AiProcessor extends WorkerHost {
     return undefined;
   }
 
-  private parseEngine(value: unknown): OcrEngine | null {
-    if (typeof value !== 'string') return null;
-    return (OCR_ENGINES as readonly string[]).includes(value)
-      ? (value as OcrEngine)
-      : null;
-  }
-
-  /**
-   * ``metrics`` is a flat dict on the wire. We accept it when every required
-   * numeric field is present and finite; partial / malformed metrics are
-   * dropped so the result still surfaces without bogus telemetry rows.
-   * ``engine`` from the parsed payload backfills the metrics object's
-   * own engine field — they're produced together by ai-service.
-   */
-  private parseMetrics(
-    value: unknown,
-    engine: OcrEngine | null,
-  ): AiServiceAnalysisMetrics | null {
-    if (!value || typeof value !== 'object' || !engine) return null;
-    const m = value as Record<string, unknown>;
-    const numericKeys = [
-      'fetch_ms',
-      'detect_ms',
-      'ocr_ms',
-      'validate_ms',
-      'total_ms',
-      'rss_before_mb',
-      'rss_after_mb',
-      'rss_delta_mb',
-      'image_size_bytes',
-    ] as const;
-    for (const key of numericKeys) {
-      if (typeof m[key] !== 'number' || !Number.isFinite(m[key])) return null;
-    }
-    return {
-      engine,
-      fetch_ms: m.fetch_ms as number,
-      detect_ms: m.detect_ms as number,
-      ocr_ms: m.ocr_ms as number,
-      validate_ms: m.validate_ms as number,
-      total_ms: m.total_ms as number,
-      rss_before_mb: m.rss_before_mb as number,
-      rss_after_mb: m.rss_after_mb as number,
-      rss_delta_mb: m.rss_delta_mb as number,
-      image_size_bytes: m.image_size_bytes as number,
-    };
-  }
-
   private parseJobPayload(value: unknown): AnalysisJobPayload {
     if (!value || typeof value !== 'object') {
       throw new Error('AI queue payload is invalid');
     }
 
     const payload = value as Record<string, unknown>;
-    const { jobId, userId, s3Key, imageUrl, mimeType, ocrEngine } = payload;
+    const { jobId, userId, s3Key, imageUrl, mimeType } = payload;
 
     if (
       typeof jobId !== 'string' ||
@@ -299,19 +240,6 @@ export class AiProcessor extends WorkerHost {
       throw new Error('AI queue payload is missing required fields');
     }
 
-    const parsed: AnalysisJobPayload = {
-      jobId,
-      userId,
-      s3Key,
-      imageUrl,
-      mimeType,
-    };
-    if (
-      typeof ocrEngine === 'string' &&
-      (OCR_ENGINES as readonly string[]).includes(ocrEngine)
-    ) {
-      parsed.ocrEngine = ocrEngine as OcrEngine;
-    }
-    return parsed;
+    return { jobId, userId, s3Key, imageUrl, mimeType };
   }
 }
