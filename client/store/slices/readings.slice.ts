@@ -26,7 +26,7 @@ import type {
   ReadingsQuery,
 } from "@/types/graphql";
 import { resolveImageUri } from "@/utils/image-cache";
-import { uploadImageViaPresign } from "@/utils/upload-image";
+import { LocalImageMissingError, uploadImageViaPresign } from "@/utils/upload-image";
 import type { StateCreator } from "zustand";
 import {
   createClientId,
@@ -420,24 +420,13 @@ export const createReadingsSlice: StateCreator<
         for (const row of pending) {
           try {
             let imageUri = row.imageUri ?? null;
-            // Resume from a half-completed sync: if the previous attempt
-            // confirmed the upload (imageId set) but the create mutation
-            // failed, skip re-upload — that would mint a second Image row
-            // and orphan the first in S3.
-            let imageId: number | null = row.imageId ?? null;
-            if (imageUri && !/^https?:\/\//i.test(imageUri) && imageId == null) {
+            if (imageUri && !/^https?:\/\//i.test(imageUri)) {
               try {
-                const uploaded = await uploadImageViaPresign({
+                imageUri = await uploadImageViaPresign({
                   uri: imageUri,
                   kind: "blood-pressure",
                   token,
                 });
-                imageUri = uploaded.url;
-                imageId = uploaded.imageId;
-                // Persist before the mutation so a crash here doesn't
-                // re-upload on the next sync. updatePendingReadingImage
-                // also flips syncStatus from 'pending-image' → 'pending'.
-                await updatePendingReadingImage(row.id, { imageUri, imageId });
               } catch (error) {
                 if (!(error instanceof LocalImageMissingError)) throw error;
                 logWarn(
@@ -447,7 +436,6 @@ export const createReadingsSlice: StateCreator<
                   { localId: row.id, clientId: row.clientId, uri: imageUri },
                 );
                 imageUri = null;
-                imageId = null;
               }
             }
 

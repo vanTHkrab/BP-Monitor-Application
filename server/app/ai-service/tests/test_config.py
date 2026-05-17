@@ -34,14 +34,8 @@ class TestDefaults:
             f"Bundled model missing at default path: {cfg.detector_path}"
         )
 
-    def test_default_engine_is_crnn(self):
-        assert AnalyzerConfig().default_engine == OCREngine.CRNN
-
-    def test_models_dir_anchors_to_ai_service_root(self):
-        assert AnalyzerConfig().models_dir == AI_SERVICE_ROOT / "models"
-
-    def test_crnn_path_anchors_to_models_dir(self):
-        assert AnalyzerConfig().crnn_path == AI_SERVICE_ROOT / "models" / "crnn_int8.onnx"
+    def test_default_ocr_engine(self):
+        assert AnalyzerConfig().ocr_engine == OCREngine.SSOCR
 
     def test_default_device_mode(self):
         assert AnalyzerConfig().device_mode == DeviceMode.CPU
@@ -96,7 +90,7 @@ class TestValidators:
             ("AI_CONFIDENCE_THRESHOLD", "1.5"),    # > 1.0
             ("AI_CONFIDENCE_THRESHOLD", "-0.1"),   # < 0.0
             ("AI_DEVICE_MODE", "tpu"),             # not in enum
-            ("AI_DEFAULT_ENGINE", "easyocr"),      # not in enum
+            ("AI_OCR_ENGINE", "easyocr"),          # not in enum
             ("AI_PIPELINE_TIMEOUT_S", "-1"),       # not > 0
             ("AI_PIPELINE_TIMEOUT_S", "0"),        # not > 0 (strict)
         ],

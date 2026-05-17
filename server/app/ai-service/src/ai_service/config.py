@@ -31,18 +31,10 @@ class DeviceMode(StrEnum):
 
 
 class OCREngine(StrEnum):
-    """OCR engine selector — keys into the engine registry built in lifespan.
+    """OCR engine selector — branches `build_ocr_reader()` in the pipeline."""
 
-    Three engines are loaded side-by-side in M2.2's comparison phase:
-
-    * ``CRNN`` — trained 7-seg CRNN, ONNX int8 (~30 ms/image, 91-94% acc)
-    * ``SSOCR_CNN`` — rule engine + ONNX CNN distilled + numpy KNN + template
-    * ``SSOCR`` — rule engine only (line/area methods, no classifier ensemble)
-    """
-
-    CRNN = "crnn"
-    SSOCR_CNN = "ssocr_cnn"
     SSOCR = "ssocr"
+    # Future: PADDLE = "paddle", TESSERACT = "tesseract", ...
 
 
 class AnalyzerConfig(BaseSettings):
@@ -63,26 +55,14 @@ class AnalyzerConfig(BaseSettings):
         case_sensitive=False,
     )
 
-    models_dir: Path = Field(
-        default_factory=lambda: AI_SERVICE_ROOT / "models",
-        description="Directory containing all ONNX bundles + templates.npz. "
-                    "cnn_classifiers reads everything relative to this path.",
-    )
     detector_path: Path = Field(
         default_factory=lambda: AI_SERVICE_ROOT / "models" / "yolo12n.onnx",
         description="Path to the ONNX detector model. Relative paths anchor to "
                     "the ai-service root, not cwd.",
     )
-    crnn_path: Path = Field(
-        default_factory=lambda: AI_SERVICE_ROOT / "models" / "crnn_int8.onnx",
-        description="Path to the CRNN ONNX int8 model. Loaded once at lifespan "
-                    "and shared across labels.",
-    )
-    default_engine: OCREngine = Field(
-        default=OCREngine.CRNN,
-        description="OCR engine to use when the request payload omits "
-                    "``ocrEngine``. Production traffic uses this; dev "
-                    "clients can override per-request.",
+    ocr_engine: OCREngine = Field(
+        default=OCREngine.SSOCR,
+        description="Which OCR implementation to instantiate.",
     )
     device_mode: DeviceMode = Field(
         default=DeviceMode.CPU,
@@ -111,7 +91,7 @@ class AnalyzerConfig(BaseSettings):
         description="End-to-end timeout for one analyze_bp_image request.",
     )
 
-    @field_validator("models_dir", "detector_path", "crnn_path", mode="before")
+    @field_validator("detector_path", mode="before")
     @classmethod
     def _anchor_path(cls, v: str | Path) -> Path:
         """Resolve relative paths against the ai-service root, not cwd."""

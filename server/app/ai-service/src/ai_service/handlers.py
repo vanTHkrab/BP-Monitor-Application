@@ -8,44 +8,28 @@ what ``api-gateway/src/ai/ai.process.ts::parseAiResponse`` expects.
 Wire contract (must stay in sync with ``../api-gateway/src/ai/``):
 
     Request  channel  ``analyze_bp_image``
-             payload  ``{ pattern, id, data: { jobId, userId, s3Key, imageUrl,
-                          mimeType, ocrEngine? } }``
+             payload  ``{ pattern, id, data: { jobId, userId, s3Key, imageUrl, mimeType } }``
     Reply    channel  ``analyze_bp_image.reply``
              success  ``{ id, response: { confidence, systolic, diastolic, pulse,
-                          raw_text, roi_image_url, model_version, status,
-                          engine, metrics, image_quality_score }, isDisposed: true }``
+                          raw_text, roi_image_url, model_version, status }, isDisposed: true }``
              error    ``{ id, err: <message>, isDisposed: true }``
 
-``imageUrl`` is a presigned GET URL added by the gateway; required.
-``ocrEngine`` is optional — when absent the configured default fires.
-``engine`` and ``metrics`` are always present on the success reply
-(M2.2 comparison phase); old gateway clients that ignore unknown keys
-keep working unchanged.
-
-``image_quality_score`` is a provisional, additive field — the gateway
-writes it back to ``Image.image_quality_score`` keyed by ``s3Key`` so
-quality metadata lives next to the image it describes. Until a
-dedicated quality model exists it is derived from YOLO detection
-confidence (see ``_image_quality_score``). Always-null replies are a
-valid contract and the gateway tolerates them.
+``imageUrl`` is a presigned GET URL added to the payload by the gateway
+(see PLAN.md "Cross-cutting changes on the gateway"). Until the gateway
+ships that change, ``handle_message`` replies with a structured error so
+the gateway-side BullMQ retry won't loop silently.
 """
 from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 import redis.asyncio as redis
 
-from .analyzer.engines import (
-    AnalysisMetrics,
-    EngineRegistry,
-    UnknownEngineError,
-    rss_mb,
-)
+from .analyzer.pipeline import BPAnalysisPipeline
 from .analyzer.types import AnalysisResult
 from .storage.fetch import ImageFetchError, fetch_image
 
@@ -64,10 +48,9 @@ class HandlerDeps:
     no service-locator pattern) and trivial to unit-test with mocks.
     """
 
-    registry: EngineRegistry
+    pipeline: BPAnalysisPipeline
     http_client: httpx.AsyncClient
     image_fetch_timeout_s: float
-    model_version: str
 
 
 async def reply(client: redis.Redis, request_id: str, response: dict[str, Any]) -> None:
@@ -82,39 +65,13 @@ async def reply_error(client: redis.Redis, request_id: str, message: str) -> Non
     await client.publish(REPLY_PATTERN, json.dumps(payload))
 
 
-def _image_quality_score(result: AnalysisResult) -> float | None:
-    """Provisional image-quality proxy derived from YOLO confidences.
+def _to_wire_response(result: AnalysisResult) -> dict[str, Any]:
+    """Project ``AnalysisResult`` → the wire payload the gateway parses.
 
-    No dedicated image-quality model exists yet, so this surfaces the
-    mean YOLO detection confidence across the fields that were located
-    in the image. It approximates "how clearly could we see the device"
-    — high values track sharp / well-lit / well-framed photos; low
-    values track blur, glare, low contrast, or partial occlusion.
-
-    Returns ``None`` when ``result.fields`` is empty (status=unreadable
-    case). A score over zero detections would mean nothing, and the
-    gateway already treats ``None`` as "skip the Image update", so
-    callers don't need to special-case the unreadable path.
-
-    Replace with a real quality model when one becomes available; the
-    wire shape (float 0..1 or null) is the contract the gateway depends
-    on, not the formula behind it.
-    """
-    if not result.fields:
-        return None
-    return sum(f.yolo_confidence for f in result.fields) / len(result.fields)
-
-
-def _to_wire_response(
-    result: AnalysisResult, metrics: AnalysisMetrics,
-) -> dict[str, Any]:
-    """Project ``AnalysisResult`` + ``AnalysisMetrics`` → the wire payload.
-
-    ``fields[]`` stays internal (debug-only). ``engine`` and ``metrics``
-    are additive M2.2 fields; old gateway clients that ignore unknown
-    keys continue to work. ``image_quality_score`` is the
-    Image-as-base-model addition (gateway PR2) — see
-    ``_image_quality_score`` for current derivation and migration plan.
+    Per PLAN.md "AnalysisResult shape (matches what ai.process.ts
+    parseAiResponse expects, plus extras)", ``fields[]`` stays internal
+    (debug-only), while ``model_version`` and ``status`` are added on
+    top of the existing contract.
     """
     return {
         "confidence": result.confidence,
@@ -125,9 +82,6 @@ def _to_wire_response(
         "roi_image_url": result.roi_image_url,
         "model_version": result.model_version,
         "status": result.status.value,
-        "engine": metrics.engine,
-        "metrics": metrics.to_wire(),
-        "image_quality_score": _image_quality_score(result),
     }
 
 
@@ -136,19 +90,13 @@ async def handle_message(
     raw: str,
     deps: HandlerDeps,
 ) -> None:
-    """Decode, validate, dispatch one ``analyze_bp_image`` message.
+    """Decode, validate, and reply to one ``analyze_bp_image`` message.
 
     Never raises for ordinary failures — every failure mode produces a
     structured reply (``err`` for fetch / decode / pipeline issues,
     ``response`` with ``status=unreadable`` for "model said no"). The
     surrounding ``listen()`` swallows unexpected exceptions so one bad
     message can't take down the subscriber.
-
-    Times the request end-to-end and emits ``AnalysisMetrics`` on the
-    reply so the gateway can append a JSONL row to S3 for offline
-    comparison of engines. Memory is sampled before the pipeline runs
-    and right after it returns — the delta surfaces engine-by-engine
-    allocation patterns.
     """
     try:
         message = json.loads(raw)
@@ -167,11 +115,10 @@ async def handle_message(
     s3_key = data.get("s3Key")
     image_url = data.get("imageUrl")
     mime_type = data.get("mimeType")
-    requested_engine = data.get("ocrEngine")
 
     logger.info(
-        "analyze_bp_image jobId=%s userId=%s s3Key=%s mimeType=%s engine=%s",
-        job_id, user_id, s3_key, mime_type, requested_engine,
+        "analyze_bp_image jobId=%s userId=%s s3Key=%s mimeType=%s",
+        job_id, user_id, s3_key, mime_type,
     )
 
     if not isinstance(image_url, str) or not image_url:
@@ -186,20 +133,6 @@ async def handle_message(
         return
 
     try:
-        engine, pipeline = deps.registry.get(requested_engine)
-    except UnknownEngineError as e:
-        await reply_error(
-            redis_client,
-            request_id,
-            f"unknown engine: {e!s} (available: {', '.join(deps.registry.engine_names())})",
-        )
-        return
-
-    t_start = time.perf_counter()
-    rss_before = rss_mb()
-
-    t_fetch_start = time.perf_counter()
-    try:
         image = await fetch_image(
             image_url,
             timeout_s=deps.image_fetch_timeout_s,
@@ -209,30 +142,15 @@ async def handle_message(
         logger.warning("fetch failed jobId=%s: %s", job_id, e)
         await reply_error(redis_client, request_id, f"fetch failed: {e}")
         return
-    fetch_ms = (time.perf_counter() - t_fetch_start) * 1000.0
-    image_size_bytes = int(image.nbytes)
 
     try:
-        result, pipeline_metrics = await pipeline.analyze(image)
+        result = await deps.pipeline.analyze(image)
     except Exception as e:  # noqa: BLE001 — last-resort guard for pipeline regressions
-        logger.exception("pipeline crashed jobId=%s engine=%s", job_id, engine.value)
+        logger.exception("pipeline crashed jobId=%s", job_id)
         await reply_error(redis_client, request_id, f"pipeline error: {e!s}")
         return
 
-    total_ms = (time.perf_counter() - t_start) * 1000.0
-    rss_after = rss_mb()
-
-    metrics = AnalysisMetrics.build(
-        engine=engine,
-        fetch_ms=fetch_ms,
-        pipeline_metrics=pipeline_metrics,
-        total_ms=total_ms,
-        rss_before_mb=rss_before,
-        rss_after_mb=rss_after,
-        image_size_bytes=image_size_bytes,
-    )
-
-    await reply(redis_client, request_id, _to_wire_response(result, metrics))
+    await reply(redis_client, request_id, _to_wire_response(result))
 
 
 async def listen(redis_client: redis.Redis, deps: HandlerDeps) -> None:

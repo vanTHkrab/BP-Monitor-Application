@@ -20,12 +20,31 @@ import httpx
 import redis.asyncio as redis
 from fastapi import FastAPI
 
-from .analyzer.engines import build_registry
+from .analyzer.ocr.ssocr import SSOCREngine
+from .analyzer.pipeline import BPAnalysisPipeline
+from .analyzer.types import BPClass
 from .analyzer.yolo import YoloDetector
-from .config import AnalyzerConfig
+from .config import AnalyzerConfig, OCREngine
 from .handlers import HandlerDeps, listen
 
 logger = logging.getLogger(__name__)
+
+
+def _build_ocr_readers(engine: OCREngine) -> dict[BPClass, SSOCREngine]:
+    """Construct per-``BPClass`` OCRReader instances.
+
+    Each engine instance is bound to its label preset so the pipeline can
+    pick the right tuning per field without per-call branching. Extend
+    this function when adding a new engine to ``OCREngine`` — the enum
+    member must already exist or pydantic would have rejected the env
+    value before reaching here.
+    """
+    assert engine == OCREngine.SSOCR, f"OCR engine {engine} not wired yet"
+    return {
+        BPClass.SYSTOLIC: SSOCREngine(expected_label="sys"),
+        BPClass.DIASTOLIC: SSOCREngine(expected_label="dia"),
+        BPClass.PULSE: SSOCREngine(expected_label="pul"),
+    }
 
 
 @asynccontextmanager
@@ -39,8 +58,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover —
     # ── Analyzer pipeline ─────────────────────────────────────────────
     cfg = AnalyzerConfig()
     logger.info(
-        "config: detector=%s default_engine=%s device=%s conf>=%.2f",
-        cfg.detector_path, cfg.default_engine, cfg.device_mode, cfg.confidence_threshold,
+        "config: detector=%s engine=%s device=%s conf>=%.2f",
+        cfg.detector_path, cfg.ocr_engine, cfg.device_mode, cfg.confidence_threshold,
     )
 
     # YoloDetector.load takes ~100 ms — push to a thread so the event loop
@@ -52,13 +71,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover —
         providers=cfg.onnx_providers,
         conf_threshold=cfg.confidence_threshold,
     )
-
-    # Build all M2.2 engines at lifespan — each one loads its ONNX
-    # sessions / numpy caches on construction so the first request
-    # doesn't pay the cold-start cost. ``cnn_classifiers`` is configured
-    # inside ``build_registry`` once, so all SSOCR variants share the
-    # models directory.
-    registry = await asyncio.to_thread(build_registry, cfg, detector)
+    pipeline = BPAnalysisPipeline(
+        detector=detector,
+        ocr_readers=_build_ocr_readers(cfg.ocr_engine),
+        field_timeout_s=cfg.ocr_field_timeout_s,
+    )
 
     # ── Transports ────────────────────────────────────────────────────
     # Lifespan-scoped httpx client — reuses the connection pool across
@@ -69,24 +86,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover —
     redis_client: redis.Redis = redis.from_url(redis_url, decode_responses=True)
 
     deps = HandlerDeps(
-        registry=registry,
+        pipeline=pipeline,
         http_client=http_client,
         image_fetch_timeout_s=cfg.image_fetch_timeout_s,
-        model_version=detector.model_version,
     )
 
     # ── Listener ──────────────────────────────────────────────────────
     listener_task = asyncio.create_task(listen(redis_client, deps))
 
     app.state.config = cfg
-    app.state.registry = registry
+    app.state.pipeline = pipeline
     app.state.http_client = http_client
     app.state.redis = redis_client
     app.state.listener_task = listener_task
     logger.info(
-        "ai-service ready: model_version=%s engines=%s default=%s redis=%s",
-        detector.model_version, registry.engine_names(),
-        cfg.default_engine.value, redis_url,
+        "ai-service ready: model_version=%s redis=%s",
+        detector.model_version, redis_url,
     )
 
     try:

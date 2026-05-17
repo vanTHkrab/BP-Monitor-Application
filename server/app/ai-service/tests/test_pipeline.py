@@ -14,9 +14,7 @@ from ai_service.analyzer.pipeline import (
     _parse_int,
     _pick_best_per_class,
 )
-from ai_service.analyzer.types import (
-    AnalysisStatus, BoundingBox, BPClass, PipelineMetrics,
-)
+from ai_service.analyzer.types import AnalysisStatus, BoundingBox, BPClass
 
 
 class MockDetector:
@@ -63,7 +61,7 @@ class TestAnalyze:
             ocr_readers=make_ocr_readers("120", "80", "72", 0.95),
             field_timeout_s=1.0,
         )
-        res, metrics = await pipe.analyze(fake_image)
+        res = await pipe.analyze(fake_image)
         assert res.status == AnalysisStatus.SUCCESS
         assert (res.systolic, res.diastolic, res.pulse) == (120, 80, 72)
         assert res.raw_text == "sys=120 dia=80 pulse=72"
@@ -77,7 +75,7 @@ class TestAnalyze:
             ocr_readers=make_ocr_readers(),
             field_timeout_s=1.0,
         )
-        res, metrics = await pipe.analyze(fake_image)
+        res = await pipe.analyze(fake_image)
         assert res.status == AnalysisStatus.UNREADABLE
         assert res.fields == ()
         assert all(v is None for v in (res.systolic, res.diastolic, res.pulse))
@@ -90,7 +88,7 @@ class TestAnalyze:
             ocr_readers=make_ocr_readers("400", "80", "72", 0.95),  # sys = 400 OOR
             field_timeout_s=1.0,
         )
-        res, metrics = await pipe.analyze(fake_image)
+        res = await pipe.analyze(fake_image)
         assert res.status == AnalysisStatus.LOW_CONFIDENCE
         assert res.systolic is None
         assert res.diastolic == 80
@@ -108,7 +106,7 @@ class TestAnalyze:
             ocr_readers=make_ocr_readers("80", "120", "72", 0.95),
             field_timeout_s=1.0,
         )
-        res, metrics = await pipe.analyze(fake_image)
+        res = await pipe.analyze(fake_image)
         assert res.status == AnalysisStatus.LOW_CONFIDENCE
         assert res.systolic is None
         assert res.diastolic is None
@@ -122,46 +120,12 @@ class TestAnalyze:
             ocr_readers=make_ocr_readers("", "80", "72", 0.0),  # sys garbled
             field_timeout_s=1.0,
         )
-        res, metrics = await pipe.analyze(fake_image)
+        res = await pipe.analyze(fake_image)
         assert res.status == AnalysisStatus.LOW_CONFIDENCE
         assert res.systolic is None
         sys_field = next(f for f in res.fields if f.bp_class == BPClass.SYSTOLIC)
         assert sys_field.value is None
         assert sys_field.in_range is False
-
-
-class TestMetrics:
-    """PipelineMetrics shape — sanity checks for M2.2 telemetry."""
-
-    async def test_returns_metrics_with_three_stage_floats(
-        self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers
-    ):
-        pipe = BPAnalysisPipeline(
-            detector=MockDetector([box_sys, box_dia, box_pul]),
-            ocr_readers=make_ocr_readers(),
-            field_timeout_s=1.0,
-        )
-        _, metrics = await pipe.analyze(fake_image)
-        assert isinstance(metrics, PipelineMetrics)
-        assert metrics.detect_ms >= 0
-        assert metrics.ocr_ms >= 0
-        assert metrics.validate_ms >= 0
-
-    async def test_unreadable_path_still_emits_metrics(
-        self, fake_image, box_sys, make_ocr_readers
-    ):
-        pipe = BPAnalysisPipeline(
-            detector=MockDetector([box_sys]),  # only 1/3 boxes
-            ocr_readers=make_ocr_readers(),
-            field_timeout_s=1.0,
-        )
-        res, metrics = await pipe.analyze(fake_image)
-        assert res.status == AnalysisStatus.UNREADABLE
-        # Detect time recorded; ocr/validate stayed at zero because the
-        # short-circuit fired before those stages ran.
-        assert metrics.detect_ms >= 0
-        assert metrics.ocr_ms == 0.0
-        assert metrics.validate_ms == 0.0
 
 
 class TestConstructor:

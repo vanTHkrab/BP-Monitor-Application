@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 
 import numpy as np
 
@@ -22,7 +21,6 @@ from .types import (
     BoundingBox,
     BPClass,
     FieldReading,
-    PipelineMetrics,
 )
 from .validation import (
     is_reading_consistent,
@@ -58,9 +56,7 @@ class BPAnalysisPipeline:
         self._ocr_readers = ocr_readers
         self._field_timeout_s = field_timeout_s
 
-    async def analyze(
-        self, image: np.ndarray
-    ) -> tuple[AnalysisResult, PipelineMetrics]:
+    async def analyze(self, image: np.ndarray) -> AnalysisResult:
         """Run the full pipeline on a decoded BGR image.
 
         The caller is responsible for decoding bytes → ndarray (typically
@@ -68,20 +64,12 @@ class BPAnalysisPipeline:
         bytes are decodable). This pipeline does not raise for ordinary
         failures — returns ``AnalysisResult`` with ``status=UNREADABLE``
         instead. Only programmer errors bubble out.
-
-        Returns a tuple of ``(result, metrics)``. Per-stage timing is
-        emitted in ``metrics`` (detect / ocr / validate) so callers can
-        attribute latency to the right component during M2.2's engine
-        comparison phase. The early-exit ``unreadable`` path still emits
-        metrics so the JSONL log has uniform columns.
         """
-        t_detect_start = time.perf_counter()
         boxes = await asyncio.to_thread(
             self._detector.detect,
             image,
             class_filter=FIELD_CLASS_IDS,
         )
-        detect_ms = (time.perf_counter() - t_detect_start) * 1000.0
 
         by_class = _pick_best_per_class(boxes)
         if len(by_class) < 3:
@@ -90,32 +78,10 @@ class BPAnalysisPipeline:
                 len(by_class),
                 sorted(c.name for c in by_class),
             )
-            return self._unreadable(), PipelineMetrics(
-                detect_ms=detect_ms, ocr_ms=0.0, validate_ms=0.0,
-            )
+            return self._unreadable()
 
-        t_ocr_start = time.perf_counter()
         fields = await self._read_all_fields(image, by_class)
-        ocr_ms = (time.perf_counter() - t_ocr_start) * 1000.0
-
-        t_validate_start = time.perf_counter()
-        result = self._assemble(fields)
-        validate_ms = (time.perf_counter() - t_validate_start) * 1000.0
-
-        logger.info(
-            "pipeline result: status=%s confidence=%.3f detect=%.1fms ocr=%.1fms fields=%s",
-            result.status.value,
-            result.confidence,
-            detect_ms,
-            ocr_ms,
-            [
-                (f.bp_class.name, f.raw_text, round(f.yolo_confidence, 3), round(f.ocr_confidence, 3))
-                for f in result.fields
-            ],
-        )
-        return result, PipelineMetrics(
-            detect_ms=detect_ms, ocr_ms=ocr_ms, validate_ms=validate_ms,
-        )
+        return self._assemble(fields)
 
     # ─── internals ─────────────────────────────────────────────────────
 
