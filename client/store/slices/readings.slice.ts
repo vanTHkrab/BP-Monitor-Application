@@ -26,7 +26,7 @@ import type {
   ReadingsQuery,
 } from "@/types/graphql";
 import { resolveImageUri } from "@/utils/image-cache";
-import { LocalImageMissingError, uploadImageViaPresign } from "@/utils/upload-image";
+import { uploadImageViaPresign } from "@/utils/upload-image";
 import type { StateCreator } from "zustand";
 import {
   createClientId,
