@@ -9,13 +9,31 @@ import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HistoryListScreen() {
   const readings = useAppStore((s) => s.readings);
+  const fetchReadings = useAppStore((s) => s.fetchReadings);
+  const syncPendingReadings = useAppStore((s) => s.syncPendingReadings);
+  const fetchAlerts = useAppStore((s) => s.fetchAlerts);
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Push the pending queue first so newly-synced rows are folded into the
+  // mirror cache by the time fetchReadings pulls; then refresh alerts so
+  // any thresholds the server just evaluated show up too.
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await syncPendingReadings();
+      await fetchReadings();
+      await fetchAlerts();
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const headerIconColor = isDark ? '#E2E8F0' : Colors.text.primary;
   const titleClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-lg',
@@ -67,7 +85,18 @@ export default function HistoryListScreen() {
 
   return (
     <GradientBackground>
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={isDark ? '#E2E8F0' : Colors.primary.blue}
+            colors={[Colors.primary.blue]}
+          />
+        }
+      >
         {/* Header */}
         <View className="flex-row items-center justify-center px-4 py-4">
           <TouchableOpacity
