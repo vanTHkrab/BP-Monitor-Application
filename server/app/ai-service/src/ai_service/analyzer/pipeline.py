@@ -81,7 +81,17 @@ class BPAnalysisPipeline:
             return self._unreadable()
 
         fields = await self._read_all_fields(image, by_class)
-        return self._assemble(fields)
+        result = self._assemble(fields)
+        logger.info(
+            "pipeline result: status=%s confidence=%.3f fields=%s",
+            result.status.value,
+            result.confidence,
+            [
+                (f.bp_class.name, f.raw_text, round(f.yolo_confidence, 3), round(f.ocr_confidence, 3))
+                for f in result.fields
+            ],
+        )
+        return result
 
     # ─── internals ─────────────────────────────────────────────────────
 
