@@ -35,6 +35,9 @@ import re
 from pathlib import Path
 from typing import Any, Sequence
 
+import logging
+logger = logging.getLogger(__name__)
+
 import cv2
 import numpy as np
 
@@ -2774,6 +2777,7 @@ def read_digits_with_rule_engine(
     is the only way to inform brand-specific candidate selection; pass
     "" to use the default candidate set.
     """
+    image_path: Path | None = None
     if isinstance(image, np.ndarray):
         image_bgr = image
         brand = brand_hint
@@ -2867,7 +2871,7 @@ def read_digits_with_rule_engine(
     scene_tag = _scene_tag(image_bgr)
 
     return {
-        "image_path": str(image_path),
+        "image_path": str(image_path) if image_path is not None else None,
         "gray": gray,
         "binary": best["binary"],
         "annotated": best["annotated"],
@@ -2930,6 +2934,7 @@ class SSOCREngine:
                 debug=False,
             )
         except Exception:
+            logger.exception("ssocr crashed on %s", self._expected_label)
             # OCR failures must not propagate — pipeline expects empty result.
             return OCRResult(text="", confidence=0.0)
 
