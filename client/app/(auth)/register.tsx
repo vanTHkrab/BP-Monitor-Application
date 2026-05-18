@@ -215,8 +215,8 @@ export default function RegisterScreen() {
 
     if (!registerPassword) {
       next.password = "กรุณากรอกรหัสผ่าน";
-    } else if (registerPassword.length < 6) {
-      next.password = "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร";
+    } else if (registerPassword.length < 8) {
+      next.password = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร";
     }
 
     if (!confirmPassword) {
