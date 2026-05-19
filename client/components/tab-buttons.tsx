@@ -1,5 +1,5 @@
-import { useAppStore } from '@/store/use-app-store';
-import { getFontNumber } from '@/utils/font-scale';
+import { useAppStore } from '@/src/store/use-app-store';
+import { getFontNumber } from '@/src/utils/font-scale';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';

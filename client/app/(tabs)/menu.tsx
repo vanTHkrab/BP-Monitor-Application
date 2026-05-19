@@ -3,14 +3,13 @@ import { CustomButton } from '@/components/custom-button';
 import { GradientBackground } from '@/components/gradient-background';
 import { MenuItem } from '@/components/menu-item';
 import { Avatar } from '@/components/ui/avatar';
-import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
-import { toDisplayImageUri } from '@/utils/storage-image';
+import { useAppStore } from '@/src/store/use-app-store';
+import { getFontClass } from '@/src/utils/font-scale';
+import { toDisplayImageUri } from '@/src/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import React from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

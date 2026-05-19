@@ -3,7 +3,7 @@ import type { PropsWithChildren, ReactElement } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { ThemedView } from '@/components/themed-view';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColorScheme } from '@/src/hooks/use-color-scheme';
 
 cssInterop(View, { className: 'style' });
 

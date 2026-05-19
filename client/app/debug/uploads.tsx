@@ -1,19 +1,19 @@
 import { GradientBackground } from "@/components/gradient-background";
 import {
-  getPendingAvatarUpload,
-  listPendingReadings,
-  type PendingAvatarUploadRow,
-  type PendingReadingRow,
-} from "@/data/local-db";
-import { useAppStore } from "@/store/use-app-store";
+    getPendingAvatarUpload,
+    listPendingReadings,
+    type PendingAvatarUploadRow,
+    type PendingReadingRow,
+} from "@/src/data/local-db";
+import { useAppStore } from "@/src/store/use-app-store";
 import { File } from "expo-file-system";
 import { useCallback, useEffect, useState } from "react";
 import {
-  Image,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
+    Image,
+    RefreshControl,
+    ScrollView,
+    Text,
+    View,
 } from "react-native";
 import { DebugHeader, useIsDark } from "./_shared";
 

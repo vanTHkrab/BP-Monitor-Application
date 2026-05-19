@@ -1,5 +1,5 @@
-import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
+import { useAppStore } from '@/src/store/use-app-store';
+import { getFontClass } from '@/src/utils/font-scale';
 import { Text, View } from 'react-native';
 
 export default function Explore() {

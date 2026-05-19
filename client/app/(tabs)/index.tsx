@@ -1,23 +1,23 @@
 import { AnimatedPressable, FadeInView, PulseView, ScaleOnMount } from '@/components/animated-components';
 import { GradientBackground } from '@/components/gradient-background';
 import { Avatar } from '@/components/ui/avatar';
-import { Colors, getStatusText, type BPStatus } from '@/constants/colors';
-import { formatThaiDate } from '@/data/mockData';
-import { useAppStore } from '@/store/use-app-store';
-import { shareReadingsExport } from '@/utils/export-data';
-import { getFontClass, getFontNumber } from '@/utils/font-scale';
-import { toDisplayImageUri } from '@/utils/storage-image';
+import { Colors, getStatusText, type BPStatus } from '@/src/constants/colors';
+import { formatThaiDate } from '@/src/data/mockData';
+import { useAppStore } from '@/src/store/use-app-store';
 import {
-  getInAppNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-  type InAppNotificationItem,
-} from '@/utils/app-notifications';
+    getInAppNotifications,
+    markAllNotificationsAsRead,
+    markNotificationAsRead,
+    type InAppNotificationItem,
+} from '@/src/utils/app-notifications';
+import { shareReadingsExport } from '@/src/utils/export-data';
+import { getFontClass, getFontNumber } from '@/src/utils/font-scale';
+import { toDisplayImageUri } from '@/src/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Linking, Modal, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

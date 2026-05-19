@@ -1,11 +1,10 @@
 import { GradientBackground } from '@/components/gradient-background';
 import { UIImage } from '@/components/ui/image';
-import { Colors } from '@/constants/colors';
-import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
+import { Colors } from '@/src/constants/colors';
+import { useAppStore } from '@/src/store/use-app-store';
+import { getFontClass } from '@/src/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React from 'react';
 import { Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 export default function AboutScreen() {

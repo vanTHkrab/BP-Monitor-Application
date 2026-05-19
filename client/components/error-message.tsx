@@ -1,6 +1,6 @@
-import { formatError, type FormattedError } from "@/lib/error-message";
-import { useAppStore } from "@/store/use-app-store";
-import { getFontClass } from "@/utils/font-scale";
+import { formatError, type FormattedError } from "@/src/lib/error-message";
+import { useAppStore } from "@/src/store/use-app-store";
+import { getFontClass } from "@/src/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";

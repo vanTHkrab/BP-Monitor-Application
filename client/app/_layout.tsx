@@ -1,7 +1,14 @@
 import { AppLoadingScreen } from "@/components/app-loading-screen";
-import { initLocalDb } from "@/data/local-db";
-import { useAppStore } from "@/store/use-app-store";
-import { cleanupExpiredImages } from "@/utils/image-cache";
+import { initLocalDb } from "@/src/data/local-db";
+import { useAppStore } from "@/src/store/use-app-store";
+import { cleanupExpiredImages } from "@/src/utils/image-cache";
+import {
+  configureReminderActions,
+  handleReminderNotificationResponse,
+  loadReminderSettings,
+  scheduleFlexibleReminders,
+  subscribeToReminderResponses,
+} from "@/src/utils/reminders";
 import NetInfo from "@react-native-community/netinfo";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -14,13 +21,6 @@ import { useEffect } from "react";
 import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import {
-  configureReminderActions,
-  handleReminderNotificationResponse,
-  loadReminderSettings,
-  scheduleFlexibleReminders,
-  subscribeToReminderResponses,
-} from "@/utils/reminders";
 import "../global.css";
 
 // ป้องกันไม่ให้ splash หายเอง

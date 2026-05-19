@@ -1,8 +1,8 @@
-import { Colors, type BPStatus } from '@/constants/colors';
-import { formatShortDate, getRelativeTime } from '@/data/mockData';
-import { useAppStore } from '@/store/use-app-store';
-import { BloodPressureReading } from '@/types';
-import { getFontClass } from '@/utils/font-scale';
+import { Colors, type BPStatus } from '@/src/constants/colors';
+import { formatShortDate, getRelativeTime } from '@/src/data/mockData';
+import { useAppStore } from '@/src/store/use-app-store';
+import { BloodPressureReading } from '@/src/types';
+import { getFontClass } from '@/src/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';

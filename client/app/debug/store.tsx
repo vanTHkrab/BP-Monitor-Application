@@ -1,5 +1,5 @@
 import { GradientBackground } from "@/components/gradient-background";
-import { useAppStore } from "@/store/use-app-store";
+import { useAppStore } from "@/src/store/use-app-store";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { DebugHeader, Pre, stringify, useIsDark } from "./_shared";

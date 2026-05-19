@@ -1,13 +1,13 @@
 import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
-import { Colors } from "@/constants/colors";
-import { useAppStore } from "@/store/use-app-store";
-import { CaregiverLink } from "@/types";
-import { getFontClass } from "@/utils/font-scale";
+import { Colors } from "@/src/constants/colors";
+import { useAppStore } from "@/src/store/use-app-store";
+import { CaregiverLink } from "@/src/types";
+import { getFontClass } from "@/src/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 export default function CaregiversScreen() {

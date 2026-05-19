@@ -1,4 +1,4 @@
-import { useAppStore } from "@/store/use-app-store";
+import { useAppStore } from "@/src/store/use-app-store";
 import { Href, Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 

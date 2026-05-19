@@ -2,21 +2,21 @@ import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { MenuItem } from "@/components/menu-item";
-import { Colors } from "@/constants/colors";
-import { useAppStore } from "@/store/use-app-store";
-import { getFontClass } from "@/utils/font-scale";
+import { Colors } from "@/src/constants/colors";
+import { useAppStore } from "@/src/store/use-app-store";
+import { getFontClass } from "@/src/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
-import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import * as SecureStore from "expo-secure-store";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
-  ScrollView,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const BIOMETRIC_PREF_KEY = "bp.biometric_enabled";

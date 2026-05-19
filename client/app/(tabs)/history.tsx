@@ -3,20 +3,20 @@ import { BPReadingCard } from '@/components/bp-reading-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { ReadingDetailModal } from '@/components/reading-detail-modal';
 import { TabButtons } from '@/components/tab-buttons';
-import { useAppStore } from '@/store/use-app-store';
-import { BloodPressureReading, TimeFilter } from '@/types';
-import { ExportDataType, ExportFormat, shareReadingsExport } from '@/utils/export-data';
-import { getFontClass, getFontNumber } from '@/utils/font-scale';
+import { useAppStore } from '@/src/store/use-app-store';
+import { BloodPressureReading, TimeFilter } from '@/src/types';
+import { ExportDataType, ExportFormat, shareReadingsExport } from '@/src/utils/export-data';
+import { getFontClass, getFontNumber } from '@/src/utils/font-scale';
 import {
-  buildReminderTimelineForDate,
-  loadReminderSettings,
-  type ReminderSettings,
-} from '@/utils/reminders';
+    buildReminderTimelineForDate,
+    loadReminderSettings,
+    type ReminderSettings,
+} from '@/src/utils/reminders';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router, useFocusEffect } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Alert, Platform, ScrollView, Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

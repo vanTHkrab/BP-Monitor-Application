@@ -1,7 +1,7 @@
-import { useAppStore } from '@/store/use-app-store';
-import { CommunityPost } from '@/types';
-import { getFontClass, getFontNumber } from '@/utils/font-scale';
-import { toDisplayImageUri } from '@/utils/storage-image';
+import { useAppStore } from '@/src/store/use-app-store';
+import { CommunityPost } from '@/src/types';
+import { getFontClass, getFontNumber } from '@/src/utils/font-scale';
+import { toDisplayImageUri } from '@/src/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';

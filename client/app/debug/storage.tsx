@@ -1,5 +1,5 @@
 import { GradientBackground } from "@/components/gradient-background";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { isMMKVAvailable, kvStorage } from "@/src/core/storage/mmkv.storage";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useState } from "react";
 import { Platform, RefreshControl, ScrollView, Text, View } from "react-native";
@@ -18,7 +18,7 @@ const KNOWN_SECURE_KEYS: {
 
 export default function DebugStoragePage() {
   const isDark = useIsDark();
-  const [asyncData, setAsyncData] = useState<Record<string, string | null>>({});
+  const [kvData, setKvData] = useState<Record<string, string | undefined>>({});
   const [secureData, setSecureData] = useState<Record<string, string | null>>(
     {},
   );
@@ -28,13 +28,14 @@ export default function DebugStoragePage() {
     setRefreshing(true);
     try {
       try {
-        const keys = await AsyncStorage.getAllKeys();
-        const entries = await AsyncStorage.multiGet(keys);
-        const map: Record<string, string | null> = {};
-        for (const [k, v] of entries) map[k] = v;
-        setAsyncData(map);
+        const map: Record<string, string | undefined> = {};
+        const keys = await kvStorage.getAllKeys();
+        for (const k of keys) {
+          map[k] = await kvStorage.getString(k);
+        }
+        setKvData(map);
       } catch (e) {
-        setAsyncData({
+        setKvData({
           __error__: e instanceof Error ? e.message : "unknown",
         });
       }
@@ -83,9 +84,11 @@ export default function DebugStoragePage() {
       >
         <View className="mb-4 rounded-xl overflow-hidden">
           <View className="bg-blue-500 px-3 py-2">
-            <Text className="text-white font-bold">AsyncStorage</Text>
+            <Text className="text-white font-bold">
+              {isMMKVAvailable ? "MMKV" : "AsyncStorage (MMKV unavailable)"}
+            </Text>
           </View>
-          <Pre isDark={isDark} text={stringify(asyncData)} />
+          <Pre isDark={isDark} text={stringify(kvData)} />
         </View>
 
         <View className="mb-4 rounded-xl overflow-hidden">

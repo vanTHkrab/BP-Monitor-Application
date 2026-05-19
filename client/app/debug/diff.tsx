@@ -1,16 +1,17 @@
 import { GradientBackground } from "@/components/gradient-background";
-import { GQL_DEBUG_MY_STORAGE, graphqlRequest } from "@/constants/api";
+import { graphqlRequest } from "@/src/core/graphql/client";
+import { GQL_DEBUG_MY_STORAGE } from "@/src/core/graphql/operations";
 import {
-  getPendingAvatarUpload,
-  listPendingReadings,
-} from "@/data/local-db";
-import { useAppStore } from "@/store/use-app-store";
+    getPendingAvatarUpload,
+    listPendingReadings,
+} from "@/src/data/local-db";
+import { useAppStore } from "@/src/store/use-app-store";
 import { useCallback, useEffect, useState } from "react";
 import {
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
+    RefreshControl,
+    ScrollView,
+    Text,
+    View,
 } from "react-native";
 import { DebugHeader, Pre, stringify, useIsDark } from "./_shared";
 

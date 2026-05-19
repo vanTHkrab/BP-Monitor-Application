@@ -1,4 +1,4 @@
-import { formatThaiPhone, stripPhoneDigits } from "@/utils/phone-format";
+import { formatThaiPhone, stripPhoneDigits } from "@/src/utils/phone-format";
 
 describe("formatThaiPhone", () => {
   it("formats a 10-digit number with leading 0 as 0XX-XXX-XXXX", () => {

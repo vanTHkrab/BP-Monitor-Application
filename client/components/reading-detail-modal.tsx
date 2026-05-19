@@ -1,13 +1,12 @@
 import { UIImage } from '@/components/ui/image';
-import { Colors, type BPStatus } from '@/constants/colors';
-import { formatShortDate } from '@/data/mockData';
-import { useResolvedImageUri } from '@/hooks/use-resolved-image-uri';
-import { useAppStore } from '@/store/use-app-store';
-import { BloodPressureReading } from '@/types';
-import { getFontClass } from '@/utils/font-scale';
-import { toDisplayImageUri } from '@/utils/storage-image';
+import { Colors, type BPStatus } from '@/src/constants/colors';
+import { formatShortDate } from '@/src/data/mockData';
+import { useResolvedImageUri } from '@/src/hooks/use-resolved-image-uri';
+import { useAppStore } from '@/src/store/use-app-store';
+import { BloodPressureReading } from '@/src/types';
+import { getFontClass } from '@/src/utils/font-scale';
+import { toDisplayImageUri } from '@/src/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 interface ReadingDetailModalProps {

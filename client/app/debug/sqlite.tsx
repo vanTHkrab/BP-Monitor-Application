@@ -1,5 +1,5 @@
 import { GradientBackground } from "@/components/gradient-background";
-import { debugListTables, type DebugTableDump } from "@/data/local-db";
+import { debugListTables, type DebugTableDump } from "@/src/data/local-db";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { DebugHeader, Pre, stringify, useIsDark } from "./_shared";

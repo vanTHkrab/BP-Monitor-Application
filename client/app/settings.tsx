@@ -1,40 +1,40 @@
 import { GradientBackground } from "@/components/gradient-background";
-import { Colors } from "@/constants/colors";
-import { useAppStore } from "@/store/use-app-store";
-import { FontSizePreference } from "@/types";
+import { Colors } from "@/src/constants/colors";
+import { useAppStore } from "@/src/store/use-app-store";
+import { FontSizePreference } from "@/src/types";
 import {
-  createExportFileWithRetry,
-  ExportDataType,
-  ExportFormat,
-} from "@/utils/export-data";
-import { getFontClass, getFontNumber } from "@/utils/font-scale";
+    createExportFileWithRetry,
+    ExportDataType,
+    ExportFormat,
+} from "@/src/utils/export-data";
+import { getFontClass, getFontNumber } from "@/src/utils/font-scale";
 import {
-  DEFAULT_REMINDER_SETTINGS,
-  getReminderSoundOption,
-  getReminderDiagnostics,
-  getReminderPreview,
-  loadReminderSettings,
-  REMINDER_SOUND_OPTIONS,
-  type ReminderDiagnostics,
-  ReminderSettings,
-  requestReminderPermissions,
-  saveReminderSettings,
-  scheduleTestReminder,
-  scheduleFlexibleReminders,
-} from "@/utils/reminders";
+    DEFAULT_REMINDER_SETTINGS,
+    getReminderDiagnostics,
+    getReminderPreview,
+    getReminderSoundOption,
+    loadReminderSettings,
+    REMINDER_SOUND_OPTIONS,
+    type ReminderDiagnostics,
+    ReminderSettings,
+    requestReminderPermissions,
+    saveReminderSettings,
+    scheduleFlexibleReminders,
+    scheduleTestReminder,
+} from "@/src/utils/reminders";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
-  Modal,
-  Platform,
-  ScrollView,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Modal,
+    Platform,
+    ScrollView,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const DAY_OPTIONS = [

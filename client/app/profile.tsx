@@ -2,22 +2,22 @@ import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { Avatar } from "@/components/ui/avatar";
-import { Colors } from "@/constants/colors";
-import { useAppStore } from "@/store/use-app-store";
-import { getFontClass } from "@/utils/font-scale";
-import { useFocusEffect } from "@react-navigation/native";
+import { Colors } from "@/src/constants/colors";
+import { useAppStore } from "@/src/store/use-app-store";
+import { getFontClass } from "@/src/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import * as LocalAuthentication from "expo-local-authentication";
-import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const formatDate = (date?: Date) => {

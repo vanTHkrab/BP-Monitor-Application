@@ -1,12 +1,11 @@
 import { FadeInView } from '@/components/animated-components';
 import { GradientBackground } from '@/components/gradient-background';
-import { Colors } from '@/constants/colors';
-import { healthTips } from '@/data/mockData';
-import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
+import { Colors } from '@/src/constants/colors';
+import { healthTips } from '@/src/data/mockData';
+import { useAppStore } from '@/src/store/use-app-store';
+import { getFontClass } from '@/src/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 const TIP_ICONS: Record<string, { name: keyof typeof Ionicons.glyphMap; tint: string; bg: string }> = {

@@ -25,7 +25,7 @@ const sections: {
   {
     href: "/debug/storage" as Href,
     icon: "lock-closed-outline",
-    title: "AsyncStorage + SecureStore",
+    title: "MMKV + SecureStore",
     description: "Key/value preferences และ token (masked)",
   },
   {

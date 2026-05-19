@@ -3,20 +3,20 @@ import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { TabButtons } from "@/components/tab-buttons";
-import { useAppStore } from "@/store/use-app-store";
-import { getFontClass } from "@/utils/font-scale";
-import { formatThaiPhone, stripPhoneDigits } from "@/utils/phone-format";
+import { useAppStore } from "@/src/store/use-app-store";
+import { getFontClass } from "@/src/utils/font-scale";
+import { formatThaiPhone, stripPhoneDigits } from "@/src/utils/phone-format";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Href, router } from "expo-router";
 import { cssInterop } from "nativewind";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    View,
 } from "react-native";
 
 cssInterop(LinearGradient, { className: "style" });

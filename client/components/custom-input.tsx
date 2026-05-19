@@ -1,5 +1,5 @@
-import { useAppStore } from '@/store/use-app-store';
-import { getFontNumber } from '@/utils/font-scale';
+import { useAppStore } from '@/src/store/use-app-store';
+import { getFontNumber } from '@/src/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';

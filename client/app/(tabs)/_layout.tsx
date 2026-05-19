@@ -1,11 +1,10 @@
 import { HapticTab } from '@/components/haptic-tab';
-import { useAppStore } from '@/store/use-app-store';
-import { getFontNumber } from '@/utils/font-scale';
+import { useAppStore } from '@/src/store/use-app-store';
+import { getFontNumber } from '@/src/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import React from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

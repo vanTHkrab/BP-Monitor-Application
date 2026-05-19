@@ -1,12 +1,12 @@
-import { useAppStore } from '@/store/use-app-store';
+import { useAppStore } from '@/src/store/use-app-store';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Text, useColorScheme, View } from 'react-native';
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withTiming,
 } from 'react-native-reanimated';
 import { AppLogo } from './app-logo';
 import { GradientBackground } from './gradient-background';
