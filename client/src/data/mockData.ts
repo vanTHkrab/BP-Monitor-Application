@@ -1,4 +1,4 @@
-import { getBPStatus } from '@/src/constants/colors';
+import { getBPStatus } from '@/src/themes/colors';
 import { BloodPressureReading, ChartDataPoint, CommunityPost, HealthTip, User } from '@/src/types';
 
 // Mock user data

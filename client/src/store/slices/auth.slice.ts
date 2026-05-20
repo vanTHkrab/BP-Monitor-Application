@@ -2,7 +2,7 @@ import {
     clearAuthToken,
     getAuthToken,
     setAuthToken,
-} from "@/src/constants/api";
+} from "@/src/core/api";
 import { setUnauthenticatedHandler } from "@/src/core/auth/session";
 import { graphqlRequest } from "@/src/core/graphql/client";
 import {
@@ -15,7 +15,7 @@ import {
     GQL_ME,
     GQL_REGISTER,
 } from "@/src/core/graphql/operations";
-import { clearUserLocalData } from "@/src/data/local-db";
+import { clearUserLocalData } from "@/src/data/queries/debug";
 import { LoginSession, User } from "@/src/types";
 import type {
     ChangePasswordMutation,

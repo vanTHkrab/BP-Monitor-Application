@@ -1,10 +1,10 @@
 import { GradientBackground } from "@/components/gradient-background";
-import {
-    getPendingAvatarUpload,
-    listPendingReadings,
-    type PendingAvatarUploadRow,
-    type PendingReadingRow,
-} from "@/src/data/local-db";
+import { getPendingAvatarUpload } from "@/src/data/queries/avatars";
+import { listPendingReadings } from "@/src/data/queries/readings";
+import type {
+    PendingAvatarUploadRow,
+    PendingReadingRow,
+} from "@/src/types/database";
 import { useAppStore } from "@/src/store/use-app-store";
 import { File } from "expo-file-system";
 import { useCallback, useEffect, useState } from "react";

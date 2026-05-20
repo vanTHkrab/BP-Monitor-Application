@@ -1,4 +1,4 @@
-import { getGraphqlEndpoint } from "@/src/constants/api";
+import { getGraphqlEndpoint } from "@/src/core/api";
 import { graphqlRequest } from "@/src/core/graphql/client";
 import {
     GQL_CREATE_COMMENT,
@@ -20,7 +20,7 @@ import {
     listPendingPostActions,
     queuePendingPostAction,
     updateLocalPost,
-} from "@/src/data/local-db";
+} from "@/src/data/queries/posts";
 import { CommunityPost, PostComment } from "@/src/types";
 import type {
     CreateCommentMutation,

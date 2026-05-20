@@ -1,6 +1,6 @@
 import { GradientBackground } from '@/components/gradient-background';
-import { Colors } from '@/src/constants/colors';
 import { useAppStore } from '@/src/store/use-app-store';
+import { Colors } from '@/src/themes/colors';
 import { getFontClass } from '@/src/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';

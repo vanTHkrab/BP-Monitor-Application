@@ -4,7 +4,7 @@ import {
     getCachedImage,
     listExpiredCachedImages,
     upsertCachedImage,
-} from "@/src/data/local-db";
+} from "@/src/data/queries/images";
 import { logWarn } from "@/src/store/shared/log";
 import { Directory, File, Paths } from "expo-file-system";
 import { Platform } from "react-native";

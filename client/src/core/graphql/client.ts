@@ -11,7 +11,7 @@
 // bootstrap so a rejected token triggers a single global logout
 // regardless of which transport surfaced it.
 
-import { getAuthToken } from "@/src/constants/api";
+import { getAuthToken } from "@/src/core/api";
 import { fireUnauthenticated } from "@/src/core/auth/session";
 import {
     GQL_ERROR_CODES,

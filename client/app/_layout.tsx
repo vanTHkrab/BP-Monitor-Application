@@ -1,5 +1,5 @@
 import { AppLoadingScreen } from "@/components/app-loading-screen";
-import { initLocalDb } from "@/src/data/local-db";
+import { runMigrations } from "@/src/core/database/migrator";
 import { useAppStore } from "@/src/store/use-app-store";
 import { cleanupExpiredImages } from "@/src/utils/image-cache";
 import {
@@ -90,7 +90,7 @@ export default function RootLayout() {
     // don't fire against an un-hydrated auth state.
     const bootstrap = async () => {
       try {
-        await initLocalDb();
+        await runMigrations();
         if (cancelled) return;
         // Best-effort image-cache GC; runs once per launch and never throws.
         void cleanupExpiredImages();

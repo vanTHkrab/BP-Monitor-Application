@@ -1,6 +1,6 @@
 import { GradientBackground } from "@/components/gradient-background";
-import { Colors } from "@/src/constants/colors";
 import { useAppStore } from "@/src/store/use-app-store";
+import { Colors } from "@/src/themes/colors";
 import { FontSizePreference } from "@/src/types";
 import {
     createExportFileWithRetry,

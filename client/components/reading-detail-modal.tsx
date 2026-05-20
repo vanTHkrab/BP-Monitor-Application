@@ -1,8 +1,8 @@
 import { UIImage } from '@/components/ui/image';
-import { Colors, type BPStatus } from '@/src/constants/colors';
 import { formatShortDate } from '@/src/data/mockData';
 import { useResolvedImageUri } from '@/src/hooks/use-resolved-image-uri';
 import { useAppStore } from '@/src/store/use-app-store';
+import { Colors, type BPStatus } from '@/src/themes/colors';
 import { BloodPressureReading } from '@/src/types';
 import { getFontClass } from '@/src/utils/font-scale';
 import { toDisplayImageUri } from '@/src/utils/storage-image';

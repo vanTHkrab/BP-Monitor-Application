@@ -7,7 +7,7 @@ import {
     deletePendingAvatarUpload,
     getPendingAvatarUpload,
     upsertPendingAvatarUpload,
-} from "@/src/data/local-db";
+} from "@/src/data/queries/avatars";
 import { User } from "@/src/types";
 import type {
     MeQuery,

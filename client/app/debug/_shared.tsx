@@ -1,8 +1,8 @@
 // Shared chrome + serialization helpers for the /debug section. Lives
 // alongside the screens (not under components/) because every consumer is
 // __DEV__-only and we don't want this leaking into the prod surface.
-import { Colors } from "@/src/constants/colors";
 import { useAppStore } from "@/src/store/use-app-store";
+import { Colors } from "@/src/themes/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";

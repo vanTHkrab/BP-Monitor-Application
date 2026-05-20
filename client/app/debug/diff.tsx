@@ -1,10 +1,8 @@
 import { GradientBackground } from "@/components/gradient-background";
 import { graphqlRequest } from "@/src/core/graphql/client";
 import { GQL_DEBUG_MY_STORAGE } from "@/src/core/graphql/operations";
-import {
-    getPendingAvatarUpload,
-    listPendingReadings,
-} from "@/src/data/local-db";
+import { getPendingAvatarUpload } from "@/src/data/queries/avatars";
+import { listPendingReadings } from "@/src/data/queries/readings";
 import { useAppStore } from "@/src/store/use-app-store";
 import { useCallback, useEffect, useState } from "react";
 import {

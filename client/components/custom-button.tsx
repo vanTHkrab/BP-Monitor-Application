@@ -1,5 +1,5 @@
-import { Colors } from '@/src/constants/colors';
 import { useAppStore } from '@/src/store/use-app-store';
+import { Colors } from '@/src/themes/colors';
 import { getFontClass } from '@/src/utils/font-scale';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';

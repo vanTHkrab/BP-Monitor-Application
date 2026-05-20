@@ -7,7 +7,6 @@ import {
     GQL_MARK_ALL_ALERTS_READ,
     GQL_READINGS,
 } from "@/src/core/graphql/operations";
-import { getBPStatus } from "@/src/constants/colors";
 import {
     deletePendingReading,
     deleteSyncedReadingByRemoteId,
@@ -16,7 +15,8 @@ import {
     listPendingReadings,
     markReadingSynced,
     upsertSyncedReading,
-} from "@/src/data/local-db";
+} from "@/src/data/queries/readings";
+import { getBPStatus } from "@/src/themes/colors";
 import { AppAlert, BloodPressureReading } from "@/src/types";
 import type {
     AlertsQuery,

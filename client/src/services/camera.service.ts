@@ -1,4 +1,4 @@
-import { getAuthToken } from '@/src/constants/api';
+import { getAuthToken } from '@/src/core/api';
 import {
     AI_POLL_INTERVAL_MS,
     AI_POLL_TIMEOUT_MS,

@@ -1,9 +1,9 @@
 import { AnimatedPressable, FadeInView, PulseView, ScaleOnMount } from '@/components/animated-components';
 import { GradientBackground } from '@/components/gradient-background';
 import { Avatar } from '@/components/ui/avatar';
-import { Colors, getStatusText, type BPStatus } from '@/src/constants/colors';
 import { formatThaiDate } from '@/src/data/mockData';
 import { useAppStore } from '@/src/store/use-app-store';
+import { Colors, getStatusText, type BPStatus } from '@/src/themes/colors';
 import {
     getInAppNotifications,
     markAllNotificationsAsRead,
