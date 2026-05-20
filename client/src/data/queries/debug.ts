@@ -30,8 +30,14 @@ export const debugListTables = async (): Promise<DebugTableDump[]> => {
   const db = await getRawSqlite();
   if (!db) return [];
 
+  // Skip sqlite_*, plus drizzle's bookkeeping table (`__drizzle_migrations`)
+  // — it's an implementation detail of the migration tracker, not user data.
   const tables = await db.getAllAsync<{ name: string }>(
-    `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;`,
+    `SELECT name FROM sqlite_master
+       WHERE type = 'table'
+         AND name NOT LIKE 'sqlite_%'
+         AND name NOT LIKE '__drizzle_%'
+       ORDER BY name;`,
   );
 
   const results: DebugTableDump[] = [];
