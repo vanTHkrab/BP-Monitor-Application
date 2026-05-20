@@ -35,10 +35,11 @@ src/
 │   ├── config/      env.ts + constants.ts
 │   ├── graphql/     client.ts + operations.ts + errors.ts
 │   ├── storage/     mmkv.storage.ts + secure.storage.ts + storage.keys.ts
-│   └── auth/        session.ts (session-expired notification primitive)
+│   ├── auth/        session.ts (session-expired notification primitive)
+│   └── error/       error.types.ts + error.handler.ts + error.boundary.tsx
 ├── store/       # Domain state. Zustand slices that own user/readings/posts/etc.
 ├── services/    # Stateful workflows over remote systems (e.g. AI image pipeline).
-├── lib/ utils/  # Pure helpers and SDK wrappers — see "lib/ vs services/" below.
+├── utils/       # Pure helpers and SDK wrappers — see the bucket-picker below.
 └── data/        # SQLite schema + helpers (the offline mirror).
 ```
 
@@ -63,12 +64,14 @@ TypeScript alias both target the client root.
 | `src/core/storage/secure.storage.ts` | Async facade around `expo-secure-store` (`secureStorage.{get,set,delete}`). Use for credentials only — anything non-sensitive belongs in `mmkv.storage.ts`. Native-only; web is unsupported by design. |
 | `src/core/storage/storage.keys.ts` | Every persistent key the app writes — `SECURE_KEYS` for credentials, `KV_KEYS` for preferences, `userKey.*` for per-user computed keys. One file lets you grep the whole storage surface; renaming a key forces touching it, so migrations stay deliberate. |
 | `src/core/auth/session.ts` | Session-expired notification primitive: `setUnauthenticatedHandler` (auth slice registers a handler at bootstrap) + `fireUnauthenticated` (transports call this on 401 / UNAUTHENTICATED). Module-level state — never import the store from here. |
+| `src/core/error/error.types.ts` | Central type surface for the error layer. Re-exports `GraphQLClientError` + `errorCode`/`errorHttpStatus`/`errorRetryAfterSec`/`isGraphQLClientError` from `core/graphql/errors` and exports the `FormattedError` view. Feature code imports from here, not from `core/graphql/errors` directly. |
+| `src/core/error/error.handler.ts` | `formatError(error, { fallback?, code? })` → `FormattedError` with a Thai `userMessage` (always) and `devDetail`/`devCode` (dev-only). Maps known timeout/network/`[CODE]` patterns; preserves Thai backend messages; falls back to a generic Thai message otherwise. Use for everything except login/register (those use `formatAuthError`). |
+| `src/core/error/error.boundary.tsx` | Top-level React `ErrorBoundary` class component wrapping the route stack in `app/_layout.tsx`. Catches render-phase crashes, renders a Thai fallback screen with a "ลองใหม่" button and dev-only stack disclosure. Does not depend on `useAppStore` so it survives store-side crashes. |
 | `src/constants/api.ts` | Endpoint accessors (`getApiBaseUrl`, `getGraphqlEndpoint`) + token helpers (`setAuthToken`, `getAuthToken`, `clearAuthToken`) that compose `secureStorage`. Operation strings and transport now live in `core/graphql/`. |
 | `src/constants/colors.ts` | BP-status thresholds + Tailwind color tokens. |
 | `src/data/local-db.ts` | SQLite schema + helpers. `pending_readings` is both the offline queue **and** the mirror of synced readings (rows carry a `syncStatus` of `pending` / `pending-image` / `synced` and a `remoteId` once confirmed); `cached_images` tracks 7-day-cached image files keyed by extracted S3 path. |
 | `src/hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry. |
 | `src/hooks/use-resolved-image-uri.ts` | React hook over `image-cache` — feeds remote URI on mount, swaps to the `file://` once `resolveImageUri` returns. Used by `reading-detail-modal` so signed-URL rotation is transparent and history images render offline. |
-| `src/lib/error-message.ts` | General `formatError(error)` — hides raw English in production, surfaces it as `devDetail` in `__DEV__`. Use this for non-auth flows. |
 | `src/services/camera.service.ts` | `analyzeImage`: presigned upload + enqueue AI + poll. Returns `uploadedUrl` so the caller can hand it to `createReading` without re-uploading. Reading persistence itself lives in the store, not here. Polling defaults come from `core/config/constants.ts`. |
 | `src/store/use-app-store.ts` | Composer for the single Zustand store. Imports and merges every slice — keep slim. |
 | `src/store/slices/` | Domain slices: `auth` (+ sessions), `profile` (me + avatar queue), `readings` (+ alerts), `community` (posts + comments), `caregivers`, `preferences` (theme + font + security), `network`. |
@@ -162,24 +165,22 @@ TypeScript alias both target the client root.
 - **Local-only IDs are strings prefixed with `local-` (readings) or
   `local-post-` (posts)**. Use the `isLocalReadingId`/`isLocalPostId` helpers
   in the store; don't string-match these prefixes elsewhere.
-- **`core/` vs `lib/` vs `services/` vs `utils/` vs `hooks/`** — pick the
-  bucket by what the file *is*, not what it touches.
+- **`core/` vs `services/` vs `utils/` vs `hooks/`** — pick the bucket by
+  what the file *is*, not what it touches.
   - `core/` is infrastructure that the rest of the app depends on
     (env, storage, transport, errors, session primitive). Feature code
     is forbidden here.
   - `services/` is for stateful I/O modules that own a workflow against
     a remote system (e.g. `camera.service.ts` owns upload + poll for
     AI analysis).
-  - `lib/` is a residual category for low-level integrations that aren't
-    `core/` yet — today only `error-message.ts` lives here; new infra
-    should go in `core/`.
   - `utils/` is pure functions and small side-effect helpers that don't
     model a remote workflow (CSV/PDF export, font scaling, one-shot S3
     uploads, local notification scheduling).
   - `hooks/` is React hooks only — anything returning a hook must live
     here, anything not must not.
   - When in doubt: infrastructure → `core/`, workflow → `services/`,
-    helper → `utils/`, React state → `hooks/`.
+    helper → `utils/`, React state → `hooks/`. (`src/lib/` no longer
+    exists — the one residual file moved into `core/error/`.)
 
 ## Styling Conventions
 

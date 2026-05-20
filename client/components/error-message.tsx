@@ -1,4 +1,5 @@
-import { formatError, type FormattedError } from "@/src/lib/error-message";
+import { formatError } from "@/src/core/error/error.handler";
+import type { FormattedError } from "@/src/core/error/error.types";
 import { useAppStore } from "@/src/store/use-app-store";
 import { getFontClass } from "@/src/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";

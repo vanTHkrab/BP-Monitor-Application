@@ -1,4 +1,4 @@
-import { formatError } from "@/src/lib/error-message";
+import { formatError } from "@/src/core/error/error.handler";
 
 describe("formatError", () => {
   it("maps timeout errors to a Thai user-facing message", () => {

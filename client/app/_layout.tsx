@@ -1,5 +1,6 @@
 import { AppLoadingScreen } from "@/components/app-loading-screen";
 import { runMigrations } from "@/src/core/database/migrator";
+import { ErrorBoundary } from "@/src/core/error/error.boundary";
 import { useAppStore } from "@/src/store/use-app-store";
 import { cleanupExpiredImages } from "@/src/utils/image-cache";
 import {
@@ -188,32 +189,34 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GestureHandlerRootView className="flex-1">
         <StatusBar style={themePreference === "dark" ? "light" : "dark"} />
-        {!themeHydrated ? (
-          <AppLoadingScreen />
-        ) : (
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: "none",
-            }}
-          >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="history-list"
-              options={{ presentation: "modal" }}
-            />
-            <Stack.Screen name="profile" />
-            <Stack.Screen name="caregivers" />
-            <Stack.Screen name="settings" />
-            <Stack.Screen name="security" />
-            <Stack.Screen name="help" />
-            <Stack.Screen name="about" />
-            <Stack.Screen name="health-tips" />
-            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-          </Stack>
-        )}
+        <ErrorBoundary>
+          {!themeHydrated ? (
+            <AppLoadingScreen />
+          ) : (
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: "none",
+              }}
+            >
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="history-list"
+                options={{ presentation: "modal" }}
+              />
+              <Stack.Screen name="profile" />
+              <Stack.Screen name="caregivers" />
+              <Stack.Screen name="settings" />
+              <Stack.Screen name="security" />
+              <Stack.Screen name="help" />
+              <Stack.Screen name="about" />
+              <Stack.Screen name="health-tips" />
+              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+            </Stack>
+          )}
+        </ErrorBoundary>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
