@@ -12,7 +12,7 @@
 import { getRawSqlite } from "./client";
 
 export const runMigrations = async (): Promise<void> => {
-  const db = getRawSqlite();
+  const db = await getRawSqlite();
   if (!db) return;
 
   await db.execAsync(

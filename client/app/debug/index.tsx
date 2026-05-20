@@ -2,7 +2,7 @@ import { GradientBackground } from "@/components/gradient-background";
 import { MenuItem } from "@/components/menu-item";
 import { Href, router } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
-import { DebugHeader, useIsDark } from "./_shared";
+import { DebugHeader, useIsDark } from "@/components/debug-shared";
 
 const sections: {
   href: Href;

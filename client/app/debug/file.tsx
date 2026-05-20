@@ -2,7 +2,7 @@ import { GradientBackground } from "@/components/gradient-background";
 import { Directory, File, Paths } from "expo-file-system";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
-import { DebugHeader, Pre, stringify, useIsDark } from "./_shared";
+import { DebugHeader, Pre, stringify, useIsDark } from "@/components/debug-shared";
 
 interface Entry {
   path: string;

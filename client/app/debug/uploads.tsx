@@ -15,7 +15,7 @@ import {
     Text,
     View,
 } from "react-native";
-import { DebugHeader, useIsDark } from "./_shared";
+import { DebugHeader, useIsDark } from "@/components/debug-shared";
 
 interface MediaItem {
   uri: string;

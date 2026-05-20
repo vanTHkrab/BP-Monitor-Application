@@ -27,7 +27,7 @@ export type { DebugTableDump } from "@/src/types/database";
  * blow up the screen. Returns an empty array on web (no SQLite).
  */
 export const debugListTables = async (): Promise<DebugTableDump[]> => {
-  const db = getRawSqlite();
+  const db = await getRawSqlite();
   if (!db) return [];
 
   const tables = await db.getAllAsync<{ name: string }>(
@@ -54,7 +54,7 @@ export const debugListTables = async (): Promise<DebugTableDump[]> => {
 };
 
 export const clearUserLocalData = async (userId: string): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db.delete(pendingReadings).where(eq(pendingReadings.userId, userId));
   await db.delete(localPosts).where(eq(localPosts.userId, userId));

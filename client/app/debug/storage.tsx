@@ -3,7 +3,7 @@ import { isMMKVAvailable, kvStorage } from "@/src/core/storage/mmkv.storage";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useState } from "react";
 import { Platform, RefreshControl, ScrollView, Text, View } from "react-native";
-import { DebugHeader, Pre, stringify, useIsDark } from "./_shared";
+import { DebugHeader, Pre, stringify, useIsDark } from "@/components/debug-shared";
 
 // SecureStore can't enumerate keys; we keep an allow-list of every key the
 // app is known to write. Add to this list when introducing new SecureStore

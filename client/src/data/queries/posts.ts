@@ -20,7 +20,7 @@ import { and, eq, sql } from "drizzle-orm";
 export const insertLocalPost = async (
   row: Omit<NewLocalPost, "id">,
 ): Promise<number | null> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return null;
   const [inserted] = await db
     .insert(localPosts)
@@ -32,7 +32,7 @@ export const insertLocalPost = async (
 export const listLocalPosts = async (
   userId: string,
 ): Promise<LocalPostRow[]> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return [];
   return db
     .select()
@@ -45,7 +45,7 @@ export const updateLocalPost = async (
   id: number,
   input: { content?: string; category?: string },
 ): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   const patch: Partial<Pick<LocalPostRow, "content" | "category">> = {};
   if (typeof input.content === "string") patch.content = input.content;
@@ -55,7 +55,7 @@ export const updateLocalPost = async (
 };
 
 export const deleteLocalPost = async (id: number): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db.delete(localPosts).where(eq(localPosts.id, id));
 };
@@ -68,7 +68,7 @@ export const deleteLocalPost = async (id: number): Promise<void> => {
 export const queuePendingPostAction = async (
   row: Omit<NewPendingPostAction, "id">,
 ): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db
     .delete(pendingPostActions)
@@ -84,7 +84,7 @@ export const queuePendingPostAction = async (
 export const listPendingPostActions = async (
   userId: string,
 ): Promise<PendingPostActionRow[]> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return [];
   return db
     .select()
@@ -94,7 +94,7 @@ export const listPendingPostActions = async (
 };
 
 export const deletePendingPostAction = async (id: number): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db.delete(pendingPostActions).where(eq(pendingPostActions.id, id));
 };

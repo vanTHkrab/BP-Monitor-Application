@@ -198,8 +198,18 @@ async function pollUntilDone(jobId: string, options: PollOptions = {}): Promise<
   const deadline = Date.now() + timeoutMs;
   let lastStatus: AnalysisJob['status'] | null = null;
 
+  // Hermes doesn't expose the DOM-standard `DOMException` global, so we
+  // build an Error whose `name === 'AbortError'` — that's the same shape
+  // fetch() / AbortController surface to callers in RN, and downstream
+  // `if (e.name === 'AbortError')` checks work unchanged.
+  const abortError = () => {
+    const e = new Error('Aborted');
+    e.name = 'AbortError';
+    return e;
+  };
+
   while (Date.now() < deadline) {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (signal?.aborted) throw abortError();
 
     const data = await gqlRequest<{ analysisJob: AnalysisJob }>({
       query: POLL_ANALYSIS_JOB_QUERY,
@@ -222,7 +232,7 @@ async function pollUntilDone(jobId: string, options: PollOptions = {}): Promise<
       const t = setTimeout(resolve, intervalMs);
       signal?.addEventListener('abort', () => {
         clearTimeout(t);
-        reject(new DOMException('Aborted', 'AbortError'));
+        reject(abortError());
       });
     });
   }

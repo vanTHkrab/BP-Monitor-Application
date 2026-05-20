@@ -2,7 +2,7 @@ import { GradientBackground } from "@/components/gradient-background";
 import { useAppStore } from "@/src/store/use-app-store";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
-import { DebugHeader, Pre, stringify, useIsDark } from "./_shared";
+import { DebugHeader, Pre, stringify, useIsDark } from "@/components/debug-shared";
 
 const dumpStore = (state: Record<string, unknown>) => {
   const out: Record<string, unknown> = {};

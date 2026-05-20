@@ -1,6 +1,8 @@
 // Shared chrome + serialization helpers for the /debug section. Lives
-// alongside the screens (not under components/) because every consumer is
-// __DEV__-only and we don't want this leaking into the prod surface.
+// under components/ instead of next to the screens so Expo Router
+// doesn't treat it as a route-without-default-export. Every consumer is
+// __DEV__-only — Metro tree-shakes this out of production bundles
+// because no app-shipped code path imports it.
 import { useAppStore } from "@/src/store/use-app-store";
 import { Colors } from "@/src/themes/colors";
 import { Ionicons } from "@expo/vector-icons";

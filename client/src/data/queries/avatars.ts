@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 export const upsertPendingAvatarUpload = async (
   row: PendingAvatarUploadRow,
 ): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db
     .insert(pendingAvatarUploads)
@@ -24,7 +24,7 @@ export const upsertPendingAvatarUpload = async (
 export const getPendingAvatarUpload = async (
   userId: string,
 ): Promise<PendingAvatarUploadRow | null> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return null;
   const [row] = await db
     .select()
@@ -37,7 +37,7 @@ export const getPendingAvatarUpload = async (
 export const deletePendingAvatarUpload = async (
   userId: string,
 ): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db
     .delete(pendingAvatarUploads)

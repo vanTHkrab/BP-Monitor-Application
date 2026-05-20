@@ -3,7 +3,7 @@ import { debugListTables } from "@/src/data/queries/debug";
 import type { DebugTableDump } from "@/src/types/database";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
-import { DebugHeader, Pre, stringify, useIsDark } from "./_shared";
+import { DebugHeader, Pre, stringify, useIsDark } from "@/components/debug-shared";
 
 export default function DebugSqlitePage() {
   const isDark = useIsDark();

@@ -13,7 +13,7 @@ import { eq, sql } from "drizzle-orm";
 export const getCachedImage = async (
   remoteKey: string,
 ): Promise<CachedImageRow | null> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return null;
   const [row] = await db
     .select()
@@ -28,7 +28,7 @@ export const upsertCachedImage = async (row: {
   localPath: string;
   byteSize?: number | null;
 }): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   const fetchedAt = new Date().toISOString();
   const byteSize = row.byteSize ?? null;
@@ -47,7 +47,7 @@ export const upsertCachedImage = async (row: {
 };
 
 export const deleteCachedImage = async (remoteKey: string): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db.delete(cachedImages).where(eq(cachedImages.remoteKey, remoteKey));
 };
@@ -57,7 +57,7 @@ export const deleteCachedImage = async (remoteKey: string): Promise<void> => {
 export const listExpiredCachedImages = async (
   beforeIso: string,
 ): Promise<CachedImageRow[]> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return [];
   return db
     .select()

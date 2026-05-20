@@ -11,7 +11,7 @@ import {
     Text,
     View,
 } from "react-native";
-import { DebugHeader, Pre, stringify, useIsDark } from "./_shared";
+import { DebugHeader, Pre, stringify, useIsDark } from "@/components/debug-shared";
 
 interface ServerItem {
   source: string;

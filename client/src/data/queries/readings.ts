@@ -18,7 +18,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 export const listPendingReadings = async (
   userId: string,
 ): Promise<PendingReadingRow[]> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return [];
   return db
     .select()
@@ -38,7 +38,7 @@ export const listPendingReadings = async (
 export const listLocalReadings = async (
   userId: string,
 ): Promise<PendingReadingRow[]> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return [];
   return db
     .select()
@@ -52,7 +52,7 @@ export const insertPendingReading = async (
     syncStatus: NonNullable<NewPendingReading["syncStatus"]>;
   },
 ): Promise<number | null> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return null;
   const [inserted] = await db
     .insert(pendingReadings)
@@ -66,7 +66,7 @@ export const insertPendingReading = async (
 };
 
 export const deletePendingReading = async (id: number): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db.delete(pendingReadings).where(eq(pendingReadings.id, id));
 };
@@ -80,7 +80,7 @@ export const upsertSyncedReading = async (
     remoteId: number;
   },
 ): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   const updatedAt = new Date().toISOString();
 
@@ -150,7 +150,7 @@ export const markReadingSynced = async (
   remoteId: number,
   imageUri: string | null,
 ): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db
     .update(pendingReadings)
@@ -167,7 +167,7 @@ export const deleteSyncedReadingByRemoteId = async (
   userId: string,
   remoteId: number,
 ): Promise<void> => {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
   await db
     .delete(pendingReadings)
