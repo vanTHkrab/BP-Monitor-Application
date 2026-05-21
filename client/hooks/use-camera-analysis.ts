@@ -4,7 +4,6 @@ import {
   type PreflightResult,
 } from '@/services/preflight-detection.service';
 import { useAppStore } from '@/store/use-app-store';
-import { logWarn } from '@/store/shared/log';
 import type { AnalysisJob, AnalysisResult, BPReading, OcrEngine } from '@/types';
 import { useCallback, useRef, useState } from 'react';
 
@@ -78,55 +77,16 @@ export function useCameraAnalysis() {
     setState(INITIAL_STATE);
   }, []);
 
-  /**
-   * Run the on-device YOLO pre-flight check. Doesn't kick off the backend
-   * analysis — the camera screen inspects `state.preflight.status` and
-   * decides whether to auto-call `analyze(croppedUri)` or surface a warning
-   * with a "send anyway" button that calls `analyze(originalUri)`.
-   *
-   * On failure (model load error, JPEG decode error, …) we return `null` and
-   * leave `preflight === null` so the UI falls back to the legacy "just
-   * upload" path — pre-flight is an optimisation, not a gate.
-   */
-  const runPreflight = useCallback(
-    async (params: {
-      imageUri: string;
-      sourceWidth: number;
-      sourceHeight: number;
-    }): Promise<PreflightResult | null> => {
-      setState((prev) => ({ ...prev, phase: 'preflight', error: null }));
-      try {
-        const result = await preflightCheckImage(params);
-        setState((prev) => ({ ...prev, phase: 'idle', preflight: result }));
-        return result;
-      } catch (err) {
-        logWarn('preflight', 'on-device YOLO failed; skipping pre-flight', err);
-        setState((prev) => ({ ...prev, phase: 'idle', preflight: null }));
-        return null;
-      }
-    },
-    [],
-  );
-
   const analyze = useCallback(
     async (imageUri: string, opts?: { ocrEngine?: OcrEngine }) => {
       abortRef.current?.abort();
       const abort = new AbortController();
       abortRef.current = abort;
 
-      setState((prev) => ({
-        ...prev,
-        phase: 'uploading',
-        job: null,
-        result: null,
-        prefill: {},
-        uploadedUrl: null,
-        uploadedImageId: null,
-        error: null,
-      }));
+      setState({ ...INITIAL_STATE, phase: 'uploading' });
 
       try {
-        const { job, result, uploadedUrl, uploadedImageId } = await analyzeImage(
+        const { job, result, uploadedUrl } = await analyzeImage(
           { imageUri },
           {
             signal: abort.signal,
@@ -140,25 +100,14 @@ export function useCameraAnalysis() {
         const hasGoodReading =
           result && result.confidence >= CONFIDENCE_THRESHOLD && result.readings;
 
-        if (__DEV__) {
-          console.log('[analyze]', {
-            confidence: result?.confidence,
-            threshold: CONFIDENCE_THRESHOLD,
-            readings: result?.readings,
-            willPrefill: Boolean(hasGoodReading),
-          });
-        }
-
-        setState((prev) => ({
-          ...prev,
+        setState({
           phase: 'done',
           job,
           result,
           prefill: hasGoodReading ? { ...result!.readings! } : {},
           uploadedUrl,
-          uploadedImageId,
           error: null,
-        }));
+        });
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         setState((prev) => ({

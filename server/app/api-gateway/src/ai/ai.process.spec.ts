@@ -1,12 +1,30 @@
 /// <reference types="jest" />
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { ClientProxy } from '@nestjs/microservices';
 import { of, throwError } from 'rxjs';
 import { Job } from 'bullmq';
 import { AI_JOB_ANALYZE } from './ai.service';
 import { AiProcessor } from './ai.process';
 import { MetricsLogger } from './metrics-logger';
-import type { AiServiceAnalysisMetrics, OcrEngine } from './types/ai.types';
+import type {
+  AiServiceAnalysisMetrics,
+  AiServiceAnalysisResponse,
+  AnalysisJobPayload,
+  OcrEngine,
+} from './types/ai.types';
+
+// Narrow view onto the private parser methods so the tests can exercise
+// them without an `as any` cast. Cast via `unknown` keeps the surface
+// tight: only the two methods listed are reachable, and TypeScript
+// still type-checks call sites instead of trusting blind structural soup.
+interface ProcessorInternals {
+  parseAiResponse(value: unknown): AiServiceAnalysisResponse;
+  parseJobPayload(value: unknown): AnalysisJobPayload;
+}
+
+function internals(processor: AiProcessor): ProcessorInternals {
+  return processor as unknown as ProcessorInternals;
+}
 
 function makeJob(data: unknown, name = AI_JOB_ANALYZE): Job {
   return { name, data } as unknown as Job;
@@ -77,7 +95,7 @@ describe('AiProcessor', () => {
   describe('parseAiResponse', () => {
     it('returns null engine for unknown name', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const data = (processor as any).parseAiResponse({
+      const data = internals(processor).parseAiResponse({
         ...goodReply,
         engine: 'easyocr',
       });
@@ -87,7 +105,7 @@ describe('AiProcessor', () => {
 
     it('returns null metrics when engine missing', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const data = (processor as any).parseAiResponse({
+      const data = internals(processor).parseAiResponse({
         ...goodReply,
         engine: null,
         metrics: rawMetrics('crnn'),
@@ -98,7 +116,7 @@ describe('AiProcessor', () => {
     it('returns null metrics when a numeric field is missing', () => {
       const { processor } = makeProcessor({ reply: goodReply });
       const broken = { ...rawMetrics(), fetch_ms: 'oops' as unknown as number };
-      const data = (processor as any).parseAiResponse({
+      const data = internals(processor).parseAiResponse({
         ...goodReply,
         metrics: broken,
       });
@@ -107,7 +125,7 @@ describe('AiProcessor', () => {
 
     it('parses engine and metrics when present and valid', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const data = (processor as any).parseAiResponse(goodReply);
+      const data = internals(processor).parseAiResponse(goodReply);
       expect(data.engine).toBe('crnn');
       expect(data.metrics).toEqual(rawMetrics('crnn'));
     });
@@ -116,7 +134,7 @@ describe('AiProcessor', () => {
   describe('parseJobPayload', () => {
     it('accepts a known ocrEngine', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const parsed = (processor as any).parseJobPayload({
+      const parsed = internals(processor).parseJobPayload({
         ...goodPayload,
         ocrEngine: 'ssocr',
       });
@@ -125,7 +143,7 @@ describe('AiProcessor', () => {
 
     it('drops unknown ocrEngine values silently', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const parsed = (processor as any).parseJobPayload({
+      const parsed = internals(processor).parseJobPayload({
         ...goodPayload,
         ocrEngine: 'easyocr',
       });

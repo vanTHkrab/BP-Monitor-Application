@@ -54,43 +54,7 @@ export default function CameraScreen() {
   const ocrEngineOverride = devMode ? selectedOcrEngine : undefined;
 
   // ─── Analysis service ─────────────────────────────────────────────────────────
-  const {
-    phase,
-    prefill,
-    result,
-    preflight,
-    isSaving,
-    runPreflight,
-    analyze,
-    save,
-    reset: resetAnalysis,
-  } = useCameraAnalysis();
-
-  // The original (uncropped) image URI captured from the camera/picker, kept
-  // separately from `capturedImage` (which is what's shown in the preview —
-  // the auto-cropped variant when pre-flight succeeded). On "send anyway"
-  // from the warning banner we feed this URI to `analyze()` so the backend
-  // still sees the full frame even when on-device thinks it's a bad shot.
-  const originalImageRef = useRef<string | null>(null);
-
-  // Live-preview overlay viewport measurement. The hook below polls
-  // takePictureAsync at ~2 fps and the overlay needs the on-screen pixel
-  // size of the CameraView container to map detection boxes correctly.
-  const [previewViewport, setPreviewViewport] = useState<{ width: number; height: number } | null>(
-    null,
-  );
-
-  // Live on-device YOLO over the camera preview. Only active when the user
-  // is framing a shot — once `capturedImage` is set we switch to the static
-  // preview (cropped or original) and stop the polling loop. The entry
-  // modal also pauses live detection because takePictureAsync while a modal
-  // is overlaid would be wasted work the user can't see.
-  const isFramingShot = !capturedImage && isCameraReady && !showEntryModal;
-  const liveFrame = useLivePreflight({
-    cameraRef,
-    enabled: isFramingShot,
-    intervalMs: 500,
-  });
+  const { phase, prefill, result, isSaving, analyze, save, reset: resetAnalysis } = useCameraAnalysis();
 
   // Auto-fill form when AI returns confident readings.
   // Functional setState reads the *current* value at update time, so a slow
@@ -200,7 +164,18 @@ export default function CameraScreen() {
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
       if (!photo) return;
-      await startCaptureFlow(photo.uri, photo.width, photo.height);
+      // Resize before showing the preview / kicking off AI so the rest of
+      // the flow (S3 upload, OCR) sees a sanely-sized image. We pass the
+      // dimensions explicitly (the camera returns them) so the helper
+      // doesn't have to call `Image.getSize` — that path could hang on a
+      // just-written URI and leave the capture UI stuck.
+      const prepared = await prepareImageForAnalysis(
+        photo.uri,
+        photo.width,
+        photo.height,
+      );
+      setCapturedImage(prepared);
+      void analyze(prepared, { ocrEngine: ocrEngineOverride });
     } catch {
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
     } finally {
@@ -216,7 +191,13 @@ export default function CameraScreen() {
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      await startCaptureFlow(asset.uri, asset.width, asset.height);
+      const prepared = await prepareImageForAnalysis(
+        asset.uri,
+        asset.width,
+        asset.height,
+      );
+      setCapturedImage(prepared);
+      void analyze(prepared, { ocrEngine: ocrEngineOverride });
     }
   };
 
@@ -541,6 +522,8 @@ export default function CameraScreen() {
                 className="pt-10"
                 style={{ paddingBottom: tabBarTotalHeight + 16 }}
               >
+                {/* Dev-only OCR engine picker — hidden unless devMode is on. */}
+                <OcrEngineSelector />
                 <View className="flex-row justify-between items-center px-10">
                   <AnimatedPressable onPress={pickImage} className="w-[70px] items-center">
                     <View className="w-[50px] h-[50px] rounded-full bg-white/20 items-center justify-center">
@@ -614,56 +597,6 @@ export default function CameraScreen() {
                   totalMs={result?.metrics?.totalMs}
                   rssDeltaMb={result?.metrics?.rssDeltaMb}
                 />
-              </View>
-            )}
-
-            {/* On-device pre-flight warning banner. Shows only when the
-                bundled YOLO disagrees with the captured image AND the user
-                hasn't yet chosen retake/proceed. Hidden once `analyze()` is
-                kicked off (phase ≠ 'idle') so it doesn't overlap with the
-                upload/queued/processing chips above. */}
-            {phase === 'idle' && preflight && preflight.status !== 'ok' && (
-              <View className="absolute top-16 left-4 right-4 rounded-2xl bg-black/70 px-4 py-3">
-                <View className="flex-row items-center mb-2">
-                  <Ionicons
-                    name={preflight.status === 'no-monitor' ? 'scan-outline' : 'eye-off-outline'}
-                    size={18}
-                    color="#FBBF24"
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text className={'text-amber-300 font-semibold ' + bodyClassName}>
-                    {preflight.status === 'no-monitor'
-                      ? 'ไม่เจอ BP monitor'
-                      : 'ภาพไม่ชัดหรือไกลเกินไป'}
-                  </Text>
-                </View>
-                <Text className={'text-white/90 mb-3 ' + captionClassName}>
-                  {preflight.status === 'no-monitor'
-                    ? 'ลองถ่ายใหม่ให้เห็นเครื่องวัดทั้งหน้าจอ หรือกด "ส่งต่อไป" ถ้าต้องการให้ AI ตรวจสอบ'
-                    : `ตรวจไม่พบค่า ${preflight.missingFields.join(' / ')} ลองถ่ายใหม่ให้ใกล้และชัดขึ้น`}
-                </Text>
-                <View className="flex-row space-x-2">
-                  <AnimatedPressable
-                    onPress={retakeAfterWarning}
-                    className="flex-1 rounded-xl overflow-hidden"
-                  >
-                    <View className="bg-white/15 px-3 py-2 items-center">
-                      <Text className={'text-white font-semibold ' + captionClassName}>
-                        ถ่ายใหม่
-                      </Text>
-                    </View>
-                  </AnimatedPressable>
-                  <AnimatedPressable
-                    onPress={sendAnyway}
-                    className="flex-1 rounded-xl overflow-hidden"
-                  >
-                    <View className="bg-blue-500 px-3 py-2 items-center">
-                      <Text className={'text-white font-semibold ' + captionClassName}>
-                        ส่งต่อไป
-                      </Text>
-                    </View>
-                  </AnimatedPressable>
-                </View>
               </View>
             )}
 
