@@ -372,35 +372,223 @@ After pre-work: `pyproject.toml` declares every import in the source
 tree (no ghost packages), `ai_service/` is the only Python package, and
 the model lives outside `src/` as an asset.
 
-## Implementation checklist (when picked up)
+## Implementation checklist (Milestone 1 — ssocr port)
 
 - [x] **Pre-work** above (steps 1-5) — completed 2026-05-17
 - [x] Scaffold `analyzer/`, `analyzer/ocr/` — completed 2026-05-17
-      (`storage/`, `handlers.py`, `config.py` still pending — created on demand)
 - [x] Define `OCRReader` Protocol + `OCRResult` in `analyzer/ocr/base.py`
       — completed 2026-05-17
 - [x] Port `prepare/ssocr.py` → `analyzer/ocr/ssocr.py` implementing
       `OCRReader` — completed 2026-05-17 (CLI block stripped, refactored to
       accept ndarray, `SSOCREngine` wraps `read_digits_with_rule_engine`)
-- [ ] Implement `YoloDetector` in `analyzer/yolo.py`: onnxruntime
-      session, letterbox preprocess, anchor decode + NMS post-process,
-      class filter to {sys=4, dia=2, pulse=3}
-- [ ] Implement `preprocessing.py` (grayscale → threshold → morphology
-      → tuned per ssocr's expected input)
-- [ ] Implement `validation.py` with the ranges + sys>dia rule
-- [ ] Implement `BPAnalysisPipeline` in `analyzer/pipeline.py`
-- [ ] Implement `AnalyzerConfig(BaseSettings)` in `config.py` with the
-      env vars from the Lifespan section
-- [ ] Wire lifespan + handler — replace `build_mock_response()` in
-      `ai_service/main.py` with `app.state.pipeline.analyze(image_bytes)`
-- [ ] Update gateway side (5 files listed above)
-- [ ] Add tests (Python + gateway)
-- [ ] Add fixture images under `tests/fixtures/`
-- [ ] Update [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths" table
-      with `analyzer/`, `analyzer/ocr/`, `storage/`, `config.py`, and
-      drop the `build_mock_response()` reference
-- [ ] Update root [CLAUDE.md](../../../CLAUDE.md) AI flow paragraph if
-      the wire contract changes (e.g. new payload field for ROI image)
+- [x] Implement `YoloDetector` in `analyzer/yolo.py`
+- [x] Implement `preprocessing.py` (letterbox)
+- [x] Implement `validation.py` (ranges + sys>dia)
+- [x] Implement `BPAnalysisPipeline` in `analyzer/pipeline.py`
+- [x] Implement `AnalyzerConfig(BaseSettings)` in `config.py`
+- [x] Wire lifespan + handler — `ai_service/main.py` builds pipeline +
+      Redis listener via `handlers.listen()`
+- [x] Update gateway side — commit `ac5e3dd`: `imageUrl` presign + `modelVersion`
+- [x] Add tests (92 collected: config / fetch / handlers / pipeline / validation / yolo)
+- [ ] Add fixture BP images under `tests/fixtures/` (blurry / occluded / decimal edge)
+- [ ] **ROI overlay upload** — pipeline still sets `roi_image_url=None`
+      (see [pipeline.py:198](./src/ai_service/analyzer/pipeline.py)). PLAN
+      decided gateway PUTs the bytes — ai-service returns base64 in reply.
+      Gateway-side `ai.process.ts` upload to `users/{userId}/bp/analysis/{jobId}_roi.{ext}`
+      still pending. Listed as optional in PLAN; defer to Milestone 3.
+- [x] Update [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths" — done 2026-05-17
+
+## Milestone 2 — Replace SSOCR with CRNN ONNX (2026-05-21)
+
+**Decision**: adopt `prepare/ocr/crnn/crnn_int8.onnx` (1.20 MB) as the
+default OCR engine. Drops the in-process ssocr stack (rule-based
+7-segment + 3 CNN ensembles + LR/MLP/K-NN + templates) which silently
+degrades in production today because (a) `pyproject.toml` doesn't declare
+`torch` / `joblib`, and (b) the supporting artifacts (`cnn*.pt`,
+`classifier.joblib`, `templates.npz`) were never copied alongside the
+ported `ssocr.py`. The result is ssocr running as rule-based-only —
+~80/78/67% (sys/dia/pul) at best, no different from Milestone 1's known
+state but with 2,953 lines of dead branches.
+
+CRNN was trained by a teammate on TRAIN 80% of the crop-SDP dataset
+(2,589 images incl. 862 pul exemplars after the pul-leak fix). TEST-split
+standalone accuracy 91.08 / 93.95 / 90.52 — better than ssocr on every
+label, in 30 ms/image instead of 500.
+
+### What we keep / replace / discard
+
+| Component | Status in Milestone 2 |
+| --- | --- |
+| `YoloDetector` (onnxruntime) | **keep** — unchanged |
+| `BPAnalysisPipeline` orchestration | **keep** — engine is a Strategy plugin |
+| `AnalysisResult` + wire contract | **keep** — additive only |
+| `SSOCREngine` + `analyzer/ocr/ssocr.py` | **delete** — dead code that depends on torch + missing artifacts. Removed entirely, not gated behind a flag |
+| `OCREngine.SSOCR` enum value | **remove** — `OCREngine.CRNN` becomes the only value (room for future engines via Strategy stays) |
+| `prepare/` folder | **delete** after port verified — already in `.gitignore`; research scaffolding belongs in a separate repo |
+| `tests/test_yolo.py`, `test_pipeline.py`, etc. | **keep** — only the ssocr-mocking parts adjust to mock `CRNNEngine` instead |
+
+### Module layout after Milestone 2
+
+```text
+ai-service/
+├── models/
+│   ├── yolo12n.onnx               # existing
+│   └── crnn_int8.onnx             # NEW — 1.20 MB, baked in Docker image
+└── src/ai_service/
+    └── analyzer/
+        ├── pipeline.py            # unchanged
+        ├── yolo.py                # unchanged
+        ├── preprocessing.py       # unchanged (letterbox)
+        ├── validation.py          # unchanged
+        ├── types.py               # unchanged
+        └── ocr/
+            ├── base.py            # OCRReader Protocol — unchanged
+            ├── crnn.py            # NEW — CRNNEngine implements OCRReader
+            └── ssocr.py           # REMOVED
+```
+
+### CRNN engine contract (CRNNEngine.read)
+
+```python
+# src/ai_service/analyzer/ocr/crnn.py
+class CRNNEngine:
+    def __init__(self, session: ort.InferenceSession) -> None: ...
+
+    @classmethod
+    def load(cls, model_path: Path, providers: list[str]) -> "CRNNEngine":
+        ...  # called from main.lifespan() via asyncio.to_thread
+
+    def read(self, image: np.ndarray) -> OCRResult:
+        # 1. cv2 BGR2GRAY (skip if already 2D)
+        # 2. cv2.resize to (W=96, H=32), INTER_AREA
+        # 3. /255.0 → float32 (1, 1, 32, 96), C-contiguous
+        # 4. session.run(["logits"], {"input": x}) → (T=24, 1, 11)
+        # 5. CTC greedy decode: argmax per t, collapse repeats, drop blank=10
+        # 6. Confidence = mean softmax-max over non-blank timesteps
+        # 7. _extract_digits_from_str(text, expected_label) → "120" / ""
+        # 8. return OCRResult(text=..., confidence=...)
+```
+
+All blocking work goes through `asyncio.to_thread` in
+`BPAnalysisPipeline._read_one_field` (already wired). ONNX Runtime
+sessions are thread-safe so one detector + one OCR session is enough
+per process.
+
+### `_extract_digits_from_str` — port verbatim from prepare/
+
+The CRNN may emit `"12O"` (O misread as a letter), `"1.20"`, or
+`"1 20"` due to CTC mid-sequence noise. The teammate's regex extractor
+( [crnn/backend.py:30](./prepare/ocr/crnn/backend.py) ) prefers
+2-3 digit groups inside the clinical range — keep that logic as-is so
+the empirically-tuned behaviour ports over.
+
+### Config changes ([config.py](./src/ai_service/config.py))
+
+```python
+class OCREngine(StrEnum):
+    CRNN = "crnn"            # was SSOCR
+
+class AnalyzerConfig(BaseSettings):
+    crnn_path: Path = Field(
+        default_factory=lambda: AI_SERVICE_ROOT / "models" / "crnn_int8.onnx",
+        description="Path to CRNN ONNX int8 weights.",
+    )
+    ocr_engine: OCREngine = OCREngine.CRNN
+    # detector_path stays as-is
+```
+
+Env var: `AI_CRNN_PATH` (mirrors `AI_DETECTOR_PATH` pattern). Default
+resolves against `AI_SERVICE_ROOT` (not cwd) per existing convention.
+
+### Lifespan wiring ([main.py](./src/ai_service/main.py))
+
+```python
+detector = await asyncio.to_thread(
+    YoloDetector.load, cfg.detector_path, providers=cfg.onnx_providers, ...
+)
+ocr_session = await asyncio.to_thread(
+    CRNNEngine.load, cfg.crnn_path, providers=cfg.onnx_providers,
+)
+# Single CRNNEngine instance reused for all three fields (label-agnostic
+# preprocessing; clinical range filter is per-call via expected_label).
+pipeline = BPAnalysisPipeline(
+    detector=detector,
+    ocr_readers={
+        BPClass.SYSTOLIC: LabelBoundEngine(ocr_session, "sys"),
+        BPClass.DIASTOLIC: LabelBoundEngine(ocr_session, "dia"),
+        BPClass.PULSE: LabelBoundEngine(ocr_session, "pul"),
+    },
+    field_timeout_s=cfg.ocr_field_timeout_s,
+)
+```
+
+`LabelBoundEngine` is a thin Adapter so the pipeline's existing
+`dict[BPClass, OCRReader]` shape stays — wraps `CRNNEngine.read` with the
+right `expected_label` for digit extraction. Keeps the pipeline
+contract stable (zero changes in `pipeline.py`).
+
+### Risks identified during review (must verify before declaring done)
+
+| Risk | How to mitigate |
+| --- | --- |
+| **Input distribution mismatch** — CRNN trained on hand-curated crop-SDP crops; YOLO crops from production S3 may differ (border noise, aspect, glare) | Smoke-test on 20-30 real S3 images through the full pipeline before flipping the default. Compare `BoundingBox.crop_from` output against `crop-SDP/{sys,dia,pul}/*.jpg` shape distribution |
+| **ONNX input/output names** | Verify with `python -c "import onnx; m=onnx.load('models/crnn_int8.onnx'); print([i.name for i in m.graph.input], [o.name for o in m.graph.output])"` before writing the adapter |
+| **Confidence calibration** — CRNN conf is mean softmax-max over non-blank timesteps; differs from ssocr's rule-engine score. `SUCCESS_CONFIDENCE_FLOOR = 0.75` may need re-tuning | Observe distribution of `combined_confidence = yolo_conf × crnn_conf` over 50 production images. Re-tune the floor only if SUCCESS verdict rate looks visibly wrong |
+| **No `model_version`** in CRNN ONNX (yolo12n.onnx has `metadata_props['date']`; CRNN doesn't) | Encode in filename — rename to `crnn_int8-2026-05-20.onnx` and read the date from the file stem, OR add a `metadata_props` entry during a re-export (cheap, no retrain) |
+| **`prepare/ocr/crnn/dataset.py` imports torch** | We do NOT port `dataset.py` — only `_preprocess_for_crnn` logic (cv2-only). Rewrite as pure numpy in the new `crnn.py` |
+
+### Migration sequence (each step verifiable before the next)
+
+1. **Verify ONNX I/O contract**:
+   `python -c "import onnx; m = onnx.load('prepare/ocr/crnn/weights/crnn_int8.onnx'); print(m.graph.input[0].name, m.graph.output[0].name); print([d.dim_value for d in m.graph.input[0].type.tensor_type.shape.dim])"`
+   Expected: `input` / `logits`, shape `[1, 1, 32, 96]`.
+2. **Copy weights**: `cp prepare/ocr/crnn/weights/crnn_int8.onnx models/crnn_int8.onnx`.
+   Update Dockerfile COPY line if needed (current Dockerfile copies `models/`).
+3. **Write `src/ai_service/analyzer/ocr/crnn.py`**:
+   - `CRNNEngine` class with `load()` classmethod (onnxruntime session)
+   - `read(image: np.ndarray) -> OCRResult` — numpy-only preprocessing
+   - `LabelBoundEngine` adapter for the per-`BPClass` dict
+   - Port `_extract_digits_from_str` (regex + clinical-range filter)
+4. **Update `config.py`**: replace `OCREngine.SSOCR` with `OCREngine.CRNN`, add `crnn_path` field.
+5. **Update `main.py`**:
+   - Replace `_build_ocr_readers()` SSOCR branch with CRNN + LabelBoundEngine
+   - Import from `.analyzer.ocr.crnn` instead of `.analyzer.ocr.ssocr`
+6. **Add tests**:
+   - `tests/test_crnn.py` — `_extract_digits_from_str` parametrize, ONNX I/O contract (skipif weights missing), confidence formula
+   - `tests/fixtures/` — 3-5 sample crops (one per label, clear + noisy)
+   - Update existing pipeline/handler tests if any referenced `SSOCREngine` directly
+7. **Delete `src/ai_service/analyzer/ocr/ssocr.py`** (2,953 lines).
+   Grep for stragglers: `grep -rn "from .*ssocr\|SSOCREngine\|OCREngine.SSOCR" src/ tests/`.
+8. **Delete `prepare/`** wholesale. Already `.gitignore`'d; remove from disk to reclaim ~359 MB.
+9. **Run** `uv run pytest` end-to-end. Then smoke-test via `uv run fastapi dev main.py` + redis publish (or via integration test).
+10. **Update docs in same change**:
+    - [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths" — drop `ssocr.py`, add `crnn.py`, mention `models/crnn_int8.onnx`
+    - PLAN.md checklist below
+    - Root [CLAUDE.md](../../../CLAUDE.md) AI-flow paragraph if any wire detail changed (we believe it doesn't — `model_version` keeps a value, only the source changes)
+
+### Implementation checklist (Milestone 2)
+
+- [ ] Verify ONNX I/O contract
+- [ ] Copy `crnn_int8.onnx` to `models/`
+- [ ] Implement `analyzer/ocr/crnn.py` + `LabelBoundEngine`
+- [ ] Replace `OCREngine.SSOCR` with `OCREngine.CRNN`, add `crnn_path`
+- [ ] Wire `main.lifespan()` to load CRNN + build LabelBoundEngine map
+- [ ] Add `tests/test_crnn.py` + 3-5 fixtures under `tests/fixtures/`
+- [ ] Delete `src/ai_service/analyzer/ocr/ssocr.py`
+- [ ] Delete `prepare/` folder + verify no stragglers via grep
+- [ ] Run full pytest + manual smoke (`fastapi dev` + redis publish)
+- [ ] Update CLAUDE.md (ai-service) "Important paths"
+- [ ] Update PLAN.md — mark Milestone 2 complete
+
+### Out of scope for Milestone 2
+
+- ROI overlay upload (`roi_image_url`) — defer to Milestone 3
+- Smart cascade (CRNN + ssocr fallback for +0.5–1.5pp accuracy) — only
+  if Milestone 2 metrics on production images aren't acceptable. Adding
+  ssocr back means resurrecting the torch dependency + 340 MB of weights,
+  so the bar is high.
+- CRNN retraining or re-export — use the supplied `crnn_int8.onnx` as-is.
+  Retraining lives in the teammate's research repo, not in this service.
 
 ## Out of scope for this work
 
