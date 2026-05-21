@@ -63,6 +63,26 @@ describe('AiService', () => {
       expect(result.status).toBe('pending');
     });
 
+    it('omits ocrEngine from payload when caller did not pass one', async () => {
+      // Production path — server falls back to its default engine. Including
+      // an explicit ``undefined`` would bake nullability into the Redis
+      // payload shape and surface as JSON ``null`` downstream.
+      await service.enqueueFromKey(validKey, 'image/jpeg', 'user-1');
+      const [, payload] = queue.add.mock.calls[0];
+      expect(payload).not.toHaveProperty('ocrEngine');
+    });
+
+    it('forwards ocrEngine into the queue payload when provided', async () => {
+      await service.enqueueFromKey(
+        validKey,
+        'image/jpeg',
+        'user-1',
+        'ssocr_cnn',
+      );
+      const [, payload] = queue.add.mock.calls[0];
+      expect(payload.ocrEngine).toBe('ssocr_cnn');
+    });
+
     it('rejects keys owned by another user before presigning', async () => {
       const otherKey = 'users/user-2/bp/readings/2026-05/abc.jpg';
       await expect(

@@ -21,7 +21,12 @@ export class AiResolver {
     @Args('input') input: AnalyzeBPImageInput,
     @CurrentUser() user: { id: string },
   ): Promise<AnalysisJobObject> {
-    return this.aiService.enqueueFromKey(input.s3Key, input.mimeType, user.id);
+    return this.aiService.enqueueFromKey(
+      input.s3Key,
+      input.mimeType,
+      user.id,
+      input.ocrEngine,
+    );
   }
 
   @Query(() => AnalysisJobObject)
