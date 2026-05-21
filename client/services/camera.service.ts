@@ -7,11 +7,15 @@ import { cameraDebug } from '@/store/shared/log';
 import type {
   AnalysisJob,
   AnalysisResult,
+  OcrEngine,
   UploadImagePayload,
 } from '@/types';
 
 // ─── Fragments ────────────────────────────────────────────────────────────────
 
+// ``engine`` and ``metrics`` arrived with M2.2 (server/app/ai-service
+// "Milestone 2.2"). They're nullable on the gateway side — a pre-M2.2
+// gateway just returns null and the dev UI hides itself.
 const ANALYSIS_JOB_FRAGMENT = `
   fragment AnalysisJobFields on AnalysisJob {
     jobId
@@ -22,6 +26,18 @@ const ANALYSIS_JOB_FRAGMENT = `
       roiImageUrl
       rawText
       status
+      engine
+      metrics {
+        fetchMs
+        detectMs
+        ocrMs
+        validateMs
+        totalMs
+        rssBeforeMb
+        rssAfterMb
+        rssDeltaMb
+        imageSizeBytes
+      }
     }
     error
   }
@@ -225,7 +241,7 @@ async function pollUntilDone(jobId: string, options: PollOptions = {}): Promise<
 
 export async function analyzeImage(
   payload: UploadImagePayload,
-  options?: PollOptions,
+  options?: PollOptions & { ocrEngine?: OcrEngine },
 ): Promise<{
   job: AnalysisJob;
   result: AnalysisResult | null;
@@ -244,9 +260,19 @@ export async function analyzeImage(
     options?.signal,
   );
 
+  // Only include ``ocrEngine`` when explicitly set so production traffic
+  // (no dev mode) preserves the gateway → ai-service "field absent →
+  // server default" semantic. The gateway's class-validator `@IsIn`
+  // would 400 a forwarded literal `null`/`undefined`.
+  const input: { s3Key: string; mimeType: string; ocrEngine?: OcrEngine } = {
+    s3Key: key,
+    mimeType,
+  };
+  if (options?.ocrEngine) input.ocrEngine = options.ocrEngine;
+
   const enqueued = await gqlRequest<{ analyzeBPImage: AnalysisJob }>({
     query: ANALYZE_BP_IMAGE_MUTATION,
-    variables: { input: { s3Key: key, mimeType } },
+    variables: { input },
     signal: options?.signal,
   });
 

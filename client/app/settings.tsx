@@ -25,7 +25,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -76,6 +76,30 @@ export default function SettingsScreen() {
   const posts = useAppStore((s) => s.posts);
   const user = useAppStore((s) => s.user);
   const deleteAllMyData = useAppStore((s) => s.deleteAllMyData);
+  const toggleDevMode = useAppStore((s) => s.toggleDevMode);
+
+  // Hidden dev-mode toggle: 7 taps on the screen title within 2 seconds
+  // flips ``devMode`` in preferences. The bar is high enough that an
+  // accidental press flurry from a tantruming kid won't trip it, low
+  // enough that the dev team can demo the gesture without instructions.
+  const devTapTimesRef = useRef<number[]>([]);
+  const handleDevTitleTap = () => {
+    const now = Date.now();
+    devTapTimesRef.current = [...devTapTimesRef.current, now].filter(
+      (t) => now - t <= 2000,
+    );
+    if (devTapTimesRef.current.length >= 7) {
+      devTapTimesRef.current = [];
+      void toggleDevMode().then((enabled) => {
+        Alert.alert(
+          enabled ? "Dev mode เปิดใช้งาน" : "Dev mode ปิดใช้งาน",
+          enabled
+            ? "คุณสามารถเลือก OCR engine ได้บนหน้ากล้องตอนนี้"
+            : "OCR engine จะกลับไปใช้ค่าเริ่มต้นของระบบ",
+        );
+      });
+    }
+  };
 
   const isDark = themePreference === "dark";
   const headerIconColor = isDark ? "#E2E8F0" : Colors.text.primary;
@@ -440,9 +464,15 @@ export default function SettingsScreen() {
           <TouchableOpacity onPress={() => router.back()} className="mr-4">
             <Ionicons name="arrow-back" size={28} color={headerIconColor} />
           </TouchableOpacity>
-          <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 flex-1 text-center"}>
-            ตั้งค่าแอปพลิเคชั่น
-          </Text>
+          <TouchableOpacity
+            onPress={handleDevTitleTap}
+            activeOpacity={1}
+            className="flex-1"
+          >
+            <Text className={titleClassName + " font-bold text-gray-800 dark:text-slate-100 text-center"}>
+              ตั้งค่าแอปพลิเคชั่น
+            </Text>
+          </TouchableOpacity>
           <View className="w-7" />
         </View>
 
