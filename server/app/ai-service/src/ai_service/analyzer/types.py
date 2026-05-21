@@ -116,6 +116,23 @@ class FieldReading:
 
 
 @dataclass(frozen=True)
+class PipelineMetrics:
+    """Per-stage timing emitted by ``BPAnalysisPipeline.analyze()``.
+
+    Only covers what the pipeline itself does — image fetch happens in
+    the handler, so ``fetch_ms`` is added later by the caller. All
+    durations are in milliseconds, measured with ``time.perf_counter()``.
+
+    Fields are written once during a single ``analyze()`` call and
+    treated as read-only afterwards; the frozen dataclass enforces that.
+    """
+
+    detect_ms: float
+    ocr_ms: float
+    validate_ms: float
+
+
+@dataclass(frozen=True)
 class AnalysisResult:
     """Full pipeline output for one BP image.
 

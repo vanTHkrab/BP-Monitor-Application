@@ -8,13 +8,16 @@ import httpx
 import numpy as np
 import pytest
 
+from ai_service.analyzer.engines import AnalysisMetrics, EngineRegistry
 from ai_service.analyzer.types import (
     AnalysisResult,
     AnalysisStatus,
     BoundingBox,
     BPClass,
     FieldReading,
+    PipelineMetrics,
 )
+from ai_service.config import OCREngine
 from ai_service.handlers import (
     REPLY_PATTERN,
     REQUEST_PATTERN,
@@ -24,17 +27,38 @@ from ai_service.handlers import (
 )
 
 
-# ─── pipeline + http mocks ─────────────────────────────────────────────
+# ─── pipeline + registry mocks ─────────────────────────────────────────
+
 
 class MockPipeline:
     def __init__(self, result: AnalysisResult | None = None, raises: Exception | None = None):
         self._result = result
         self._raises = raises
 
-    async def analyze(self, image: np.ndarray) -> AnalysisResult:
+    async def analyze(
+        self, image: np.ndarray
+    ) -> tuple[AnalysisResult, PipelineMetrics]:
         if self._raises:
             raise self._raises
-        return self._result
+        return self._result, PipelineMetrics(
+            detect_ms=1.0, ocr_ms=2.0, validate_ms=0.5,
+        )
+
+
+def build_registry(pipeline: MockPipeline, default: OCREngine = OCREngine.CRNN) -> EngineRegistry:
+    """Tiny registry that maps every engine to the same MockPipeline.
+
+    Lets a single test exercise dispatch without standing up three real
+    pipelines just to test handler plumbing.
+    """
+    return EngineRegistry(
+        pipelines={
+            OCREngine.CRNN: pipeline,
+            OCREngine.SSOCR_CNN: pipeline,
+            OCREngine.SSOCR: pipeline,
+        },
+        default=default,
+    )
 
 
 def mock_http(handler):
@@ -68,36 +92,64 @@ def unreadable_result() -> AnalysisResult:
     )
 
 
+@pytest.fixture
+def metrics() -> AnalysisMetrics:
+    return AnalysisMetrics(
+        engine="crnn",
+        fetch_ms=10.0, detect_ms=1.0, ocr_ms=2.0, validate_ms=0.5,
+        total_ms=14.0,
+        rss_before_mb=240.0, rss_after_mb=258.0, rss_delta_mb=18.0,
+        image_size_bytes=12345,
+    )
+
+
 # ─── wire projection ───────────────────────────────────────────────────
 
+
 class TestWireResponse:
-    def test_includes_required_keys(self, good_result):
-        wire = _to_wire_response(good_result)
+    def test_includes_required_keys(self, good_result, metrics):
+        wire = _to_wire_response(good_result, metrics)
         assert set(wire.keys()) == {
             "confidence", "systolic", "diastolic", "pulse",
             "raw_text", "roi_image_url", "model_version", "status",
+            "engine", "metrics",
         }
 
-    def test_excludes_internal_fields(self, good_result):
-        wire = _to_wire_response(good_result)
+    def test_excludes_internal_fields(self, good_result, metrics):
+        wire = _to_wire_response(good_result, metrics)
         assert "fields" not in wire  # debug-only per PLAN.md
 
-    def test_status_serialized_as_string(self, good_result):
-        assert _to_wire_response(good_result)["status"] == "success"
+    def test_status_serialized_as_string(self, good_result, metrics):
+        assert _to_wire_response(good_result, metrics)["status"] == "success"
 
-    def test_empty_raw_text_becomes_null(self, unreadable_result):
-        assert _to_wire_response(unreadable_result)["raw_text"] is None
+    def test_empty_raw_text_becomes_null(self, unreadable_result, metrics):
+        assert _to_wire_response(unreadable_result, metrics)["raw_text"] is None
 
-    def test_propagates_model_version(self, good_result):
-        assert _to_wire_response(good_result)["model_version"] == "2026-01-29"
+    def test_propagates_model_version(self, good_result, metrics):
+        assert _to_wire_response(good_result, metrics)["model_version"] == "2026-01-29"
+
+    def test_engine_in_response(self, good_result, metrics):
+        assert _to_wire_response(good_result, metrics)["engine"] == "crnn"
+
+    def test_metrics_payload_is_flat_dict(self, good_result, metrics):
+        wire = _to_wire_response(good_result, metrics)
+        assert wire["metrics"]["fetch_ms"] == 10.0
+        assert wire["metrics"]["rss_delta_mb"] == 18.0
+        assert wire["metrics"]["image_size_bytes"] == 12345
 
 
 # ─── handle_message scenarios ──────────────────────────────────────────
 
+
 class TestHandleMessage:
     async def test_happy_publishes_reply(self, fake_redis, good_result, jpeg_bytes):
         async with mock_http(lambda _r: httpx.Response(200, content=jpeg_bytes)) as http:
-            deps = HandlerDeps(MockPipeline(good_result), http, 2.0)
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(good_result)),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
             await handle_message(
                 fake_redis,
                 msg(jobId="j", userId="u", s3Key="k", imageUrl="https://example/img.jpg"),
@@ -109,16 +161,61 @@ class TestHandleMessage:
         assert payload["id"] == "req-1"
         assert payload["isDisposed"] is True
         assert payload["response"]["systolic"] == 120
+        assert payload["response"]["engine"] == "crnn"
+        assert "metrics" in payload["response"]
+
+    async def test_explicit_engine_overrides_default(self, fake_redis, good_result, jpeg_bytes):
+        async with mock_http(lambda _r: httpx.Response(200, content=jpeg_bytes)) as http:
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(good_result)),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
+            await handle_message(
+                fake_redis,
+                msg(imageUrl="https://example/img.jpg", ocrEngine="ssocr"),
+                deps,
+            )
+        payload = fake_redis.published[0][1]
+        assert payload["response"]["engine"] == "ssocr"
+
+    async def test_unknown_engine_returns_err(self, fake_redis, good_result, jpeg_bytes):
+        async with mock_http(lambda _r: httpx.Response(200, content=jpeg_bytes)) as http:
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(good_result)),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
+            await handle_message(
+                fake_redis,
+                msg(imageUrl="https://example/img.jpg", ocrEngine="easyocr"),
+                deps,
+            )
+        payload = fake_redis.published[0][1]
+        assert "err" in payload
+        assert "unknown engine" in payload["err"]
 
     async def test_non_json_dropped_silently(self, fake_redis, good_result):
         async with mock_http(lambda _r: httpx.Response(200)) as http:
-            deps = HandlerDeps(MockPipeline(good_result), http, 2.0)
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(good_result)),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
             await handle_message(fake_redis, "not json!!!", deps)
         assert fake_redis.published == []
 
     async def test_missing_id_dropped_silently(self, fake_redis, good_result):
         async with mock_http(lambda _r: httpx.Response(200)) as http:
-            deps = HandlerDeps(MockPipeline(good_result), http, 2.0)
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(good_result)),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
             await handle_message(
                 fake_redis,
                 json.dumps({"data": {"imageUrl": "x"}}),  # no id
@@ -128,7 +225,12 @@ class TestHandleMessage:
 
     async def test_missing_image_url_returns_err(self, fake_redis, good_result):
         async with mock_http(lambda _r: httpx.Response(200)) as http:
-            deps = HandlerDeps(MockPipeline(good_result), http, 2.0)
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(good_result)),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
             await handle_message(fake_redis, msg(s3Key="k"), deps)  # no imageUrl
         payload = fake_redis.published[0][1]
         assert "err" in payload
@@ -136,14 +238,24 @@ class TestHandleMessage:
 
     async def test_fetch_failure_returns_err(self, fake_redis, good_result):
         async with mock_http(lambda _r: httpx.Response(404)) as http:
-            deps = HandlerDeps(MockPipeline(good_result), http, 2.0)
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(good_result)),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
             await handle_message(fake_redis, msg(imageUrl="https://example/missing"), deps)
         payload = fake_redis.published[0][1]
         assert "fetch failed" in payload["err"]
 
     async def test_pipeline_crash_returns_err(self, fake_redis, jpeg_bytes):
         async with mock_http(lambda _r: httpx.Response(200, content=jpeg_bytes)) as http:
-            deps = HandlerDeps(MockPipeline(raises=RuntimeError("boom")), http, 2.0)
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(raises=RuntimeError("boom"))),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
             await handle_message(fake_redis, msg(imageUrl="https://example/img.jpg"), deps)
         payload = fake_redis.published[0][1]
         assert "pipeline error" in payload["err"]
@@ -153,7 +265,12 @@ class TestHandleMessage:
         self, fake_redis, unreadable_result, jpeg_bytes
     ):
         async with mock_http(lambda _r: httpx.Response(200, content=jpeg_bytes)) as http:
-            deps = HandlerDeps(MockPipeline(unreadable_result), http, 2.0)
+            deps = HandlerDeps(
+                registry=build_registry(MockPipeline(unreadable_result)),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+            )
             await handle_message(fake_redis, msg(imageUrl="https://example/blurry.jpg"), deps)
         payload = fake_redis.published[0][1]
         assert "err" not in payload
