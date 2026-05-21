@@ -13,7 +13,11 @@ import { S3StorageClient } from '../storage/s3-storage.client';
 import { ImageKind, isFinalKeyOwnedBy } from '../storage/types/storage.types';
 import { AnalysisJobObject } from './dto/analysis-job.object';
 import { SubmitBPReadingInput } from './dto/submit-bp-reading.input';
-import { AnalysisJobPayload, AnalysisResult } from './types/ai.types';
+import {
+  AnalysisJobPayload,
+  AnalysisResult,
+  type OcrEngine,
+} from './types/ai.types';
 
 export const AI_QUEUE = 'ai-analysis';
 export const AI_JOB_ANALYZE = 'analyze-bp-image';
@@ -62,11 +66,17 @@ export class AiService {
    * presigned GET URL is generated and embedded in the job payload so the
    * ai-service worker can fetch the image without holding S3 credentials
    * of its own.
+   *
+   * ``ocrEngine`` is optional and dev-gated on the client. When omitted
+   * ai-service uses its configured default (``crnn``); when present it
+   * dispatches via ``EngineRegistry`` and rejects unknown values with a
+   * structured error that bubbles back here via ``parseAiResponse``.
    */
   async enqueueFromKey(
     s3Key: string,
     mimeType: string,
     userId: string,
+    ocrEngine?: OcrEngine,
   ): Promise<AnalysisJobObject> {
     this.assertBPKeyOwnedBy(userId, s3Key);
     const imageUrl = await this.s3.presignGet(s3Key, IMAGE_URL_TTL_SECONDS);
@@ -76,6 +86,7 @@ export class AiService {
       s3Key,
       imageUrl,
       mimeType,
+      ...(ocrEngine ? { ocrEngine } : {}),
     });
   }
 
@@ -247,6 +258,8 @@ export class AiService {
       rawText: parsed.rawText ?? null,
       status,
       modelVersion: parsed.modelVersion ?? null,
+      engine: parsed.engine ?? null,
+      metrics: parsed.metrics ?? null,
     };
   }
 }
