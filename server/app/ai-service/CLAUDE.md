@@ -11,31 +11,48 @@ analysis on behalf of the NestJS API gateway. It is **not** an HTTP API for
 clients — the only HTTP route is `/health`. All real work flows over Redis
 pub/sub using the `@nestjs/microservices` Redis transport.
 
-**Status:** the real OCR pipeline is wired as of 2026-05-17 — YOLO
-detect (onnxruntime) → per-class ROI crop → ssocr 7-segment digit
-recognition → range + sanity validation → `AnalysisResult`. The wire
-contract on `analyze_bp_image` is unchanged on the request side, and
-`response` is extended with `model_version` + `status` (additive — old
-gateway clients ignore unknown fields). The gateway must add
-`imageUrl` (presigned GET URL) to the request payload; without it the
-service replies with a structured error ("missing imageUrl" — see
-PLAN.md "Cross-cutting changes on the gateway"). Tests are pending —
-see PLAN.md implementation checklist.
+**Status:** Milestone 2.2 in flight — OCR engine comparison framework.
+Three engines (`crnn`, `ssocr_cnn`, `ssocr`) load side-by-side at
+lifespan; the Redis handler picks one per request via the optional
+``ocrEngine`` field, defaulting to `crnn` for production traffic. All
+three are ONNX-only — torch / joblib / sklearn are never imported at
+request time. Each reply carries `engine` + per-stage `metrics`
+(fetch / detect / ocr / validate ms, RSS before/after/delta, image
+size) so the gateway can append a JSONL row to S3 for offline
+comparison. 147 tests cover config / fetch / handlers / pipeline /
+validation / yolo / crnn / engines / cnn_classifiers.
+
+The wire contract on `analyze_bp_image` stays additive: `ocrEngine` is
+optional on the request (default falls through to ``cfg.default_engine``);
+`engine` and `metrics` are new optional reply fields old gateway clients
+ignore. The gateway must add `imageUrl` (presigned GET URL) — without
+it the service replies with a structured error ("missing imageUrl").
 
 ## Important paths
 
 | Path | Responsibility |
 | --- | --- |
 | `main.py` | entry shim — re-exports `app` from `ai_service.main` so `uv run fastapi dev main.py` works without exposing the package layout |
-| `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds OCR readers, wires the pipeline, and starts the Redis listener. Keep thin — only orchestration belongs here |
-| `src/ai_service/handlers.py` | Redis pub/sub handler — `REQUEST_PATTERN`, `reply()`, `reply_error()`, `handle_message()`, `listen()`. Owns the wire contract |
-| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (detector path, OCR engine, device, confidence threshold, timeouts) |
-| `src/ai_service/analyzer/` | OCR pipeline — `pipeline.BPAnalysisPipeline` orchestrates `yolo.YoloDetector` + `ocr/ssocr.SSOCREngine` + `validation` + `types` |
+| `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds the engine registry, wires the Redis listener. Keep thin — only orchestration belongs here |
+| `src/ai_service/handlers.py` | Redis pub/sub handler — parses `ocrEngine`, dispatches via `EngineRegistry`, emits `engine` + `metrics` in the reply. Owns the wire contract |
+| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence threshold, timeouts) |
+| `src/ai_service/analyzer/engines.py` | `EngineRegistry`, `AnalysisMetrics`, `build_registry()` — loads all three M2.2 engines side-by-side and resolves per-request selection |
+| `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector |
+| `src/ai_service/analyzer/yolo.py` | `YoloDetector` — onnxruntime session, letterbox preprocess, anchor decode + NMS post-process. Loaded once, shared across engines |
 | `src/ai_service/analyzer/preprocessing.py` | `letterbox()` (shared by detector and any future ROI preprocess) |
+| `src/ai_service/analyzer/validation.py` | range + sys>dia sanity (`is_value_in_range`, `is_reading_consistent`) |
+| `src/ai_service/analyzer/types.py` | `AnalysisResult`, `FieldReading`, `BoundingBox`, `BPClass`, `AnalysisStatus`, `PipelineMetrics` — shared dataclasses |
+| `src/ai_service/analyzer/ocr/base.py` | `OCRReader` Protocol + `OCRResult` — the seam every engine implements |
+| `src/ai_service/analyzer/ocr/crnn.py` | `CRNNEngine` + `CRNNSession` — ONNX int8 CRNN, ~30 ms/image |
+| `src/ai_service/analyzer/ocr/ssocr.py` | `SSOCREngine` — rule-based 7-segment OCR; `use_classifiers` flag toggles the `ssocr_cnn` (full ensemble) vs `ssocr` (rule-only baseline) mode |
+| `src/ai_service/analyzer/ocr/cnn_classifiers.py` | ONNX CNN (`classify_by_cnn_2ch`) + numpy KNN (`classify_by_knn`) + template match + `detect_brand`. Configured once at lifespan via `set_models_dir()`; consumed by `ssocr.py` |
 | `src/ai_service/storage/fetch.py` | async `fetch_image()` (presigned URL → BGR ndarray) + `ImageFetchError` |
-| `models/yolo12n.onnx` | YOLOv12n detector, 5 BP-specific classes, exported with `nms=False` |
-| `tests/` | pytest-asyncio tests — currently empty after the stub removal; will be repopulated per PLAN.md |
-| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
+| `models/yolo12n.onnx` | YOLOv12n detector, 5 BP-specific classes, exported with `nms=False` (11.5 MB) |
+| `models/crnn_int8.onnx` | Trained 7-seg CRNN, ONNX int8 (1.2 MB) — `crnn` engine |
+| `models/cnn_2ch_distilled_*_int8.onnx` | Distilled 2-channel CNN (global/sys/dia/pul, ~0.6 MB each = 2.5 MB total) — `ssocr_cnn` engine |
+| `models/templates.npz` | KNN exemplars + mean templates for `ssocr_cnn` (~58 MB) |
+| `tests/` | `pytest-asyncio` suite across `test_config`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`. Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
+| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
 | `Dockerfile` | container build for prod/staging |
 | `PLAN.md` | roadmap + design decisions for the OCR pipeline |
 
@@ -52,15 +69,23 @@ uv run pytest                        # tests
 
 | Channel | Direction | Payload |
 | --- | --- | --- |
-| `analyze_bp_image` | gateway → ai-service | `{ pattern, id, data: { jobId, userId, s3Key, imageUrl, mimeType } }` |
-| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status }, isDisposed: true }` |
+| `analyze_bp_image` | gateway → ai-service | `{ pattern, id, data: { jobId, userId, s3Key, imageUrl, mimeType, ocrEngine? } }` |
+| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status, engine, metrics }, isDisposed: true }` |
 | `analyze_bp_image.reply` (error) | ai-service → gateway | `{ id, err: <message>, isDisposed: true }` |
 
 `imageUrl` is a presigned GET URL the gateway adds to the request
-payload before publishing (PLAN.md "Cross-cutting changes on the
-gateway"). The ai-service downloads it via `storage.fetch.fetch_image`.
-The `model_version` and `status` fields on the response are additive —
-old gateway clients that ignore unknown keys continue to work.
+payload before publishing. The ai-service downloads it via
+`storage.fetch.fetch_image`. `ocrEngine` is optional — production
+clients omit it and the configured default fires; dev clients send
+one of `crnn` / `ssocr_cnn` / `ssocr`. Unknown names return
+`err: "unknown engine: ..."`.
+
+`engine` and `metrics` are additive M2.2 fields. `engine` echoes
+which pipeline ran; `metrics` is a flat dict with per-stage timing
+(`fetch_ms`, `detect_ms`, `ocr_ms`, `validate_ms`, `total_ms`), RSS
+deltas (`rss_before_mb`, `rss_after_mb`, `rss_delta_mb`), and
+`image_size_bytes`. The gateway-side worker uploads these to S3 as
+a JSONL row for offline comparison.
 
 The matching gateway code is in [../api-gateway/src/ai/](../api-gateway/src/ai/)
 (`ai.service.ts` publishes the request and consumes the reply).
@@ -82,10 +107,12 @@ without the other will silently break the AI flow.
   exceptions from `handle_message` so one bad message doesn't kill the
   subscriber. Inside the handler, log warnings for malformed input and
   reply with a structured error — don't raise.
-- **The pipeline is wired via `lifespan`.** `main.lifespan()` builds
-  `AnalyzerConfig` → `YoloDetector.load` → `SSOCREngine` per
-  `BPClass` → `BPAnalysisPipeline` → `HandlerDeps`, then starts the
-  Redis listener. Add new wire steps here, not in `handlers.py`.
+- **Engines are wired via `lifespan`.** `main.lifespan()` builds
+  `AnalyzerConfig` → `YoloDetector.load` → `analyzer.engines.build_registry()`
+  → `HandlerDeps(registry=..., model_version=...)`, then starts the
+  Redis listener. The registry holds all three engines simultaneously;
+  `handlers.py` picks which one runs per request. Add new engines
+  inside `build_registry()` — never in `handlers.py`.
 
 ## Working rules for Claude
 
