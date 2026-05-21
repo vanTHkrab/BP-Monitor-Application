@@ -40,6 +40,7 @@ export default function RootLayout() {
   const hydrateSecurityPreferences = useAppStore(
     (s) => s.hydrateSecurityPreferences,
   );
+  const hydrateDevPreferences = useAppStore((s) => s.hydrateDevPreferences);
   const setNetworkStatus = useAppStore((s) => s.setNetworkStatus);
   const syncPendingReadings = useAppStore((s) => s.syncPendingReadings);
   const syncPendingPosts = useAppStore((s) => s.syncPendingPosts);
@@ -63,11 +64,13 @@ export default function RootLayout() {
     void hydrateTheme();
     void hydrateAccessibilityPreferences();
     void hydrateSecurityPreferences();
+    void hydrateDevPreferences();
     void configureReminderActions();
   }, [
     hydrateAccessibilityPreferences,
     hydrateTheme,
     hydrateSecurityPreferences,
+    hydrateDevPreferences,
   ]);
 
   useEffect(() => {

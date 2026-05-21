@@ -1,5 +1,5 @@
 import { GQL_VERIFY_PASSWORD, graphqlRequest } from "@/constants/api";
-import { FontSizePreference } from "@/types";
+import { FontSizePreference, OCR_ENGINES, type OcrEngine } from "@/types";
 import type { VerifyPasswordMutation } from "@/types/graphql";
 import { errorMessage } from "@/types/graphql";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -10,6 +10,12 @@ import type { AppState } from "../use-app-store";
 const THEME_STORAGE_KEY = "bp:theme-preference";
 const FONT_SIZE_PREFERENCE_KEY = "bp:font-size-preference";
 const HIDE_SENSITIVE_DATA_KEY = "bp:hide-sensitive-data";
+// Dev-only OCR engine override (M2.2 comparison phase). Persists across
+// app restarts so a researcher doesn't have to re-trigger the gesture
+// every session — a reinstall wipes the value, which is fine for the
+// "hide-from-end-users" goal.
+const DEV_MODE_KEY = "bp:dev-mode";
+const SELECTED_OCR_ENGINE_KEY = "bp:selected-ocr-engine";
 
 export interface PreferencesSlice {
   themePreference: "light" | "dark";
@@ -17,6 +23,12 @@ export interface PreferencesSlice {
   fontSizePreference: FontSizePreference;
   hideSensitiveData: boolean;
   sensitiveDataUnlocked: boolean;
+  // Dev-only OCR engine comparison flow. ``devMode`` is the gate; while
+  // false the rest of the app behaves exactly like production (no UI,
+  // mutation omits the engine field). ``selectedOcrEngine`` is the
+  // active pick when ``devMode`` is true.
+  devMode: boolean;
+  selectedOcrEngine: OcrEngine;
 
   hydrateTheme: () => Promise<void>;
   setThemePreference: (pref: "light" | "dark") => Promise<void>;
@@ -26,6 +38,9 @@ export interface PreferencesSlice {
   setHideSensitiveData: (enabled: boolean) => Promise<void>;
   unlockSensitiveData: (password: string) => Promise<boolean>;
   lockSensitiveData: () => void;
+  hydrateDevPreferences: () => Promise<void>;
+  toggleDevMode: () => Promise<boolean>;
+  setSelectedOcrEngine: (engine: OcrEngine) => Promise<void>;
 }
 
 export const createPreferencesSlice: StateCreator<
@@ -39,6 +54,8 @@ export const createPreferencesSlice: StateCreator<
   fontSizePreference: "medium",
   hideSensitiveData: false,
   sensitiveDataUnlocked: false,
+  devMode: false,
+  selectedOcrEngine: "crnn",
 
   hydrateTheme: async () => {
     try {
@@ -142,6 +159,43 @@ export const createPreferencesSlice: StateCreator<
   lockSensitiveData: () => {
     if (get().hideSensitiveData) {
       set({ sensitiveDataUnlocked: false });
+    }
+  },
+
+  hydrateDevPreferences: async () => {
+    try {
+      const [rawDev, rawEngine] = await Promise.all([
+        AsyncStorage.getItem(DEV_MODE_KEY),
+        AsyncStorage.getItem(SELECTED_OCR_ENGINE_KEY),
+      ]);
+      const engine =
+        rawEngine && (OCR_ENGINES as readonly string[]).includes(rawEngine)
+          ? (rawEngine as OcrEngine)
+          : "crnn";
+      set({ devMode: rawDev === "true", selectedOcrEngine: engine });
+    } catch {
+      // AsyncStorage failures are non-fatal — fall back to defaults
+      // (production behaviour) rather than blocking app boot.
+    }
+  },
+
+  toggleDevMode: async () => {
+    const next = !get().devMode;
+    set({ devMode: next });
+    try {
+      await AsyncStorage.setItem(DEV_MODE_KEY, next ? "true" : "false");
+    } catch {
+      // ignore — toggle still works in-memory until restart
+    }
+    return next;
+  },
+
+  setSelectedOcrEngine: async (engine) => {
+    set({ selectedOcrEngine: engine });
+    try {
+      await AsyncStorage.setItem(SELECTED_OCR_ENGINE_KEY, engine);
+    } catch {
+      // ignore
     }
   },
 });
