@@ -68,6 +68,11 @@ export class AiService {
    * presigned GET URL is generated and embedded in the job payload so the
    * ai-service worker can fetch the image without holding S3 credentials
    * of its own.
+   *
+   * ``ocrEngine`` is optional and dev-gated on the client. When omitted
+   * ai-service uses its configured default (``crnn``); when present it
+   * dispatches via ``EngineRegistry`` and rejects unknown values with a
+   * structured error that bubbles back here via ``parseAiResponse``.
    */
   async enqueueFromKey(
     s3Key: string,
@@ -83,6 +88,7 @@ export class AiService {
       s3Key,
       imageUrl,
       mimeType,
+      ...(ocrEngine ? { ocrEngine } : {}),
     });
   }
 
@@ -267,6 +273,8 @@ export class AiService {
       rawText: parsed.rawText ?? null,
       status,
       modelVersion: parsed.modelVersion ?? null,
+      engine: parsed.engine ?? null,
+      metrics: parsed.metrics ?? null,
     };
   }
 }

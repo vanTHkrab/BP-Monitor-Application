@@ -1,11 +1,5 @@
 import { Field, InputType } from '@nestjs/graphql';
-import {
-  IsIn,
-  IsMimeType,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsIn, IsMimeType, IsOptional, IsString, MaxLength } from 'class-validator';
 import { OCR_ENGINES, type OcrEngine } from '../types/ai.types';
 
 @InputType()

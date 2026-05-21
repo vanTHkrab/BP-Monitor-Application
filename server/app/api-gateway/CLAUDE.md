@@ -123,12 +123,14 @@ pnpm prisma migrate dev       # apply pending migrations
   change ships to two clients.
 - The AI service expects payloads on the Redis channel `analyze_bp_image`
   with the shape produced by `src/ai/ai.process.ts` (`{ jobId, userId,
-  s3Key, imageUrl, mimeType }` — `imageUrl` is a presigned GET URL that
-  `AiService.enqueueFromKey` generates via `S3StorageClient.presignGet`
-  at enqueue time, valid for 10 minutes). Replies come back on
-  `analyze_bp_image.reply` and are consumed in `ai.process.ts` too
-  (`{ confidence, systolic, diastolic, pulse, raw_text, roi_image_url,
-  model_version, status }`). The Python side mirrors this contract in
+  s3Key, imageUrl, mimeType, ocrEngine? }` — `imageUrl` is a presigned
+  GET URL that `AiService.enqueueFromKey` generates via
+  `S3StorageClient.presignGet` at enqueue time, valid for 10 minutes;
+  `ocrEngine` is optional and originates from a dev-gated client
+  picker). Replies come back on `analyze_bp_image.reply` and are
+  consumed in `ai.process.ts` too (`{ confidence, systolic, diastolic,
+  pulse, raw_text, roi_image_url, model_version, status, engine,
+  metrics }`). The Python side mirrors this contract in
   [ai-service/src/ai_service/handlers.py](../../ai-service/src/ai_service/handlers.py)
   — changing one side requires updating the other.
 - M2.2 telemetry — when ai-service replies with `engine` + `metrics`,

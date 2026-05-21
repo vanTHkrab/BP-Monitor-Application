@@ -1,31 +1,12 @@
 /// <reference types="jest" />
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 import { ClientProxy } from '@nestjs/microservices';
 import { of, throwError } from 'rxjs';
 import { Job } from 'bullmq';
-import { PrismaService } from '../prisma/prisma.service';
 import { AI_JOB_ANALYZE } from './ai.service';
 import { AiProcessor } from './ai.process';
 import { MetricsLogger } from './metrics-logger';
-import type {
-  AiServiceAnalysisMetrics,
-  AiServiceAnalysisResponse,
-  AnalysisJobPayload,
-  OcrEngine,
-} from './types/ai.types';
-
-// Narrow view onto the private parser methods so the tests can exercise
-// them without an `as any` cast. Cast via `unknown` keeps the surface
-// tight: only the two methods listed are reachable, and TypeScript
-// still type-checks call sites instead of trusting blind structural soup.
-interface ProcessorInternals {
-  parseAiResponse(value: unknown): AiServiceAnalysisResponse;
-  parseJobPayload(value: unknown): AnalysisJobPayload;
-}
-
-function internals(processor: AiProcessor): ProcessorInternals {
-  return processor as unknown as ProcessorInternals;
-}
+import type { AiServiceAnalysisMetrics, OcrEngine } from './types/ai.types';
 
 function makeJob(data: unknown, name = AI_JOB_ANALYZE): Job {
   return { name, data } as unknown as Job;
@@ -46,37 +27,29 @@ function rawMetrics(engine: OcrEngine = 'crnn'): AiServiceAnalysisMetrics {
   };
 }
 
-function makeProcessor(opts: { reply: unknown; metricsAppend?: jest.Mock }): {
+function makeProcessor(opts: {
+  reply: unknown;
+  metricsAppend?: jest.Mock;
+}): {
   processor: AiProcessor;
   metricsLogger: { appendRow: jest.Mock };
   aiClient: { send: jest.Mock };
-  prisma: { image: { updateMany: jest.Mock } };
 } {
   const aiClient = {
-    send: jest
-      .fn()
-      .mockReturnValue(
-        opts.reply instanceof Error
-          ? throwError(() => opts.reply)
-          : of(opts.reply),
-      ),
+    send: jest.fn().mockReturnValue(
+      opts.reply instanceof Error
+        ? throwError(() => opts.reply)
+        : of(opts.reply),
+    ),
   };
   const metricsLogger = {
     appendRow: opts.metricsAppend ?? jest.fn().mockResolvedValue(undefined),
   };
-  // The processor writes imageQualityScore back to Image keyed by s3Key
-  // when the reply includes one. Mock updateMany so the call resolves
-  // without hitting the DB; tests that care about the call can inspect
-  // the mock.
-  const prisma = {
-    image: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
-  };
   const processor = new AiProcessor(
     aiClient as unknown as ClientProxy,
     metricsLogger as unknown as MetricsLogger,
-    prisma as unknown as PrismaService,
   );
-  return { processor, metricsLogger, aiClient, prisma };
+  return { processor, metricsLogger, aiClient };
 }
 
 describe('AiProcessor', () => {
@@ -104,7 +77,7 @@ describe('AiProcessor', () => {
   describe('parseAiResponse', () => {
     it('returns null engine for unknown name', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const data = internals(processor).parseAiResponse({
+      const data = (processor as any).parseAiResponse({
         ...goodReply,
         engine: 'easyocr',
       });
@@ -114,7 +87,7 @@ describe('AiProcessor', () => {
 
     it('returns null metrics when engine missing', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const data = internals(processor).parseAiResponse({
+      const data = (processor as any).parseAiResponse({
         ...goodReply,
         engine: null,
         metrics: rawMetrics('crnn'),
@@ -125,7 +98,7 @@ describe('AiProcessor', () => {
     it('returns null metrics when a numeric field is missing', () => {
       const { processor } = makeProcessor({ reply: goodReply });
       const broken = { ...rawMetrics(), fetch_ms: 'oops' as unknown as number };
-      const data = internals(processor).parseAiResponse({
+      const data = (processor as any).parseAiResponse({
         ...goodReply,
         metrics: broken,
       });
@@ -134,7 +107,7 @@ describe('AiProcessor', () => {
 
     it('parses engine and metrics when present and valid', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const data = internals(processor).parseAiResponse(goodReply);
+      const data = (processor as any).parseAiResponse(goodReply);
       expect(data.engine).toBe('crnn');
       expect(data.metrics).toEqual(rawMetrics('crnn'));
     });
@@ -143,7 +116,7 @@ describe('AiProcessor', () => {
   describe('parseJobPayload', () => {
     it('accepts a known ocrEngine', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const parsed = internals(processor).parseJobPayload({
+      const parsed = (processor as any).parseJobPayload({
         ...goodPayload,
         ocrEngine: 'ssocr',
       });
@@ -152,7 +125,7 @@ describe('AiProcessor', () => {
 
     it('drops unknown ocrEngine values silently', () => {
       const { processor } = makeProcessor({ reply: goodReply });
-      const parsed = internals(processor).parseJobPayload({
+      const parsed = (processor as any).parseJobPayload({
         ...goodPayload,
         ocrEngine: 'easyocr',
       });
@@ -199,11 +172,7 @@ describe('AiProcessor', () => {
     });
 
     it('skips metricsLogger when ai-service reply has no engine/metrics', async () => {
-      const replyWithoutMetrics = {
-        ...goodReply,
-        engine: undefined,
-        metrics: undefined,
-      };
+      const replyWithoutMetrics = { ...goodReply, engine: undefined, metrics: undefined };
       const { processor, metricsLogger } = makeProcessor({
         reply: replyWithoutMetrics,
       });
@@ -217,9 +186,7 @@ describe('AiProcessor', () => {
         reply: goodReply,
         metricsAppend: jest.fn().mockRejectedValue(new Error('S3 down')),
       });
-      await expect(
-        processor.process(makeJob(goodPayload)),
-      ).resolves.toMatchObject({
+      await expect(processor.process(makeJob(goodPayload))).resolves.toMatchObject({
         engine: 'crnn',
       });
     });

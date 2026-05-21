@@ -103,6 +103,18 @@ type BPReading {
   pulse: Int!
 }
 
+type AnalysisMetrics {
+  fetchMs: Float!
+  detectMs: Float!
+  ocrMs: Float!
+  validateMs: Float!
+  totalMs: Float!
+  rssBeforeMb: Float!
+  rssAfterMb: Float!
+  rssDeltaMb: Float!
+  imageSizeBytes: Int!
+}
+
 type AnalysisResult {
   readings: BPReading
   confidence: Float!
@@ -110,6 +122,8 @@ type AnalysisResult {
   rawText: String
   status: String!
   modelVersion: String
+  engine: String
+  metrics: AnalysisMetrics
 }
 
 type AnalysisJob {
