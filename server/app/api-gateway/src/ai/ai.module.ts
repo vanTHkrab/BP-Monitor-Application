@@ -5,6 +5,7 @@ import { StorageModule } from '../storage/storage.module';
 import { AiProcessor } from './ai.process';
 import { AiResolver } from './ai.resolver';
 import { AI_QUEUE, AiService } from './ai.service';
+import { MetricsLogger } from './metrics-logger';
 
 const redisPort = Number.parseInt(process.env.REDIS_PORT ?? '6379', 10);
 const resolvedRedisPort = Number.isNaN(redisPort) ? 6379 : redisPort;
@@ -34,6 +35,6 @@ const redisHost = process.env.REDIS_HOST ?? 'localhost';
       },
     ]),
   ],
-  providers: [AiResolver, AiService, AiProcessor],
+  providers: [AiResolver, AiService, AiProcessor, MetricsLogger],
 })
 export class AiModule {}

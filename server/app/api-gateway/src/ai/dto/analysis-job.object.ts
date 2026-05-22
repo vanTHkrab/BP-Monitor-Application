@@ -12,6 +12,40 @@ export class BPReadingObject {
   pulse: number;
 }
 
+// Per-stage timing + memory deltas surfaced from ai-service. Dev-gated
+// clients render this as a debug chip ("crnn · 419ms · +18MB"); the
+// gateway-side ``MetricsLogger`` also appends one of these per analysis
+// to a daily JSONL on S3 for offline engine comparison.
+@ObjectType('AnalysisMetrics')
+export class AnalysisMetricsObject {
+  @Field(() => Float)
+  fetchMs: number;
+
+  @Field(() => Float)
+  detectMs: number;
+
+  @Field(() => Float)
+  ocrMs: number;
+
+  @Field(() => Float)
+  validateMs: number;
+
+  @Field(() => Float)
+  totalMs: number;
+
+  @Field(() => Float)
+  rssBeforeMb: number;
+
+  @Field(() => Float)
+  rssAfterMb: number;
+
+  @Field(() => Float)
+  rssDeltaMb: number;
+
+  @Field(() => Int)
+  imageSizeBytes: number;
+}
+
 @ObjectType('AnalysisResult')
 export class AnalysisResultObject {
   @Field(() => BPReadingObject, { nullable: true })
@@ -34,6 +68,16 @@ export class AnalysisResultObject {
   // an OCR regression can be linked to a specific retrain.
   @Field(() => String, { nullable: true })
   modelVersion?: string | null;
+
+  // OCR engine that handled this request — ``crnn`` / ``ssocr_cnn`` /
+  // ``ssocr``. Nullable for backward compatibility with pre-M2.2 replies
+  // and for the dev chip to hide itself when production traffic returns
+  // no engine field.
+  @Field(() => String, { nullable: true })
+  engine?: string | null;
+
+  @Field(() => AnalysisMetricsObject, { nullable: true })
+  metrics?: AnalysisMetricsObject | null;
 }
 
 @ObjectType('AnalysisJob')

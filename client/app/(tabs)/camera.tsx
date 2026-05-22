@@ -1,6 +1,7 @@
 import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animated-components';
 import { CustomButton } from '@/components/custom-button';
 import { CustomInput } from '@/components/custom-input';
+import { DevMetricsChip, OcrEngineSelector } from '@/components/dev-ocr-controls';
 import { GradientBackground } from '@/components/gradient-background';
 import { UIImage } from '@/components/ui/image';
 import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors';
@@ -43,9 +44,15 @@ export default function CameraScreen() {
   const isDark = themePreference === 'dark';
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
+  // Dev-only OCR engine override. ``devMode`` gates the UI surfaces;
+  // the hook receives ``selectedOcrEngine`` only when devMode is on so
+  // production traffic preserves the gateway → ai-service default.
+  const devMode = useAppStore((s) => s.devMode);
+  const selectedOcrEngine = useAppStore((s) => s.selectedOcrEngine);
+  const ocrEngineOverride = devMode ? selectedOcrEngine : undefined;
 
   // ─── Analysis service ─────────────────────────────────────────────────────────
-  const { phase, prefill, isSaving, analyze, save, reset: resetAnalysis } = useCameraAnalysis();
+  const { phase, prefill, result, isSaving, analyze, save, reset: resetAnalysis } = useCameraAnalysis();
 
   // Auto-fill form when AI returns confident readings.
   // Functional setState reads the *current* value at update time, so a slow
@@ -121,7 +128,7 @@ export default function CameraScreen() {
         photo.height,
       );
       setCapturedImage(prepared);
-      void analyze(prepared);
+      void analyze(prepared, { ocrEngine: ocrEngineOverride });
     } catch {
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
     } finally {
@@ -143,7 +150,7 @@ export default function CameraScreen() {
         asset.height,
       );
       setCapturedImage(prepared);
-      void analyze(prepared);
+      void analyze(prepared, { ocrEngine: ocrEngineOverride });
     }
   };
 
@@ -334,6 +341,13 @@ export default function CameraScreen() {
         {/* ── Camera / Preview ── */}
         {!capturedImage ? (
           <>
+            {/* Dev-only OCR engine picker — rendered in normal flow
+                between the header and the camera surface so it can't be
+                hidden by ``CameraView``'s native compositing (Android in
+                particular ignores RN's zIndex against native surfaces).
+                Hidden via the component's own ``devMode`` gate when off
+                — so production users see no layout shift. */}
+            <OcrEngineSelector />
             <View className="flex-1 relative">
 
               {/* Camera mount error fallback */}
@@ -490,6 +504,12 @@ export default function CameraScreen() {
                     {PHASE_LABEL[phase]}
                   </Text>
                 </View>
+                {/* Dev-only telemetry chip — hidden in production. */}
+                <DevMetricsChip
+                  engine={result?.engine}
+                  totalMs={result?.metrics?.totalMs}
+                  rssDeltaMb={result?.metrics?.rssDeltaMb}
+                />
               </View>
             )}
 

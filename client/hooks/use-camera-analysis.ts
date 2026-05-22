@@ -1,6 +1,6 @@
 import { analyzeImage } from '@/services/camera.service';
 import { useAppStore } from '@/store/use-app-store';
-import type { AnalysisJob, AnalysisResult, BPReading } from '@/types';
+import type { AnalysisJob, AnalysisResult, BPReading, OcrEngine } from '@/types';
 import { useCallback, useRef, useState } from 'react';
 
 export type AnalysisPhase = 'idle' | 'uploading' | 'queued' | 'processing' | 'done' | 'failed';
@@ -54,43 +54,48 @@ export function useCameraAnalysis() {
     setState(INITIAL_STATE);
   }, []);
 
-  const analyze = useCallback(async (imageUri: string) => {
-    abortRef.current?.abort();
-    const abort = new AbortController();
-    abortRef.current = abort;
+  const analyze = useCallback(
+    async (imageUri: string, opts?: { ocrEngine?: OcrEngine }) => {
+      abortRef.current?.abort();
+      const abort = new AbortController();
+      abortRef.current = abort;
 
-    setState({ ...INITIAL_STATE, phase: 'uploading' });
+      setState({ ...INITIAL_STATE, phase: 'uploading' });
 
-    try {
-      const { job, result, uploadedUrl } = await analyzeImage(
-        { imageUri },
-        {
-          signal: abort.signal,
-          onStatusChange: (status) => {
-            setState((prev) => ({ ...prev, phase: PHASE_MAP[status] }));
+      try {
+        const { job, result, uploadedUrl } = await analyzeImage(
+          { imageUri },
+          {
+            signal: abort.signal,
+            ...(opts?.ocrEngine ? { ocrEngine: opts.ocrEngine } : {}),
+            onStatusChange: (status) => {
+              setState((prev) => ({ ...prev, phase: PHASE_MAP[status] }));
+            },
           },
-        },
-      );
+        );
 
-      const hasGoodReading = result && result.confidence >= CONFIDENCE_THRESHOLD && result.readings;
+        const hasGoodReading =
+          result && result.confidence >= CONFIDENCE_THRESHOLD && result.readings;
 
-      setState({
-        phase: 'done',
-        job,
-        result,
-        prefill: hasGoodReading ? { ...result!.readings! } : {},
-        uploadedUrl,
-        error: null,
-      });
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
-      setState((prev) => ({
-        ...prev,
-        phase: 'failed',
-        error: (err as Error).message ?? 'วิเคราะห์ไม่สำเร็จ',
-      }));
-    }
-  }, []);
+        setState({
+          phase: 'done',
+          job,
+          result,
+          prefill: hasGoodReading ? { ...result!.readings! } : {},
+          uploadedUrl,
+          error: null,
+        });
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        setState((prev) => ({
+          ...prev,
+          phase: 'failed',
+          error: (err as Error).message ?? 'วิเคราะห์ไม่สำเร็จ',
+        }));
+      }
+    },
+    [],
+  );
 
   const save = useCallback(
     async (params: { imageUri: string; systolic: number; diastolic: number; pulse: number }) => {
