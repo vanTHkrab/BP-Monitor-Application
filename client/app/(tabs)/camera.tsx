@@ -341,6 +341,13 @@ export default function CameraScreen() {
         {/* ── Camera / Preview ── */}
         {!capturedImage ? (
           <>
+            {/* Dev-only OCR engine picker — rendered in normal flow
+                between the header and the camera surface so it can't be
+                hidden by ``CameraView``'s native compositing (Android in
+                particular ignores RN's zIndex against native surfaces).
+                Hidden via the component's own ``devMode`` gate when off
+                — so production users see no layout shift. */}
+            <OcrEngineSelector />
             <View className="flex-1 relative">
 
               {/* Camera mount error fallback */}
@@ -430,8 +437,6 @@ export default function CameraScreen() {
                 className="pt-10"
                 style={{ paddingBottom: tabBarTotalHeight + 16 }}
               >
-                {/* Dev-only OCR engine picker — hidden unless devMode is on. */}
-                <OcrEngineSelector />
                 <View className="flex-row justify-between items-center px-10">
                   <AnimatedPressable onPress={pickImage} className="w-[70px] items-center">
                     <View className="w-[50px] h-[50px] rounded-full bg-white/20 items-center justify-center">
