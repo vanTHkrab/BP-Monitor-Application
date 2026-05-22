@@ -411,17 +411,7 @@ export default function CameraScreen() {
                 Hidden via the component's own ``devMode`` gate when off
                 — so production users see no layout shift. */}
             <OcrEngineSelector />
-            <View
-              className="flex-1 relative"
-              onLayout={(e) => {
-                const { width, height } = e.nativeEvent.layout;
-                setPreviewViewport((prev) =>
-                  prev && prev.width === width && prev.height === height
-                    ? prev
-                    : { width, height },
-                );
-              }}
-            >
+            <View className="flex-1 relative">
 
               {/* Camera mount error fallback */}
               {cameraMountError ? (
@@ -522,8 +512,6 @@ export default function CameraScreen() {
                 className="pt-10"
                 style={{ paddingBottom: tabBarTotalHeight + 16 }}
               >
-                {/* Dev-only OCR engine picker — hidden unless devMode is on. */}
-                <OcrEngineSelector />
                 <View className="flex-row justify-between items-center px-10">
                   <AnimatedPressable onPress={pickImage} className="w-[70px] items-center">
                     <View className="w-[50px] h-[50px] rounded-full bg-white/20 items-center justify-center">
