@@ -70,9 +70,15 @@ describe('MetricsLogger', () => {
   });
 
   it('appends to the existing day file with one row per JSONL line', async () => {
-    s3.head.mockResolvedValue({ contentLength: 100, contentType: 'application/x-ndjson' });
+    s3.head.mockResolvedValue({
+      contentLength: 100,
+      contentType: 'application/x-ndjson',
+    });
     const existing = `${JSON.stringify(row({ jobId: 'job-0' }))}\n`;
-    s3.get.mockResolvedValue({ body: streamFor(existing), contentType: 'application/x-ndjson' });
+    s3.get.mockResolvedValue({
+      body: streamFor(existing),
+      contentType: 'application/x-ndjson',
+    });
 
     await logger.appendRow(row({ jobId: 'job-1' }));
     const putBody = (s3.put.mock.calls[0][0].body as Buffer).toString('utf8');

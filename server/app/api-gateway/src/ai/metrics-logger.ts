@@ -83,9 +83,13 @@ export class MetricsLogger {
     if (!existing) return null;
     const { body } = await this.s3.get(key);
     const chunks: Buffer[] = [];
-    for await (const chunk of body) {
+    // Node's `Readable` async iterator types each chunk as `any`. The S3
+    // SDK actually yields `Buffer` (or `string` if an encoding is set
+    // upstream), so narrow explicitly. Without the cast,
+    // `@typescript-eslint/no-unsafe-argument` warns on the Buffer.from call.
+    for await (const chunk of body as AsyncIterable<Buffer | string>) {
       chunks.push(
-        typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : Buffer.from(chunk),
+        typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk,
       );
     }
     return Buffer.concat(chunks);
