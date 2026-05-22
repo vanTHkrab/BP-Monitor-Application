@@ -45,20 +45,19 @@ function rawMetrics(engine: OcrEngine = 'crnn'): AiServiceAnalysisMetrics {
   };
 }
 
-function makeProcessor(opts: {
-  reply: unknown;
-  metricsAppend?: jest.Mock;
-}): {
+function makeProcessor(opts: { reply: unknown; metricsAppend?: jest.Mock }): {
   processor: AiProcessor;
   metricsLogger: { appendRow: jest.Mock };
   aiClient: { send: jest.Mock };
 } {
   const aiClient = {
-    send: jest.fn().mockReturnValue(
-      opts.reply instanceof Error
-        ? throwError(() => opts.reply)
-        : of(opts.reply),
-    ),
+    send: jest
+      .fn()
+      .mockReturnValue(
+        opts.reply instanceof Error
+          ? throwError(() => opts.reply)
+          : of(opts.reply),
+      ),
   };
   const metricsLogger = {
     appendRow: opts.metricsAppend ?? jest.fn().mockResolvedValue(undefined),
@@ -190,7 +189,11 @@ describe('AiProcessor', () => {
     });
 
     it('skips metricsLogger when ai-service reply has no engine/metrics', async () => {
-      const replyWithoutMetrics = { ...goodReply, engine: undefined, metrics: undefined };
+      const replyWithoutMetrics = {
+        ...goodReply,
+        engine: undefined,
+        metrics: undefined,
+      };
       const { processor, metricsLogger } = makeProcessor({
         reply: replyWithoutMetrics,
       });
@@ -204,7 +207,9 @@ describe('AiProcessor', () => {
         reply: goodReply,
         metricsAppend: jest.fn().mockRejectedValue(new Error('S3 down')),
       });
-      await expect(processor.process(makeJob(goodPayload))).resolves.toMatchObject({
+      await expect(
+        processor.process(makeJob(goodPayload)),
+      ).resolves.toMatchObject({
         engine: 'crnn',
       });
     });

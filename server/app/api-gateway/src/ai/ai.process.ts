@@ -134,9 +134,7 @@ export class AiProcessor extends WorkerHost {
     }
   }
 
-  private toAnalysisMetrics(
-    raw: AiServiceAnalysisMetrics,
-  ): AnalysisMetrics {
+  private toAnalysisMetrics(raw: AiServiceAnalysisMetrics): AnalysisMetrics {
     return {
       fetchMs: raw.fetch_ms,
       detectMs: raw.detect_ms,
@@ -276,7 +274,13 @@ export class AiProcessor extends WorkerHost {
       throw new Error('AI queue payload is missing required fields');
     }
 
-    const parsed: AnalysisJobPayload = { jobId, userId, s3Key, imageUrl, mimeType };
+    const parsed: AnalysisJobPayload = {
+      jobId,
+      userId,
+      s3Key,
+      imageUrl,
+      mimeType,
+    };
     if (
       typeof ocrEngine === 'string' &&
       (OCR_ENGINES as readonly string[]).includes(ocrEngine)
