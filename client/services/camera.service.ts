@@ -200,13 +200,19 @@ interface PollOptions {
   onStatusChange?: (status: AnalysisJob['status']) => void;
 }
 
+function makeAbortError(): Error {
+  const err = new Error('Aborted');
+  err.name = 'AbortError';
+  return err;
+}
+
 async function pollUntilDone(jobId: string, options: PollOptions = {}): Promise<AnalysisJob> {
   const { intervalMs = 1500, timeoutMs = 60_000, signal, onStatusChange } = options;
   const deadline = Date.now() + timeoutMs;
   let lastStatus: AnalysisJob['status'] | null = null;
 
   while (Date.now() < deadline) {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (signal?.aborted) throw makeAbortError();
 
     const data = await gqlRequest<{ analysisJob: AnalysisJob }>({
       query: POLL_ANALYSIS_JOB_QUERY,
@@ -226,11 +232,15 @@ async function pollUntilDone(jobId: string, options: PollOptions = {}): Promise<
     if (job.status === 'failed') throw new Error(job.error ?? 'Analysis failed');
 
     await new Promise<void>((resolve, reject) => {
-      const t = setTimeout(resolve, intervalMs);
-      signal?.addEventListener('abort', () => {
+      const onAbort = () => {
         clearTimeout(t);
-        reject(new DOMException('Aborted', 'AbortError'));
-      });
+        reject(makeAbortError());
+      };
+      const t = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, intervalMs);
+      signal?.addEventListener('abort', onAbort, { once: true });
     });
   }
 
