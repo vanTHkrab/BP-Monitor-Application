@@ -210,7 +210,3 @@ __marimo__/
 
 .env
 prepare/
-
-# Per-request debug image dumps (AI_DEBUG_DUMP_ENABLED=1). Dev-only —
-# directory is recreated on demand; never check in.
-debug_images/
