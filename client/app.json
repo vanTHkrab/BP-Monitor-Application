@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "BP-Mobile",
-    "slug": "bp-monitor",
+    "slug": "bp-mobile-application",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -79,7 +79,8 @@
           "recordAudioAndroid": true,
           "barcodeScannerEnabled": true
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -88,9 +89,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "20606fe6-f71f-4063-aab4-40b6230bc517"
+        "projectId": "b5572b71-c303-4b8e-b89e-14007c46ca3c"
       }
     },
-    "owner": "ok999p"
+    "owner": "bp-monitor-education-project"
   }
 }
