@@ -13,7 +13,7 @@ Wire contract (must stay in sync with ``../api-gateway/src/ai/``):
     Reply    channel  ``analyze_bp_image.reply``
              success  ``{ id, response: { confidence, systolic, diastolic, pulse,
                           raw_text, roi_image_url, model_version, status,
-                          engine, metrics }, isDisposed: true }``
+                          engine, metrics, image_quality_score }, isDisposed: true }``
              error    ``{ id, err: <message>, isDisposed: true }``
 
 ``imageUrl`` is a presigned GET URL added by the gateway; required.
@@ -21,6 +21,13 @@ Wire contract (must stay in sync with ``../api-gateway/src/ai/``):
 ``engine`` and ``metrics`` are always present on the success reply
 (M2.2 comparison phase); old gateway clients that ignore unknown keys
 keep working unchanged.
+
+``image_quality_score`` is a provisional, additive field — the gateway
+writes it back to ``Image.image_quality_score`` keyed by ``s3Key`` so
+quality metadata lives next to the image it describes. Until a
+dedicated quality model exists it is derived from YOLO detection
+confidence (see ``_image_quality_score``). Always-null replies are a
+valid contract and the gateway tolerates them.
 """
 from __future__ import annotations
 
@@ -75,6 +82,29 @@ async def reply_error(client: redis.Redis, request_id: str, message: str) -> Non
     await client.publish(REPLY_PATTERN, json.dumps(payload))
 
 
+def _image_quality_score(result: AnalysisResult) -> float | None:
+    """Provisional image-quality proxy derived from YOLO confidences.
+
+    No dedicated image-quality model exists yet, so this surfaces the
+    mean YOLO detection confidence across the fields that were located
+    in the image. It approximates "how clearly could we see the device"
+    — high values track sharp / well-lit / well-framed photos; low
+    values track blur, glare, low contrast, or partial occlusion.
+
+    Returns ``None`` when ``result.fields`` is empty (status=unreadable
+    case). A score over zero detections would mean nothing, and the
+    gateway already treats ``None`` as "skip the Image update", so
+    callers don't need to special-case the unreadable path.
+
+    Replace with a real quality model when one becomes available; the
+    wire shape (float 0..1 or null) is the contract the gateway depends
+    on, not the formula behind it.
+    """
+    if not result.fields:
+        return None
+    return sum(f.yolo_confidence for f in result.fields) / len(result.fields)
+
+
 def _to_wire_response(
     result: AnalysisResult, metrics: AnalysisMetrics,
 ) -> dict[str, Any]:
@@ -82,7 +112,9 @@ def _to_wire_response(
 
     ``fields[]`` stays internal (debug-only). ``engine`` and ``metrics``
     are additive M2.2 fields; old gateway clients that ignore unknown
-    keys continue to work.
+    keys continue to work. ``image_quality_score`` is the
+    Image-as-base-model addition (gateway PR2) — see
+    ``_image_quality_score`` for current derivation and migration plan.
     """
     return {
         "confidence": result.confidence,
@@ -95,6 +127,7 @@ def _to_wire_response(
         "status": result.status.value,
         "engine": metrics.engine,
         "metrics": metrics.to_wire(),
+        "image_quality_score": _image_quality_score(result),
     }
 
 

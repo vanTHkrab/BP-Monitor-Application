@@ -15,10 +15,13 @@ export class SubmitBPReadingInput {
   @IsString()
   jobId?: string;
 
-  @Field(() => String, { nullable: true })
+  // Image row id returned by confirmImageUpload. When present, the new
+  // reading is attached to that Image (Image.readingId is set). Omit for
+  // manual entries that have no captured image.
+  @Field(() => Int, { nullable: true })
   @IsOptional()
-  @IsString()
-  s3Key?: string;
+  @IsInt()
+  imageId?: number;
 
   @Field(() => Int)
   @IsInt()

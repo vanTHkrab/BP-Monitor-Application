@@ -3,6 +3,7 @@ import { Inject, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { Job } from 'bullmq';
 import { firstValueFrom, timeout } from 'rxjs';
+import { PrismaService } from '../prisma/prisma.service';
 import { AI_JOB_ANALYZE, AI_QUEUE } from './ai.service';
 import { MetricsLogger } from './metrics-logger';
 import {
@@ -23,6 +24,7 @@ export class AiProcessor extends WorkerHost {
   constructor(
     @Inject('AI_SERVICE') private readonly aiClient: ClientProxy,
     private readonly metricsLogger: MetricsLogger,
+    private readonly prisma: PrismaService,
   ) {
     super();
   }
@@ -92,6 +94,25 @@ export class AiProcessor extends WorkerHost {
         engine: data.engine ?? null,
         metrics,
       };
+
+      // Write imageQualityScore back to the Image row keyed by s3Key.
+      // updateMany (not update) is used so a missing row — the Image
+      // was already swept by the orphan cleanup, or the reply came
+      // after a cascade delete — does not throw and fail the analysis
+      // result; it just records zero updates.
+      if (data.image_quality_score !== null) {
+        this.prisma.image
+          .updateMany({
+            where: { s3Key },
+            data: { imageQualityScore: data.image_quality_score },
+          })
+          .catch((err) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(
+              `Failed to persist imageQualityScore s3Key=${s3Key}: ${msg}`,
+            );
+          });
+      }
 
       // Fire-and-forget JSONL append. Telemetry must never block the
       // user-facing path or fail the BullMQ job — a missed row is
@@ -192,6 +213,11 @@ export class AiProcessor extends WorkerHost {
       status,
       engine,
       metrics,
+      image_quality_score:
+        typeof payload.image_quality_score === 'number' &&
+        Number.isFinite(payload.image_quality_score)
+          ? payload.image_quality_score
+          : null,
       error: typeof payload.error === 'string' ? payload.error : undefined,
     };
   }

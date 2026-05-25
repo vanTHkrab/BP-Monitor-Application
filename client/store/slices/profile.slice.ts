@@ -171,14 +171,16 @@ export const createProfileSlice: StateCreator<
         if (!row) return;
 
         try {
-          const uploadedAvatarUri = await uploadImageViaPresign({
+          const uploaded = await uploadImageViaPresign({
             uri: row.localUri,
             kind: "profile",
             token,
           });
+          // Profile kind doesn't get an Image row server-side, so
+          // uploaded.imageId is always null here — drop it on the floor.
           const data = await graphqlRequest<UpdateProfileMutation>(
             GQL_UPDATE_PROFILE,
-            { input: { avatar: uploadedAvatarUri } },
+            { input: { avatar: uploaded.url } },
             token,
           );
           await deletePendingAvatarUpload(currentUser.id);

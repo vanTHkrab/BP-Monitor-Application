@@ -110,7 +110,7 @@ function uriToMime(uri: string): string {
 async function uploadToS3(
   imageUri: string,
   signal?: AbortSignal,
-): Promise<{ key: string; url: string; mimeType: string }> {
+): Promise<{ key: string; url: string; mimeType: string; imageId: number | null }> {
   const mimeType = uriToMime(imageUri);
   // RN's Blob refuses ArrayBuffer/Uint8Array, so on native we hand the
   // file URI to FileSystem.uploadAsync and stream the binary from disk to
@@ -188,6 +188,7 @@ async function uploadToS3(
     key: confirmed.confirmImageUpload.key,
     url: confirmed.confirmImageUpload.url,
     mimeType,
+    imageId: confirmed.confirmImageUpload.imageId,
   };
 }
 
@@ -258,6 +259,11 @@ export async function analyzeImage(
   /** Public URL of the uploaded image — pass this to `createReading` as
    *  `imageUri` so the store can submit the reading without re-uploading. */
   uploadedUrl: string;
+  /** Server-side Image row id minted by ``confirmImageUpload``. Carry
+   *  this all the way to ``createReading`` so the new reading attaches
+   *  to the freshly-uploaded image via FK instead of by s3Key string —
+   *  see Image-as-base-model refactor PR1/PR2. */
+  uploadedImageId: number | null;
 }> {
   // Auth is required to presign — fail fast with a useful message rather
   // than letting the request fall through and get rejected by the gateway.
@@ -265,7 +271,7 @@ export async function analyzeImage(
     throw new Error('ต้องเข้าสู่ระบบก่อนวิเคราะห์รูป');
   }
 
-  const { key, url, mimeType } = await uploadToS3(
+  const { key, url, mimeType, imageId } = await uploadToS3(
     payload.imageUri,
     options?.signal,
   );
@@ -291,9 +297,15 @@ export async function analyzeImage(
     jobId: initial.jobId,
     status: initial.status,
     s3Key: key,
+    imageId,
   });
   if (initial.status === 'done') {
-    return { job: initial, result: initial.result ?? null, uploadedUrl: url };
+    return {
+      job: initial,
+      result: initial.result ?? null,
+      uploadedUrl: url,
+      uploadedImageId: imageId,
+    };
   }
 
   const completed = await pollUntilDone(initial.jobId, options);
@@ -306,6 +318,7 @@ export async function analyzeImage(
     job: completed,
     result: completed.result ?? null,
     uploadedUrl: url,
+    uploadedImageId: imageId,
   };
 }
 
