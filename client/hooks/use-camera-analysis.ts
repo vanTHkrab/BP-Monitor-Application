@@ -30,6 +30,10 @@ interface AnalysisState {
    *  `createReading` on save so the store doesn't re-upload — it sees the
    *  `https://` prefix and goes straight to the GraphQL submit. */
   uploadedUrl: string | null;
+  /** Server-side Image.id from ``confirmImageUpload`` carried alongside
+   *  ``uploadedUrl``; ``createReading`` attaches the new reading to this
+   *  image via FK. ``null`` until upload succeeds. */
+  uploadedImageId: number | null;
   error: string | null;
 }
 
@@ -39,6 +43,7 @@ const INITIAL_STATE: AnalysisState = {
   result: null,
   prefill: {},
   uploadedUrl: null,
+  uploadedImageId: null,
   error: null,
 };
 
@@ -63,7 +68,7 @@ export function useCameraAnalysis() {
       setState({ ...INITIAL_STATE, phase: 'uploading' });
 
       try {
-        const { job, result, uploadedUrl } = await analyzeImage(
+        const { job, result, uploadedUrl, uploadedImageId } = await analyzeImage(
           { imageUri },
           {
             signal: abort.signal,
@@ -83,6 +88,7 @@ export function useCameraAnalysis() {
           result,
           prefill: hasGoodReading ? { ...result!.readings! } : {},
           uploadedUrl,
+          uploadedImageId,
           error: null,
         });
       } catch (err) {
@@ -101,11 +107,11 @@ export function useCameraAnalysis() {
     async (params: { imageUri: string; systolic: number; diastolic: number; pulse: number }) => {
       // Route through the store so we inherit the offline queue + optimistic
       // UI used by manual entry. If analyze succeeded, `uploadedUrl` is the
-      // already-S3-hosted URL and `createReading` skips re-uploading (the
-      // `https://` prefix is its short-circuit signal). If analyze failed
-      // or the user is offline, fall back to the captured local URI;
-      // `createReading` will upload-then-submit when network returns via
-      // `syncPendingReadings`.
+      // already-S3-hosted URL and `uploadedImageId` is the FK the gateway
+      // needs to attach the new reading to the existing Image row; the
+      // store skips re-uploading. If analyze failed or the user is offline,
+      // fall back to the captured local URI with imageId=null;
+      // `syncPendingReadings` will upload-then-submit when network returns.
       setIsSaving(true);
       try {
         const ok = await useAppStore.getState().createReading({
@@ -114,13 +120,14 @@ export function useCameraAnalysis() {
           pulse: params.pulse,
           measuredAt: new Date(),
           imageUri: state.uploadedUrl ?? params.imageUri,
+          imageId: state.uploadedImageId ?? undefined,
         });
         return ok;
       } finally {
         setIsSaving(false);
       }
     },
-    [state.uploadedUrl],
+    [state.uploadedUrl, state.uploadedImageId],
   );
 
   return { ...state, isSaving, analyze, save, reset };

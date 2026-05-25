@@ -17,6 +17,15 @@ export interface PendingReadingRow {
   pulse: number;
   measuredAt: string;
   imageUri: string | null;
+  // Server-side ``Image`` row id, populated only after the local file
+  // (or already-uploaded https URL) is confirmed by ``confirmImageUpload``.
+  // Carried in SQLite so a pending row that uploaded its image but
+  // hasn't created its reading yet (offline at the wrong moment) can
+  // resume on the next sync without re-uploading. ``markReadingSynced``
+  // does NOT clear it — the Image is now attached via the reading FK
+  // server-side, but keeping the value locally costs nothing and aids
+  // debugging.
+  imageId: number | null;
   notes: string | null;
   status: string;
   createdAt: string;
@@ -153,6 +162,10 @@ export const initLocalDb = async (): Promise<void> => {
     "TEXT NOT NULL DEFAULT 'pending'",
   );
   await ensureColumn("pending_readings", "updatedAt", "TEXT");
+  // Carries the server-side Image.id once a pending row's image has
+  // been confirmed by confirmImageUpload but the reading hasn't been
+  // submitted yet. See PendingReadingRow.imageId.
+  await ensureColumn("pending_readings", "imageId", "INTEGER");
   await ensureColumn("local_posts", "clientId", "TEXT");
 
   await db.execAsync(
@@ -192,8 +205,8 @@ export const insertPendingReading = async (
   const db = await getDb();
   if (!db) return null;
   const result = await db.runAsync(
-    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, notes, status, createdAt, updatedAt)
-     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, imageId, notes, status, createdAt, updatedAt)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       row.userId,
       row.clientId,
@@ -203,6 +216,7 @@ export const insertPendingReading = async (
       row.pulse,
       row.measuredAt,
       row.imageUri,
+      row.imageId,
       row.notes,
       row.status,
       row.createdAt,
@@ -274,7 +288,7 @@ export const upsertSyncedReading = async (
         `UPDATE pending_readings
            SET userId = ?, remoteId = ?, syncStatus = 'synced',
                systolic = ?, diastolic = ?, pulse = ?,
-               measuredAt = ?, imageUri = ?, notes = ?, status = ?,
+               measuredAt = ?, imageUri = ?, imageId = ?, notes = ?, status = ?,
                updatedAt = ?
          WHERE id = ?;`,
         [
@@ -285,6 +299,7 @@ export const upsertSyncedReading = async (
           row.pulse,
           row.measuredAt,
           row.imageUri,
+          row.imageId,
           row.notes,
           row.status,
           updatedAt,
@@ -303,7 +318,7 @@ export const upsertSyncedReading = async (
       `UPDATE pending_readings
          SET userId = ?, clientId = ?, syncStatus = 'synced',
              systolic = ?, diastolic = ?, pulse = ?,
-             measuredAt = ?, imageUri = ?, notes = ?, status = ?,
+             measuredAt = ?, imageUri = ?, imageId = ?, notes = ?, status = ?,
              updatedAt = ?
        WHERE id = ?;`,
       [
@@ -314,6 +329,7 @@ export const upsertSyncedReading = async (
         row.pulse,
         row.measuredAt,
         row.imageUri,
+        row.imageId,
         row.notes,
         row.status,
         updatedAt,
@@ -323,8 +339,8 @@ export const upsertSyncedReading = async (
     return;
   }
   await db.runAsync(
-    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, notes, status, createdAt, updatedAt)
-     VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, imageId, notes, status, createdAt, updatedAt)
+     VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       row.userId,
       row.clientId,
@@ -334,6 +350,7 @@ export const upsertSyncedReading = async (
       row.pulse,
       row.measuredAt,
       row.imageUri,
+      row.imageId,
       row.notes,
       row.status,
       row.createdAt,
@@ -356,6 +373,26 @@ export const markReadingSynced = async (
        SET remoteId = ?, syncStatus = 'synced', imageUri = ?, updatedAt = ?
      WHERE id = ?;`,
     [remoteId, imageUri, new Date().toISOString(), localId],
+  );
+};
+
+// Persist the upload outcome on a pending row between
+// ``confirmImageUpload`` success and ``createReading`` success. If the
+// create mutation later fails, the next sync sees the imageId already
+// set and skips re-uploading — re-uploading would mint a second Image
+// row and leak an S3 object the gateway's cleanup cron can't easily
+// associate back to this pending reading.
+export const updatePendingReadingImage = async (
+  localId: number,
+  values: { imageUri: string | null; imageId: number | null },
+): Promise<void> => {
+  const db = await getDb();
+  if (!db) return;
+  await db.runAsync(
+    `UPDATE pending_readings
+       SET imageUri = ?, imageId = ?, syncStatus = 'pending', updatedAt = ?
+     WHERE id = ?;`,
+    [values.imageUri, values.imageId, new Date().toISOString(), localId],
   );
 };
 

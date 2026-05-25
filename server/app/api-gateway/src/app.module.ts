@@ -2,6 +2,7 @@ import { HttpException, Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { MercuriusDriver, MercuriusDriverConfig } from '@nestjs/mercurius';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ScheduleModule } from '@nestjs/schedule';
 import type { GraphQLFormattedError } from 'graphql';
 import { join } from 'path';
 
@@ -106,6 +107,11 @@ import { DebugModule } from './debug/debug.module';
         };
       },
     }),
+    // == Scheduler ==
+    // Powers @Cron-decorated handlers (StorageCleanupService orphan sweep,
+    // etc.). Discovery is global once `forRoot()` is called — feature
+    // modules just declare the service as a provider.
+    ScheduleModule.forRoot(),
     // == Microservice Clients ==
     ClientsModule.register([
       // Register the AI Service as a microservice client using Redis transport

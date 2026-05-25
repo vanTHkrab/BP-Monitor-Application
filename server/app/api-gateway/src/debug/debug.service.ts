@@ -36,14 +36,12 @@ export class DebugService {
     const images = await this.prisma.image.findMany({
       where: { userId },
       orderBy: { id: 'desc' },
-      select: { id: true, s3Key: true, syncStatus: true, uploadedAt: true },
-      take: MAX_PROBES_PER_REQUEST,
-    });
-
-    const readings = await this.prisma.bloodPressureReading.findMany({
-      where: { userId },
-      orderBy: { id: 'desc' },
-      select: { id: true, s3Key: true },
+      select: {
+        id: true,
+        s3Key: true,
+        readingId: true,
+        uploadedAt: true,
+      },
       take: MAX_PROBES_PER_REQUEST,
     });
 
@@ -58,24 +56,21 @@ export class DebugService {
       }),
     );
 
+    // Image is the canonical store for every BP image now. An orphan
+    // image (readingId = null) signals either an in-flight upload that
+    // the user hasn't saved yet, or a leftover the cleanup cron will
+    // sweep — surface that state so the diff is actionable.
     for (const img of images) {
+      const attachment =
+        img.readingId === null
+          ? 'orphan (no reading attached)'
+          : `attached to reading:${img.readingId}`;
       items.push(
         await this.probe({
           source: 'image',
           refId: `image:${img.id}`,
           rawKey: img.s3Key,
-          note: `sync_status: ${img.syncStatus} · uploaded_at: ${img.uploadedAt.toISOString()}`,
-        }),
-      );
-    }
-
-    for (const r of readings) {
-      items.push(
-        await this.probe({
-          source: 'reading',
-          refId: `reading:${r.id}`,
-          rawKey: r.s3Key,
-          note: r.s3Key ? undefined : 'reading has no s3Key (manual entry)',
+          note: `${attachment} · uploaded_at: ${img.uploadedAt.toISOString()}`,
         }),
       );
     }
