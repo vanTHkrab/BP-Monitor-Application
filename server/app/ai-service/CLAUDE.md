@@ -111,6 +111,16 @@ fires when no fields were detected (status=unreadable case). The
 gateway tolerates `null` and skips the write, so always-`null`
 replies are a valid contract.
 
+`image_quality_score` is the Image-as-base-model addition (gateway
+PR2) — a float in [0, 1] or `null`. The gateway writes it back to
+`Image.image_quality_score` keyed by `s3Key`, so quality metadata
+lives next to the bytes it describes. Until a dedicated quality
+model exists, the value is derived from mean YOLO detection
+confidence (see `_image_quality_score` in `handlers.py`); `null`
+fires when no fields were detected (status=unreadable case). The
+gateway tolerates `null` and skips the write, so always-`null`
+replies are a valid contract.
+
 The matching gateway code is in [../api-gateway/src/ai/](../api-gateway/src/ai/)
 (`ai.service.ts` publishes the request and consumes the reply).
 Changing the channel name, payload shape, or reply contract on one side
