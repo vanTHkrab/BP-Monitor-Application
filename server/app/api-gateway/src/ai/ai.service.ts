@@ -1,5 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -168,14 +170,24 @@ export class AiService {
     measuredAt: Date;
     s3Key: string | null;
   }> {
-    let fallbackS3Key: string | null = null;
-
+    // jobId is currently consulted only to enforce ownership; the actual
+    // bytes are already attached via Image (created at confirmImageUpload).
+    // We keep the ownership check so a leaked jobId can't be paired with
+    // an attacker's payload to write data on the victim's account.
     if (input.jobId) {
-      const job = await this.getOwnedJob(input.jobId, userId);
-      const state = await job.getState();
-      if (state === 'completed') {
-        fallbackS3Key =
-          this.asAnalysisResult(job.returnvalue)?.roiImageUrl ?? null;
+      await this.getOwnedJob(input.jobId, userId);
+    }
+
+    if (input.imageId !== undefined) {
+      const image = await this.prisma.image.findUnique({
+        where: { id: input.imageId },
+        select: { userId: true, readingId: true },
+      });
+      if (!image || image.userId !== userId) {
+        throw new BadRequestException('imageId ไม่ถูกต้องหรือไม่ใช่ของคุณ');
+      }
+      if (image.readingId !== null) {
+        throw new ConflictException('รูปนี้ถูกผูกกับการวัดอื่นแล้ว');
       }
     }
 
@@ -187,8 +199,11 @@ export class AiService {
         pulse: input.pulse,
         measuredAt: new Date(input.measuredAt),
         status: toBpStatus(input.systolic, input.diastolic),
-        s3Key: input.s3Key ?? fallbackS3Key,
+        ...(input.imageId !== undefined
+          ? { images: { connect: { id: input.imageId } } }
+          : {}),
       },
+      include: { images: { select: { s3Key: true } } },
     });
 
     return {
@@ -197,7 +212,7 @@ export class AiService {
       diastolic: reading.diastolic,
       pulse: reading.pulse,
       measuredAt: reading.measuredAt,
-      s3Key: reading.s3Key,
+      s3Key: reading.images[0]?.s3Key ?? null,
     };
   }
 

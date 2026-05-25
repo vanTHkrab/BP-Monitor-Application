@@ -70,7 +70,7 @@ uv run pytest                        # tests
 | Channel | Direction | Payload |
 | --- | --- | --- |
 | `analyze_bp_image` | gateway → ai-service | `{ pattern, id, data: { jobId, userId, s3Key, imageUrl, mimeType, ocrEngine? } }` |
-| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status, engine, metrics }, isDisposed: true }` |
+| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status, engine, metrics, image_quality_score }, isDisposed: true }` |
 | `analyze_bp_image.reply` (error) | ai-service → gateway | `{ id, err: <message>, isDisposed: true }` |
 
 `imageUrl` is a presigned GET URL the gateway adds to the request
@@ -86,6 +86,16 @@ which pipeline ran; `metrics` is a flat dict with per-stage timing
 deltas (`rss_before_mb`, `rss_after_mb`, `rss_delta_mb`), and
 `image_size_bytes`. The gateway-side worker uploads these to S3 as
 a JSONL row for offline comparison.
+
+`image_quality_score` is the Image-as-base-model addition (gateway
+PR2) — a float in [0, 1] or `null`. The gateway writes it back to
+`Image.image_quality_score` keyed by `s3Key`, so quality metadata
+lives next to the bytes it describes. Until a dedicated quality
+model exists, the value is derived from mean YOLO detection
+confidence (see `_image_quality_score` in `handlers.py`); `null`
+fires when no fields were detected (status=unreadable case). The
+gateway tolerates `null` and skips the write, so always-`null`
+replies are a valid contract.
 
 The matching gateway code is in [../api-gateway/src/ai/](../api-gateway/src/ai/)
 (`ai.service.ts` publishes the request and consumes the reply).

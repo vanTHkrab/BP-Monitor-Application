@@ -104,7 +104,7 @@ export class PresignedUploadService {
 
     const imageId =
       input.kind === ImageKind.BLOOD_PRESSURE_READING
-        ? await this.createImageRecord(userId, finalKey)
+        ? await this.createImageRecord(userId, finalKey, input.deviceName)
         : undefined;
 
     this.logger.log(
@@ -137,15 +137,13 @@ export class PresignedUploadService {
   private async createImageRecord(
     userId: string,
     key: string,
+    deviceName?: string,
   ): Promise<number> {
     const image = await this.prisma.image.create({
       data: {
         userId,
         s3Key: key,
-        deviceName: 'blood-pressure-monitor',
-        syncStatus: 'synced',
-        syncedAt: new Date(),
-        uploadedAt: new Date(),
+        deviceName: deviceName ?? null,
       },
       select: { id: true },
     });

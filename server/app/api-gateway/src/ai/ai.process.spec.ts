@@ -3,6 +3,7 @@
 import { ClientProxy } from '@nestjs/microservices';
 import { of, throwError } from 'rxjs';
 import { Job } from 'bullmq';
+import { PrismaService } from '../prisma/prisma.service';
 import { AI_JOB_ANALYZE } from './ai.service';
 import { AiProcessor } from './ai.process';
 import { MetricsLogger } from './metrics-logger';
@@ -49,6 +50,7 @@ function makeProcessor(opts: { reply: unknown; metricsAppend?: jest.Mock }): {
   processor: AiProcessor;
   metricsLogger: { appendRow: jest.Mock };
   aiClient: { send: jest.Mock };
+  prisma: { image: { updateMany: jest.Mock } };
 } {
   const aiClient = {
     send: jest
@@ -62,11 +64,19 @@ function makeProcessor(opts: { reply: unknown; metricsAppend?: jest.Mock }): {
   const metricsLogger = {
     appendRow: opts.metricsAppend ?? jest.fn().mockResolvedValue(undefined),
   };
+  // The processor writes imageQualityScore back to Image keyed by s3Key
+  // when the reply includes one. Mock updateMany so the call resolves
+  // without hitting the DB; tests that care about the call can inspect
+  // the mock.
+  const prisma = {
+    image: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+  };
   const processor = new AiProcessor(
     aiClient as unknown as ClientProxy,
     metricsLogger as unknown as MetricsLogger,
+    prisma as unknown as PrismaService,
   );
-  return { processor, metricsLogger, aiClient };
+  return { processor, metricsLogger, aiClient, prisma };
 }
 
 describe('AiProcessor', () => {

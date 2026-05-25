@@ -15,6 +15,7 @@ import {
   listLocalReadings,
   listPendingReadings,
   markReadingSynced,
+  updatePendingReadingImage,
   upsertSyncedReading,
 } from "@/data/local-db";
 import { AppAlert, BloodPressureReading } from "@/types";
@@ -72,6 +73,10 @@ const cacheRemoteReading = async (
       pulse: gql.pulse,
       measuredAt: new Date(gql.measuredAt).toISOString(),
       imageUri: gql.s3Key ?? null,
+      // Synced mirror rows don't need the local imageId — the server
+      // owns the Image↔Reading FK after the create. Leaving it null
+      // also prevents stale ids from leaking into a future re-sync.
+      imageId: null,
       notes: gql.notes ?? null,
       status: gql.status,
       createdAt: gql.createdAt
@@ -100,6 +105,12 @@ export interface ReadingsSlice {
     pulse: number;
     measuredAt?: Date;
     imageUri?: string;
+    /** When the caller has already uploaded the image (camera analysis
+     *  flow) and holds the server-minted Image.id, pass it through so
+     *  the gateway attaches the new reading to that Image row via FK
+     *  — see Image-as-base-model refactor PR1/PR2. Manual entries omit
+     *  this; the store uploads first and captures the id internally. */
+    imageId?: number;
     notes?: string;
   }) => Promise<boolean>;
   deleteReading: (id: string) => Promise<void>;
@@ -225,15 +236,23 @@ export const createReadingsSlice: StateCreator<
     const status = getBPStatus(systolic, diastolic);
     const clientId = createClientId("reading", currentUser.id);
     let imageUri = input.imageUri;
-    let imageReadyForRemote = !imageUri || /^https?:\/\//i.test(imageUri);
+    // ``imageId`` is non-null in two cases: caller pre-uploaded
+    // (camera analysis save flow), or this function uploaded just below
+    // and captured the id. Either way, the gateway only accepts
+    // ``imageId`` now (Image-as-base-model PR2) — ``s3Key`` is gone.
+    let imageId: number | null = input.imageId ?? null;
+    let imageReadyForRemote =
+      !imageUri || /^https?:\/\//i.test(imageUri);
 
     if (get().isOnline && token && imageUri && !imageReadyForRemote) {
       try {
-        imageUri = await uploadImageViaPresign({
+        const uploaded = await uploadImageViaPresign({
           uri: imageUri,
           kind: "blood-pressure",
           token,
         });
+        imageUri = uploaded.url;
+        imageId = uploaded.imageId;
         imageReadyForRemote = true;
       } catch (error) {
         console.warn(
@@ -254,6 +273,7 @@ export const createReadingsSlice: StateCreator<
       pulse,
       measuredAt: measuredAt.toISOString(),
       imageUri: imageUri ?? null,
+      imageId,
       notes: input.notes ?? null,
       status,
       createdAt: new Date().toISOString(),
@@ -293,10 +313,11 @@ export const createReadingsSlice: StateCreator<
             status,
             measuredAt: measuredAt.toISOString(),
             clientId,
-            // Server's `CreateReadingInput` accepts `s3Key` (was renamed from
-            // `imageUri` in schema PR B). The local SQLite column stays
-            // `imageUri` — translation happens only at the GraphQL boundary.
-            s3Key: imageUri ?? null,
+            // Server's ``CreateReadingInput`` takes ``imageId`` (the
+            // Image row minted by ``confirmImageUpload``); ``s3Key``
+            // was removed in the Image-as-base-model refactor. Manual
+            // entries omit imageUri entirely, so imageId stays null.
+            imageId,
             notes: input.notes ?? null,
           },
         },
@@ -399,13 +420,24 @@ export const createReadingsSlice: StateCreator<
         for (const row of pending) {
           try {
             let imageUri = row.imageUri ?? null;
-            if (imageUri && !/^https?:\/\//i.test(imageUri)) {
+            // Resume from a half-completed sync: if the previous attempt
+            // confirmed the upload (imageId set) but the create mutation
+            // failed, skip re-upload — that would mint a second Image row
+            // and orphan the first in S3.
+            let imageId: number | null = row.imageId ?? null;
+            if (imageUri && !/^https?:\/\//i.test(imageUri) && imageId == null) {
               try {
-                imageUri = await uploadImageViaPresign({
+                const uploaded = await uploadImageViaPresign({
                   uri: imageUri,
                   kind: "blood-pressure",
                   token,
                 });
+                imageUri = uploaded.url;
+                imageId = uploaded.imageId;
+                // Persist before the mutation so a crash here doesn't
+                // re-upload on the next sync. updatePendingReadingImage
+                // also flips syncStatus from 'pending-image' → 'pending'.
+                await updatePendingReadingImage(row.id, { imageUri, imageId });
               } catch (error) {
                 if (!(error instanceof LocalImageMissingError)) throw error;
                 logWarn(
@@ -415,6 +447,7 @@ export const createReadingsSlice: StateCreator<
                   { localId: row.id, clientId: row.clientId, uri: imageUri },
                 );
                 imageUri = null;
+                imageId = null;
               }
             }
 
@@ -429,7 +462,7 @@ export const createReadingsSlice: StateCreator<
                   measuredAt: row.measuredAt,
                   clientId:
                     row.clientId || `local-${currentUser.id}-${row.id}`,
-                  s3Key: imageUri,
+                  imageId,
                   notes: row.notes ?? null,
                 },
               },

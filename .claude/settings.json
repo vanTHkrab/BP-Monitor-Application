@@ -7,6 +7,8 @@
       "Read(**/.env.production)",
       "Read(**/.env.development)",
       "Read(**/secrets/**)",
+      "Bash(npx prisma *)",
+      "Bash(pnpm prisma *)",
       "Bash(git * main)",
       "Bash(git add *)",
       "Bash(git commit *)",
@@ -14,9 +16,11 @@
     ],
     "allow": [
       "Bash(pnpm exec *)",
+      "Bash(pnpm exec tsc *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm prisma validate)",
+      "Bash(uv run pytest *)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(npx prisma *)",
-      "Bash(pnpm prisma *)",
       "Read(**/.env.example)"
     ]
   }
