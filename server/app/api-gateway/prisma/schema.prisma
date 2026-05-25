@@ -25,12 +25,6 @@ enum Gender {
   other
 }
 
-enum ImageSyncStatus {
-  pending
-  synced
-  failed
-}
-
 enum AlertLevel {
   warning
   critical
@@ -125,20 +119,19 @@ model CaregiverPatient {
 }
 
 model Image {
-  id                Int             @id @default(autoincrement())
-  userId            String          @map("user_id") @db.Uuid
-  s3Key             String          @map("s3_key") @db.VarChar(512)
-  deviceName        String          @map("device_name") @db.VarChar(255)
-  imageQualityScore Float?          @map("image_quality_score")
-  syncStatus        ImageSyncStatus @default(pending) @map("sync_status")
-  syncedAt          DateTime?       @map("synced_at")
-  uploadedAt        DateTime        @default(now()) @map("uploaded_at")
-  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at")
+  id                Int      @id @default(autoincrement())
+  userId            String   @map("user_id") @db.Uuid
+  s3Key             String   @unique @map("s3_key") @db.VarChar(512)
+  deviceName        String?  @map("device_name") @db.VarChar(255)
+  imageQualityScore Float?   @map("image_quality_score")
+  readingId         Int?     @unique @map("reading_id")
+  uploadedAt        DateTime @default(now()) @map("uploaded_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reading BloodPressureReading? @relation(fields: [readingId], references: [id], onDelete: SetNull)
 
-  @@index([userId])
-  @@index([syncStatus])
+  @@index([userId, uploadedAt(sort: Desc)])
   @@map("images")
 }
 
@@ -160,8 +153,6 @@ model Alert {
   @@map("alerts")
 }
 
-// ──────────────────────── New Models ────────────────────────
-
 model BloodPressureReading {
   id         Int      @id @default(autoincrement())
   userId     String   @map("user_id") @db.Uuid
@@ -171,17 +162,19 @@ model BloodPressureReading {
   pulse      Int
   status     BpStatus
   measuredAt DateTime @map("measured_at")
-  s3Key      String?  @map("s3_key") @db.VarChar(512)
   notes      String?  @db.VarChar(500)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images Image[]
   alerts Alert[]
 
   @@index([userId, measuredAt(sort: Desc)])
   @@map("blood_pressure_readings")
 }
+
+// ──────────────────────── New Models ────────────────────────
 
 model Post {
   id        Int          @id @default(autoincrement())

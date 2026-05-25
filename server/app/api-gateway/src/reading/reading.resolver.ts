@@ -69,11 +69,13 @@ export class CreateReadingInput {
   @MaxLength(255)
   clientId?: string;
 
-  @Field({ nullable: true })
+  // Image row id returned by confirmImageUpload. When present, the new
+  // reading is attached to that Image (Image.readingId is set). Omit for
+  // manual entries with no captured image.
+  @Field(() => Int, { nullable: true })
   @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  s3Key?: string;
+  @IsInt()
+  imageId?: number;
 
   @Field({ nullable: true })
   @IsOptional()
@@ -106,10 +108,7 @@ export class ReadingResolver {
     @CurrentUser() user: { id: string },
     @Args('input') input: CreateReadingInput,
   ): Promise<ReadingType> {
-    const r = await this.readingService.create(user.id, {
-      ...input,
-      s3Key: this.storage.normalizeStorageValue(input.s3Key) ?? undefined,
-    });
+    const r = await this.readingService.create(user.id, input);
     return this.toReadingType(r);
   }
 
@@ -132,11 +131,15 @@ export class ReadingResolver {
     pulse: number;
     status: string;
     measuredAt: Date;
-    s3Key: string | null;
     notes: string | null;
     createdAt: Date;
+    images: { s3Key: string }[];
   }): Promise<ReadingType> {
-    const signedS3Key = await this.storage.signImageKey(r.s3Key);
+    // 1:0..1 today (Image.readingId @unique), so the first row is the
+    // only row. If we later relax to multi-image, return the array and
+    // pick a primary at the GraphQL field level.
+    const rawS3Key = r.images[0]?.s3Key ?? null;
+    const signedS3Key = await this.storage.signImageKey(rawS3Key);
     return {
       id: r.id,
       userId: r.userId,
