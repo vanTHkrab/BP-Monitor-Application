@@ -21,8 +21,6 @@
       "Bash(pnpm prisma validate)",
       "Bash(uv run pytest *)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(npx prisma *)",
-      "Bash(pnpm prisma *)",
       "Read(**/.env.example)"
     ]
   }

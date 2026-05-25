@@ -69,11 +69,13 @@ export class CreateReadingInput {
   @MaxLength(255)
   clientId?: string;
 
-  @Field({ nullable: true })
+  // Image row id returned by confirmImageUpload. When present, the new
+  // reading is attached to that Image (Image.readingId is set). Omit for
+  // manual entries with no captured image.
+  @Field(() => Int, { nullable: true })
   @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  s3Key?: string;
+  @IsInt()
+  imageId?: number;
 
   @Field({ nullable: true })
   @IsOptional()

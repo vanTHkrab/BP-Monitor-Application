@@ -52,6 +52,17 @@ export class LocalImageMissingError extends Error {
   }
 }
 
+export interface PresignedUploadResult {
+  /** Canonical URL/key the server stores; safe to embed in subsequent
+   *  GraphQL inputs that still take a URL string (e.g. profile avatar). */
+  url: string;
+  /** Image row id returned by ``confirmImageUpload`` — populated only
+   *  for ``blood-pressure`` uploads (gateway creates an ``Image`` row
+   *  for BP kinds and skips it for ``profile``). ``createReading`` needs
+   *  this to attach the new reading to the freshly-uploaded image. */
+  imageId: number | null;
+}
+
 /**
  * Upload an image directly to S3 via a presigned URL.
  *
