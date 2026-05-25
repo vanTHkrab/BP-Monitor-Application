@@ -81,8 +81,11 @@ export interface AiServiceAnalysisMetrics {
 }
 
 // Shape returned by the Redis-backed AI service. ``model_version``,
-// ``status``, ``engine``, and ``metrics`` are additive — older payloads
-// omit them. ``engine`` and ``metrics`` arrived with M2.2.
+// ``status``, ``engine``, ``metrics``, and ``image_quality_score`` are
+// additive — older payloads omit them. ``engine`` and ``metrics``
+// arrived with M2.2; ``image_quality_score`` arrived alongside the
+// Image-as-base refactor and is written back to ``Image`` so quality
+// metadata lives in the DB next to the s3Key it describes.
 export interface AiServiceAnalysisResponse {
   confidence: number;
   systolic: number;
@@ -94,5 +97,6 @@ export interface AiServiceAnalysisResponse {
   status?: BPReadingStatus;
   engine?: OcrEngine | null;
   metrics?: AiServiceAnalysisMetrics | null;
+  image_quality_score?: number | null;
   error?: string;
 }

@@ -112,7 +112,7 @@ class TestWireResponse:
         assert set(wire.keys()) == {
             "confidence", "systolic", "diastolic", "pulse",
             "raw_text", "roi_image_url", "model_version", "status",
-            "engine", "metrics",
+            "engine", "metrics", "image_quality_score",
         }
 
     def test_excludes_internal_fields(self, good_result, metrics):
@@ -136,6 +136,22 @@ class TestWireResponse:
         assert wire["metrics"]["fetch_ms"] == 10.0
         assert wire["metrics"]["rss_delta_mb"] == 18.0
         assert wire["metrics"]["image_size_bytes"] == 12345
+
+    def test_image_quality_score_is_mean_yolo_confidence(
+        self, good_result, metrics,
+    ):
+        # ``good_result`` fixture has a single FieldReading with
+        # yolo_confidence=0.9 — mean over one field is 0.9.
+        wire = _to_wire_response(good_result, metrics)
+        assert wire["image_quality_score"] == pytest.approx(0.9)
+
+    def test_image_quality_score_null_when_no_fields(
+        self, unreadable_result, metrics,
+    ):
+        # status=unreadable means nothing was detected; there's no
+        # signal to derive a score from, so the wire value is null.
+        wire = _to_wire_response(unreadable_result, metrics)
+        assert wire["image_quality_score"] is None
 
 
 # ─── handle_message scenarios ──────────────────────────────────────────

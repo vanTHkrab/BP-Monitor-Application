@@ -18,7 +18,7 @@ type AlertWithReading = {
     pulse: number;
     status: string;
     measuredAt: Date;
-    s3Key: string | null;
+    images: { s3Key: string }[];
   };
 };
 
@@ -52,7 +52,7 @@ export class AlertService {
             pulse: true,
             status: true,
             measuredAt: true,
-            s3Key: true,
+            images: { select: { s3Key: true } },
           },
         },
       },
@@ -79,9 +79,8 @@ export class AlertService {
   }
 
   private async toAlertType(alert: AlertWithReading): Promise<AlertType> {
-    const signedS3Key = alert.reading
-      ? await this.storage.signImageKey(alert.reading.s3Key)
-      : null;
+    const rawS3Key = alert.reading?.images[0]?.s3Key ?? null;
+    const signedS3Key = await this.storage.signImageKey(rawS3Key);
     return {
       id: alert.id,
       userId: alert.userId,

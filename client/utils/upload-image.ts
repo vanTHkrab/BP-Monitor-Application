@@ -52,6 +52,17 @@ export class LocalImageMissingError extends Error {
   }
 }
 
+export interface PresignedUploadResult {
+  /** Canonical URL/key the server stores; safe to embed in subsequent
+   *  GraphQL inputs that still take a URL string (e.g. profile avatar). */
+  url: string;
+  /** Image row id returned by ``confirmImageUpload`` — populated only
+   *  for ``blood-pressure`` uploads (gateway creates an ``Image`` row
+   *  for BP kinds and skips it for ``profile``). ``createReading`` needs
+   *  this to attach the new reading to the freshly-uploaded image. */
+  imageId: number | null;
+}
+
 /**
  * Upload an image directly to S3 via a presigned URL.
  *
@@ -61,7 +72,11 @@ export class LocalImageMissingError extends Error {
  * The image never passes through the gateway, so gateway memory
  * pressure + base64 overhead are both gone.
  *
- * Returns the canonical URL stored on the server.
+ * Returns the canonical URL stored on the server plus the ``imageId``
+ * the gateway minted for BP uploads (``null`` for profile uploads —
+ * the gateway only creates ``Image`` rows for ``BLOOD_PRESSURE_READING``).
+ * Already-remote inputs short-circuit with ``imageId: null`` because
+ * we never made a fresh DB row for them.
  */
 export const uploadImageViaPresign = async ({
   uri,
@@ -71,10 +86,10 @@ export const uploadImageViaPresign = async ({
   uri: string;
   kind: UploadImageKind;
   token: string;
-}): Promise<string> => {
+}): Promise<PresignedUploadResult> => {
   if (isRemoteImageUri(uri)) {
     console.log(`[S3 presign] skip remote image kind=${kind} uri=${uri}`);
-    return uri;
+    return { url: uri, imageId: null };
   }
 
   const mimeType = getMimeTypeFromUri(uri);
@@ -190,5 +205,5 @@ export const uploadImageViaPresign = async ({
     `[S3 presign] success kind=${kind} key=${confirmed.key} imageId=${confirmed.imageId ?? "-"}`,
   );
 
-  return confirmed.url;
+  return { url: confirmed.url, imageId: confirmed.imageId ?? null };
 };
