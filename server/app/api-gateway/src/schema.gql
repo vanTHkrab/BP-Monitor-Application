@@ -369,6 +369,7 @@ input ConfirmImageUploadInput {
   """Key returned by requestImageUpload"""
   key: String!
   kind: ImageKind!
+  deviceName: String
 }
 
 input CreateReadingInput {
@@ -378,7 +379,7 @@ input CreateReadingInput {
   status: String!
   measuredAt: DateTime!
   clientId: String
-  s3Key: String
+  imageId: Int
   notes: String
 }
 
@@ -409,7 +410,7 @@ input AnalyzeBPImageInput {
 
 input SubmitBPReadingInput {
   jobId: String
-  s3Key: String
+  imageId: Int
   systolic: Int!
   diastolic: Int!
   pulse: Int!

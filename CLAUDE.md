@@ -87,6 +87,19 @@ Key boundaries and design choices a senior should respect:
 - **Latency budgets are asymmetric** — UI interactions (mobile + web) must
   feel synchronous; AI analysis is allowed to be async (poll-based).
   Anything that blocks a screen on the AI path is a design smell.
+- **YOLO detector is shared verbatim** — `yolo12n.onnx` lives in both
+  `server/app/ai-service/models/` (backend) and `client/assets/models/`
+  (on-device pre-flight). The mobile app runs the same model on every
+  capture to gate / auto-crop before upload. SHA256 equality is enforced
+  on every `pnpm start` by `client/scripts/verify-yolo-model.mjs`; if you
+  retrain the detector, `cd client && pnpm sync-yolo-model` and commit
+  both copies in the same change. Class IDs and confidence thresholds
+  (`0.25` / IoU `0.45`) in `client/lib/yolo/types.ts` mirror
+  `server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES` —
+  they're a wire contract even though no network call crosses between
+  them. Pre-flight is warn-not-block: the mobile UI offers "ส่งต่อไป"
+  on every negative verdict so on-device false negatives never strand
+  the user.
 
 ## Cross-cutting rules
 
@@ -249,6 +262,12 @@ misbehave subtly when changed without context:
   `analyze_bp_image.reply` channels are typed only by convention. A field
   rename on one side and a stale deploy on the other will fail silently —
   the gateway will just keep polling for a reply that never matches.
+- **Shared YOLO detector.** `yolo12n.onnx` is bundled in both the mobile
+  app and the ai-service. They run the *same* model file for the *same*
+  set of classes, but if the two copies drift you get on-device pre-flight
+  approving an image the backend can't read (or vice-versa). The
+  `pnpm verify-yolo-model` hook on `pnpm start` guards SHA256 equality —
+  if you bypass it, expect silent disagreement between phone and server.
 - **Image upload paths.** Two paths exist (multipart for BP images, presign
   for avatars) and they have different runtime traps — notably the RN
   `new Blob([Uint8Array])` trap on native. Don't assume "I'll just upload
