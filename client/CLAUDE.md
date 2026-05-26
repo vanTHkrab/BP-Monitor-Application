@@ -15,12 +15,19 @@ From `client/`:
 
 ```bash
 pnpm install
-pnpm start                  # Expo dev server
-pnpm android | pnpm ios     # native runs
+pnpm start                  # Expo dev server (verifies bundled YOLO via prestart hook)
+pnpm android | pnpm ios     # native runs (verifies bundled YOLO via pre* hook)
 pnpm web                    # web preview (limited — uses AsyncStorage instead of SecureStore)
 pnpm lint
-pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
+pnpm test                   # jest-expo suite
+pnpm exec tsc --noEmit -p . # type-check
+pnpm sync-yolo-model        # copy yolo12n.onnx from server/app/ai-service/models/
+pnpm verify-yolo-model      # confirm bundled model SHA256 matches the canonical copy
 ```
+
+The `prestart` / `preandroid` / `preios` scripts run `verify-yolo-model` so a
+stale on-device detector can never silently disagree with backend inference —
+if the SHA256 drifts, the dev start fails until you run `pnpm sync-yolo-model`.
 
 ## Important Paths
 
@@ -32,7 +39,10 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
 | `constants/api.ts` | GraphQL endpoint resolver, token storage, all GraphQL operation strings. |
 | `constants/colors.ts` | BP-status thresholds + Tailwind color tokens. |
 | `data/local-db.ts` | SQLite schema + helpers. `pending_readings` is both the offline queue **and** the mirror of synced readings (rows carry a `syncStatus` of `pending` / `pending-image` / `synced` and a `remoteId` once confirmed); `cached_images` tracks 7-day-cached image files keyed by extracted S3 path. |
-| `hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry. |
+| `assets/models/yolo12n.onnx` | Bundled YOLOv12n detector (11.5 MB) — verbatim copy of `server/app/ai-service/models/yolo12n.onnx`. `scripts/verify-yolo-model.mjs` (wired as `prestart` / `preandroid` / `preios`) fails the dev start if the SHA256 drifts; run `pnpm sync-yolo-model` to refresh. Loaded by `lib/yolo/session.ts` for on-device pre-flight. |
+| `lib/yolo/` | On-device YOLO inference. `types.ts` mirrors backend class layout (`0 BP_Monitor` / `1 BP_Screen_Monitor` / `2 dia` / `3 pulse` / `4 sys`); `preprocess.ts` does letterbox + JPEG-decode → `[1,3,512,512]` float32 RGB; `postprocess.ts` decodes Ultralytics-style `[1, 4+C, anchors]` + per-class NMS; `session.ts` lazy-loads the InferenceSession; `detect.ts` orchestrates the four. The backend equivalent is `server/app/ai-service/src/ai_service/analyzer/yolo.py` — keep them in sync, the model file is shared verbatim. |
+| `services/preflight-detection.service.ts` | `preflightCheckImage` — runs the on-device detector, classifies the result as `ok` / `no-monitor` / `missing-fields`, and (on `ok`) auto-crops the source image around the monitor bbox + padding. UI uses the cropped variant for both the preview and the upload so backend YOLO sees the same crop the on-device pass agreed on. Pre-flight is **warn, not block** — the camera screen always offers a "ส่งต่อไป" override so an on-device false negative never strands the user. |
+| `hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. `runPreflight()` runs the on-device YOLO check and stashes the result on `state.preflight` so the UI can show the cropped preview (on `ok`) or the warning banner (on `no-monitor` / `missing-fields`). `analyze()` is unchanged — the camera screen calls it after the user confirms. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry. |
 | `lib/graphql-client.ts` | Multipart-aware GraphQL client used by the AI image-upload path. |
 | `lib/graphql-error.ts` | `GraphQLClientError` class — typed error thrown by `graphqlRequest` carrying `code` (server's `extensions.code`), `httpStatus`, and `retryAfterSec`. |
 | `lib/error-message.ts` | General `formatError(error)` — hides raw English in production, surfaces it as `devDetail` in `__DEV__`. Use this for non-auth flows. |
@@ -103,6 +113,20 @@ pnpm exec tsc --noEmit -p . # type-check (no test runner is configured)
   On native, stream the file with `FileSystem.uploadAsync` from
   `expo-file-system/legacy` (`uploadType: BINARY_CONTENT`); the
   fetch+Blob path is web-only.
+- **On-device pre-flight**: BP image captures run through
+  `services/preflight-detection.service.ts → preflightCheckImage` before
+  the backend upload. The bundled YOLO (`assets/models/yolo12n.onnx`) is
+  the **same model file** as `server/app/ai-service/models/yolo12n.onnx`
+  — SHA256 is enforced by `scripts/verify-yolo-model.mjs` at every
+  `pnpm start` / `pnpm android` / `pnpm ios`. If the backend retrains the
+  detector, run `pnpm sync-yolo-model` and commit both copies in the
+  same change. Class IDs and thresholds (conf 0.25 / IoU 0.45) in
+  `lib/yolo/types.ts` mirror `analyzer/yolo.py::CLASS_NAMES` /
+  `_conf_threshold` — change one side, change the other. Pre-flight is
+  **warn, not block** — on a `no-monitor` / `missing-fields` verdict the
+  UI shows a Thai warning banner with both "ถ่ายใหม่" and "ส่งต่อไป"
+  buttons; "ส่งต่อไป" hands the original (uncropped) image to
+  `analyze()` so on-device false negatives never strand the user.
 - **Local-only IDs are strings prefixed with `local-` (readings) or
   `local-post-` (posts)**. Use the `isLocalReadingId`/`isLocalPostId` helpers
   in the store; don't string-match these prefixes elsewhere.
