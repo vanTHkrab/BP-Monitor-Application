@@ -1,9 +1,21 @@
 import { analyzeImage } from '@/services/camera.service';
+import {
+  preflightCheckImage,
+  type PreflightResult,
+} from '@/services/preflight-detection.service';
 import { useAppStore } from '@/store/use-app-store';
+import { logWarn } from '@/store/shared/log';
 import type { AnalysisJob, AnalysisResult, BPReading, OcrEngine } from '@/types';
 import { useCallback, useRef, useState } from 'react';
 
-export type AnalysisPhase = 'idle' | 'uploading' | 'queued' | 'processing' | 'done' | 'failed';
+export type AnalysisPhase =
+  | 'idle'
+  | 'preflight'
+  | 'uploading'
+  | 'queued'
+  | 'processing'
+  | 'done'
+  | 'failed';
 
 const PHASE_MAP: Record<AnalysisJob['status'], AnalysisPhase> = {
   pending: 'queued',
@@ -14,6 +26,7 @@ const PHASE_MAP: Record<AnalysisJob['status'], AnalysisPhase> = {
 
 export const PHASE_LABEL: Record<AnalysisPhase, string> = {
   idle: '',
+  preflight: 'กำลังตรวจสอบภาพ...',
   uploading: 'กำลังอัปโหลด...',
   queued: 'รอ AI วิเคราะห์...',
   processing: 'AI กำลังอ่านค่า...',
@@ -34,6 +47,11 @@ interface AnalysisState {
    *  ``uploadedUrl``; ``createReading`` attaches the new reading to this
    *  image via FK. ``null`` until upload succeeds. */
   uploadedImageId: number | null;
+  /** On-device pre-flight result — set by `preflight()`, consumed by the
+   *  camera UI to decide whether to show the cropped preview or a warning
+   *  banner with "send anyway" affordance. `null` while idle or before
+   *  the first capture. */
+  preflight: PreflightResult | null;
   error: string | null;
 }
 
@@ -44,10 +62,11 @@ const INITIAL_STATE: AnalysisState = {
   prefill: {},
   uploadedUrl: null,
   uploadedImageId: null,
+  preflight: null,
   error: null,
 };
 
-const CONFIDENCE_THRESHOLD = 0.75;
+const CONFIDENCE_THRESHOLD = 0.70;
 
 export function useCameraAnalysis() {
   const [state, setState] = useState<AnalysisState>(INITIAL_STATE);
@@ -59,13 +78,52 @@ export function useCameraAnalysis() {
     setState(INITIAL_STATE);
   }, []);
 
+  /**
+   * Run the on-device YOLO pre-flight check. Doesn't kick off the backend
+   * analysis — the camera screen inspects `state.preflight.status` and
+   * decides whether to auto-call `analyze(croppedUri)` or surface a warning
+   * with a "send anyway" button that calls `analyze(originalUri)`.
+   *
+   * On failure (model load error, JPEG decode error, …) we return `null` and
+   * leave `preflight === null` so the UI falls back to the legacy "just
+   * upload" path — pre-flight is an optimisation, not a gate.
+   */
+  const runPreflight = useCallback(
+    async (params: {
+      imageUri: string;
+      sourceWidth: number;
+      sourceHeight: number;
+    }): Promise<PreflightResult | null> => {
+      setState((prev) => ({ ...prev, phase: 'preflight', error: null }));
+      try {
+        const result = await preflightCheckImage(params);
+        setState((prev) => ({ ...prev, phase: 'idle', preflight: result }));
+        return result;
+      } catch (err) {
+        logWarn('preflight', 'on-device YOLO failed; skipping pre-flight', err);
+        setState((prev) => ({ ...prev, phase: 'idle', preflight: null }));
+        return null;
+      }
+    },
+    [],
+  );
+
   const analyze = useCallback(
     async (imageUri: string, opts?: { ocrEngine?: OcrEngine }) => {
       abortRef.current?.abort();
       const abort = new AbortController();
       abortRef.current = abort;
 
-      setState({ ...INITIAL_STATE, phase: 'uploading' });
+      setState((prev) => ({
+        ...prev,
+        phase: 'uploading',
+        job: null,
+        result: null,
+        prefill: {},
+        uploadedUrl: null,
+        uploadedImageId: null,
+        error: null,
+      }));
 
       try {
         const { job, result, uploadedUrl, uploadedImageId } = await analyzeImage(
@@ -82,7 +140,17 @@ export function useCameraAnalysis() {
         const hasGoodReading =
           result && result.confidence >= CONFIDENCE_THRESHOLD && result.readings;
 
-        setState({
+        if (__DEV__) {
+          console.log('[analyze]', {
+            confidence: result?.confidence,
+            threshold: CONFIDENCE_THRESHOLD,
+            readings: result?.readings,
+            willPrefill: Boolean(hasGoodReading),
+          });
+        }
+
+        setState((prev) => ({
+          ...prev,
           phase: 'done',
           job,
           result,
@@ -90,7 +158,7 @@ export function useCameraAnalysis() {
           uploadedUrl,
           uploadedImageId,
           error: null,
-        });
+        }));
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         setState((prev) => ({
@@ -130,5 +198,5 @@ export function useCameraAnalysis() {
     [state.uploadedUrl, state.uploadedImageId],
   );
 
-  return { ...state, isSaving, analyze, save, reset };
+  return { ...state, isSaving, runPreflight, analyze, save, reset };
 }

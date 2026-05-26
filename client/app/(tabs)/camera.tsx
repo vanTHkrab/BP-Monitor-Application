@@ -5,7 +5,9 @@ import { DevMetricsChip, OcrEngineSelector } from '@/components/dev-ocr-controls
 import { GradientBackground } from '@/components/gradient-background';
 import { UIImage } from '@/components/ui/image';
 import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors';
+import { LivePreflightOverlay } from '@/components/live-preflight-overlay';
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
+import { useLivePreflight } from '@/hooks/use-live-preflight';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontClass } from '@/utils/font-scale';
 import { prepareImageForAnalysis } from '@/utils/image-prepare';
@@ -52,7 +54,43 @@ export default function CameraScreen() {
   const ocrEngineOverride = devMode ? selectedOcrEngine : undefined;
 
   // ─── Analysis service ─────────────────────────────────────────────────────────
-  const { phase, prefill, result, isSaving, analyze, save, reset: resetAnalysis } = useCameraAnalysis();
+  const {
+    phase,
+    prefill,
+    result,
+    preflight,
+    isSaving,
+    runPreflight,
+    analyze,
+    save,
+    reset: resetAnalysis,
+  } = useCameraAnalysis();
+
+  // The original (uncropped) image URI captured from the camera/picker, kept
+  // separately from `capturedImage` (which is what's shown in the preview —
+  // the auto-cropped variant when pre-flight succeeded). On "send anyway"
+  // from the warning banner we feed this URI to `analyze()` so the backend
+  // still sees the full frame even when on-device thinks it's a bad shot.
+  const originalImageRef = useRef<string | null>(null);
+
+  // Live-preview overlay viewport measurement. The hook below polls
+  // takePictureAsync at ~2 fps and the overlay needs the on-screen pixel
+  // size of the CameraView container to map detection boxes correctly.
+  const [previewViewport, setPreviewViewport] = useState<{ width: number; height: number } | null>(
+    null,
+  );
+
+  // Live on-device YOLO over the camera preview. Only active when the user
+  // is framing a shot — once `capturedImage` is set we switch to the static
+  // preview (cropped or original) and stop the polling loop. The entry
+  // modal also pauses live detection because takePictureAsync while a modal
+  // is overlaid would be wasted work the user can't see.
+  const isFramingShot = !capturedImage && isCameraReady && !showEntryModal;
+  const liveFrame = useLivePreflight({
+    cameraRef,
+    enabled: isFramingShot,
+    intervalMs: 500,
+  });
 
   // Auto-fill form when AI returns confident readings.
   // Functional setState reads the *current* value at update time, so a slow
@@ -111,24 +149,58 @@ export default function CameraScreen() {
   // payload on every shot just for us to discard it; only `photo.uri` is
   // actually consumed downstream. The base64 alone is ~7 MB for an iPhone
   // capture and was a real OOM hazard on lower-end Android devices.
+  // Captures share the same post-resize flow: run on-device YOLO pre-flight,
+  // then either auto-continue with the cropped image (status === 'ok') or
+  // show a warning banner that lets the user re-shoot or send the original
+  // anyway. Pre-flight failures (model load error, etc.) fall through to the
+  // legacy "just analyze it" path so a bad detector load never blocks the
+  // capture flow — see hooks/use-camera-analysis.ts → runPreflight().
+  const startCaptureFlow = async (uri: string, width: number, height: number) => {
+    // prepareImageForAnalysis may resize (long-edge cap 1600px) and returns
+    // the *post-resize* dimensions. We MUST pass those to pre-flight — if
+    // we pass the pre-resize dims here, YOLO would map detections back into
+    // a coordinate space the file behind `prepared.uri` doesn't actually
+    // live in, and the auto-crop step would then ask ImageManipulator to
+    // crop a rectangle outside the image bounds (out-of-range error).
+    const prepared = await prepareImageForAnalysis(uri, width, height);
+    originalImageRef.current = prepared.uri;
+    setCapturedImage(prepared.uri);
+
+    const pre = await runPreflight({
+      imageUri: prepared.uri,
+      sourceWidth: prepared.width,
+      sourceHeight: prepared.height,
+    });
+
+    if (!pre) {
+      // Pre-flight failed (e.g. detector load error). Stay safe and continue
+      // with backend analysis on the original.
+      void analyze(prepared.uri, { ocrEngine: ocrEngineOverride });
+      return;
+    }
+
+    if (pre.status === 'ok' && pre.croppedUri) {
+      // Auto-crop succeeded. Use the tighter image for both the preview and
+      // the upload — it's smaller (faster S3 PUT) and the backend YOLO will
+      // see exactly the same crop the on-device pass agreed on.
+      setCapturedImage(pre.croppedUri);
+      void analyze(pre.croppedUri, { ocrEngine: ocrEngineOverride });
+      return;
+    }
+
+    // status === 'no-monitor' | 'missing-fields' — leave the preview on the
+    // original image and let the warning banner render (it reads
+    // `preflight.status` from the hook). The user picks "ถ่ายใหม่" (reset)
+    // or "ส่งต่อไป" (calls analyze on the original).
+  };
+
   const takePicture = async () => {
     if (!cameraRef.current || isCapturing) return;
     setIsCapturing(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
       if (!photo) return;
-      // Resize before showing the preview / kicking off AI so the rest of
-      // the flow (S3 upload, OCR) sees a sanely-sized image. We pass the
-      // dimensions explicitly (the camera returns them) so the helper
-      // doesn't have to call `Image.getSize` — that path could hang on a
-      // just-written URI and leave the capture UI stuck.
-      const prepared = await prepareImageForAnalysis(
-        photo.uri,
-        photo.width,
-        photo.height,
-      );
-      setCapturedImage(prepared);
-      void analyze(prepared, { ocrEngine: ocrEngineOverride });
+      await startCaptureFlow(photo.uri, photo.width, photo.height);
     } catch {
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
     } finally {
@@ -144,14 +216,24 @@ export default function CameraScreen() {
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      const prepared = await prepareImageForAnalysis(
-        asset.uri,
-        asset.width,
-        asset.height,
-      );
-      setCapturedImage(prepared);
-      void analyze(prepared, { ocrEngine: ocrEngineOverride });
+      await startCaptureFlow(asset.uri, asset.width, asset.height);
     }
+  };
+
+  // Called by the "ส่งต่อไป" button in the pre-flight warning banner —
+  // overrides the on-device verdict and hands the original image to the
+  // backend pipeline.
+  const sendAnyway = () => {
+    const uri = originalImageRef.current;
+    if (!uri) return;
+    setCapturedImage(uri);
+    void analyze(uri, { ocrEngine: ocrEngineOverride });
+  };
+
+  const retakeAfterWarning = () => {
+    originalImageRef.current = null;
+    setCapturedImage(null);
+    resetAnalysis();
   };
 
   // ─── Save handler ─────────────────────────────────────────────────────────────
@@ -348,7 +430,17 @@ export default function CameraScreen() {
                 Hidden via the component's own ``devMode`` gate when off
                 — so production users see no layout shift. */}
             <OcrEngineSelector />
-            <View className="flex-1 relative">
+            <View
+              className="flex-1 relative"
+              onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                setPreviewViewport((prev) =>
+                  prev && prev.width === width && prev.height === height
+                    ? prev
+                    : { width, height },
+                );
+              }}
+            >
 
               {/* Camera mount error fallback */}
               {cameraMountError ? (
@@ -407,6 +499,18 @@ export default function CameraScreen() {
                         <Text className="text-white text-[13px] font-semibold ml-2">กำลังเปิดกล้อง...</Text>
                       </View>
                     </View>
+                  )}
+                  {/* Live YOLO overlay — boxes redraw at ~2 fps. Only renders
+                      while the user is framing a shot (the hook itself is
+                      gated by isFramingShot). */}
+                  {liveFrame && previewViewport && (
+                    <LivePreflightOverlay
+                      detections={liveFrame.detections}
+                      pictureWidth={liveFrame.pictureWidth}
+                      pictureHeight={liveFrame.pictureHeight}
+                      viewportWidth={previewViewport.width}
+                      viewportHeight={previewViewport.height}
+                    />
                   )}
                 </>
               )}
@@ -510,6 +614,56 @@ export default function CameraScreen() {
                   totalMs={result?.metrics?.totalMs}
                   rssDeltaMb={result?.metrics?.rssDeltaMb}
                 />
+              </View>
+            )}
+
+            {/* On-device pre-flight warning banner. Shows only when the
+                bundled YOLO disagrees with the captured image AND the user
+                hasn't yet chosen retake/proceed. Hidden once `analyze()` is
+                kicked off (phase ≠ 'idle') so it doesn't overlap with the
+                upload/queued/processing chips above. */}
+            {phase === 'idle' && preflight && preflight.status !== 'ok' && (
+              <View className="absolute top-16 left-4 right-4 rounded-2xl bg-black/70 px-4 py-3">
+                <View className="flex-row items-center mb-2">
+                  <Ionicons
+                    name={preflight.status === 'no-monitor' ? 'scan-outline' : 'eye-off-outline'}
+                    size={18}
+                    color="#FBBF24"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text className={'text-amber-300 font-semibold ' + bodyClassName}>
+                    {preflight.status === 'no-monitor'
+                      ? 'ไม่เจอ BP monitor'
+                      : 'ภาพไม่ชัดหรือไกลเกินไป'}
+                  </Text>
+                </View>
+                <Text className={'text-white/90 mb-3 ' + captionClassName}>
+                  {preflight.status === 'no-monitor'
+                    ? 'ลองถ่ายใหม่ให้เห็นเครื่องวัดทั้งหน้าจอ หรือกด "ส่งต่อไป" ถ้าต้องการให้ AI ตรวจสอบ'
+                    : `ตรวจไม่พบค่า ${preflight.missingFields.join(' / ')} ลองถ่ายใหม่ให้ใกล้และชัดขึ้น`}
+                </Text>
+                <View className="flex-row space-x-2">
+                  <AnimatedPressable
+                    onPress={retakeAfterWarning}
+                    className="flex-1 rounded-xl overflow-hidden"
+                  >
+                    <View className="bg-white/15 px-3 py-2 items-center">
+                      <Text className={'text-white font-semibold ' + captionClassName}>
+                        ถ่ายใหม่
+                      </Text>
+                    </View>
+                  </AnimatedPressable>
+                  <AnimatedPressable
+                    onPress={sendAnyway}
+                    className="flex-1 rounded-xl overflow-hidden"
+                  >
+                    <View className="bg-blue-500 px-3 py-2 items-center">
+                      <Text className={'text-white font-semibold ' + captionClassName}>
+                        ส่งต่อไป
+                      </Text>
+                    </View>
+                  </AnimatedPressable>
+                </View>
               </View>
             )}
 
