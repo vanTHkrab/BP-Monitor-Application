@@ -9,42 +9,18 @@
  * The session is held in a module-level singleton so subsequent detections
  * skip the ~200–500 ms cold-start cost on mid-range Android devices.
  */
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Asset } from 'expo-asset';
 import type { InferenceSession } from 'onnxruntime-react-native';
 
 let sessionPromise: Promise<InferenceSession> | null = null;
 
-const isExpoGo =
-  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-
-/**
- * Tells callers whether on-device YOLO is even possible on this runtime.
- * False in Expo Go (no native module) so they can short-circuit before
- * paying the asset-download cost / triggering a noisy error per tick.
- */
-export function isYoloAvailable(): boolean {
-  return !isExpoGo;
-}
-
-const EXPO_GO_MESSAGE =
-  'onnxruntime-react-native unavailable in Expo Go — use a development build for on-device pre-flight';
-
 export function getYoloSession(): Promise<InferenceSession> {
   if (sessionPromise) return sessionPromise;
 
-  // Short-circuit before touching the native module. In Expo Go,
-  // require('onnxruntime-react-native') succeeds but the package's JSI
-  // install side-effect throws "Cannot read property 'install' of null"
-  // *outside* our try/catch — preflight the env instead.
-  if (isExpoGo) {
-    return Promise.reject(new Error(EXPO_GO_MESSAGE));
-  }
-
   sessionPromise = (async () => {
-    // Lazy-require so apps without the native module installed (e.g. a dev
-    // client that hasn't been rebuilt after adding onnxruntime-react-native)
-    // don't crash at module load. The caller
+    // Lazy-require so apps without the native module installed (e.g. running
+    // in Expo Go or a dev client that hasn't been rebuilt after adding
+    // onnxruntime-react-native) don't crash at module load. The caller
     // (services/preflight-detection.service.ts → use-camera-analysis.ts)
     // catches the thrown error and falls through to backend-only analysis.
     let InferenceSessionCtor: typeof InferenceSession;
@@ -53,7 +29,7 @@ export function getYoloSession(): Promise<InferenceSession> {
       ({ InferenceSession: InferenceSessionCtor } = require('onnxruntime-react-native'));
     } catch (err) {
       throw new Error(
-        'onnxruntime-react-native unavailable — rebuild the dev client',
+        'onnxruntime-react-native unavailable — rebuild the dev client (Expo Go is not supported)',
         { cause: err as Error },
       );
     }

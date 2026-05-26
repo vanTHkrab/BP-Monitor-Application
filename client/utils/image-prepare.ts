@@ -60,25 +60,15 @@ export const prepareImageForAnalysis = async (
   height: number,
 ): Promise<PreparedImage> => {
   const longEdge = Math.max(width, height);
-  const shortEdge = Math.min(width, height);
+  if (longEdge <= MAX_LONG_EDGE_PX) return { uri, width, height };
 
-  if (shortEdge >= MIN_SHORT_EDGE_PX && longEdge <= MAX_LONG_EDGE_PX) {
-    return { uri, width, height };
-  }
-
-  // Pick the scale that satisfies the binding constraint. Floor wins over
-  // cap when both fire (very elongated inputs) — backend tolerates oversize
-  // but breaks on sub-floor.
-  const scale =
-    shortEdge < MIN_SHORT_EDGE_PX
-      ? MIN_SHORT_EDGE_PX / shortEdge
-      : MAX_LONG_EDGE_PX / longEdge;
+  // Lock the *long* edge so portrait and landscape images both shrink to
+  // the same target; aspect ratio is preserved automatically.
+  const scale = MAX_LONG_EDGE_PX / longEdge;
   const newW = Math.round(width * scale);
   const newH = Math.round(height * scale);
-
-  // expo-image-manipulator's resize preserves aspect when only one dim is
-  // set — pin the controlling dim (width for landscape, height for portrait).
-  const resize = width >= height ? { width: newW } : { height: newH };
+  const resize =
+    width >= height ? { width: MAX_LONG_EDGE_PX } : { height: MAX_LONG_EDGE_PX };
 
   try {
     // v14 contextual API — `manipulateAsync` is deprecated.

@@ -51,6 +51,11 @@ interface AnalysisState {
    *  ``uploadedUrl``; ``createReading`` attaches the new reading to this
    *  image via FK. ``null`` until upload succeeds. */
   uploadedImageId: number | null;
+  /** On-device pre-flight result — set by `preflight()`, consumed by the
+   *  camera UI to decide whether to show the cropped preview or a warning
+   *  banner with "send anyway" affordance. `null` while idle or before
+   *  the first capture. */
+  preflight: PreflightResult | null;
   error: string | null;
 }
 
@@ -62,10 +67,11 @@ const INITIAL_STATE: AnalysisState = {
   preflight: null,
   uploadedUrl: null,
   uploadedImageId: null,
+  preflight: null,
   error: null,
 };
 
-const CONFIDENCE_THRESHOLD = 0.60;
+const CONFIDENCE_THRESHOLD = 0.70;
 
 export function useCameraAnalysis() {
   const [state, setState] = useState<AnalysisState>(INITIAL_STATE);
