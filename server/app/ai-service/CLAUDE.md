@@ -47,7 +47,7 @@ it the service replies with a structured error ("missing imageUrl").
 | `src/ai_service/analyzer/ocr/ssocr.py` | `SSOCREngine` — rule-based 7-segment OCR; `use_classifiers` flag toggles the `ssocr_cnn` (full ensemble) vs `ssocr` (rule-only baseline) mode |
 | `src/ai_service/analyzer/ocr/cnn_classifiers.py` | ONNX CNN (`classify_by_cnn_2ch`) + numpy KNN (`classify_by_knn`) + template match + `detect_brand`. Configured once at lifespan via `set_models_dir()`; consumed by `ssocr.py` |
 | `src/ai_service/storage/fetch.py` | async `fetch_image()` (presigned URL → BGR ndarray) + `ImageFetchError` |
-| `models/yolo12n.onnx` | YOLOv12n detector, 5 BP-specific classes, exported with `nms=False` (11.5 MB) |
+| `models/yolo12n.onnx` | YOLOv12n detector, 5 BP-specific classes, exported with `nms=False` (11.5 MB). **Also bundled verbatim in the mobile app** at `client/assets/models/yolo12n.onnx` for on-device pre-flight (see [../../../client/CLAUDE.md](../../../client/CLAUDE.md)). When you retrain, the mobile copy must be refreshed in the same change — `client/scripts/verify-yolo-model.mjs` runs on every `pnpm start` and fails the dev build on SHA256 drift. |
 | `models/crnn_int8.onnx` | Trained 7-seg CRNN, ONNX int8 (1.2 MB) — `crnn` engine |
 | `models/cnn_2ch_distilled_*_int8.onnx` | Distilled 2-channel CNN (global/sys/dia/pul, ~0.6 MB each = 2.5 MB total) — `ssocr_cnn` engine |
 | `models/templates.npz` | KNN exemplars + mean templates for `ssocr_cnn` (~58 MB) |
