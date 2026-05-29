@@ -52,6 +52,8 @@ enum PostCategory {
 
 enum RelationshipType {
   parent
+  patient
+  caregiver
   child
   spouse
   sibling
