@@ -118,7 +118,9 @@ export const CaregiverPatientScalarFieldEnum = {
   caregiverId: 'caregiverId',
   patientId: 'patientId',
   relationship: 'relationship',
-  createdAt: 'createdAt'
+  status: 'status',
+  createdAt: 'createdAt',
+  respondedAt: 'respondedAt'
 } as const
 
 export type CaregiverPatientScalarFieldEnum = (typeof CaregiverPatientScalarFieldEnum)[keyof typeof CaregiverPatientScalarFieldEnum]

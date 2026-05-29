@@ -14,7 +14,8 @@ import {
   setUnauthenticatedHandler,
 } from "@/constants/api";
 import { clearUserLocalData } from "@/data/local-db";
-import { LoginSession, User } from "@/types";
+import { LoginSession, User, UserRole } from "@/types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type {
   ChangePasswordMutation,
   DeleteMyDataMutation,
@@ -46,6 +47,32 @@ const getDeviceLabel = () =>
         : "Web"
   } App`;
 
+// AsyncStorage key for the caregiver-selected active patient. Persisted
+// across launches so a caregiver lands back on the same patient's data.
+// Cleared on logout / session-expired and ignored for non-caregiver users.
+const ACTIVE_PATIENT_STORAGE_KEY = "bp:active-patient-id";
+
+// Kick off the role-aware caregiver fetches after auth has settled.
+// Patient: pending invites. Caregiver: list of patients they look after.
+const hydrateCaregiverMode = (
+  role: UserRole | undefined,
+  get: () => AppState,
+) => {
+  if (role === "caregiver") void get().fetchMyPatients();
+  else void get().fetchPendingInvites();
+};
+
+const loadPersistedActivePatientId = async (
+  role: UserRole | undefined,
+): Promise<string | null> => {
+  if (role !== "caregiver") return null;
+  try {
+    return await AsyncStorage.getItem(ACTIVE_PATIENT_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
 export interface AuthSlice {
   // ── State ──
   isAuthenticated: boolean;
@@ -62,6 +89,12 @@ export interface AuthSlice {
   /** Seconds the user must wait before the next login attempt (HTTP 429). */
   authErrorRetryAfterSec: number | null;
   sessions: LoginSession[];
+  /**
+   * For caregivers: the patient currently being viewed. Persisted to
+   * AsyncStorage so a caregiver lands back on the same patient after
+   * relaunch. Always `null` for non-caregiver users.
+   */
+  activePatientId: string | null;
 
   // ── Auth actions ──
   initAuth: () => Promise<void>;
@@ -78,8 +111,10 @@ export interface AuthSlice {
     height?: number;
     congenitalDisease?: string;
     avatarUri?: string | null;
+    role?: Extract<UserRole, "patient" | "caregiver">;
   }) => Promise<boolean>;
   logout: () => Promise<void>;
+  setActivePatientId: (id: string | null) => Promise<void>;
   /**
    * Wipe local auth state when the server has already rejected our token
    * (401 / UNAUTHENTICATED). Skips the server revoke that `logout()` does —
@@ -123,6 +158,7 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
     authErrorField: null,
     authErrorRetryAfterSec: null,
     sessions: [],
+    activePatientId: null,
 
     initAuth: async () => {
       try {
@@ -134,12 +170,14 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
 
         const data = await graphqlRequest<MeQuery>(GQL_ME, undefined, token);
         const user = userFromGql(data.me);
+        const activePatientId = await loadPersistedActivePatientId(user.role);
         set({
           isAuthenticated: true,
           user,
           authToken: token,
           authInitialized: true,
           sensitiveDataUnlocked: false,
+          activePatientId,
         });
 
         // Hydrate the local readings cache first so history renders
@@ -152,6 +190,7 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         void get().fetchCaregiverLinks();
         void get().fetchSessions();
         void get().hydratePendingPosts();
+        hydrateCaregiverMode(user.role, get);
         // Avatar hydration runs *after* the server `me` set above, so the
         // local URI overrides the stale remote one if a previous pick is
         // still queued — same precedence as the readings hydrator.
@@ -177,11 +216,16 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         });
         const { token, user } = data.login;
         await setAuthToken(token);
+        const parsedUser = userFromGql(user);
+        const activePatientId = await loadPersistedActivePatientId(
+          parsedUser.role,
+        );
         set({
           isAuthenticated: true,
-          user: userFromGql(user),
+          user: parsedUser,
           authToken: token,
           sensitiveDataUnlocked: false,
+          activePatientId,
         });
 
         void get().fetchReadings();
@@ -189,6 +233,7 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         void get().fetchAlerts();
         void get().fetchCaregiverLinks();
         void get().fetchSessions();
+        hydrateCaregiverMode(parsedUser.role, get);
         return true;
       } catch (error) {
         const view = formatAuthError(error, {
@@ -229,16 +274,21 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
             height: input.height,
             congenitalDisease: input.congenitalDisease || undefined,
             avatar: undefined,
+            role: input.role || undefined,
           },
         });
 
         const { token, user } = data.register;
         await setAuthToken(token);
+        const parsedUser = userFromGql(user);
         set({
           isAuthenticated: true,
-          user: userFromGql(user),
+          user: parsedUser,
           authToken: token,
           sensitiveDataUnlocked: false,
+          // Freshly registered users have no prior selection — start with
+          // an empty caregiver context regardless of role.
+          activePatientId: null,
         });
 
         if (input.avatarUri) {
@@ -256,6 +306,7 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         void get().fetchAlerts();
         void get().fetchCaregiverLinks();
         void get().fetchSessions();
+        hydrateCaregiverMode(parsedUser.role, get);
         return true;
       } catch (error) {
         const view = formatAuthError(error, {
@@ -286,6 +337,12 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         }
       }
       await clearAuthToken();
+      try {
+        await AsyncStorage.removeItem(ACTIVE_PATIENT_STORAGE_KEY);
+      } catch {
+        // best-effort: even if the key can't be removed, the in-memory
+        // state is cleared below so the next user starts clean.
+      }
       set({
         isAuthenticated: false,
         user: null,
@@ -295,9 +352,28 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         commentsByPostId: {},
         alerts: [],
         caregiverLinks: [],
+        myPatients: [],
+        pendingInvites: [],
+        activePatientId: null,
         sessions: [],
         sensitiveDataUnlocked: false,
       });
+    },
+
+    setActivePatientId: async (id) => {
+      // Mirror to AsyncStorage so a caregiver lands back on the same
+      // patient after relaunch. Failure is non-fatal — the in-memory
+      // state below still drives the current session.
+      try {
+        if (id) {
+          await AsyncStorage.setItem(ACTIVE_PATIENT_STORAGE_KEY, id);
+        } else {
+          await AsyncStorage.removeItem(ACTIVE_PATIENT_STORAGE_KEY);
+        }
+      } catch (error) {
+        logWarn("Auth", "setActivePatientId persist failed", error);
+      }
+      set({ activePatientId: id });
     },
 
     handleSessionExpired: async () => {
@@ -306,6 +382,11 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
       // early once authToken is null.
       if (!get().authToken) return;
       await clearAuthToken();
+      try {
+        await AsyncStorage.removeItem(ACTIVE_PATIENT_STORAGE_KEY);
+      } catch {
+        // best-effort; in-memory state below is the real reset.
+      }
       set({
         isAuthenticated: false,
         user: null,
@@ -315,6 +396,9 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         commentsByPostId: {},
         alerts: [],
         caregiverLinks: [],
+        myPatients: [],
+        pendingInvites: [],
+        activePatientId: null,
         sessions: [],
         sensitiveDataUnlocked: false,
         // Surface a banner on the login screen so the redirect doesn't look

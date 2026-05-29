@@ -35,6 +35,15 @@ export const AlertLevel = {
 export type AlertLevel = (typeof AlertLevel)[keyof typeof AlertLevel]
 
 
+export const CaregiverLinkStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  rejected: 'rejected'
+} as const
+
+export type CaregiverLinkStatus = (typeof CaregiverLinkStatus)[keyof typeof CaregiverLinkStatus]
+
+
 export const BpStatus = {
   low: 'low',
   normal: 'normal',

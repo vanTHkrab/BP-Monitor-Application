@@ -1231,7 +1231,9 @@ export const CaregiverPatientScalarFieldEnum = {
   caregiverId: 'caregiverId',
   patientId: 'patientId',
   relationship: 'relationship',
-  createdAt: 'createdAt'
+  status: 'status',
+  createdAt: 'createdAt',
+  respondedAt: 'respondedAt'
 } as const
 
 export type CaregiverPatientScalarFieldEnum = (typeof CaregiverPatientScalarFieldEnum)[keyof typeof CaregiverPatientScalarFieldEnum]
@@ -1444,6 +1446,20 @@ export type EnumRelationshipTypeFieldRefInput<$PrismaModel> = FieldRefInputType<
  * Reference to a field of type 'RelationshipType[]'
  */
 export type ListEnumRelationshipTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'RelationshipType[]'>
+    
+
+
+/**
+ * Reference to a field of type 'CaregiverLinkStatus'
+ */
+export type EnumCaregiverLinkStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'CaregiverLinkStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'CaregiverLinkStatus[]'
+ */
+export type ListEnumCaregiverLinkStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'CaregiverLinkStatus[]'>
     
 
 

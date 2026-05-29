@@ -28,21 +28,27 @@ export type CaregiverPatientMinAggregateOutputType = {
   caregiverId: string | null
   patientId: string | null
   relationship: $Enums.RelationshipType | null
+  status: $Enums.CaregiverLinkStatus | null
   createdAt: Date | null
+  respondedAt: Date | null
 }
 
 export type CaregiverPatientMaxAggregateOutputType = {
   caregiverId: string | null
   patientId: string | null
   relationship: $Enums.RelationshipType | null
+  status: $Enums.CaregiverLinkStatus | null
   createdAt: Date | null
+  respondedAt: Date | null
 }
 
 export type CaregiverPatientCountAggregateOutputType = {
   caregiverId: number
   patientId: number
   relationship: number
+  status: number
   createdAt: number
+  respondedAt: number
   _all: number
 }
 
@@ -51,21 +57,27 @@ export type CaregiverPatientMinAggregateInputType = {
   caregiverId?: true
   patientId?: true
   relationship?: true
+  status?: true
   createdAt?: true
+  respondedAt?: true
 }
 
 export type CaregiverPatientMaxAggregateInputType = {
   caregiverId?: true
   patientId?: true
   relationship?: true
+  status?: true
   createdAt?: true
+  respondedAt?: true
 }
 
 export type CaregiverPatientCountAggregateInputType = {
   caregiverId?: true
   patientId?: true
   relationship?: true
+  status?: true
   createdAt?: true
+  respondedAt?: true
   _all?: true
 }
 
@@ -145,7 +157,9 @@ export type CaregiverPatientGroupByOutputType = {
   caregiverId: string
   patientId: string
   relationship: $Enums.RelationshipType
+  status: $Enums.CaregiverLinkStatus
   createdAt: Date
+  respondedAt: Date | null
   _count: CaregiverPatientCountAggregateOutputType | null
   _min: CaregiverPatientMinAggregateOutputType | null
   _max: CaregiverPatientMaxAggregateOutputType | null
@@ -173,7 +187,9 @@ export type CaregiverPatientWhereInput = {
   caregiverId?: Prisma.UuidFilter<"CaregiverPatient"> | string
   patientId?: Prisma.UuidFilter<"CaregiverPatient"> | string
   relationship?: Prisma.EnumRelationshipTypeFilter<"CaregiverPatient"> | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFilter<"CaregiverPatient"> | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFilter<"CaregiverPatient"> | Date | string
+  respondedAt?: Prisma.DateTimeNullableFilter<"CaregiverPatient"> | Date | string | null
   caregiver?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   patient?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }
@@ -182,7 +198,9 @@ export type CaregiverPatientOrderByWithRelationInput = {
   caregiverId?: Prisma.SortOrder
   patientId?: Prisma.SortOrder
   relationship?: Prisma.SortOrder
+  status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  respondedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   caregiver?: Prisma.UserOrderByWithRelationInput
   patient?: Prisma.UserOrderByWithRelationInput
 }
@@ -195,7 +213,9 @@ export type CaregiverPatientWhereUniqueInput = Prisma.AtLeast<{
   caregiverId?: Prisma.UuidFilter<"CaregiverPatient"> | string
   patientId?: Prisma.UuidFilter<"CaregiverPatient"> | string
   relationship?: Prisma.EnumRelationshipTypeFilter<"CaregiverPatient"> | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFilter<"CaregiverPatient"> | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFilter<"CaregiverPatient"> | Date | string
+  respondedAt?: Prisma.DateTimeNullableFilter<"CaregiverPatient"> | Date | string | null
   caregiver?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   patient?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }, "caregiverId_patientId">
@@ -204,7 +224,9 @@ export type CaregiverPatientOrderByWithAggregationInput = {
   caregiverId?: Prisma.SortOrder
   patientId?: Prisma.SortOrder
   relationship?: Prisma.SortOrder
+  status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  respondedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.CaregiverPatientCountOrderByAggregateInput
   _max?: Prisma.CaregiverPatientMaxOrderByAggregateInput
   _min?: Prisma.CaregiverPatientMinOrderByAggregateInput
@@ -217,12 +239,16 @@ export type CaregiverPatientScalarWhereWithAggregatesInput = {
   caregiverId?: Prisma.UuidWithAggregatesFilter<"CaregiverPatient"> | string
   patientId?: Prisma.UuidWithAggregatesFilter<"CaregiverPatient"> | string
   relationship?: Prisma.EnumRelationshipTypeWithAggregatesFilter<"CaregiverPatient"> | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusWithAggregatesFilter<"CaregiverPatient"> | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"CaregiverPatient"> | Date | string
+  respondedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"CaregiverPatient"> | Date | string | null
 }
 
 export type CaregiverPatientCreateInput = {
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
   caregiver: Prisma.UserCreateNestedOneWithoutCaregiverLinksInput
   patient: Prisma.UserCreateNestedOneWithoutPatientLinksInput
 }
@@ -231,12 +257,16 @@ export type CaregiverPatientUncheckedCreateInput = {
   caregiverId: string
   patientId: string
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
 }
 
 export type CaregiverPatientUpdateInput = {
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   caregiver?: Prisma.UserUpdateOneRequiredWithoutCaregiverLinksNestedInput
   patient?: Prisma.UserUpdateOneRequiredWithoutPatientLinksNestedInput
 }
@@ -245,26 +275,34 @@ export type CaregiverPatientUncheckedUpdateInput = {
   caregiverId?: Prisma.StringFieldUpdateOperationsInput | string
   patientId?: Prisma.StringFieldUpdateOperationsInput | string
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CaregiverPatientCreateManyInput = {
   caregiverId: string
   patientId: string
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
 }
 
 export type CaregiverPatientUpdateManyMutationInput = {
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CaregiverPatientUncheckedUpdateManyInput = {
   caregiverId?: Prisma.StringFieldUpdateOperationsInput | string
   patientId?: Prisma.StringFieldUpdateOperationsInput | string
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CaregiverPatientListRelationFilter = {
@@ -286,21 +324,27 @@ export type CaregiverPatientCountOrderByAggregateInput = {
   caregiverId?: Prisma.SortOrder
   patientId?: Prisma.SortOrder
   relationship?: Prisma.SortOrder
+  status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  respondedAt?: Prisma.SortOrder
 }
 
 export type CaregiverPatientMaxOrderByAggregateInput = {
   caregiverId?: Prisma.SortOrder
   patientId?: Prisma.SortOrder
   relationship?: Prisma.SortOrder
+  status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  respondedAt?: Prisma.SortOrder
 }
 
 export type CaregiverPatientMinOrderByAggregateInput = {
   caregiverId?: Prisma.SortOrder
   patientId?: Prisma.SortOrder
   relationship?: Prisma.SortOrder
+  status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  respondedAt?: Prisma.SortOrder
 }
 
 export type CaregiverPatientCreateNestedManyWithoutCaregiverInput = {
@@ -391,16 +435,24 @@ export type EnumRelationshipTypeFieldUpdateOperationsInput = {
   set?: $Enums.RelationshipType
 }
 
+export type EnumCaregiverLinkStatusFieldUpdateOperationsInput = {
+  set?: $Enums.CaregiverLinkStatus
+}
+
 export type CaregiverPatientCreateWithoutCaregiverInput = {
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
   patient: Prisma.UserCreateNestedOneWithoutPatientLinksInput
 }
 
 export type CaregiverPatientUncheckedCreateWithoutCaregiverInput = {
   patientId: string
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
 }
 
 export type CaregiverPatientCreateOrConnectWithoutCaregiverInput = {
@@ -415,14 +467,18 @@ export type CaregiverPatientCreateManyCaregiverInputEnvelope = {
 
 export type CaregiverPatientCreateWithoutPatientInput = {
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
   caregiver: Prisma.UserCreateNestedOneWithoutCaregiverLinksInput
 }
 
 export type CaregiverPatientUncheckedCreateWithoutPatientInput = {
   caregiverId: string
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
 }
 
 export type CaregiverPatientCreateOrConnectWithoutPatientInput = {
@@ -458,7 +514,9 @@ export type CaregiverPatientScalarWhereInput = {
   caregiverId?: Prisma.UuidFilter<"CaregiverPatient"> | string
   patientId?: Prisma.UuidFilter<"CaregiverPatient"> | string
   relationship?: Prisma.EnumRelationshipTypeFilter<"CaregiverPatient"> | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFilter<"CaregiverPatient"> | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFilter<"CaregiverPatient"> | Date | string
+  respondedAt?: Prisma.DateTimeNullableFilter<"CaregiverPatient"> | Date | string | null
 }
 
 export type CaregiverPatientUpsertWithWhereUniqueWithoutPatientInput = {
@@ -480,49 +538,65 @@ export type CaregiverPatientUpdateManyWithWhereWithoutPatientInput = {
 export type CaregiverPatientCreateManyCaregiverInput = {
   patientId: string
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
 }
 
 export type CaregiverPatientCreateManyPatientInput = {
   caregiverId: string
   relationship: $Enums.RelationshipType
+  status?: $Enums.CaregiverLinkStatus
   createdAt?: Date | string
+  respondedAt?: Date | string | null
 }
 
 export type CaregiverPatientUpdateWithoutCaregiverInput = {
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   patient?: Prisma.UserUpdateOneRequiredWithoutPatientLinksNestedInput
 }
 
 export type CaregiverPatientUncheckedUpdateWithoutCaregiverInput = {
   patientId?: Prisma.StringFieldUpdateOperationsInput | string
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CaregiverPatientUncheckedUpdateManyWithoutCaregiverInput = {
   patientId?: Prisma.StringFieldUpdateOperationsInput | string
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CaregiverPatientUpdateWithoutPatientInput = {
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   caregiver?: Prisma.UserUpdateOneRequiredWithoutCaregiverLinksNestedInput
 }
 
 export type CaregiverPatientUncheckedUpdateWithoutPatientInput = {
   caregiverId?: Prisma.StringFieldUpdateOperationsInput | string
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CaregiverPatientUncheckedUpdateManyWithoutPatientInput = {
   caregiverId?: Prisma.StringFieldUpdateOperationsInput | string
   relationship?: Prisma.EnumRelationshipTypeFieldUpdateOperationsInput | $Enums.RelationshipType
+  status?: Prisma.EnumCaregiverLinkStatusFieldUpdateOperationsInput | $Enums.CaregiverLinkStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  respondedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 
@@ -531,7 +605,9 @@ export type CaregiverPatientSelect<ExtArgs extends runtime.Types.Extensions.Inte
   caregiverId?: boolean
   patientId?: boolean
   relationship?: boolean
+  status?: boolean
   createdAt?: boolean
+  respondedAt?: boolean
   caregiver?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   patient?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["caregiverPatient"]>
@@ -540,7 +616,9 @@ export type CaregiverPatientSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   caregiverId?: boolean
   patientId?: boolean
   relationship?: boolean
+  status?: boolean
   createdAt?: boolean
+  respondedAt?: boolean
   caregiver?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   patient?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["caregiverPatient"]>
@@ -549,7 +627,9 @@ export type CaregiverPatientSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   caregiverId?: boolean
   patientId?: boolean
   relationship?: boolean
+  status?: boolean
   createdAt?: boolean
+  respondedAt?: boolean
   caregiver?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   patient?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["caregiverPatient"]>
@@ -558,10 +638,12 @@ export type CaregiverPatientSelectScalar = {
   caregiverId?: boolean
   patientId?: boolean
   relationship?: boolean
+  status?: boolean
   createdAt?: boolean
+  respondedAt?: boolean
 }
 
-export type CaregiverPatientOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"caregiverId" | "patientId" | "relationship" | "createdAt", ExtArgs["result"]["caregiverPatient"]>
+export type CaregiverPatientOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"caregiverId" | "patientId" | "relationship" | "status" | "createdAt" | "respondedAt", ExtArgs["result"]["caregiverPatient"]>
 export type CaregiverPatientInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   caregiver?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   patient?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -585,7 +667,9 @@ export type $CaregiverPatientPayload<ExtArgs extends runtime.Types.Extensions.In
     caregiverId: string
     patientId: string
     relationship: $Enums.RelationshipType
+    status: $Enums.CaregiverLinkStatus
     createdAt: Date
+    respondedAt: Date | null
   }, ExtArgs["result"]["caregiverPatient"]>
   composites: {}
 }
@@ -1014,7 +1098,9 @@ export interface CaregiverPatientFieldRefs {
   readonly caregiverId: Prisma.FieldRef<"CaregiverPatient", 'String'>
   readonly patientId: Prisma.FieldRef<"CaregiverPatient", 'String'>
   readonly relationship: Prisma.FieldRef<"CaregiverPatient", 'RelationshipType'>
+  readonly status: Prisma.FieldRef<"CaregiverPatient", 'CaregiverLinkStatus'>
   readonly createdAt: Prisma.FieldRef<"CaregiverPatient", 'DateTime'>
+  readonly respondedAt: Prisma.FieldRef<"CaregiverPatient", 'DateTime'>
 }
     
 
