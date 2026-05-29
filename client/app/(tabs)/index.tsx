@@ -33,6 +33,8 @@ export default function HomeScreen() {
     markAlertRead,
     markAllAlertsRead,
   } = useAppStore();
+  const activePatientId = useAppStore((s) => s.activePatientId);
+  const isCaregiverWithoutPatient = user?.role === 'caregiver' && !activePatientId;
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
   const insets = useSafeAreaInsets();
@@ -330,7 +332,46 @@ export default function HomeScreen() {
           </View>
         </FadeInView>
 
-        {/* Latest Reading Card */}
+        {/* Caregiver mode — empty state ตอนยังไม่เลือกผู้ป่วย */}
+        {isCaregiverWithoutPatient && (
+          <FadeInView delay={150}>
+            <View className="mx-4 mb-2">
+              <View
+                className={
+                  (isDark ? 'bg-[#0F172A] border-[#334155]' : 'bg-white border-white/80') +
+                  ' rounded-3xl border p-6 items-center shadow-md'
+                }
+              >
+                <View className="w-16 h-16 rounded-full bg-[#EDE7F6] items-center justify-center mb-3">
+                  <Ionicons name="people" size={32} color="#7E57C2" />
+                </View>
+                <Text className={titleClassName + ' font-bold ' + textPrimaryClassName + ' text-center'}>
+                  เลือกผู้ป่วยที่ต้องการดู
+                </Text>
+                <Text className={`mt-2 leading-6 text-center ${sectionBodyClassName} ${textSecondaryClassName}`}>
+                  คุณกำลังใช้โหมดผู้ดูแล กรุณาเลือกผู้ป่วยจากรายชื่อก่อนเริ่มดูข้อมูลความดัน
+                </Text>
+                <AnimatedPressable
+                  onPress={() => router.push('/caregivers' as Href)}
+                  className="mt-4"
+                >
+                  <LinearGradient
+                    colors={['#A879E8', '#7E57C2', '#5E35B1']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    className="px-5 py-3 rounded-2xl flex-row items-center"
+                  >
+                    <Ionicons name="people-outline" size={18} color="white" />
+                    <Text className="text-white font-bold ml-2">จัดการผู้ป่วย</Text>
+                  </LinearGradient>
+                </AnimatedPressable>
+              </View>
+            </View>
+          </FadeInView>
+        )}
+
+        {/* Latest Reading Card — ซ่อนเมื่อ caregiver ยังไม่เลือกผู้ป่วย */}
+        {!isCaregiverWithoutPatient && (
         <ScaleOnMount delay={200}>
           <View className="mx-4 rounded-3xl overflow-hidden shadow-lg shadow-black/15">
             <LinearGradient
@@ -386,8 +427,10 @@ export default function HomeScreen() {
             </LinearGradient>
           </View>
         </ScaleOnMount>
+        )}
 
-        {/* Camera Button */}
+        {/* Camera Button — ซ่อนสำหรับ caregiver ที่ยังไม่เลือก patient (Phase C จะเปิดให้บันทึกแทน) */}
+        {user?.role !== 'caregiver' && (
         <FadeInView delay={300}>
           <AnimatedPressable 
             onPress={() => router.push('/(tabs)/camera' as Href)}
@@ -406,8 +449,9 @@ export default function HomeScreen() {
             </LinearGradient>
           </AnimatedPressable>
         </FadeInView>
+        )}
 
-        {latestGuidance ? (
+        {!isCaregiverWithoutPatient && latestGuidance ? (
           <FadeInView delay={350}>
             <View className="px-4 mt-4">
               <View
@@ -459,6 +503,7 @@ export default function HomeScreen() {
           </FadeInView>
         ) : null}
 
+        {!isCaregiverWithoutPatient && (<>
         {/* Trends and Reports Section */}
         <FadeInView delay={400}>
           <View className="px-4 mt-6">
@@ -572,6 +617,7 @@ export default function HomeScreen() {
             </AnimatedPressable>
           </View>
         </FadeInView>
+        </>)}
 
         <View className="h-[100px]" />
       </ScrollView>

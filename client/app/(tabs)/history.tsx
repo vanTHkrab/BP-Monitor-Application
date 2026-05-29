@@ -27,6 +27,8 @@ export default function HistoryScreen() {
   const readings = useAppStore((s) => s.readings);
   const posts = useAppStore((s) => s.posts);
   const user = useAppStore((s) => s.user);
+  const activePatientId = useAppStore((s) => s.activePatientId);
+  const isCaregiverWithoutPatient = user?.role === 'caregiver' && !activePatientId;
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
@@ -316,6 +318,44 @@ export default function HistoryScreen() {
           </View>
         </FadeInView>
 
+        {isCaregiverWithoutPatient && (
+          <FadeInView delay={150}>
+            <View className="mx-4 mt-4 rounded-3xl overflow-hidden">
+              <View
+                className={
+                  (isDark ? 'bg-[#0F172A] border-[#334155]' : 'bg-white border-white/80') +
+                  ' rounded-3xl border p-6 items-center shadow-md'
+                }
+              >
+                <View className="w-16 h-16 rounded-full bg-[#EDE7F6] items-center justify-center mb-3">
+                  <Ionicons name="people" size={32} color="#7E57C2" />
+                </View>
+                <Text className={titleClassName + ' font-bold text-gray-800 dark:text-slate-100 text-center'}>
+                  เลือกผู้ป่วยที่ต้องการดู
+                </Text>
+                <Text className={captionClassName + ' mt-2 leading-5 text-gray-500 dark:text-slate-300 text-center'}>
+                  ผู้ดูแลต้องเลือกผู้ป่วยก่อนถึงจะเห็นประวัติ
+                </Text>
+                <AnimatedPressable
+                  onPress={() => router.push('/caregivers' as Href)}
+                  className="mt-4"
+                >
+                  <LinearGradient
+                    colors={['#A879E8', '#7E57C2', '#5E35B1']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    className="px-5 py-3 rounded-2xl flex-row items-center"
+                  >
+                    <Ionicons name="people-outline" size={18} color="white" />
+                    <Text className="text-white font-bold ml-2">จัดการผู้ป่วย</Text>
+                  </LinearGradient>
+                </AnimatedPressable>
+              </View>
+            </View>
+          </FadeInView>
+        )}
+
+        {!isCaregiverWithoutPatient && (<>
         {/* Time Filter Tabs */}
         <FadeInView delay={200}>
           <View className="px-4 mb-4">
@@ -636,6 +676,7 @@ export default function HistoryScreen() {
             </AnimatedPressable>
           </View>
         </FadeInView>
+        </>)}
 
         <View className="h-[100px]" />
       </ScrollView>

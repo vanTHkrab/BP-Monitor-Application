@@ -461,8 +461,8 @@ export const GQL_CONFIRM_IMAGE_UPLOAD = `
 // ── Reading Queries/Mutations ──
 
 export const GQL_READINGS = `
-  query Readings($limit: Int, $offset: Int) {
-    readings(limit: $limit, offset: $offset) {
+  query Readings($limit: Int, $offset: Int, $patientId: ID) {
+    readings(limit: $limit, offset: $offset, patientId: $patientId) {
       id userId clientId systolic diastolic pulse status measuredAt s3Key notes createdAt
     }
   }
@@ -595,31 +595,47 @@ export const GQL_MARK_ALL_ALERTS_READ = `
 
 // ── Caregiver Queries/Mutations ──
 
+const CAREGIVER_LINK_FIELDS = `
+  caregiverId
+  patientId
+  relationship
+  caregiverName
+  caregiverPhone
+  patientName
+  patientPhone
+  status
+  respondedAt
+`;
+
 export const GQL_CAREGIVER_LINKS = `
   query CaregiverLinks {
-    caregiverLinks {
-      caregiverId
-      patientId
-      relationship
-      caregiverName
-      caregiverPhone
-      patientName
-      patientPhone
+    caregiverLinks { ${CAREGIVER_LINK_FIELDS} }
+  }
+`;
+
+export const GQL_MY_PATIENTS = `
+  query MyPatients {
+    myPatients {
+      id firstname lastname phone avatar dob relationship weight height
     }
+  }
+`;
+
+export const GQL_PENDING_INVITES = `
+  query MyPendingInvites {
+    myPendingInvites { ${CAREGIVER_LINK_FIELDS} }
+  }
+`;
+
+export const GQL_RESPOND_INVITE = `
+  mutation RespondToCaregiverInvite($caregiverId: String!, $accept: Boolean!) {
+    respondToCaregiverInvite(caregiverId: $caregiverId, accept: $accept) { ${CAREGIVER_LINK_FIELDS} }
   }
 `;
 
 export const GQL_ADD_CAREGIVER_PATIENT = `
   mutation AddCaregiverPatient($patientPhone: String!, $relationship: String!) {
-    addCaregiverPatient(patientPhone: $patientPhone, relationship: $relationship) {
-      caregiverId
-      patientId
-      relationship
-      caregiverName
-      caregiverPhone
-      patientName
-      patientPhone
-    }
+    addCaregiverPatient(patientPhone: $patientPhone, relationship: $relationship) { ${CAREGIVER_LINK_FIELDS} }
   }
 `;
 

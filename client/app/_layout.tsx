@@ -1,3 +1,4 @@
+import { ActivePatientBanner } from "@/components/active-patient-banner";
 import { AppLoadingScreen } from "@/components/app-loading-screen";
 import { initLocalDb } from "@/data/local-db";
 import { useAppStore } from "@/store/use-app-store";
@@ -194,28 +195,31 @@ export default function RootLayout() {
         {!themeHydrated ? (
           <AppLoadingScreen />
         ) : (
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: "none",
-            }}
-          >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="history-list"
-              options={{ presentation: "modal" }}
-            />
-            <Stack.Screen name="profile" />
-            <Stack.Screen name="caregivers" />
-            <Stack.Screen name="settings" />
-            <Stack.Screen name="security" />
-            <Stack.Screen name="help" />
-            <Stack.Screen name="about" />
-            <Stack.Screen name="health-tips" />
-            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-          </Stack>
+          <>
+            <ActivePatientBanner />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: "none",
+              }}
+            >
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="history-list"
+                options={{ presentation: "modal" }}
+              />
+              <Stack.Screen name="profile" />
+              <Stack.Screen name="caregivers" />
+              <Stack.Screen name="settings" />
+              <Stack.Screen name="security" />
+              <Stack.Screen name="help" />
+              <Stack.Screen name="about" />
+              <Stack.Screen name="health-tips" />
+              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+            </Stack>
+          </>
         )}
       </GestureHandlerRootView>
     </SafeAreaProvider>

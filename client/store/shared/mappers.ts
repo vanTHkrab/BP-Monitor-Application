@@ -2,19 +2,45 @@ import {
   AppAlert,
   BloodPressureReading,
   CaregiverLink,
+  CaregiverLinkStatus,
   CommunityPost,
+  PatientSummary,
   PostComment,
   User,
+  UserRole,
 } from "@/types";
 import type {
   AlertGql,
   CaregiverLinkGql,
   CommentGql,
+  PatientSummaryGql,
   PostGql,
   ReadingGql,
   UserGql,
 } from "@/types/graphql";
 import { toLocalPostId, toLocalReadingId } from "./client-id";
+
+const VALID_ROLES: ReadonlySet<UserRole> = new Set([
+  "patient",
+  "caregiver",
+  "developer",
+]);
+
+const parseRole = (raw: unknown): UserRole | undefined =>
+  typeof raw === "string" && VALID_ROLES.has(raw as UserRole)
+    ? (raw as UserRole)
+    : undefined;
+
+const VALID_LINK_STATUS: ReadonlySet<CaregiverLinkStatus> = new Set([
+  "pending",
+  "accepted",
+  "rejected",
+]);
+
+const parseLinkStatus = (raw: unknown): CaregiverLinkStatus =>
+  typeof raw === "string" && VALID_LINK_STATUS.has(raw as CaregiverLinkStatus)
+    ? (raw as CaregiverLinkStatus)
+    : "accepted";
 
 export const sortReadingsDesc = (items: BloodPressureReading[]) =>
   [...items].sort(
@@ -118,7 +144,7 @@ export const userFromGql = (u: UserGql): User => ({
   phone: u.phone,
   email: u.email ?? undefined,
   avatar: u.avatar ?? undefined,
-  role: u.role ?? undefined,
+  role: parseRole(u.role),
   createdAt: new Date(u.createdAt),
   dob: u.dob ? new Date(u.dob) : undefined,
   gender: u.gender ?? undefined,
@@ -205,4 +231,18 @@ export const caregiverLinkFromGql = (
   caregiverPhone: link.caregiverPhone,
   patientName: link.patientName,
   patientPhone: link.patientPhone,
+  status: parseLinkStatus(link.status),
+  respondedAt: link.respondedAt ? new Date(link.respondedAt) : undefined,
+});
+
+export const patientSummaryFromGql = (p: PatientSummaryGql): PatientSummary => ({
+  id: p.id,
+  firstname: p.firstname,
+  lastname: p.lastname,
+  phone: p.phone,
+  avatar: p.avatar ?? undefined,
+  dob: p.dob ? new Date(p.dob) : undefined,
+  relationship: p.relationship ?? undefined,
+  weight: typeof p.weight === "number" ? p.weight : undefined,
+  height: typeof p.height === "number" ? p.height : undefined,
 });

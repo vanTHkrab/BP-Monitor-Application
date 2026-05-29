@@ -4,5 +4,6 @@ import { CaregiverService } from './caregiver.service';
 
 @Module({
   providers: [CaregiverResolver, CaregiverService],
+  exports: [CaregiverService],
 })
 export class CaregiverModule {}
