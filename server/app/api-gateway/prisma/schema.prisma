@@ -30,6 +30,12 @@ enum AlertLevel {
   critical
 }
 
+enum CaregiverLinkStatus {
+  pending
+  accepted
+  rejected
+}
+
 enum BpStatus {
   low
   normal
@@ -46,6 +52,8 @@ enum PostCategory {
 
 enum RelationshipType {
   parent
+  patient
+  caregiver
   child
   spouse
   sibling
@@ -105,16 +113,19 @@ model UserSession {
 }
 
 model CaregiverPatient {
-  caregiverId  String           @map("caregiver_id") @db.Uuid
-  patientId    String           @map("patient_id") @db.Uuid
+  caregiverId  String              @map("caregiver_id") @db.Uuid
+  patientId    String              @map("patient_id") @db.Uuid
   relationship RelationshipType
-  createdAt    DateTime         @default(now()) @map("created_at")
+  status       CaregiverLinkStatus @default(pending)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  respondedAt  DateTime?           @map("responded_at")
 
   caregiver User @relation("CaregiverUser", fields: [caregiverId], references: [id], onDelete: Cascade)
   patient   User @relation("PatientUser", fields: [patientId], references: [id], onDelete: Cascade)
 
   @@id([caregiverId, patientId])
   @@index([patientId])
+  @@index([status])
   @@map("caregiver_patient")
 }
 

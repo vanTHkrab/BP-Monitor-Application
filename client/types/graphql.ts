@@ -7,6 +7,7 @@ import type {
   BloodPressureReading,
   CaregiverLink,
   CommunityPost,
+  PatientSummary,
   PostComment,
   User,
 } from "./index";
@@ -229,14 +230,34 @@ export interface MarkAllAlertsReadMutation {
 
 // ── Caregivers ──
 
-export interface CaregiverLinkGql extends CaregiverLink {}
+export interface CaregiverLinkGql
+  extends Omit<CaregiverLink, "respondedAt"> {
+  respondedAt?: Iso | null;
+}
+
+export interface PatientSummaryGql
+  extends Omit<PatientSummary, "dob"> {
+  dob?: Iso | null;
+}
 
 export interface CaregiverLinksQuery {
   caregiverLinks: CaregiverLinkGql[];
 }
 
+export interface MyPatientsQuery {
+  myPatients: PatientSummaryGql[];
+}
+
+export interface MyPendingInvitesQuery {
+  myPendingInvites: CaregiverLinkGql[];
+}
+
 export interface AddCaregiverPatientMutation {
   addCaregiverPatient: CaregiverLinkGql;
+}
+
+export interface RespondToCaregiverInviteMutation {
+  respondToCaregiverInvite: CaregiverLinkGql;
 }
 
 export interface RemoveCaregiverPatientMutation {
