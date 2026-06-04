@@ -24,6 +24,12 @@ export class AnalysisMetricsObject {
   @Field(() => Float)
   detectMs: number;
 
+  // 4-point LCD rectification + the second YOLO pass on the warped
+  // image. 0 when rectification was skipped or fell back silently
+  // (ai-service ``analyzer.rectify``).
+  @Field(() => Float)
+  rectifyMs: number;
+
   @Field(() => Float)
   ocrMs: number;
 

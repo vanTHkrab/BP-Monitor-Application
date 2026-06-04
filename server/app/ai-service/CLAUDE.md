@@ -19,8 +19,9 @@ three are ONNX-only — torch / joblib / sklearn are never imported at
 request time. Each reply carries `engine` + per-stage `metrics`
 (fetch / detect / ocr / validate ms, RSS before/after/delta, image
 size) so the gateway can append a JSONL row to S3 for offline
-comparison. 147 tests cover config / fetch / handlers / pipeline /
-validation / yolo / crnn / engines / cnn_classifiers.
+comparison. 204 tests cover config / debug_dump / fetch / handlers /
+pipeline / rectify / validation / yolo / crnn / engines /
+cnn_classifiers.
 
 The wire contract on `analyze_bp_image` stays additive: `ocrEngine` is
 optional on the request (default falls through to ``cfg.default_engine``);
@@ -35,10 +36,12 @@ it the service replies with a structured error ("missing imageUrl").
 | `main.py` | entry shim — re-exports `app` from `ai_service.main` so `uv run fastapi dev main.py` works without exposing the package layout |
 | `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds the engine registry, wires the Redis listener. Keep thin — only orchestration belongs here |
 | `src/ai_service/handlers.py` | Redis pub/sub handler — parses `ocrEngine`, dispatches via `EngineRegistry`, emits `engine` + `metrics` in the reply. Owns the wire contract |
-| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence threshold, timeouts) |
+| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence threshold, timeouts, debug-dump toggle + dir) |
+| `src/ai_service/debug_dump.py` | Per-request `DebugDumper` + `@debug_stage` decorator + `ContextVar`. When `AI_DEBUG_DUMP_ENABLED=1` the handler installs one dumper per Redis request and pipeline / rectify code writes intermediates (raw input, YOLO overlays, ROI, Canny, quad overlay, rectified, per-field OCR crops) to `debug_images/<jobId>/NN_<stage>.jpg`. Disabled-state is a single-branch no-op — no directories created, no disk writes. Dev-only; never enable in production |
 | `src/ai_service/analyzer/engines.py` | `EngineRegistry`, `AnalysisMetrics`, `build_registry()` — loads all three M2.2 engines side-by-side and resolves per-request selection |
-| `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector |
+| `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector. Runs a first YOLO pass on the source image, calls `analyzer.rectify` to straighten the LCD, then a second YOLO pass on the rectified image before OCR — fallback to the original image is silent on any rectify failure |
 | `src/ai_service/analyzer/yolo.py` | `YoloDetector` — onnxruntime session, letterbox preprocess, anchor decode + NMS post-process. Loaded once, shared across engines |
+| `src/ai_service/analyzer/rectify.py` | Two-stage LCD straightening. Stage 1: 4-point perspective rectification of the BP_Screen_Monitor (class 1) bbox — `detect_screen_quad()` finds the LCD corners via auto-Canny + `approxPolyDP`; `rectify_perspective()` warps them to an axis-aligned rectangle. Stage 2 (fallback): field-layout rotation — `estimate_rotation_from_fields()` fits a line through the first-pass sys/dia/pulse centroids; `rotate_image_keep_content()` rotates the whole image by that angle and the second YOLO pass runs on the rotated frame. Stage 2 catches rounded-bezel monitors (Omron and similar) whose contour can't reduce to 4 vertices. Silent fallback (`None`) on every failure mode so the pipeline keeps running on the original image |
 | `src/ai_service/analyzer/preprocessing.py` | `letterbox()` (shared by detector and any future ROI preprocess) |
 | `src/ai_service/analyzer/validation.py` | range + sys>dia sanity (`is_value_in_range`, `is_reading_consistent`) |
 | `src/ai_service/analyzer/types.py` | `AnalysisResult`, `FieldReading`, `BoundingBox`, `BPClass`, `AnalysisStatus`, `PipelineMetrics` — shared dataclasses |
@@ -51,7 +54,8 @@ it the service replies with a structured error ("missing imageUrl").
 | `models/crnn_int8.onnx` | Trained 7-seg CRNN, ONNX int8 (1.2 MB) — `crnn` engine |
 | `models/cnn_2ch_distilled_*_int8.onnx` | Distilled 2-channel CNN (global/sys/dia/pul, ~0.6 MB each = 2.5 MB total) — `ssocr_cnn` engine |
 | `models/templates.npz` | KNN exemplars + mean templates for `ssocr_cnn` (~58 MB) |
-| `tests/` | `pytest-asyncio` suite across `test_config`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`. Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
+| `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`. Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
+| `debug_images/` | Dev-only output directory for `DebugDumper` when `AI_DEBUG_DUMP_ENABLED=1`. Layout: `debug_images/<jobId>/NN_<stage>.jpg`. Created lazily on first dump; gitignored. Never written when the toggle is off |
 | `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
 | `Dockerfile` | container build for prod/staging |
 | `PLAN.md` | roadmap + design decisions for the OCR pipeline |
@@ -82,10 +86,40 @@ one of `crnn` / `ssocr_cnn` / `ssocr`. Unknown names return
 
 `engine` and `metrics` are additive M2.2 fields. `engine` echoes
 which pipeline ran; `metrics` is a flat dict with per-stage timing
-(`fetch_ms`, `detect_ms`, `ocr_ms`, `validate_ms`, `total_ms`), RSS
-deltas (`rss_before_mb`, `rss_after_mb`, `rss_delta_mb`), and
-`image_size_bytes`. The gateway-side worker uploads these to S3 as
-a JSONL row for offline comparison.
+(`fetch_ms`, `detect_ms`, `rectify_ms`, `ocr_ms`, `validate_ms`,
+`total_ms`), RSS deltas (`rss_before_mb`, `rss_after_mb`,
+`rss_delta_mb`), and `image_size_bytes`. The gateway-side worker
+uploads these to S3 as a JSONL row for offline comparison.
+
+`rectify_ms` covers the LCD-straightening stage end-to-end:
+perspective rectification (`analyzer.rectify` quad detect + warp)
+plus, when perspective fails, the field-layout rotation fallback
+(line fit + `cv2.warpAffine` + second YOLO pass on the rotated
+image). It is `0.0` only when both paths are skipped — i.e. no
+screen-class bbox in the first pass. When perspective succeeds the
+value reflects just the perspective cost; when perspective falls
+through and rotation succeeds it includes both attempts. Old
+gateway clients ignore the field either way.
+
+`image_quality_score` is the Image-as-base-model addition (gateway
+PR2) — a float in [0, 1] or `null`. The gateway writes it back to
+`Image.image_quality_score` keyed by `s3Key`, so quality metadata
+lives next to the bytes it describes. Until a dedicated quality
+model exists, the value is derived from mean YOLO detection
+confidence (see `_image_quality_score` in `handlers.py`); `null`
+fires when no fields were detected (status=unreadable case). The
+gateway tolerates `null` and skips the write, so always-`null`
+replies are a valid contract.
+
+`image_quality_score` is the Image-as-base-model addition (gateway
+PR2) — a float in [0, 1] or `null`. The gateway writes it back to
+`Image.image_quality_score` keyed by `s3Key`, so quality metadata
+lives next to the bytes it describes. Until a dedicated quality
+model exists, the value is derived from mean YOLO detection
+confidence (see `_image_quality_score` in `handlers.py`); `null`
+fires when no fields were detected (status=unreadable case). The
+gateway tolerates `null` and skips the write, so always-`null`
+replies are a valid contract.
 
 `image_quality_score` is the Image-as-base-model addition (gateway
 PR2) — a float in [0, 1] or `null`. The gateway writes it back to
@@ -123,6 +157,19 @@ without the other will silently break the AI flow.
   Redis listener. The registry holds all three engines simultaneously;
   `handlers.py` picks which one runs per request. Add new engines
   inside `build_registry()` — never in `handlers.py`.
+- **Debug image dumps via `ContextVar`.** Enable with
+  `AI_DEBUG_DUMP_ENABLED=1` (optionally `AI_DEBUG_DUMP_DIR=/abs/path` —
+  defaults to `<ai-service>/debug_images/`). `handlers.handle_message`
+  builds a `DebugDumper(job_id, ...)` per request and enters it as
+  context; pipeline + rectify code calls `DebugDumper.current()` to
+  emit stage snapshots without threading the dumper through every
+  signature. The `@debug_stage("name")` decorator handles the simple
+  "just dump the ndarray return" case. **Production must keep the
+  toggle off** — every dump is an extra cv2.imwrite + JPEG encode
+  (~1–5 ms per image, ~9 files per request). Stage names are
+  zero-padded (`01_input`, `02_rectify_roi`, …) so a directory
+  listing reads in execution order. Add new stage emissions inline
+  in the analyzer code; don't introduce a parallel logger.
 
 ## Working rules for Claude
 

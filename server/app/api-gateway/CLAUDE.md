@@ -148,6 +148,14 @@ pnpm prisma migrate dev       # apply pending migrations
   from `S3StorageClient`, so no new env var is needed. If concurrent
   workers race the same daily file, switch to one-file-per-analysis
   before raising throughput.
+- `metrics.rectify_ms` — covers the 4-point LCD perspective
+  rectification + the second YOLO pass on the rectified image
+  (ai-service `analyzer.rectify`). `0` indicates rectification was
+  skipped (no screen-class bbox) or fell back silently (no quad,
+  warp degenerate, second pass lost fields). Required by
+  `parseMetrics`; adding a numeric field to ai-service that the
+  gateway doesn't recognise still drops the whole `metrics` payload
+  to `null`, so wire-shape changes need both sides updated together.
 
 ## Pointers
 

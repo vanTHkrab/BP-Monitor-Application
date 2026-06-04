@@ -47,7 +47,9 @@ from .analyzer.engines import (
     rss_mb,
 )
 from .analyzer.types import AnalysisResult
+from .debug_dump import DebugDumper
 from .storage.fetch import ImageFetchError, fetch_image
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +64,18 @@ class HandlerDeps:
     Constructed once in ``main.lifespan()`` and threaded through every
     incoming message — keeps the handler functions pure (no globals,
     no service-locator pattern) and trivial to unit-test with mocks.
+
+    ``debug_dump_enabled`` + ``debug_dump_dir`` gate the per-request
+    ``DebugDumper`` (see ``debug_dump.py``). When disabled the dumper
+    is constructed in a no-op state and never touches disk.
     """
 
     registry: EngineRegistry
     http_client: httpx.AsyncClient
     image_fetch_timeout_s: float
     model_version: str
+    debug_dump_enabled: bool = False
+    debug_dump_dir: Path = Path("debug_images")
 
 
 async def reply(client: redis.Redis, request_id: str, response: dict[str, Any]) -> None:
@@ -212,8 +220,22 @@ async def handle_message(
     fetch_ms = (time.perf_counter() - t_fetch_start) * 1000.0
     image_size_bytes = int(image.nbytes)
 
+    # Debug dump: ``job_id`` is preferred over ``request_id`` because it
+    # matches the BullMQ job key the gateway logs. Falls back to
+    # ``request_id`` when the dev client omits jobId. The dumper is a
+    # no-op when disabled — its ``__enter__`` still runs so the
+    # ContextVar is set, and ``current()`` short-circuits inside.
+    dump_id = job_id if isinstance(job_id, str) and job_id else request_id
+    dumper = DebugDumper(
+        dump_id,
+        base_dir=deps.debug_dump_dir,
+        enabled=deps.debug_dump_enabled,
+    )
+
     try:
-        result, pipeline_metrics = await pipeline.analyze(image)
+        with dumper:
+            dumper.dump("00_input", image)
+            result, pipeline_metrics = await pipeline.analyze(image)
     except Exception as e:  # noqa: BLE001 — last-resort guard for pipeline regressions
         logger.exception("pipeline crashed jobId=%s engine=%s", job_id, engine.value)
         await reply_error(redis_client, request_id, f"pipeline error: {e!s}")

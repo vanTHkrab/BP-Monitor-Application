@@ -158,6 +158,7 @@ export class AiProcessor extends WorkerHost {
     return {
       fetchMs: raw.fetch_ms,
       detectMs: raw.detect_ms,
+      rectifyMs: raw.rectify_ms,
       ocrMs: raw.ocr_ms,
       validateMs: raw.validate_ms,
       totalMs: raw.total_ms,
@@ -256,6 +257,7 @@ export class AiProcessor extends WorkerHost {
     const numericKeys = [
       'fetch_ms',
       'detect_ms',
+      'rectify_ms',
       'ocr_ms',
       'validate_ms',
       'total_ms',
@@ -271,6 +273,7 @@ export class AiProcessor extends WorkerHost {
       engine,
       fetch_ms: m.fetch_ms as number,
       detect_ms: m.detect_ms as number,
+      rectify_ms: m.rectify_ms as number,
       ocr_ms: m.ocr_ms as number,
       validate_ms: m.validate_ms as number,
       total_ms: m.total_ms as number,

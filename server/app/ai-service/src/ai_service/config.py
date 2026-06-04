@@ -111,7 +111,24 @@ class AnalyzerConfig(BaseSettings):
         description="End-to-end timeout for one analyze_bp_image request.",
     )
 
-    @field_validator("models_dir", "detector_path", "crnn_path", mode="before")
+    debug_dump_enabled: bool = Field(
+        default=False,
+        description="When true, the Redis handler instantiates a "
+                    "``DebugDumper`` per request and the pipeline writes "
+                    "every intermediate image (raw input, YOLO overlays, "
+                    "rectify ROI / Canny / quad / warped, per-field OCR "
+                    "crops) to ``debug_dump_dir``. Off by default — "
+                    "dev-only switch; never enable in production.",
+    )
+    debug_dump_dir: Path = Field(
+        default_factory=lambda: AI_SERVICE_ROOT / "debug_images",
+        description="Root directory for debug image dumps. Files land at "
+                    "``<dir>/<jobId>/<NN>_<stage>.jpg``. Created lazily on "
+                    "first dump — when disabled the directory is never "
+                    "touched. Ignored by git.",
+    )
+
+    @field_validator("models_dir", "detector_path", "crnn_path", "debug_dump_dir", mode="before")
     @classmethod
     def _anchor_path(cls, v: str | Path) -> Path:
         """Resolve relative paths against the ai-service root, not cwd."""

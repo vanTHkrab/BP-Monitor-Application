@@ -39,6 +39,10 @@ interface AnalysisState {
   job: AnalysisJob | null;
   result: AnalysisResult | null;
   prefill: Partial<BPReading>;
+  /** Latest pre-flight result. The camera screen reads `.status` to decide
+   *  whether to auto-continue with the cropped variant or show the warning
+   *  banner. `null` before the first runPreflight call or when it threw. */
+  preflight: PreflightResult | null;  
   /** Public URL of the uploaded image once analyze succeeds. Passed to
    *  `createReading` on save so the store doesn't re-upload — it sees the
    *  `https://` prefix and goes straight to the GraphQL submit. */
@@ -47,11 +51,6 @@ interface AnalysisState {
    *  ``uploadedUrl``; ``createReading`` attaches the new reading to this
    *  image via FK. ``null`` until upload succeeds. */
   uploadedImageId: number | null;
-  /** On-device pre-flight result — set by `preflight()`, consumed by the
-   *  camera UI to decide whether to show the cropped preview or a warning
-   *  banner with "send anyway" affordance. `null` while idle or before
-   *  the first capture. */
-  preflight: PreflightResult | null;
   error: string | null;
 }
 
@@ -60,9 +59,9 @@ const INITIAL_STATE: AnalysisState = {
   job: null,
   result: null,
   prefill: {},
+  preflight: null,
   uploadedUrl: null,
   uploadedImageId: null,
-  preflight: null,
   error: null,
 };
 
