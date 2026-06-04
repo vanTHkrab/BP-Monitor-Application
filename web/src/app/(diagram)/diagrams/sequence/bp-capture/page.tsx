@@ -33,7 +33,16 @@ const chart = `sequenceDiagram
     GW->>R: publish analyze_bp_image { jobId, userId, s3Key, presignedGetUrl }
     R-->>AI: deliver analyze_bp_image
     AI->>S3: GET presigned image
-    AI->>AI: YOLO ROI → OCR → parse sys/dia/pulse
+    AI->>AI: YOLO pass 1 (BP_Monitor + BP_Screen_Monitor + sys/dia/pulse)
+    alt screen bezel forms a clean 4-vertex quad
+        AI->>AI: Perspective rectify (Canny + approxPolyDP + warpPerspective)
+    else rounded bezel / broken contour (e.g. Omron)
+        AI->>AI: Field-layout rotation (fit line through sys/dia/pulse centroids → warpAffine)
+    else neither path recovers ≥3 fields
+        AI->>AI: Fall back to original image (warn-don't-block)
+    end
+    AI->>AI: YOLO pass 2 on rectified frame → crop sys/dia/pulse
+    AI->>AI: OCR per field → range + sys>dia validation → confidence
     AI->>R: publish analyze_bp_image.reply { jobId, sys, dia, pulse, score }
     R-->>GW: deliver reply
     GW->>PG: update Image.image_quality_score by s3Key (updateMany)
@@ -84,6 +93,33 @@ export default function BpCaptureSequencePage() {
                             label: "Warn, do not block",
                             detail:
                                 'A "ส่งต่อไป" button always lets the user override. False negatives are common (lighting, glare); blocking would strand the patient.',
+                        },
+                    ]}
+                />
+            </DiagramSection>
+
+            <DiagramSection title="LCD straighten chain (AI service)">
+                <InsightList
+                    items={[
+                        {
+                            label: "Stage 1 — perspective rectify",
+                            detail:
+                                "Auto-Canny + approxPolyDP recovers the 4 corners of the BP_Screen_Monitor bezel, then warpPerspective lands the LCD on an axis-aligned rectangle. Works on square-bezel monitors with a clean edge boundary.",
+                        },
+                        {
+                            label: "Stage 2 — field-layout rotation (fallback)",
+                            detail:
+                                "When the bezel is rounded (Omron and similar), approxPolyDP cannot reduce the contour to 4 vertices. The service fits a line through the sys/dia/pulse centroids from pass 1 and rotates the whole image by that angle. The signal is model-agnostic — every BP monitor stacks the three fields vertically.",
+                        },
+                        {
+                            label: "Silent fallback at every step",
+                            detail:
+                                "No quad found, warp too small, line-fit angle outside (2°, 60°), or second YOLO pass loses fields → the chain falls through to the next stage; if all stages fail the pipeline runs on the original image. Matches the on-device pre-flight's warn-don't-block posture.",
+                        },
+                        {
+                            label: "rectify_ms is additive",
+                            detail:
+                                "The metric covers both attempts when the perspective path falls through to rotation. 0.0 only when no screen-class bbox came back in pass 1.",
                         },
                     ]}
                 />

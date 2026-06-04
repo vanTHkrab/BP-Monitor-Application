@@ -137,6 +137,7 @@ type BPReading {
 type AnalysisMetrics {
   fetchMs: Float!
   detectMs: Float!
+  rectifyMs: Float!
   ocrMs: Float!
   validateMs: Float!
   totalMs: Float!

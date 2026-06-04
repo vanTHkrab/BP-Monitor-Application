@@ -25,6 +25,10 @@ export interface BPReading {
 export interface AnalysisMetrics {
   fetchMs: number;
   detectMs: number;
+  // 4-point LCD rectification + the second YOLO pass on the warped
+  // image (ai-service ``analyzer.rectify``). 0 when rectification was
+  // skipped (no screen-class bbox) or fell back silently.
+  rectifyMs: number;
   ocrMs: number;
   validateMs: number;
   totalMs: number;
@@ -71,6 +75,7 @@ export interface AiServiceAnalysisMetrics {
   engine: OcrEngine;
   fetch_ms: number;
   detect_ms: number;
+  rectify_ms: number;
   ocr_ms: number;
   validate_ms: number;
   total_ms: number;

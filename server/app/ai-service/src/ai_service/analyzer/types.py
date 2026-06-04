@@ -123,11 +123,18 @@ class PipelineMetrics:
     the handler, so ``fetch_ms`` is added later by the caller. All
     durations are in milliseconds, measured with ``time.perf_counter()``.
 
+    ``rectify_ms`` covers the 4-point perspective-correction stage
+    (``analyzer.rectify`` — quad detection + warp + the second YOLO
+    pass on the rectified image). It is ``0.0`` when rectification was
+    skipped (no screen box detected) or failed silently and the
+    pipeline ran on the original image.
+
     Fields are written once during a single ``analyze()`` call and
     treated as read-only afterwards; the frozen dataclass enforces that.
     """
 
     detect_ms: float
+    rectify_ms: float
     ocr_ms: float
     validate_ms: float
 
