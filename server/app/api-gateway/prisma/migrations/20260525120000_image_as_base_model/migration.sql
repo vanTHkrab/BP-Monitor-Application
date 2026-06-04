@@ -46,12 +46,9 @@ ALTER TABLE "images" ALTER COLUMN "device_name" DROP NOT NULL;
 --    use the index directly.
 CREATE UNIQUE INDEX "images_s3_key_key" ON "images"("s3_key");
 
--- 5. updated_at on Image. Prisma's @updatedAt manages writes; default
---    NOW() seeds existing rows with a sensible value (there are none
---    after the DELETE in step 1, but the default keeps the migration
---    replayable on environments where rows somehow survive).
-ALTER TABLE "images"
-  ADD COLUMN "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+-- 5. updated_at on Image was already added in
+--    20260513130000_pr_b_schema_cleanup (B4), so it is intentionally
+--    omitted here. Prisma's @updatedAt still manages writes via schema.prisma.
 
 -- 6. reading_id FK on Image. @unique enforces 1:0..1 — one image attaches
 --    to at most one reading, one reading owns at most one image. Drop
