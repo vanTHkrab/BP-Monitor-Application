@@ -7814,8 +7814,6 @@ snapshots:
 
   hachure-fill@0.5.2: {}
 
-  hachure-fill@0.5.2: {}
-
   has-bigints@1.1.0: {}
 
   has-flag@4.0.0: {}
@@ -9143,8 +9141,6 @@ snapshots:
       react: 19.2.4
     optionalDependencies:
       '@babel/core': 7.29.7
-
-  stylis@4.4.0: {}
 
   stylis@4.4.0: {}
 
