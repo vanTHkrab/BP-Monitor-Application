@@ -210,3 +210,4 @@ __marimo__/
 
 .env
 prepare/
+debug_images/
