@@ -68,6 +68,37 @@ type SessionType {
   createdAt: DateTime!
 }
 
+type CaregiverLinkType {
+  caregiverId: String!
+  patientId: String!
+  relationship: String!
+  caregiverName: String!
+  caregiverPhone: String!
+  patientName: String!
+  patientPhone: String!
+  status: CaregiverLinkStatus!
+  respondedAt: DateTime
+}
+
+"""สถานะของคำเชิญ caregiver–patient"""
+enum CaregiverLinkStatus {
+  pending
+  accepted
+  rejected
+}
+
+type PatientSummaryType {
+  id: String!
+  firstname: String!
+  lastname: String!
+  phone: String!
+  avatar: String
+  dob: DateTime
+  relationship: String
+  weight: Float
+  height: Float
+}
+
 type ReadingType {
   id: Int!
   userId: String!
@@ -106,6 +137,7 @@ type BPReading {
 type AnalysisMetrics {
   fetchMs: Float!
   detectMs: Float!
+  rectifyMs: Float!
   ocrMs: Float!
   validateMs: Float!
   totalMs: Float!
@@ -178,16 +210,6 @@ type AlertType {
   reading: AlertReadingType
 }
 
-type CaregiverLinkType {
-  caregiverId: String!
-  patientId: String!
-  relationship: String!
-  caregiverName: String!
-  caregiverPhone: String!
-  patientName: String!
-  patientPhone: String!
-}
-
 type DebugStorageItemType {
   source: String!
   refId: String!
@@ -212,8 +234,19 @@ type Query {
   """ประวัติการเข้าสู่ระบบ"""
   loginSessions: [SessionType!]!
 
-  """รายการค่าความดันของผู้ใช้"""
-  readings(limit: Int! = 200, offset: Int! = 0): [ReadingType!]!
+  """
+  รายการค่าความดันของผู้ใช้ (caregiver ระบุ patientId เพื่อดูข้อมูลผู้ป่วยที่ดูแล)
+  """
+  readings(limit: Int! = 200, offset: Int! = 0, patientId: ID): [ReadingType!]!
+
+  """รายการผู้ดูแล/ผู้ป่วยที่เชื่อมกับบัญชี"""
+  caregiverLinks: [CaregiverLinkType!]!
+
+  """ผู้ป่วยที่ caregiver ดูแลอยู่ (accepted เท่านั้น)"""
+  myPatients: [PatientSummaryType!]!
+
+  """คำเชิญ caregiver ที่ผู้ป่วยรอตอบ"""
+  myPendingInvites: [CaregiverLinkType!]!
 
   """รายการโพสต์ชุมชน (สาธารณะ)"""
   posts(category: String, limit: Int! = 100, offset: Int! = 0): [PostType!]!
@@ -224,9 +257,6 @@ type Query {
 
   """รายการแจ้งเตือนของผู้ใช้"""
   alerts(limit: Int! = 100, offset: Int! = 0, unreadOnly: Boolean! = false): [AlertType!]!
-
-  """รายการผู้ดูแล/ผู้ป่วยที่เชื่อมกับบัญชี"""
-  caregiverLinks: [CaregiverLinkType!]!
 
   """
   Dev-only: cross-tier media diff (DB ↔ S3) for the current user. Disabled in production.
@@ -271,6 +301,15 @@ type Mutation {
   """ลบค่าความดัน"""
   deleteReading(id: Int!): Boolean!
 
+  """ส่งคำเชิญผู้ป่วยด้วยเบอร์โทรศัพท์ (สถานะ pending รอผู้ป่วยตอบรับ)"""
+  addCaregiverPatient(patientPhone: String!, relationship: String! = "caregiver"): CaregiverLinkType!
+
+  """ผู้ป่วยตอบรับ/ปฏิเสธคำเชิญจาก caregiver"""
+  respondToCaregiverInvite(caregiverId: String!, accept: Boolean!): CaregiverLinkType!
+
+  """ลบความสัมพันธ์ผู้ดูแล/ผู้ป่วย"""
+  removeCaregiverPatient(caregiverId: String!, patientId: String!): Boolean!
+
   """สร้างโพสต์ใหม่"""
   createPost(input: CreatePostInput!): PostType!
 
@@ -304,12 +343,6 @@ type Mutation {
 
   """ทำเครื่องหมายว่าอ่านแจ้งเตือนทั้งหมดแล้ว"""
   markAllAlertsRead: Boolean!
-
-  """เพิ่มผู้ป่วยด้วยเบอร์โทรศัพท์"""
-  addCaregiverPatient(patientPhone: String!, relationship: String! = "caregiver"): CaregiverLinkType!
-
-  """ลบความสัมพันธ์ผู้ดูแล/ผู้ป่วย"""
-  removeCaregiverPatient(caregiverId: String!, patientId: String!): Boolean!
 }
 
 input RegisterInput {
@@ -325,6 +358,13 @@ input RegisterInput {
   height: Float
   congenitalDisease: String
   deviceLabel: String
+  role: UserRoleInput
+}
+
+"""บทบาทที่ผู้ใช้เลือกได้ตอนสมัคร"""
+enum UserRoleInput {
+  patient
+  caregiver
 }
 
 input LoginInput {

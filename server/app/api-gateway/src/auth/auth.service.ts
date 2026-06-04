@@ -73,7 +73,7 @@ export class AuthService {
         email: input.email ?? null,
         passwordHash,
         avatar: this.storage.normalizeStorageValue(input.avatar),
-        role: 'patient',
+        role: input.role ?? 'patient',
         dob: input.dob ?? null,
         gender: (input.gender as Gender | undefined) ?? null,
         weight: input.weight ?? null,

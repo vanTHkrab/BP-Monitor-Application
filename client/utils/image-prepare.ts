@@ -8,6 +8,13 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 //   - AI service decode + inference time.
 const MAX_LONG_EDGE_PX = 1600;
 
+// Floor for the short edge. Matches the backend YOLO detector's letterbox
+// target (analyzer/yolo.py:DEFAULT_INPUT_SIZE = 512) — anything smaller
+// would get upscaled by the backend at detect time, so we may as well
+// upscale here on a native code path and guarantee an invariant: the
+// bytes leaving the device are always at least 512x512.
+const MIN_SHORT_EDGE_PX = 512;
+
 // JPEG re-compression on top of whatever the source already used. Anything
 // below ~0.6 starts losing legibility on the smaller fonts (pulse digits);
 // 0.7 is a comfortable balance.
@@ -21,9 +28,16 @@ export interface PreparedImage {
 
 /**
  * Resize + recompress an image to a sane size before handing it off to the
- * AI analysis pipeline. Skips the work entirely when the source is already
- * small enough so we don't upscale tiny inputs (and waste a JPEG re-encode
- * pass).
+ * AI analysis pipeline. Enforces two invariants on the output:
+ *
+ *   - long edge  ≤ MAX_LONG_EDGE_PX (1600) — soft cap, downscaled if over
+ *   - short edge ≥ MIN_SHORT_EDGE_PX (512) — hard floor, upscaled if under
+ *
+ * When the source already satisfies both, the work is skipped entirely so
+ * we don't waste a JPEG re-encode pass. For pathologically elongated
+ * inputs where the cap and floor disagree (e.g. a 4000x200 banner), the
+ * floor wins — the backend pipeline cannot recover from a sub-512 input,
+ * but it can tolerate an oversized long edge.
  *
  * Dimensions are taken from the caller (both `Camera.takePictureAsync` and
  * `ImagePicker.launchImageLibraryAsync` return `width` / `height` on the

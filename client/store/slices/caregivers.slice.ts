@@ -1,29 +1,46 @@
 import {
   GQL_ADD_CAREGIVER_PATIENT,
   GQL_CAREGIVER_LINKS,
+  GQL_MY_PATIENTS,
+  GQL_PENDING_INVITES,
   GQL_REMOVE_CAREGIVER_PATIENT,
+  GQL_RESPOND_INVITE,
   graphqlRequest,
 } from "@/constants/api";
-import { CaregiverLink } from "@/types";
+import { CaregiverLink, PatientSummary } from "@/types";
 import type {
   AddCaregiverPatientMutation,
   CaregiverLinksQuery,
+  MyPatientsQuery,
+  MyPendingInvitesQuery,
   RemoveCaregiverPatientMutation,
+  RespondToCaregiverInviteMutation,
 } from "@/types/graphql";
 import { errorMessage } from "@/types/graphql";
 import type { StateCreator } from "zustand";
 import { authErrorToThai } from "../shared/error-format";
 import { logWarn } from "../shared/log";
-import { caregiverLinkFromGql } from "../shared/mappers";
+import {
+  caregiverLinkFromGql,
+  patientSummaryFromGql,
+} from "../shared/mappers";
 import type { AppState } from "../use-app-store";
 
 export interface CaregiversSlice {
   caregiverLinks: CaregiverLink[];
+  myPatients: PatientSummary[];
+  pendingInvites: CaregiverLink[];
 
   fetchCaregiverLinks: () => Promise<void>;
+  fetchMyPatients: () => Promise<void>;
+  fetchPendingInvites: () => Promise<void>;
   addCaregiverPatient: (input: {
     patientPhone: string;
     relationship: string;
+  }) => Promise<boolean>;
+  respondToInvite: (input: {
+    caregiverId: string;
+    accept: boolean;
   }) => Promise<boolean>;
   removeCaregiverPatient: (input: {
     caregiverId: string;
@@ -38,6 +55,8 @@ export const createCaregiversSlice: StateCreator<
   CaregiversSlice
 > = (set, get) => ({
   caregiverLinks: [],
+  myPatients: [],
+  pendingInvites: [],
 
   fetchCaregiverLinks: async () => {
     const token = get().authToken;
@@ -54,6 +73,79 @@ export const createCaregiversSlice: StateCreator<
       });
     } catch (error) {
       logWarn("Caregivers", "fetchCaregiverLinks failed", error);
+    }
+  },
+
+  fetchMyPatients: async () => {
+    const token = get().authToken;
+    if (!token) return;
+
+    try {
+      const data = await graphqlRequest<MyPatientsQuery>(
+        GQL_MY_PATIENTS,
+        undefined,
+        token,
+      );
+      set({ myPatients: data.myPatients.map(patientSummaryFromGql) });
+    } catch (error) {
+      logWarn("Caregivers", "fetchMyPatients failed", error);
+    }
+  },
+
+  fetchPendingInvites: async () => {
+    const token = get().authToken;
+    if (!token) return;
+
+    try {
+      const data = await graphqlRequest<MyPendingInvitesQuery>(
+        GQL_PENDING_INVITES,
+        undefined,
+        token,
+      );
+      set({
+        pendingInvites: data.myPendingInvites.map(caregiverLinkFromGql),
+      });
+    } catch (error) {
+      logWarn("Caregivers", "fetchPendingInvites failed", error);
+    }
+  },
+
+  respondToInvite: async ({ caregiverId, accept }) => {
+    const token = get().authToken;
+    if (!token) return false;
+
+    try {
+      const data = await graphqlRequest<RespondToCaregiverInviteMutation>(
+        GQL_RESPOND_INVITE,
+        { caregiverId, accept },
+        token,
+      );
+      const updated = caregiverLinkFromGql(data.respondToCaregiverInvite);
+      set((state) => ({
+        // The invite has been answered; drop it from the pending list.
+        pendingInvites: state.pendingInvites.filter(
+          (link) => link.caregiverId !== updated.caregiverId,
+        ),
+        // Mirror the updated status into caregiverLinks so the patient
+        // screen sees "accepted/rejected" without an extra fetch.
+        caregiverLinks: [
+          updated,
+          ...state.caregiverLinks.filter(
+            (link) =>
+              link.caregiverId !== updated.caregiverId ||
+              link.patientId !== updated.patientId,
+          ),
+        ],
+      }));
+      return true;
+    } catch (error) {
+      const msg = errorMessage(error);
+      set({
+        authErrorCode: "caregiver/respond-failed",
+        authErrorMessage: authErrorToThai(msg),
+        authErrorRawMessage: msg,
+      });
+      return false;
     }
   },
 

@@ -19,6 +19,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { CameraView } from 'expo-camera';
 
 import { detectInImage } from '@/lib/yolo/detect';
+import { isYoloAvailable } from '@/lib/yolo/session';
 import { logWarn } from '@/store/shared/log';
 import type { Detection } from '@/lib/yolo/types';
 
@@ -58,7 +59,26 @@ export function useLivePreflight(opts: UseLivePreflightOptions): LivePreflightFr
       return;
     }
 
+    // Don't even spin up the loop if YOLO isn't available on this runtime
+    // (Expo Go). The static preflight handles the fallback elsewhere; this
+    // hook just bows out silently so the camera UI works.
+    if (!isYoloAvailable()) {
+      logWarn(
+        'live-preflight',
+        'on-device YOLO unavailable on this runtime (likely Expo Go); skipping live overlay',
+      );
+      return;
+    }
+
     let stopped = false;
+    let handle: ReturnType<typeof setInterval> | null = null;
+
+    const stopLoop = () => {
+      if (handle !== null) {
+        clearInterval(handle);
+        handle = null;
+      }
+    };
 
     const tick = async () => {
       if (stopped || inFlightRef.current) return;
@@ -97,10 +117,12 @@ export function useLivePreflight(opts: UseLivePreflightOptions): LivePreflightFr
           },
         });
       } catch (err) {
-        // Common errors here: "Camera is not ready" mid-mount, ORT init
-        // failure (same fallback as static pre-flight). Log and keep
-        // looping — the next tick may succeed once the camera settles.
-        logWarn('live-preflight', 'tick failed', err);
+        // Fatal ORT/native errors will fail every tick — log once and stop
+        // the loop so we don't spam logs at 2 fps. Transient camera errors
+        // are bundled in here too; user can leave + return to retry.
+        logWarn('live-preflight', 'tick failed — stopping live overlay', err);
+        stopped = true;
+        stopLoop();
       } finally {
         inFlightRef.current = false;
       }
@@ -109,11 +131,11 @@ export function useLivePreflight(opts: UseLivePreflightOptions): LivePreflightFr
     // Fire once immediately so the overlay populates before the first
     // interval, then settle into the cadence.
     void tick();
-    const handle = setInterval(tick, intervalMs);
+    handle = setInterval(tick, intervalMs);
 
     return () => {
       stopped = true;
-      clearInterval(handle);
+      stopLoop();
     };
   }, [enabled, cameraRef, intervalMs]);
 

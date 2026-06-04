@@ -2,6 +2,7 @@ import { UseGuards } from '@nestjs/common';
 import {
   Args,
   Field,
+  ID,
   InputType,
   Int,
   Mutation,
@@ -19,6 +20,7 @@ import {
 } from 'class-validator';
 import { GqlAuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { CaregiverService } from '../caregiver/caregiver.service';
 import { BpStatus } from '../prisma/generated/enums';
 import { StorageService } from '../storage/storage.service';
 import { ReadingService } from './reading.service';
@@ -89,16 +91,32 @@ export class ReadingResolver {
   constructor(
     private readonly readingService: ReadingService,
     private readonly storage: StorageService,
+    private readonly caregiverService: CaregiverService,
   ) {}
 
-  @Query(() => [ReadingType], { description: 'รายการค่าความดันของผู้ใช้' })
+  @Query(() => [ReadingType], {
+    description:
+      'รายการค่าความดันของผู้ใช้ (caregiver ระบุ patientId เพื่อดูข้อมูลผู้ป่วยที่ดูแล)',
+  })
   @UseGuards(GqlAuthGuard)
   async readings(
     @CurrentUser() user: { id: string },
     @Args('limit', { type: () => Int, defaultValue: 200 }) limit: number,
     @Args('offset', { type: () => Int, defaultValue: 0 }) offset: number,
+    @Args('patientId', { type: () => ID, nullable: true }) patientId?: string,
   ): Promise<ReadingType[]> {
-    const rows = await this.readingService.listByUser(user.id, limit, offset);
+    const targetUserId = patientId ?? user.id;
+    if (targetUserId !== user.id) {
+      await this.caregiverService.assertCanActOnBehalfOf(
+        user.id,
+        targetUserId,
+      );
+    }
+    const rows = await this.readingService.listByUser(
+      targetUserId,
+      limit,
+      offset,
+    );
     return Promise.all(rows.map((r) => this.toReadingType(r)));
   }
 

@@ -68,7 +68,7 @@ class TestAnalysisMetricsBuild:
         m = AnalysisMetrics.build(
             engine=OCREngine.CRNN,
             fetch_ms=10.0,
-            pipeline_metrics=PipelineMetrics(detect_ms=1.0, ocr_ms=2.0, validate_ms=0.5),
+            pipeline_metrics=PipelineMetrics(detect_ms=1.0, rectify_ms=0.0, ocr_ms=2.0, validate_ms=0.5),
             total_ms=14.0,
             rss_before_mb=240.0,
             rss_after_mb=258.0,
@@ -81,7 +81,7 @@ class TestAnalysisMetricsBuild:
         m = AnalysisMetrics.build(
             engine=OCREngine.SSOCR,
             fetch_ms=5.0,
-            pipeline_metrics=PipelineMetrics(detect_ms=1.0, ocr_ms=2.0, validate_ms=0.5),
+            pipeline_metrics=PipelineMetrics(detect_ms=1.0, rectify_ms=0.0, ocr_ms=2.0, validate_ms=0.5),
             total_ms=10.0,
             rss_before_mb=200.0,
             rss_after_mb=210.0,

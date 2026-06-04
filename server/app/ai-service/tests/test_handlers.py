@@ -41,7 +41,7 @@ class MockPipeline:
         if self._raises:
             raise self._raises
         return self._result, PipelineMetrics(
-            detect_ms=1.0, ocr_ms=2.0, validate_ms=0.5,
+            detect_ms=1.0, rectify_ms=0.0, ocr_ms=2.0, validate_ms=0.5,
         )
 
 
@@ -96,7 +96,8 @@ def unreadable_result() -> AnalysisResult:
 def metrics() -> AnalysisMetrics:
     return AnalysisMetrics(
         engine="crnn",
-        fetch_ms=10.0, detect_ms=1.0, ocr_ms=2.0, validate_ms=0.5,
+        fetch_ms=10.0, detect_ms=1.0, rectify_ms=3.0,
+        ocr_ms=2.0, validate_ms=0.5,
         total_ms=14.0,
         rss_before_mb=240.0, rss_after_mb=258.0, rss_delta_mb=18.0,
         image_size_bytes=12345,

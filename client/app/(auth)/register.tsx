@@ -58,6 +58,9 @@ export default function RegisterScreen() {
   const [registerAvatarUri, setRegisterAvatarUri] = useState<string | null>(
     null,
   );
+  const [registerRole, setRegisterRole] = useState<"patient" | "caregiver">(
+    "patient",
+  );
 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
@@ -254,6 +257,7 @@ export default function RegisterScreen() {
         height: validated.height,
         congenitalDisease: registerCongenitalDisease.trim() || undefined,
         avatarUri: registerAvatarUri,
+        role: registerRole,
       });
 
       if (ok) {
@@ -429,6 +433,89 @@ export default function RegisterScreen() {
                         : "เพิ่มรูปโปรไฟล์"}
                     </Text>
                   </Pressable>
+                </View>
+
+                {/* Role selector — patient หรือ caregiver */}
+                <View className="mb-3">
+                  <Text
+                    className={
+                      captionClassName +
+                      " font-semibold mb-2 " +
+                      (isDark ? "text-slate-200" : "text-[#374151]")
+                    }
+                  >
+                    ฉันคือ...
+                  </Text>
+                  <View className="flex-row" style={{ gap: 10 }}>
+                    {(
+                      [
+                        {
+                          key: "patient",
+                          icon: "heart-outline",
+                          label: "ผู้ป่วย",
+                          desc: "บันทึกค่าความดันของตนเอง",
+                        },
+                        {
+                          key: "caregiver",
+                          icon: "people-outline",
+                          label: "ผู้ดูแล",
+                          desc: "ดูแลผู้ป่วยที่บ้าน/หน่วยงาน",
+                        },
+                      ] as const
+                    ).map((option) => {
+                      const selected = registerRole === option.key;
+                      return (
+                        <Pressable
+                          key={option.key}
+                          onPress={() => setRegisterRole(option.key)}
+                          className={
+                            "flex-1 rounded-2xl p-3 border " +
+                            (selected
+                              ? "border-[#7E57C2] bg-[#EDE7F6]"
+                              : isDark
+                                ? "border-slate-700 bg-slate-900/40"
+                                : "border-gray-200 bg-white")
+                          }
+                        >
+                          <View className="items-center">
+                            <Ionicons
+                              name={option.icon}
+                              size={26}
+                              color={
+                                selected
+                                  ? "#7E57C2"
+                                  : isDark
+                                    ? "#94A3B8"
+                                    : "#7F8C8D"
+                              }
+                            />
+                            <Text
+                              className={
+                                bodyClassName +
+                                " font-bold mt-1 " +
+                                (selected
+                                  ? "text-[#5E35B1]"
+                                  : isDark
+                                    ? "text-slate-200"
+                                    : "text-[#2C3E50]")
+                              }
+                            >
+                              {option.label}
+                            </Text>
+                            <Text
+                              className={
+                                captionClassName +
+                                " text-center mt-0.5 " +
+                                (isDark ? "text-slate-400" : "text-[#7F8C8D]")
+                              }
+                            >
+                              {option.desc}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
 
                 <CustomInput

@@ -54,11 +54,11 @@ ALTER TABLE "caregiver_patient"
   ADD COLUMN "relationship" "RelationshipType" NOT NULL;
 
 -- ── B6: createdAt on join tables ─────────────────────────────────────────────
+-- caregiver_patient.created_at was already added in
+-- 20260506111202_add_caregiver_consent, so it is intentionally omitted here.
 ALTER TABLE "post_likes"
   ADD COLUMN "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE "post_comment_likes"
-  ADD COLUMN "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE "caregiver_patient"
   ADD COLUMN "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 -- ── B1: composite indexes for actual query patterns ──────────────────────────

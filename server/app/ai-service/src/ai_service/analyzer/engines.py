@@ -65,6 +65,7 @@ class AnalysisMetrics:
     engine: str
     fetch_ms: float
     detect_ms: float
+    rectify_ms: float
     ocr_ms: float
     validate_ms: float
     total_ms: float
@@ -89,6 +90,7 @@ class AnalysisMetrics:
             engine=engine.value,
             fetch_ms=fetch_ms,
             detect_ms=pipeline_metrics.detect_ms,
+            rectify_ms=pipeline_metrics.rectify_ms,
             ocr_ms=pipeline_metrics.ocr_ms,
             validate_ms=pipeline_metrics.validate_ms,
             total_ms=total_ms,
@@ -99,11 +101,17 @@ class AnalysisMetrics:
         )
 
     def to_wire(self) -> dict[str, float | int | str]:
-        """Flat dict matching the M2.2 wire contract for ``metrics``."""
+        """Flat dict matching the M2.2 wire contract for ``metrics``.
+
+        ``rectify_ms`` is additive — old gateway clients that ignore
+        unknown keys keep working. ``0.0`` indicates rectification
+        was skipped or failed silently.
+        """
         return {
             "engine": self.engine,
             "fetch_ms": self.fetch_ms,
             "detect_ms": self.detect_ms,
+            "rectify_ms": self.rectify_ms,
             "ocr_ms": self.ocr_ms,
             "validate_ms": self.validate_ms,
             "total_ms": self.total_ms,

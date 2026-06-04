@@ -36,6 +36,7 @@ function rawMetrics(engine: OcrEngine = 'crnn'): AiServiceAnalysisMetrics {
     engine,
     fetch_ms: 10,
     detect_ms: 32,
+    rectify_ms: 14,
     ocr_ms: 28,
     validate_ms: 1,
     total_ms: 75,

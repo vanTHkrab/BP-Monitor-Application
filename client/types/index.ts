@@ -1,5 +1,7 @@
 // Type definitions for the Blood Pressure App
 
+export type UserRole = 'patient' | 'caregiver' | 'developer';
+
 export interface User {
   id: string;
   firstname: string;
@@ -7,7 +9,7 @@ export interface User {
   phone: string;
   email?: string;
   avatar?: string;
-  role?: string;
+  role?: UserRole;
   createdAt: Date;
   dob?: Date;
   gender?: "male" | "female" | "other";
@@ -111,6 +113,8 @@ export interface AppAlert {
   reading?: AppAlertReading;
 }
 
+export type CaregiverLinkStatus = 'pending' | 'accepted' | 'rejected';
+
 export interface CaregiverLink {
   caregiverId: string;
   patientId: string;
@@ -119,6 +123,20 @@ export interface CaregiverLink {
   caregiverPhone: string;
   patientName: string;
   patientPhone: string;
+  status: CaregiverLinkStatus;
+  respondedAt?: Date;
+}
+
+export interface PatientSummary {
+  id: string;
+  firstname: string;
+  lastname: string;
+  phone: string;
+  avatar?: string;
+  dob?: Date;
+  relationship?: string;
+  weight?: number;
+  height?: number;
 }
 
 export interface LoginSession {
