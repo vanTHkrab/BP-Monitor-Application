@@ -1,1 +1,0 @@
-../../.agents/skills/writing-guide/SKILL.md
