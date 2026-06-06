@@ -1,4 +1,5 @@
 import { HapticTab } from '@/components/haptic-tab';
+import { Tokens, type TokenSet } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontNumber } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,10 +16,12 @@ function TabBarIcon({
   name,
   color,
   focused,
+  activePill,
 }: {
   name: keyof typeof Ionicons.glyphMap;
   color: string;
   focused: boolean;
+  activePill: TokenSet['tabBarActivePill'];
 }) {
   if (!focused) {
     return <Ionicons name={name} size={22} color={color} />;
@@ -26,7 +29,7 @@ function TabBarIcon({
 
   return (
     <LinearGradient
-      colors={['#FFB26B', '#FF8A45']}
+      colors={activePill}
       className="w-9 h-8 rounded-xl items-center justify-center"
     >
       <Ionicons name={name} size={21} color="white" />
@@ -38,6 +41,7 @@ export default function TabLayout() {
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const t = Tokens[isDark ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
 
   const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
@@ -54,12 +58,12 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#FFFFFF',
-        tabBarInactiveTintColor: isDark ? '#C4B5FD' : '#F2EAFE',
+        tabBarActiveTintColor: t.tabBarActive,
+        tabBarInactiveTintColor: t.tabBarInactive,
         headerShown: false,
         tabBarButton: (props) => <HapticTab {...props} />,
         tabBarStyle: {
-          backgroundColor: isDark ? '#4C1D95' : '#7E57C2',
+          backgroundColor: t.tabBarBg,
           borderTopWidth: 0,
           height: tabBarHeight,
           paddingBottom: tabBarPaddingBottom,
@@ -85,7 +89,12 @@ export default function TabLayout() {
         options={{
           title: 'หน้าหลัก',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} focused={focused} />
+            <TabBarIcon
+              name={focused ? 'home' : 'home-outline'}
+              color={color}
+              focused={focused}
+              activePill={t.tabBarActivePill}
+            />
           ),
         }}
       />
@@ -94,7 +103,12 @@ export default function TabLayout() {
         options={{
           title: 'ประวัติ',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} focused={focused} />
+            <TabBarIcon
+              name={focused ? 'stats-chart' : 'stats-chart-outline'}
+              color={color}
+              focused={focused}
+              activePill={t.tabBarActivePill}
+            />
           ),
         }}
       />
@@ -102,10 +116,10 @@ export default function TabLayout() {
         name="camera"
         options={{
           title: '',
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: () => (
             <View style={{ marginBottom: Platform.OS === 'ios' ? tabBarPaddingBottom + 10 : tabBarPaddingBottom + 6 }}>
               <LinearGradient
-                colors={['#FFB26B', '#FF8A45']}
+                colors={t.brandGradient}
                 className="w-14 h-14 rounded-full items-center justify-center shadow-lg"
               >
                 <Ionicons
@@ -123,7 +137,12 @@ export default function TabLayout() {
         options={{
           title: 'ชุมชน',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'people' : 'people-outline'} color={color} focused={focused} />
+            <TabBarIcon
+              name={focused ? 'people' : 'people-outline'}
+              color={color}
+              focused={focused}
+              activePill={t.tabBarActivePill}
+            />
           ),
         }}
       />
@@ -132,7 +151,12 @@ export default function TabLayout() {
         options={{
           title: 'เมนู',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'albums' : 'albums-outline'} color={color} focused={focused} />
+            <TabBarIcon
+              name={focused ? 'albums' : 'albums-outline'}
+              color={color}
+              focused={focused}
+              activePill={t.tabBarActivePill}
+            />
           ),
         }}
       />

@@ -1,3 +1,4 @@
+import { Tokens } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontNumber } from '@/utils/font-scale';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +21,7 @@ export const TabButtons: React.FC<TabButtonProps> = ({
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const t = Tokens[isDark ? 'dark' : 'light'];
   const smallLabelSize = getFontNumber(fontSizePreference, {
     xsmall: 11,
     small: 12,
@@ -59,7 +61,7 @@ export const TabButtons: React.FC<TabButtonProps> = ({
             >
               {isActive ? (
                 <LinearGradient
-                  colors={isDark ? ['#7E57C2', '#5E35B1'] : ['#FFB26B', '#FF8A45']}
+                  colors={t.brandGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.pillGradient}
@@ -99,14 +101,13 @@ export const TabButtons: React.FC<TabButtonProps> = ({
               <Text
                 style={[
                   styles.underlineText,
-                  { fontSize: mediumLabelSize },
-                  isActive ? styles.underlineTextActive : styles.underlineTextInactive,
+                  { fontSize: mediumLabelSize, color: isActive ? t.brand : t.inkSecondary },
                 ]}
               >
                 {tab.label}
               </Text>
               {isActive && (
-                <View style={styles.underlineIndicator} />
+                <View style={[styles.underlineIndicator, { backgroundColor: t.brand }]} />
               )}
             </Pressable>
           );
@@ -117,7 +118,7 @@ export const TabButtons: React.FC<TabButtonProps> = ({
 
   return (
     <View style={[...containerBaseStyle, styles.defaultContainer]}>
-      {tabs.map((tab, index) => {
+      {tabs.map((tab) => {
         const isActive = activeTab === tab.key;
 
         return (
@@ -131,7 +132,7 @@ export const TabButtons: React.FC<TabButtonProps> = ({
             >
             {isActive ? (
               <LinearGradient
-                colors={['#FFB26B', '#FF8A45']}
+                colors={t.brandGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.defaultGradient}
@@ -154,6 +155,9 @@ export const TabButtons: React.FC<TabButtonProps> = ({
   );
 };
 
+// Static styles reference `Tokens.light` / `Tokens.dark` at module load
+// (both branches are static). Theme-keyed text colors flow through inline
+// style overrides above.
 const styles = StyleSheet.create({
   containerBase: {
     flexDirection: 'row',
@@ -164,20 +168,20 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   containerDark: {
-    backgroundColor: '#0F172A',
-    borderColor: '#334155',
+    backgroundColor: Tokens.dark.surface,
+    borderColor: Tokens.dark.border,
     shadowOpacity: 0.4,
   },
   containerLight: {
-    backgroundColor: '#F4F1F8',
-    borderColor: '#E3D8F1',
+    backgroundColor: Tokens.light.surfaceMuted,
+    borderColor: Tokens.light.border,
     shadowOpacity: 0.12,
   },
   inactiveTextDark: {
-    color: '#CBD5F5',
+    color: Tokens.dark.inkSecondary,
   },
   inactiveTextLight: {
-    color: '#5F4B75',
+    color: Tokens.light.inkSecondary,
   },
   pillContainer: {
     borderRadius: 16,
@@ -226,10 +230,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   underlineBorderDark: {
-    borderBottomColor: '#334155',
+    borderBottomColor: Tokens.dark.border,
   },
   underlineBorderLight: {
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: Tokens.light.border,
   },
   underlineButton: {
     flex: 1,
@@ -241,19 +245,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-  underlineTextActive: {
-    color: '#7E57C2',
-  },
-  underlineTextInactive: {
-    color: '#94A3B8',
-  },
   underlineIndicator: {
     position: 'absolute',
     bottom: 0,
     height: 3,
     width: '60%',
     alignSelf: 'center',
-    backgroundColor: '#7E57C2',
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
   },

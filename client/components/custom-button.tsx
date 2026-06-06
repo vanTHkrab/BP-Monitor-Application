@@ -1,4 +1,4 @@
-import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontClass } from '@/utils/font-scale';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -46,20 +46,25 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const t = Tokens[isDark ? 'dark' : 'light'];
 
-  const getGradientColors = (): [string, string, string] => {
-    if (disabled) return ['#BDC3C7', '#BDC3C7', '#BDC3C7'];
+  const getGradientColors = (): readonly [string, string, string] => {
+    if (disabled) {
+      const muted = t.inkMuted;
+      return [muted, muted, muted] as const;
+    }
     switch (variant) {
       case 'primary':
-        return ['#9575CD', '#7E57C2', '#5E35B1'];
+        return t.brandGradient;
       case 'secondary':
-        return ['#72DDF4', '#35B8E8', '#1898D4'];
+        // Sage accent gradient is 2-stop; pad with mid value for the 3-stop API.
+        return [t.accentGradient[0], t.accent, t.accentGradient[1]] as const;
       case 'danger':
-        return ['#FF8A8A', '#F46D6D', '#E05555'];
+        return [t.dangerGradient[0], t.dangerGradient[0], t.dangerGradient[1]] as const;
       case 'outline':
-        return ['transparent', 'transparent', 'transparent'];
+        return ['transparent', 'transparent', 'transparent'] as const;
       default:
-        return ['#9575CD', '#7E57C2', '#5E35B1'];
+        return t.brandGradient;
     }
   };
 
@@ -67,7 +72,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
     if (disabled) return '#FFFFFF';
     switch (variant) {
       case 'outline':
-        return Colors.primary.blue;
+        return t.brand;
       default:
         return '#FFFFFF';
     }
@@ -139,19 +144,14 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
       onPress={onPress}
       disabled={disabled || loading}
       className={(fullWidth ? 'w-full' : '') + (className ? ` ${className}` : '')}
-      style={[
-        style,
-      ]}
+      style={style}
     >
       {variant === 'outline' ? (
         <View
-          className={
-            `rounded-2xl ${sizeClassName} ` +
-            (isDark ? 'bg-[#0F172A]' : 'bg-white')
-          }
+          className={`rounded-2xl ${sizeClassName}`}
           style={[
+            { backgroundColor: t.surface, borderWidth: 2, borderColor: t.brand },
             shadowStyle,
-            { borderWidth: 2, borderColor: Colors.primary.blue },
           ]}
         >
           {buttonContent}

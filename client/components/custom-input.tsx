@@ -1,3 +1,4 @@
+import { Tokens } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontNumber } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +31,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const t = Tokens[isDark ? 'dark' : 'light'];
 
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -49,30 +51,34 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   const hasError = typeof error === 'string';
   const showErrorText = hasError && error.length > 0;
 
-  const wrapperClassName =
-    'flex-row items-center rounded-[14px] border-2 px-[14px] py-1 shadow-sm ' +
-    (hasError
-      ? `border-red-500 ${isDark ? 'bg-[#2A0A0A]' : 'bg-red-50'}`
-      : isFocused
-        ? 'border-[#7E57C2] bg-white'
-        : `${isDark ? 'border-[#334155] bg-[#0B1220]' : 'border-white bg-white/95'}`);
+  const wrapperBackground = hasError
+    ? (isDark ? '#2A1411' : t.statusHighBg)
+    : isFocused
+      ? t.surface
+      : isDark
+        ? t.surfaceMuted
+        : t.surface;
 
-  const iconBoxClassName =
-    'w-9 h-9 rounded-[10px] items-center justify-center mr-2.5 ' +
-    (isFocused
-      ? (isDark ? 'bg-[#281B45]' : 'bg-[#F3E5F5]')
-      : (isDark ? 'bg-[#111827]' : 'bg-[#F4F1F8]'));
+  const wrapperBorder = hasError
+    ? t.statusHigh
+    : isFocused
+      ? t.brand
+      : isDark
+        ? t.border
+        : t.border;
+
+  const iconBoxBackground = isFocused
+    ? (isDark ? '#3A2820' : t.brandSoft)
+    : (isDark ? t.surface : t.surfaceMuted);
 
   const iconColor = hasError
-    ? '#EF4444'
+    ? t.statusHigh
     : isFocused
-      ? '#7E57C2'
-      : isDark
-        ? '#94A3B8'
-        : '#9CA3AF';
+      ? t.brand
+      : t.inkMuted;
 
-  const inputClassName = 'flex-1 font-semibold py-3 ' + (isDark ? 'text-slate-200' : 'text-slate-800');
-  const placeholderTextColor = isDark ? '#94A3B8' : '#9CA3AF';
+  const inputColor = t.inkPrimary;
+  const placeholderTextColor = t.inkMuted;
   const inputFontSize = getFontNumber(fontSizePreference, {
     small: 14,
     medium: 15,
@@ -86,9 +92,15 @@ export const CustomInput: React.FC<CustomInputProps> = ({
 
   return (
     <View className="mb-4">
-      <View className={wrapperClassName}>
+      <View
+        className="flex-row items-center rounded-[14px] border-2 px-[14px] py-1 shadow-sm"
+        style={{ backgroundColor: wrapperBackground, borderColor: wrapperBorder }}
+      >
         {icon && (
-          <View className={iconBoxClassName}>
+          <View
+            className="w-9 h-9 rounded-[10px] items-center justify-center mr-2.5"
+            style={{ backgroundColor: iconBoxBackground }}
+          >
             <Ionicons
               name={icon}
               size={20}
@@ -97,8 +109,8 @@ export const CustomInput: React.FC<CustomInputProps> = ({
           </View>
         )}
         <TextInput
-          className={inputClassName}
-          style={{ fontSize: inputFontSize }}
+          className="flex-1 font-semibold py-3"
+          style={{ fontSize: inputFontSize, color: inputColor }}
           placeholder={placeholder}
           placeholderTextColor={placeholderTextColor}
           value={value}
@@ -115,13 +127,16 @@ export const CustomInput: React.FC<CustomInputProps> = ({
             <Ionicons
               name={isPasswordVisible ? 'eye-off' : 'eye'}
               size={22}
-              color={isDark ? '#94A3B8' : '#9CA3AF'}
+              color={t.inkMuted}
             />
           </Pressable>
         )}
       </View>
       {showErrorText && (
-        <Text className="text-red-500 mt-1.5 ml-1 font-semibold" style={{ fontSize: errorFontSize }}>
+        <Text
+          className="mt-1.5 ml-1 font-semibold"
+          style={{ fontSize: errorFontSize, color: t.statusHigh }}
+        >
           {error}
         </Text>
       )}

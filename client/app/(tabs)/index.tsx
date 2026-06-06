@@ -57,8 +57,8 @@ export default function HomeScreen() {
     xlarge: 'text-[19px]',
   });
 
-  const textPrimaryClassName = isDark ? 'text-slate-200' : 'text-[#2C3E50]';
-  const textSecondaryClassName = isDark ? 'text-slate-400' : 'text-[#7F8C8D]';
+  const textPrimaryClassName = isDark ? 'text-slate-200' : 'text-[#2A2620]';
+  const textSecondaryClassName = isDark ? 'text-slate-400' : 'text-[#85786B]';
   const captionClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-[11px]',
     small: 'text-xs',
@@ -155,11 +155,11 @@ export default function HomeScreen() {
   }, [fetchAlerts, readings, user?.id]);
 
   const statusUi: Record<BPStatus, { pill: string; dot: string; text: string }> = {
-    low: { pill: 'bg-[#3498DB]/20', dot: 'bg-[#3498DB]', text: 'text-[#3498DB]' },
-    normal: { pill: 'bg-[#27AE60]/20', dot: 'bg-[#27AE60]', text: 'text-[#27AE60]' },
-    elevated: { pill: 'bg-[#F39C12]/20', dot: 'bg-[#F39C12]', text: 'text-[#F39C12]' },
-    high: { pill: 'bg-[#E74C3C]/20', dot: 'bg-[#E74C3C]', text: 'text-[#E74C3C]' },
-    critical: { pill: 'bg-[#8E44AD]/20', dot: 'bg-[#8E44AD]', text: 'text-[#8E44AD]' },
+    low: { pill: 'bg-[#5A7DBA]/20', dot: 'bg-[#5A7DBA]', text: 'text-[#5A7DBA]' },
+    normal: { pill: 'bg-[#52A57C]/20', dot: 'bg-[#52A57C]', text: 'text-[#52A57C]' },
+    elevated: { pill: 'bg-[#D08F3E]/20', dot: 'bg-[#D08F3E]', text: 'text-[#D08F3E]' },
+    high: { pill: 'bg-[#C45040]/20', dot: 'bg-[#C45040]', text: 'text-[#C45040]' },
+    critical: { pill: 'bg-[#8D2F22]/20', dot: 'bg-[#8D2F22]', text: 'text-[#8D2F22]' },
   };
 
   const guidanceByStatus: Record<
@@ -169,31 +169,31 @@ export default function HomeScreen() {
     low: {
       title: 'ค่าความดันค่อนข้างต่ำ',
       description: 'นั่งพัก ดื่มน้ำ และหากมีอาการเวียนหัวหรือหน้ามืดควรแจ้งญาติหรือพบแพทย์',
-      accent: '#3498DB',
+      accent: '#5A7DBA',
       icon: 'water-outline',
     },
     normal: {
       title: 'ค่าความดันอยู่ในเกณฑ์ดี',
       description: 'วัดต่อเนื่องตามเวลาประจำและบันทึกผลไว้เพื่อดูแนวโน้ม',
-      accent: '#27AE60',
+      accent: '#52A57C',
       icon: 'checkmark-circle-outline',
     },
     elevated: {
       title: 'เริ่มสูงกว่าปกติ',
       description: 'พัก 5-10 นาทีแล้ววัดซ้ำ ลดเค็ม และติดตามค่าในช่วงเย็นอีกครั้ง',
-      accent: '#F39C12',
+      accent: '#D08F3E',
       icon: 'alert-circle-outline',
     },
     high: {
       title: 'ความดันค่อนข้างสูง',
       description: 'พักนิ่ง ๆ วัดซ้ำอีกครั้ง หากยังสูงต่อเนื่องควรติดต่อโรงพยาบาลหรือญาติ',
-      accent: '#E74C3C',
+      accent: '#C45040',
       icon: 'medkit-outline',
     },
     critical: {
       title: 'เสี่ยงอันตราย ควรพบแพทย์ด่วน',
       description: 'หากมีอาการแน่นหน้าอก ปวดหัวมาก หรือหายใจลำบาก ให้โทรขอความช่วยเหลือทันที',
-      accent: '#8E44AD',
+      accent: '#8D2F22',
       icon: 'warning-outline',
     },
   };
@@ -298,13 +298,13 @@ export default function HomeScreen() {
                 name={user?.firstname}
                 size="md"
                 className={
-                  (isDark ? 'bg-[#0F172A]' : 'bg-white') +
+                  (isDark ? 'bg-[#2A2620]' : 'bg-white') +
                   ' w-[50px] h-[50px] mr-3 shadow-md'
                 }
                 fallback={
                   <View
                     className={
-                      (isDark ? 'bg-[#111827]' : 'bg-[#F0F0F0]') +
+                      (isDark ? 'bg-[#3A322B]' : 'bg-[#F4EFEA]') +
                       ' w-[50px] h-[50px] rounded-full overflow-hidden mr-3 shadow-md items-center justify-center'
                     }
                   >
@@ -318,9 +318,9 @@ export default function HomeScreen() {
             </View>
             <AnimatedPressable
               onPress={() => setShowNotificationsModal(true)}
-              className={(isDark ? 'bg-[#0F172A]' : 'bg-white') + ' p-2 rounded-xl shadow-md relative'}
+              className={(isDark ? 'bg-[#2A2620]' : 'bg-white') + ' p-2 rounded-xl shadow-md relative'}
             >
-              <Ionicons name="notifications-outline" size={26} color={isDark ? '#E2E8F0' : Colors.text.primary} />
+              <Ionicons name="notifications-outline" size={26} color={isDark ? '#F3EFE9' : Colors.text.primary} />
               {unreadNotificationsCount > 0 ? (
                 <View className="absolute -top-1 -right-1 min-w-[20px] h-5 rounded-full bg-red-500 items-center justify-center px-1">
                   <Text className="text-white font-bold" style={{ fontSize: notificationBadgeFontSize }}>
@@ -338,12 +338,12 @@ export default function HomeScreen() {
             <View className="mx-4 mb-2">
               <View
                 className={
-                  (isDark ? 'bg-[#0F172A] border-[#334155]' : 'bg-white border-white/80') +
+                  (isDark ? 'bg-[#2A2620] border-[#3A322B]' : 'bg-white border-white/80') +
                   ' rounded-3xl border p-6 items-center shadow-md'
                 }
               >
-                <View className="w-16 h-16 rounded-full bg-[#EDE7F6] items-center justify-center mb-3">
-                  <Ionicons name="people" size={32} color="#7E57C2" />
+                <View className="w-16 h-16 rounded-full bg-[#EBF1ED] items-center justify-center mb-3">
+                  <Ionicons name="people" size={32} color="#CD7E5C" />
                 </View>
                 <Text className={titleClassName + ' font-bold ' + textPrimaryClassName + ' text-center'}>
                   เลือกผู้ป่วยที่ต้องการดู
@@ -356,7 +356,7 @@ export default function HomeScreen() {
                   className="mt-4"
                 >
                   <LinearGradient
-                    colors={['#A879E8', '#7E57C2', '#5E35B1']}
+                    colors={['#DC9876', '#CD7E5C', '#9C4E2E']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     className="px-5 py-3 rounded-2xl flex-row items-center"
@@ -375,7 +375,7 @@ export default function HomeScreen() {
         <ScaleOnMount delay={200}>
           <View className="mx-4 rounded-3xl overflow-hidden shadow-lg shadow-black/15">
             <LinearGradient
-              colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#FFFFFF']}
+              colors={isDark ? ['#2A2620', '#3A322B'] : ['#FFFFFF', '#FFFFFF']}
               className="p-5 rounded-3xl border border-white/80"
             >
               <Text className={'text-center mb-3 font-medium ' + captionClassName + ' ' + textSecondaryClassName}>
@@ -386,13 +386,13 @@ export default function HomeScreen() {
                 <>
                   <PulseView active={true}>
                   <View className="flex-row justify-center items-baseline mb-3">
-                    <Text className={isDark ? `${readingValueClassName} font-bold text-slate-100` : `${readingValueClassName} font-bold text-[#1a1a1a]`}>
+                    <Text className={isDark ? `${readingValueClassName} font-bold text-slate-100` : `${readingValueClassName} font-bold text-[#2A2620]`}>
                       {latestReading.systolic}
                     </Text>
-                      <Text className={isDark ? `${readingValueClassName} font-bold text-slate-100 mx-1` : `${readingValueClassName} font-bold text-[#1a1a1a] mx-1`}>
+                      <Text className={isDark ? `${readingValueClassName} font-bold text-slate-100 mx-1` : `${readingValueClassName} font-bold text-[#2A2620] mx-1`}>
                         /
                       </Text>
-                      <Text className={isDark ? `${readingValueClassName} font-bold text-slate-100` : `${readingValueClassName} font-bold text-[#1a1a1a]`}>
+                      <Text className={isDark ? `${readingValueClassName} font-bold text-slate-100` : `${readingValueClassName} font-bold text-[#2A2620]`}>
                         {latestReading.diastolic}
                       </Text>
                       <Text className={readingUnitClassName + ' font-semibold ml-2 ' + textSecondaryClassName}>
@@ -402,9 +402,9 @@ export default function HomeScreen() {
                   </PulseView>
                   
                   <View className="flex-row justify-center items-center">
-                    <View className="flex-row items-center bg-[#FDE8E8] px-3 py-1.5 rounded-full">
+                    <View className="flex-row items-center bg-[#FBEFE9] px-3 py-1.5 rounded-full">
                       <Ionicons name="heart" size={20} color={Colors.heartRate.icon} />
-                      <Text className={captionClassName + " text-[#E91E63] ml-1.5 font-semibold"}>{latestReading.pulse} bpm</Text>
+                      <Text className={captionClassName + " text-[#CD7E5C] ml-1.5 font-semibold"}>{latestReading.pulse} bpm</Text>
                     </View>
                     <View
                       className={
@@ -437,13 +437,13 @@ export default function HomeScreen() {
             className="mx-4 mt-4"
           >
             <LinearGradient
-              colors={['#A879E8', '#7E57C2', '#5E35B1']}
+              colors={['#DC9876', '#CD7E5C', '#9C4E2E']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="flex-row items-center justify-center py-4 rounded-2xl shadow-lg"
             >
-              <View className={(isDark ? 'bg-[#0F172A]' : 'bg-white') + ' w-11 h-11 rounded-xl items-center justify-center mr-3'}>
-                <Ionicons name="camera" size={26} color="#7E57C2" />
+              <View className={(isDark ? 'bg-[#2A2620]' : 'bg-white') + ' w-11 h-11 rounded-xl items-center justify-center mr-3'}>
+                <Ionicons name="camera" size={26} color="#CD7E5C" />
               </View>
               <Text className={`text-white font-semibold ${primaryActionClassName}`}>คลิกที่นี่ เพื่อ ถ่ายภาพวัดความดัน</Text>
             </LinearGradient>
@@ -456,7 +456,7 @@ export default function HomeScreen() {
             <View className="px-4 mt-4">
               <View
                 className={
-                  (isDark ? 'bg-[#0F172A] border border-[#334155]' : 'bg-white border border-white/80') +
+                  (isDark ? 'bg-[#2A2620] border border-[#3A322B]' : 'bg-white border border-white/80') +
                   ' rounded-2xl p-4 shadow-md'
                 }
               >
@@ -481,7 +481,7 @@ export default function HomeScreen() {
                   <View className="flex-row mt-4">
                     <AnimatedPressable onPress={callEmergency} className="flex-1 mr-3">
                       <LinearGradient
-                        colors={['#E74C3C', '#C0392B']}
+                        colors={['#C45040', '#8D2F22']}
                         className="rounded-2xl py-3.5 items-center justify-center"
                       >
                         <Text className={`text-white font-bold ${primaryActionClassName}`}>
@@ -490,8 +490,8 @@ export default function HomeScreen() {
                       </LinearGradient>
                     </AnimatedPressable>
                     <AnimatedPressable onPress={() => router.push('/help' as Href)} className="flex-1">
-                      <View className={(isDark ? 'bg-[#111827]' : 'bg-[#EBF5FB]') + ' rounded-2xl py-3.5 items-center justify-center'}>
-                        <Text className={`${primaryActionClassName} font-semibold ${isDark ? 'text-slate-100' : 'text-[#2C3E50]'}`}>
+                      <View className={(isDark ? 'bg-[#3A322B]' : 'bg-[#FBEFE9]') + ' rounded-2xl py-3.5 items-center justify-center'}>
+                        <Text className={`${primaryActionClassName} font-semibold ${isDark ? 'text-slate-100' : 'text-[#2A2620]'}`}>
                           เปิดคำแนะนำ
                         </Text>
                       </View>
@@ -519,12 +519,12 @@ export default function HomeScreen() {
               >
                 <View
                   className={
-                    (isDark ? 'bg-[#0F172A] border border-[#334155]' : 'bg-white border border-white/80') +
+                    (isDark ? 'bg-[#2A2620] border border-[#3A322B]' : 'bg-white border border-white/80') +
                     ' rounded-2xl p-[18px] min-h-[170px] items-center shadow-md'
                   }
                 >
-                  <View className="w-[72px] h-[72px] bg-[#EBF5FB] rounded-2xl items-center justify-center mb-2">
-                    <Ionicons name="trending-up" size={32} color="#35B8E8" />
+                  <View className="w-[72px] h-[72px] bg-[#FBEFE9] rounded-2xl items-center justify-center mb-2">
+                    <Ionicons name="trending-up" size={32} color="#7BA286" />
                   </View>
                   <View className="flex-row items-center justify-center mt-0.5">
                     <Text className={sectionBodyClassName + ' mb-1 ' + textSecondaryClassName}>
@@ -533,7 +533,7 @@ export default function HomeScreen() {
                     <Ionicons
                       name="chevron-forward"
                       size={16}
-                      color={isDark ? '#94A3B8' : Colors.text.secondary}
+                      color={isDark ? '#B5ACA1' : Colors.text.secondary}
                     />
                   </View>
                 </View>
@@ -547,7 +547,7 @@ export default function HomeScreen() {
               >
                 <View
                   className={
-                    (isDark ? 'bg-[#0F172A] border border-[#334155]' : 'bg-white border border-white/80') +
+                    (isDark ? 'bg-[#2A2620] border border-[#3A322B]' : 'bg-white border border-white/80') +
                     ' rounded-2xl p-[18px] min-h-[170px] items-center shadow-md'
                   }
                 >
@@ -555,7 +555,7 @@ export default function HomeScreen() {
                     สร้างรายงานสุขภาพ
                   </Text>
                   <LinearGradient
-                    colors={['#2C3E50', '#1a1a2e']}
+                    colors={['#2A2620', '#1A1714']}
                     className="w-[72px] h-[72px] rounded-2xl items-center justify-center mb-2"
                   >
                     <Text className={captionClassName + " text-white font-bold"}>PDF</Text>
@@ -579,12 +579,12 @@ export default function HomeScreen() {
             <AnimatedPressable onPress={() => router.push('/health-tips' as Href)} className="mb-3">
               <View
                 className={
-                  (isDark ? 'bg-[#0F172A] border border-[#334155]' : 'bg-white border border-white/80') +
+                  (isDark ? 'bg-[#2A2620] border border-[#3A322B]' : 'bg-white border border-white/80') +
                   ' rounded-2xl p-4 flex-row items-center shadow-md'
                 }
               >
-                <View className="w-11 h-11 bg-[#E8F5E9] rounded-full items-center justify-center mr-3">
-                  <Ionicons name="leaf" size={22} color="#27AE60" />
+                <View className="w-11 h-11 bg-[#EBF1ED] rounded-full items-center justify-center mr-3">
+                  <Ionicons name="leaf" size={22} color="#52A57C" />
                 </View>
                 <View className="flex-1">
                   <Text className={cardTitleClassName + ' font-semibold ' + textPrimaryClassName}>
@@ -600,7 +600,7 @@ export default function HomeScreen() {
             
             <AnimatedPressable onPress={() => router.push('/settings' as Href)}>
               <LinearGradient
-                colors={['#A879E8', '#7E57C2', '#5E35B1']}
+                colors={['#DC9876', '#CD7E5C', '#9C4E2E']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 className="rounded-2xl p-4 flex-row items-center shadow-lg"
@@ -631,7 +631,7 @@ export default function HomeScreen() {
         <View className="flex-1 bg-black/45 justify-end">
           <View
             className={
-              (isDark ? 'bg-[#0B1220] border border-[#1F2937]' : 'bg-white') +
+              (isDark ? 'bg-[#1A1714] border border-[#3A322B]' : 'bg-white') +
               ' rounded-t-[28px] px-4 pt-4 pb-6 max-h-[80%]'
             }
           >
@@ -646,9 +646,9 @@ export default function HomeScreen() {
               </View>
               <AnimatedPressable
                 onPress={() => setShowNotificationsModal(false)}
-                className={(isDark ? 'bg-[#111827]' : 'bg-[#F3F4F6]') + ' w-10 h-10 rounded-xl items-center justify-center'}
+                className={(isDark ? 'bg-[#3A322B]' : 'bg-[#F4EFEA]') + ' w-10 h-10 rounded-xl items-center justify-center'}
               >
-                <Ionicons name="close" size={22} color={isDark ? '#E2E8F0' : '#374151'} />
+                <Ionicons name="close" size={22} color={isDark ? '#F3EFE9' : '#85786B'} />
               </AnimatedPressable>
             </View>
 
@@ -657,7 +657,7 @@ export default function HomeScreen() {
                 ยังไม่อ่าน {unreadNotificationsCount} รายการ
               </Text>
               <AnimatedPressable onPress={() => void handleMarkAllNotificationsRead()}>
-                <Text className={sectionBodyClassName + ' font-semibold text-[#2563EB]'}>
+                <Text className={sectionBodyClassName + ' font-semibold text-[#CD7E5C]'}>
                   อ่านทั้งหมด
                 </Text>
               </AnimatedPressable>
@@ -675,21 +675,21 @@ export default function HomeScreen() {
                       className={
                         (isUnread
                           ? isDark
-                            ? 'bg-[#111827] border-[#334155]'
+                            ? 'bg-[#3A322B] border-[#3A322B]'
                             : 'bg-white border-white/80'
                           : isDark
-                            ? 'bg-[#0F172A] border-[#1F2937]'
+                            ? 'bg-[#2A2620] border-[#3A322B]'
                             : 'bg-white border-white/80') +
                         ' rounded-2xl border p-4 mb-3'
                       }
                     >
                       <View className="flex-row items-start">
                         <View className="mr-3 mt-1">
-                          <View className="w-10 h-10 rounded-xl items-center justify-center bg-[#EBF5FB]">
+                          <View className="w-10 h-10 rounded-xl items-center justify-center bg-[#FBEFE9]">
                             <Ionicons
                               name="heart-outline"
                               size={20}
-                              color="#7E57C2"
+                              color="#CD7E5C"
                             />
                           </View>
                         </View>
@@ -703,7 +703,7 @@ export default function HomeScreen() {
                           <Text className={sectionBodyClassName + ' mt-1 leading-6 ' + textSecondaryClassName}>
                             {item.body}
                           </Text>
-                          <Text className={captionClassName + ' mt-2 ' + (isUnread ? 'text-[#2563EB]' : textSecondaryClassName)}>
+                          <Text className={captionClassName + ' mt-2 ' + (isUnread ? 'text-[#CD7E5C]' : textSecondaryClassName)}>
                             {item.createdAt.toLocaleString('th-TH', {
                               day: 'numeric',
                               month: 'short',
@@ -720,7 +720,7 @@ export default function HomeScreen() {
               ) : (
                 <View
                   className={
-                    (isDark ? 'bg-[#111827] border border-[#334155]' : 'bg-white border border-white/80') +
+                    (isDark ? 'bg-[#3A322B] border border-[#3A322B]' : 'bg-white border border-white/80') +
                     ' rounded-2xl p-5'
                   }
                 >

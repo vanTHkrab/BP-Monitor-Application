@@ -1,3 +1,4 @@
+import { Tokens } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
 import { getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,20 +31,21 @@ export const MenuItem: React.FC<MenuItemProps> = ({
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  const t = Tokens[isDark ? 'dark' : 'light'];
 
   const gradientColors: [string, string] = isDanger
     ? isDark
-      ? ['#3B0A0A', '#2A0A0A']
-      : ['#FFF2F2', '#FFE2E2']
+      ? ['#3B1411', t.surface]                 // danger dark: muted red wash → surface
+      : [t.statusHighBg, '#FBDCD3']           // danger light: soft red tint
     : isDark
-      ? ['#0F172A', '#111827']
-      : ['#FFFFFF', '#F9F7FC'];
+      ? [t.surface, t.surfaceMuted]           // default dark: surface elevation
+      : [t.surface, t.brandSoft];             // default light: surface → brand-soft for warmth
 
-  const borderClassName = isDanger
-    ? (isDark ? 'border-[#7F1D1D]' : 'border-[#FECACA]')
-    : (isDark ? 'border-[#334155]' : 'border-white');
+  const borderColor = isDanger
+    ? (isDark ? '#5A2018' : '#F2C4B8')
+    : (isDark ? t.border : t.border);
 
-  const titleClassName = isDanger ? 'text-red-500' : (isDark ? 'text-slate-200' : 'text-[#2C3E50]');
+  const titleColor = isDanger ? t.statusHigh : t.inkPrimary;
   const titleSizeClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-[13px]',
     small: 'text-[14px]',
@@ -51,30 +53,30 @@ export const MenuItem: React.FC<MenuItemProps> = ({
     large: 'text-[18px]',
     xlarge: 'text-[20px]',
   });
-  const arrowBgClassName = isDark ? 'bg-[#1F2937]' : 'bg-[#F4F1F8]';
-  const arrowColor = isDanger ? '#EF4444' : isDark ? '#94A3B8' : '#7E57C2';
-  
+  const arrowBgColor = isDark ? t.surfaceMuted : t.brandSoft;
+  const arrowColor = iconColor ?? (isDanger ? t.statusHigh : isDark ? t.inkSecondary : t.brand);
+  const iconBoxBg = isDanger ? (isDark ? '#3B1411' : t.statusHighBg) : 'transparent';
+
   return (
     <AnimatedPressable onPress={onPress} className="mb-2.5 rounded-2xl overflow-hidden shadow-md shadow-black/10">
       <LinearGradient
         colors={gradientColors}
-        className={'flex-row items-center p-[14px] rounded-2xl border ' + borderClassName}
+        className="flex-row items-center p-[14px] rounded-2xl border"
+        style={{ borderColor }}
       >
         <View
-          className={
-            'w-[42px] h-[42px] rounded-[12px] items-center justify-center overflow-hidden' +
-            (isDanger ? (isDark ? ' bg-[#2A0A0A]' : ' bg-[#FEE2E2]') : '')
-          }
+          className="w-[42px] h-[42px] rounded-[12px] items-center justify-center overflow-hidden"
+          style={{ backgroundColor: iconBoxBg }}
         >
           {isDanger ? (
             <Ionicons
               name={icon}
               size={22}
-              color="#EF4444"
+              color={t.statusHigh}
             />
           ) : (
             <LinearGradient
-              colors={['#7E57C2', '#5E35B1']}
+              colors={t.brandGradient}
               className="w-full h-full items-center justify-center rounded-[12px]"
             >
               <Ionicons
@@ -85,15 +87,21 @@ export const MenuItem: React.FC<MenuItemProps> = ({
             </LinearGradient>
           )}
         </View>
-        <Text className={'flex-1 ml-3.5 font-semibold pr-2 ' + titleSizeClassName + ' ' + titleClassName}>
+        <Text
+          className={'flex-1 ml-3.5 font-semibold pr-2 ' + titleSizeClassName}
+          style={{ color: titleColor }}
+        >
           {title}
         </Text>
         {showArrow && (
-          <View className={'w-7 h-7 rounded-full items-center justify-center ' + arrowBgClassName}>
-            <Ionicons 
-              name="chevron-forward" 
-              size={20} 
-              color={arrowColor} 
+          <View
+            className="w-7 h-7 rounded-full items-center justify-center"
+            style={{ backgroundColor: arrowBgColor }}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={arrowColor}
             />
           </View>
         )}
