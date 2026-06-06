@@ -38,7 +38,8 @@ BP-Monitor-Application/
 The gateway ↔ ai-service wire contract lives on a Redis pub/sub channel
 (`analyze_bp_image` / `analyze_bp_image.reply`); shapes are owned by
 [api-gateway/src/ai/dto/](./server/app/api-gateway/src/ai/dto/) on the
-NestJS side and mirrored by [ai-service/src/ai_service/main.py](./server/app/ai-service/src/ai_service/main.py).
+NestJS side and mirrored by [ai-service/src/ai_service/handlers.py](./server/app/ai-service/src/ai_service/handlers.py)
+(`handle_message` owns the reply schema and `ocrEngine` dispatch).
 No separate shared-types package.
 
 ## System architecture at a glance

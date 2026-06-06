@@ -14,10 +14,9 @@ This repository includes:
 BP-Monitor-Application/
 ├── client/                    # Mobile app (Expo + React Native)
 ├── server/
-│   ├── app/
-│   │   ├── api-gateway/       # Main backend API gateway (NestJS)
-│   │   └── ai-service/        # AI service (FastAPI, Python)
-│   └── proto/                 # Shared protocol definitions
+│   └── app/
+│       ├── api-gateway/       # Main backend API gateway (NestJS)
+│       └── ai-service/        # AI service (FastAPI, Python)
 ├── web/                       # Web dashboard (Next.js)
 └── LICENSE
 ```

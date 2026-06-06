@@ -81,7 +81,7 @@ incidents, ข้อตกลงที่หาในโค้ดไม่เจ
 - **Web dashboard** ใช้ TanStack Query → cache invalidation ขึ้นกับ
   schema field names; การ rename field เป็น breaking change
 - **AI service** เชื่อมผ่าน Redis channel `analyze_bp_image` / `analyze_bp_image.reply`
-  shape อยู่ใน `src/ai/` ฝั่ง gateway และ `src/ai_service/main.py` ฝั่ง Python
+  shape อยู่ใน `src/ai/` ฝั่ง gateway และ `src/ai_service/handlers.py` ฝั่ง Python
   ห้ามแก้ฝั่งเดียว
 - **PDPA scope**: ผู้ใช้ขอ "ลบข้อมูลของฉัน" → ต้องลบให้ครบจริงๆ
   (PLAN.md P0 #4 ยังไม่เสร็จ — เอกสารนี้เตือนตัวเองว่ามันยังเป็น risk)

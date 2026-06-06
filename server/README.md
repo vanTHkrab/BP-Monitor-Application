@@ -62,7 +62,7 @@ Docker Compose, see [`../infra/README.md`](../infra/README.md).
     result or an error)
 - **Payload shape** is owned by:
   - Gateway side: [`app/api-gateway/src/ai/`](./app/api-gateway/src/ai/)
-  - AI side: [`app/ai-service/src/ai_service/main.py`](./app/ai-service/src/ai_service/main.py)
+  - AI side: [`app/ai-service/src/ai_service/handlers.py`](./app/ai-service/src/ai_service/handlers.py)
 
 > ⚠️ Both sides must be updated together when the channel name or payload
 > shape changes — otherwise the AI flow silently breaks with no HTTP-layer
@@ -74,7 +74,7 @@ Docker Compose, see [`../infra/README.md`](../infra/README.md).
 
 | File | Read when |
 | --- | --- |
-| [`docs/API.md`](./docs/API.md) | You're a client developer — you need the GraphQL contract (auth, error codes, operation catalogue, image-upload flow) |
+| [`docs/API.md`](../docs/API.md) | You're a client developer — you need the GraphQL contract (auth, error codes, operation catalogue, image-upload flow) |
 | [`CLAUDE.md`](./CLAUDE.md) | AI agents — server-wide guidance |
 | [`app/api-gateway/README.md`](./app/api-gateway/README.md) | Onboarding & ops for the gateway |
 | [`app/api-gateway/CLAUDE.md`](./app/api-gateway/CLAUDE.md) | Conventions inside the gateway (validation, error mapping, sessions) |

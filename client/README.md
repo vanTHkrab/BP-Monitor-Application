@@ -79,16 +79,22 @@ client/
 │   │   ├── camera.tsx         # BP image capture + AI OCR + manual entry
 │   │   ├── history.tsx        # Reading history with filters + CSV/PDF export
 │   │   ├── chat.tsx           # Community feed (posts + comments)
+│   │   ├── explore.tsx        # Explore / discovery tab
 │   │   └── menu.tsx           # Settings shortcuts
 │   ├── profile.tsx            # Profile editor (modal)
 │   ├── settings.tsx           # App settings (modal)
 │   ├── security.tsx           # Sensitive-data lock / biometrics (modal)
 │   ├── caregivers.tsx         # Caregiver-patient links (modal)
-│   └── help.tsx               # Help & FAQ (modal)
+│   ├── help.tsx               # Help & FAQ (modal)
+│   ├── about.tsx              # App version / legal information (modal)
+│   ├── health-tips.tsx        # Health tips content screen (modal)
+│   ├── history-list.tsx       # Full reading history list view (modal)
+│   ├── modal.tsx              # Generic modal shell
+│   └── debug/                 # Dev/debug tooling screens — not included in production builds
 ├── components/                # Shared UI primitives (buttons, inputs, gradients, animations)
 ├── constants/                 # api.ts (GraphQL client + queries), colors.ts (BP status), tabs.ts
 ├── data/                      # local-db.ts (SQLite schema + offline queues), mockData.ts
-├── hooks/                     # use-camera-analysis, use-color-scheme, use-theme-color
+├── hooks/                     # use-camera-analysis, use-color-scheme, use-theme-color, use-live-preflight, use-resolved-image-uri
 ├── lib/                       # graphql-client.ts (multipart-aware GraphQL client)
 ├── services/                  # camera.service.ts (BP image upload + analysis polling)
 ├── store/                     # Single Zustand store composed from slices
