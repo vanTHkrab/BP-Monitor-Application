@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BP Monitor — Task Board</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #1a1d27;
+    --border:    #2a2d3e;
+    --text:      #e2e4f0;
+    --muted:     #6b7094;
+    --accent:    #6c8eff;
+    --critical:  #ff5c6e;
+    --high:      #ff9a3c;
+    --medium:    #f5c542;
+    --low:       #4ecb71;
+    --todo:      #6b7094;
+    --wip:       #6c8eff;
+    --blocked:   #ff5c6e;
+    --done:      #4ecb71;
+    --radius:    8px;
+    --font:      'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-title h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+  .header-title span {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+  }
+  .header-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .toolbar label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: 2px;
+  }
+  select {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 5px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+  select:focus { border-color: var(--accent); }
+  .divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .stat-pills {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .stat-pill {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .stat-pill strong { color: var(--text); }
+
+  /* ── Layout ── */
+  main {
+    padding: 28px 32px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+  }
+
+  /* ── Scope card ── */
+  .scope-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .scope-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .scope-name {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--accent);
+  }
+  .scope-count {
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+  .task-list { padding: 8px 0; }
+
+  /* ── Task row ── */
+  .task-row {
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    transition: background 0.1s;
+  }
+  .task-row:last-child { border-bottom: none; }
+  .task-row:hover { background: rgba(255,255,255,0.03); }
+  .task-row.status-done { opacity: 0.4; }
+  .task-id {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+    padding-top: 1px;
+    min-width: 46px;
+  }
+  .task-body { flex: 1; min-width: 0; }
+  .task-desc {
+    font-size: 13px;
+    line-height: 1.45;
+    word-break: break-word;
+  }
+  .task-row.status-done .task-desc { text-decoration: line-through; }
+  .task-note {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+  .badges {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+    align-items: flex-start;
+    padding-top: 1px;
+  }
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .priority-critical { background: rgba(255,92,110,.15); color: var(--critical); }
+  .priority-high     { background: rgba(255,154,60,.15); color: var(--high); }
+  .priority-medium   { background: rgba(245,197,66,.15); color: var(--medium); }
+  .priority-low      { background: rgba(78,203,113,.15); color: var(--low); }
+  .status-todo    .status-dot { color: var(--todo); }
+  .status-wip     .status-dot { color: var(--wip); }
+  .status-blocked .status-dot { color: var(--blocked); }
+  .status-done    .status-dot { color: var(--done); }
+  .status-dot { font-size: 10px; padding-top: 3px; }
+
+  .empty-scope {
+    padding: 20px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  /* ── No results ── */
+  #empty-state {
+    display: none;
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">
+    <h1>BP Monitor — Task Board</h1>
+    <span>bp-task</span>
+  </div>
+  <div class="header-meta">Last updated: <span id="last-updated"></span></div>
+</header>
+
+<div class="toolbar">
+  <label>Scope</label>
+  <select id="filter-scope">
+    <option value="">All scopes</option>
+    <option value="client">client</option>
+    <option value="web">web</option>
+    <option value="api-gateway">api-gateway</option>
+    <option value="ai-service">ai-service</option>
+    <option value="infra">infra</option>
+  </select>
+  <div class="divider"></div>
+  <label>Status</label>
+  <select id="filter-status">
+    <option value="">All statuses</option>
+    <option value="todo">Todo</option>
+    <option value="wip">In Progress</option>
+    <option value="blocked">Blocked</option>
+    <option value="done">Done</option>
+  </select>
+  <div class="divider"></div>
+  <label>Priority</label>
+  <select id="filter-priority">
+    <option value="">All priorities</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
+  <div class="stat-pills" id="stat-pills"></div>
+</div>
+
+<main id="board">
+  <div id="empty-state">No tasks match the current filters.</div>
+</main>
+
+<script>
+// ── Data (regenerated by bp-task agent on every TASK.md change) ─────────────
+const LAST_UPDATED = "2026-06-06";
+const TASKS = [
+  { id: "C-001", scope: "client",      priority: "high",   status: "todo",    description: "Wire caregiver push-notification preference screen to the store", note: "" },
+  { id: "C-002", scope: "client",      priority: "medium", status: "todo",    description: "Add 7-day BP trend chart to the history tab", note: "" },
+  { id: "C-003", scope: "client",      priority: "medium", status: "todo",    description: "Implement PIN / biometric lock for the app-open flow", note: "" },
+  { id: "C-004", scope: "client",      priority: "high",   status: "wip",     description: "Integrate on-device YOLO pre-flight result into camera UI warning banner", note: "in progress" },
+  { id: "W-001", scope: "web",         priority: "high",   status: "todo",    description: "Build clinician dashboard: reading list with BP-status filter", note: "" },
+  { id: "W-002", scope: "web",         priority: "medium", status: "todo",    description: "Add patient search and profile page", note: "" },
+  { id: "W-003", scope: "web",         priority: "low",    status: "todo",    description: "Export readings as CSV from the web dashboard", note: "" },
+  { id: "A-001", scope: "api-gateway", priority: "high",   status: "todo",    description: "Add pagination to readings GraphQL query", note: "" },
+  { id: "A-002", scope: "api-gateway", priority: "medium", status: "todo",    description: "Rate-limit the uploadBPImage mutation per user", note: "" },
+  { id: "A-003", scope: "api-gateway", priority: "low",    status: "todo",    description: "Expose a healthz endpoint for the infra liveness probe", note: "" },
+  { id: "AI-001", scope: "ai-service", priority: "high",   status: "todo",    description: "Replace stub OCR with full SYS / DIA / pulse extraction pipeline", note: "" },
+  { id: "AI-002", scope: "ai-service", priority: "medium", status: "todo",    description: "Return confidence scores per field in the analysis reply payload", note: "" },
+  { id: "AI-003", scope: "ai-service", priority: "low",    status: "todo",    description: "Add structured logging for every Redis message received and sent", note: "" },
+  { id: "I-001",  scope: "infra",      priority: "medium", status: "todo",    description: "Add a staging compose profile that mirrors prod minus S3", note: "" },
+  { id: "I-002",  scope: "infra",      priority: "low",    status: "todo",    description: "Add healthcheck stanzas to all services in docker-compose.yml", note: "" }
+];
+// ── End data ─────────────────────────────────────────────────────────────────
+
+const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+const STATUS_ICON = { todo: "○", wip: "◑", blocked: "✕", done: "✓" };
+const SCOPES = ["client", "web", "api-gateway", "ai-service", "infra"];
+
+document.getElementById("last-updated").textContent = LAST_UPDATED;
+
+function render() {
+  const scopeF    = document.getElementById("filter-scope").value;
+  const statusF   = document.getElementById("filter-status").value;
+  const priorityF = document.getElementById("filter-priority").value;
+
+  const filtered = TASKS.filter(t =>
+    (!scopeF    || t.scope    === scopeF)    &&
+    (!statusF   || t.status   === statusF)   &&
+    (!priorityF || t.priority === priorityF)
+  );
+
+  const board = document.getElementById("board");
+  const empty = document.getElementById("empty-state");
+  board.innerHTML = "";
+  board.appendChild(empty);
+
+  const scopes = scopeF ? [scopeF] : SCOPES;
+  let anyVisible = false;
+
+  scopes.forEach(scope => {
+    const tasks = filtered
+      .filter(t => t.scope === scope)
+      .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+
+    if (scopeF === "" && tasks.length === 0) return;
+    anyVisible = true;
+
+    const openCount = tasks.filter(t => t.status !== "done").length;
+    const card = document.createElement("div");
+    card.className = "scope-card";
+    card.innerHTML = `
+      <div class="scope-header">
+        <span class="scope-name">${scope}</span>
+        <span class="scope-count">${openCount} open</span>
+      </div>
+      <div class="task-list" id="list-${scope}"></div>
+    `;
+    board.appendChild(card);
+
+    const list = card.querySelector(`#list-${scope}`);
+    if (tasks.length === 0) {
+      list.innerHTML = `<div class="empty-scope">No tasks match filters.</div>`;
+    } else {
+      tasks.forEach(t => {
+        const row = document.createElement("div");
+        row.className = `task-row status-${t.status}`;
+        row.innerHTML = `
+          <span class="status-dot">${STATUS_ICON[t.status] || "○"}</span>
+          <span class="task-id">${t.id}</span>
+          <div class="task-body">
+            <div class="task-desc">${escape(t.description)}</div>
+            ${t.note ? `<div class="task-note">${escape(t.note)}</div>` : ""}
+          </div>
+          <div class="badges">
+            <span class="badge priority-${t.priority}">${t.priority}</span>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+    }
+  });
+
+  empty.style.display = anyVisible ? "none" : "block";
+
+  // Stats
+  const open     = filtered.filter(t => t.status !== "done").length;
+  const wip      = filtered.filter(t => t.status === "wip").length;
+  const blocked  = filtered.filter(t => t.status === "blocked").length;
+  const critical = filtered.filter(t => t.priority === "critical" && t.status !== "done").length;
+  const pills    = document.getElementById("stat-pills");
+  pills.innerHTML = `
+    <div class="stat-pill"><strong>${open}</strong> open</div>
+    ${wip      ? `<div class="stat-pill"><strong style="color:var(--wip)">${wip}</strong> in progress</div>` : ""}
+    ${blocked  ? `<div class="stat-pill"><strong style="color:var(--blocked)">${blocked}</strong> blocked</div>` : ""}
+    ${critical ? `<div class="stat-pill"><strong style="color:var(--critical)">${critical}</strong> critical</div>` : ""}
+  `;
+}
+
+function escape(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+["filter-scope","filter-status","filter-priority"].forEach(id =>
+  document.getElementById(id).addEventListener("change", render)
+);
+
+render();
+</script>
+</body>
+</html>

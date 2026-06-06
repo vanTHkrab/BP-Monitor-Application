@@ -8,11 +8,7 @@
       "Read(**/.env.development)",
       "Read(**/secrets/**)",
       "Bash(npx prisma *)",
-      "Bash(pnpm prisma *)",
-      "Bash(git * main)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(pnpm prisma *)"
     ],
     "allow": [
       "Bash(pnpm exec *)",
