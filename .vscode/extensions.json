@@ -4,11 +4,24 @@
         "esbenp.prettier-vscode",
         "dbaeumer.vscode-eslint",
         "usernamehw.errorlens",
-        //
+
+        // GitHub Pull Requests and Issues
         "github.vscode-pull-request-github",
+
+        // Test runners
+        "orta.vscode-jest",
+
+        // Collaborating
+        "ms-vsliveshare.vsliveshare",
 
         // React and React Native
         "msjsdiag.vscode-react-native",
         "expo.vscode-expo-tools",
+
+        // Python
+        "ms-python.python",
+
+        // Docker
+        "ms-azuretools.vscode-docker",
     ]
 }

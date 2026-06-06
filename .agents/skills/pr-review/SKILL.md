@@ -60,6 +60,7 @@ Check every section and rule:
 | P6 | **Breaking change** — answered yes/no with migration path if yes | Blank or unanswered |
 | P7 | **Verification table** — every row completed, no blank Result cells | Any cell left as template placeholder |
 | P8 | **Checklist** — all boxes ticked or explicitly noted as N/A | Unticked boxes without explanation |
+| P9 | **tester verdict row** — first row of the verification table is a `tester` verdict (`PASSED` or `SKIPPED (docs/infra only)`) referencing the run attached to the artifact | Row absent, marked `FAILED`, or claims `PASSED` without an attached tester output block |
 
 ---
 
