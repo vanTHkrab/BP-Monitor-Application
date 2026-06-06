@@ -1,11 +1,8 @@
 # AI Service
 
-FastAPI microservice ที่ทำหน้าที่วิเคราะห์รูปเครื่องวัดความดันโลหิตให้ NestJS
-API gateway โดยรับ-ส่งงานผ่าน Redis pub/sub (ไม่ใช่ HTTP)
-
-> **สถานะปัจจุบัน:** ยังเป็น *stub* — ตอบกลับด้วย mock readings เพื่อให้ปลายทาง
-> request → analyze → submit ใน gateway ทดสอบได้ครบ pipeline งาน OCR จริง
-> (YOLO + ssocr) อยู่ใน [PLAN.md](./PLAN.md)
+FastAPI microservice that analyses blood-pressure monitor photos for the NestJS
+API gateway. Receives work over Redis pub/sub only — no HTTP route for analysis.
+The full YOLO + CRNN pipeline (Milestones 1 and 2.2) is shipped.
 
 ---
 
@@ -13,46 +10,57 @@ API gateway โดยรับ-ส่งงานผ่าน Redis pub/sub (ไ
 
 ```bash
 cd server/app/ai-service
-uv sync                              # ติดตั้ง dependencies จาก uv.lock
-uv run fastapi dev main.py           # dev (auto-reload) ที่ port 8000
+uv sync                              # install deps from uv.lock
+uv run fastapi dev main.py           # dev (auto-reload) on port 8000
 ```
 
-ตรวจว่ารันถูก:
+Verify the service is running:
 
 ```bash
 curl -s http://localhost:8000/health
 # {"status":"ok","service":"ai-service"}
 ```
 
-> ต้องมี Redis รันอยู่ (default `redis://localhost:6379`) — service จะ
-> subscribe ช่อง `analyze_bp_image` ตอน lifespan startup ถ้า Redis ล่มจะ
-> log error แต่ HTTP `/health` ยังตอบได้
+> ⚠️ Redis must be reachable (default `redis://localhost:6379`). The service
+> subscribes to `analyze_bp_image` during lifespan startup. If Redis is
+> unreachable, HTTP `/health` still responds but no analysis jobs will be processed.
 
 ---
 
 ## Environment variables
 
-| Var | บังคับ | หมายเหตุ |
-| --- | --- | --- |
-| `REDIS_URL` | – | default `redis://localhost:6379` |
-| `LOG_LEVEL` | – | default `INFO` |
+| Var | Required | Default | Description |
+| --- | --- | --- | --- |
+| `REDIS_URL` | – | `redis://localhost:6379` | Redis connection string |
+| `LOG_LEVEL` | – | `INFO` | Python logging level |
+| `AI_DETECTOR_PATH` | – | `models/yolo12n.onnx` | Path to YOLO ONNX weights (resolved from ai-service root) |
+| `AI_CRNN_PATH` | – | `models/crnn_int8.onnx` | Path to CRNN ONNX int8 weights |
+| `AI_DEFAULT_ENGINE` | – | `crnn` | Default OCR engine: `crnn` / `ssocr_cnn` / `ssocr` |
+| `AI_CONFIDENCE_THRESHOLD` | – | `0.5` | YOLO detection confidence floor |
+| `AI_IMAGE_FETCH_TIMEOUT_S` | – | `5` | Timeout for presigned-URL image download |
+| `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout |
+| `AI_DEBUG_DUMP_ENABLED` | – | `0` | Set to `1` to write per-stage debug images (dev only) |
+| `AI_DEBUG_DUMP_DIR` | – | `<ai-service>/debug_images/` | Output directory for debug dumps |
 
 ---
 
 ## Wire protocol (gateway ↔ ai-service)
 
-ใช้ `@nestjs/microservices` Redis transport — ฝั่ง Python จึง subscribe/publish
-ตามแพทเทิร์นของ NestJS:
+Uses the `@nestjs/microservices` Redis transport. The Python side subscribes and
+publishes according to the NestJS pattern.
 
 | Channel | Direction | Payload shape |
 | --- | --- | --- |
-| `analyze_bp_image` | gateway → ai-service | `{ pattern, id, data: { jobId, userId, s3Key, mimeType } }` |
-| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, systolic, diastolic, pulse, roi_image_url, raw_text, error? }, isDisposed: true }` |
+| `analyze_bp_image` | gateway → ai-service | `{ pattern, id, data: { jobId, userId, s3Key, imageUrl, mimeType, ocrEngine? } }` |
+| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status, engine, metrics, image_quality_score }, isDisposed: true }` |
+| `analyze_bp_image.reply` (error) | ai-service → gateway | `{ id, err: <message>, isDisposed: true }` |
 
-ถ้า error: reply เป็น `{ id, err: <message>, isDisposed: true }`
+`imageUrl` is a presigned GET URL the gateway generates before publishing.
+`ocrEngine` is optional — absent requests use `AI_DEFAULT_ENGINE` (`crnn`).
+`engine` and `metrics` (per-stage timing + RSS deltas) are present in every reply.
 
-ห้ามเปลี่ยน channel name หรือ payload shape โดยไม่อัปเดตฝั่ง gateway
-([api-gateway/src/ai/](../api-gateway/src/ai/)) พร้อมกัน
+> ⚠️ Never change the channel name or payload shape on one side without updating
+> the other. The AI flow fails silently — no HTTP-layer error surfaces.
 
 ---
 
@@ -60,18 +68,43 @@ curl -s http://localhost:8000/health
 
 ```text
 ai-service/
-├── main.py                         # FastAPI entry shim (re-exports ai_service.main)
+├── main.py                            # FastAPI entry shim (re-exports ai_service.main)
 ├── src/
 │   └── ai_service/
 │       ├── __init__.py
-│       └── main.py                 # FastAPI app + Redis listener (stub OCR)
+│       ├── main.py                    # FastAPI app + lifespan (loads models, starts Redis listener)
+│       ├── handlers.py                # Redis handler — owns wire contract, ocrEngine dispatch, reply schema
+│       ├── config.py                  # AnalyzerConfig(BaseSettings) — all AI_* env vars
+│       ├── debug_dump.py              # DebugDumper + @debug_stage decorator (dev only)
+│       ├── storage/
+│       │   └── fetch.py               # async fetch_image() — presigned URL → BGR ndarray
+│       └── analyzer/
+│           ├── engines.py             # EngineRegistry + build_registry() — all three engines loaded at lifespan
+│           ├── pipeline.py            # BPAnalysisPipeline.analyze() → (AnalysisResult, AnalysisMetrics)
+│           ├── yolo.py                # YoloDetector — onnxruntime session, letterbox, NMS
+│           ├── rectify.py             # LCD perspective rectification + field-layout rotation fallback
+│           ├── preprocessing.py       # letterbox() shared by detector and future ROI preprocess
+│           ├── validation.py          # range + sys>dia sanity checks
+│           ├── types.py               # AnalysisResult, FieldReading, BoundingBox, AnalysisMetrics, BPClass
+│           └── ocr/
+│               ├── base.py            # OCRReader Protocol + OCRResult
+│               ├── crnn.py            # CRNNEngine — ONNX int8 CRNN (~30 ms/image)
+│               ├── ssocr.py           # SSOCREngine — rule-based 7-segment; use_classifiers flag enables ssocr_cnn
+│               └── cnn_classifiers.py # ONNX CNN + numpy KNN + template match + brand detection
+├── models/
+│   ├── yolo12n.onnx                   # YOLOv12n, 5 BP classes, 11.5 MB
+│   ├── crnn_int8.onnx                 # CRNN int8, 1.2 MB
+│   ├── cnn_2ch_distilled_*_int8.onnx  # 4 distilled CNN files, ~0.6 MB each
+│   └── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB)
+├── storage/
+│   └── fetch.py                       # async fetch_image() — presigned URL → BGR ndarray
 ├── tests/
-│   └── test_main.py                # pytest-asyncio tests for handler + reply
-├── pyproject.toml                  # uv-managed deps
+│   └── test_*.py                      # 204 tests across config / debug_dump / fetch / handlers / pipeline / rectify / validation / yolo / crnn / engines / cnn_classifiers
+├── pyproject.toml                     # uv-managed deps
 ├── uv.lock
 ├── Dockerfile
-├── PLAN.md                         # roadmap for real OCR pipeline
-└── CLAUDE.md                       # AI-assisted edits guideline
+├── PLAN.md                            # roadmap and OCR pipeline decisions
+└── CLAUDE.md                          # AI-assisted edits guideline
 ```
 
 ---
@@ -81,25 +114,27 @@ ai-service/
 ```bash
 uv run fastapi dev main.py         # dev (auto-reload)
 uv run fastapi run main.py         # production-style
-uv run pytest                      # tests
-uv run pytest tests/test_main.py   # single file
+uv run pytest                      # full test suite (204 tests)
+uv run pytest tests/test_handlers.py  # single file
 ```
 
 ---
 
 ## Troubleshooting
 
-| อาการ | สาเหตุที่พบบ่อย |
+| Symptom | Likely cause |
 | --- | --- |
-| Boot log "AI service ready" ไม่ขึ้น | Redis เชื่อมไม่ได้ — เช็ค `REDIS_URL` |
-| Gateway timeout บน `analyzeBPImage` | service ไม่ได้ subscribe ทัน หรือไม่มี Redis broker — restart ทั้งคู่ |
-| `Discarding non-JSON message` | publisher ฝั่งอื่นส่ง payload ผิด format — ตรวจว่า gateway version ตรงกัน |
+| Boot log "AI service ready" does not appear | Redis unreachable — check `REDIS_URL` |
+| Gateway timeout on `analyzeBPImage` | Service not subscribed yet or no Redis broker — restart both |
+| `Discarding non-JSON message` | Publisher sent a payload with wrong format — verify gateway version matches |
+| `missing imageUrl` in reply | Gateway did not include presigned GET URL in the Redis payload |
+| `unknown engine: <name>` in reply | `ocrEngine` value is not one of `crnn` / `ssocr_cnn` / `ssocr` |
 
 ---
 
-## เอกสารที่เกี่ยวข้อง
+## See also
 
-- [CLAUDE.md](./CLAUDE.md) — guideline สำหรับ AI-assisted edits
-- [PLAN.md](./PLAN.md) — roadmap: real OCR (YOLO + ssocr) pipeline
-- [api-gateway README](../api-gateway/README.md) — gateway side ของ pipeline
-- Root [CLAUDE.md](../../../CLAUDE.md) — guideline ระดับ monorepo
+- [CLAUDE.md](./CLAUDE.md) — guideline for AI-assisted edits
+- [PLAN.md](./PLAN.md) — roadmap: OCR engine comparison framework (M2.2)
+- [api-gateway README](../api-gateway/README.md) — gateway side of the pipeline
+- Root [CLAUDE.md](../../../CLAUDE.md) — monorepo guideline

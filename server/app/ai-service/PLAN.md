@@ -743,6 +743,7 @@ ai-service/
         ├── validation.py              # unchanged
         ├── types.py                   # + AnalysisMetrics dataclass
         ├── engines.py                 # NEW — EngineRegistry + factory functions
+        ├── rectify.py                 # NEW — perspective + rotation LCD straightening
         └── ocr/
             ├── base.py                # OCRReader Protocol — unchanged
             ├── crnn.py                # NEW — CRNNEngine (ONNX-only)
@@ -931,18 +932,18 @@ reinstall wipes it — fine for research phase.
 
 #### PR 1 — ai-service
 
-- [ ] `uv add psutil` (and `uv add` anything else `cnn_classifiers.py` needs that isn't already declared)
-- [ ] Port `crnn.py` (ONNX-only) + tests
-- [ ] Port `cnn_classifiers.py` (ONNX CNN + numpy KNN + brand detection) + tests
-- [ ] Refactor `ssocr.py` to use `cnn_classifiers`; drop torch/joblib branches
-- [ ] Copy 6 model files to `models/` + update Dockerfile
-- [ ] Add `engines.py::EngineRegistry` + factory functions
-- [ ] Update `BPAnalysisPipeline.analyze()` signature + per-stage timing
-- [ ] Add `AnalysisMetrics` dataclass to `types.py`
-- [ ] Extend `AnalyzerConfig` with `default_engine` + new `OCREngine` value
-- [ ] Update `handlers.py` to parse `ocrEngine` + emit `engine` + `metrics`
-- [ ] Smoke via `fastapi dev` with all 3 engine names + 1 unknown
-- [ ] Update [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths"
+- [x] `uv add psutil` (and `uv add` anything else `cnn_classifiers.py` needs that isn't already declared)
+- [x] Port `crnn.py` (ONNX-only) + tests
+- [x] Port `cnn_classifiers.py` (ONNX CNN + numpy KNN + brand detection) + tests
+- [x] Refactor `ssocr.py` to use `cnn_classifiers`; drop torch/joblib branches
+- [x] Copy 6 model files to `models/` + update Dockerfile
+- [x] Add `engines.py::EngineRegistry` + factory functions
+- [x] Update `BPAnalysisPipeline.analyze()` signature + per-stage timing
+- [x] Add `AnalysisMetrics` dataclass to `types.py`
+- [x] Extend `AnalyzerConfig` with `default_engine` + new `OCREngine` value
+- [x] Update `handlers.py` to parse `ocrEngine` + emit `engine` + `metrics`
+- [x] Smoke via `fastapi dev` with all 3 engine names + 1 unknown
+- [x] Update [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths"
 
 #### PR 2 — api-gateway
 

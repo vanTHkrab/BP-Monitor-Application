@@ -33,8 +33,8 @@ _Last updated: 2026-06-06 · Updated by bp-task_
 
 ### ai-service
 
-- [ ] **AI-001** `high` Replace stub OCR with full SYS / DIA / pulse extraction pipeline
-- [ ] **AI-002** `medium` Return confidence scores per field in the analysis reply payload
+- [x] **AI-001** `high` Replace stub OCR with full SYS / DIA / pulse extraction pipeline
+- [x] **AI-002** `medium` Return confidence scores per field in the analysis reply payload
 - [ ] **AI-003** `low` Add structured logging for every Redis message received and sent
 
 ### infra

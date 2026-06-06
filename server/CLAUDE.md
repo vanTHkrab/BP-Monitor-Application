@@ -13,14 +13,15 @@ The `server/` directory contains backend services:
 
 The two communicate over a Redis pub/sub channel (`analyze_bp_image` /
 `analyze_bp_image.reply`); shapes are owned by [api-gateway/src/ai/](./app/api-gateway/src/ai/)
-on the NestJS side and mirrored by [ai-service/src/ai_service/main.py](./app/ai-service/src/ai_service/main.py).
+on the NestJS side and mirrored by [ai-service/src/ai_service/handlers.py](./app/ai-service/src/ai_service/handlers.py) (`handle_message`, reply schema, `ocrEngine` dispatch).
 
 ## Important Paths
 
 - `app/api-gateway/src/`: NestJS source code
 - `app/api-gateway/test/`: API gateway tests
 - `app/ai-service/main.py`: FastAPI entry shim (re-exports `ai_service.main`)
-- `app/ai-service/src/ai_service/main.py`: actual FastAPI app + Redis listener
+- `app/ai-service/src/ai_service/main.py`: FastAPI app + lifespan bootstrapping (loads models, starts Redis listener)
+- `app/ai-service/src/ai_service/handlers.py`: Redis wire-contract owner — `handle_message`, reply schema, `ocrEngine` dispatch
 - `app/ai-service/tests/`: AI service tests
 - `app/ai-service/pyproject.toml`: Python dependencies (managed by `uv`)
 
