@@ -1,1 +1,14 @@
-{ "recommendations": ["expo.vscode-expo-tools"] }
+{ 
+    "recommendations": [
+        // Linters and formatters
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "usernamehw.errorlens",
+        //
+        "github.vscode-pull-request-github",
+
+        // React and React Native
+        "msjsdiag.vscode-react-native",
+        "expo.vscode-expo-tools",
+    ]
+}
