@@ -23,7 +23,7 @@ export function OcrEngineSelector() {
   const setSelected = useAppStore((s) => s.setSelectedOcrEngine);
   const isDark = useAppStore((s) => s.themePreference === 'dark');
 
-  // if (!devMode) return null;
+  if (!devMode) return null;
 
   return (
     <View

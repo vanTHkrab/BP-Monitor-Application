@@ -13,17 +13,29 @@ import { getFontClass } from '@/utils/font-scale';
 import { prepareImageForAnalysis } from '@/utils/image-prepare';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
 cssInterop(CameraView, { className: 'style' });
 
 export default function CameraScreen() {
+  // ─── Safe area ────────────────────────────────────────────────────────────────
+  // Used by the header padding (so the title clears the notch / status bar)
+  // and the bottom overlays (so capture / retake / confirm buttons clear the
+  // home-indicator on iOS and gesture bar on Android). The (tabs) tab bar
+  // is visible on this screen — the overlay bottom budget reserves the
+  // tab-bar base height (60 iOS / 62 Android, mirrors _layout.tsx:43-44)
+  // plus the safe-area inset plus a small breathing margin so the floating
+  // capture button sits above the centre tab icon.
+  const insets = useSafeAreaInsets();
+
   // ─── Permissions ─────────────────────────────────────────────────────────────
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -110,7 +122,18 @@ export default function CameraScreen() {
   }, [prefill]);
 
   // ─── Derived ──────────────────────────────────────────────────────────────────
-  const modalCloseIconColor = isDark ? '#E2E8F0' : '#374151';
+  // Icon tints come from the app palette (Theme.* in constants/colors.ts) so
+  // the camera surface reads as the same product as the home / history tabs
+  // rather than a stand-alone clinical sub-app.
+  const modalCloseIconColor = isDark ? '#E8E4F5' : '#374151';
+
+  const titleClassName = getFontClass(fontSizePreference, {
+      xsmall: 'text-lg',
+      small: 'text-xl',
+      medium: 'text-[22px]',
+      large: 'text-2xl',
+      xlarge: 'text-[28px]',
+    });
 
   const handleRequestCameraPermission = async () => {
     try {
@@ -196,6 +219,9 @@ export default function CameraScreen() {
 
   const takePicture = async () => {
     if (!cameraRef.current || isCapturing) return;
+    // Tactile confirmation that the shutter actually fired — the visual
+    // press feedback alone is easy to miss on cheaper Android panels.
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsCapturing(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
@@ -317,7 +343,7 @@ export default function CameraScreen() {
     return (
       <GradientBackground>
         <View className="flex-1 items-center justify-center">
-          <Text className={isDark ? 'text-base text-slate-200' : 'text-base text-[#2C3E50]'}>กำลังโหลด...</Text>
+          <Text className={isDark ? 'text-base text-[#E8E4F5]' : 'text-base text-[#2C3E50]'}>กำลังโหลด...</Text>
         </View>
       </GradientBackground>
     );
@@ -337,10 +363,32 @@ export default function CameraScreen() {
             >
               <Ionicons name="camera-outline" size={64} color={Colors.primary.blue} />
             </View>
-            <Text className={isDark ? 'text-[22px] font-bold text-slate-200 mb-3' : 'text-[22px] font-bold text-[#2C3E50] mb-3'}>
+            <Text
+              className={
+                (isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]') +
+                ' font-bold mb-3 ' +
+                getFontClass(fontSizePreference, {
+                  small: 'text-xl',
+                  medium: 'text-2xl',
+                  large: 'text-3xl',
+                  xlarge: 'text-4xl',
+                })
+              }
+            >
               ต้องการสิทธิ์เข้าถึงกล้อง
             </Text>
-            <Text className={isDark ? 'text-base text-slate-400 text-center leading-6 mb-8' : 'text-base text-[#7F8C8D] text-center leading-6 mb-8'}>
+            <Text
+              className={
+                (isDark ? 'text-[#9C95C2]' : 'text-[#7F8C8D]') +
+                ' text-center leading-6 mb-8 ' +
+                getFontClass(fontSizePreference, {
+                  small: 'text-sm',
+                  medium: 'text-base',
+                  large: 'text-lg',
+                  xlarge: 'text-xl',
+                })
+              }
+            >
               {permission.canAskAgain === false
                 ? 'ตอนนี้แอปยังใช้กล้องไม่ได้ กรุณาเปิดสิทธิ์กล้องจากหน้าการตั้งค่า'
                 : 'แอปต้องการสิทธิ์ในการเข้าถึงกล้องเพื่อถ่ายภาพเครื่องวัดความดัน'}
@@ -387,8 +435,13 @@ export default function CameraScreen() {
   const canAttemptSave =
     Boolean(capturedImage) && !!systolic.trim() && !!diastolic.trim() && !!pulse.trim();
 
-  const isAnalyzing = phase !== 'idle' && phase !== 'done' && phase !== 'failed';
-  const tabBarTotalHeight = 80;
+  // Bottom overlay padding budget. Tab bar is visible on this screen — its
+  // base height (60 iOS / 62 Android) mirrors app/(tabs)/_layout.tsx:43-44.
+  // We add the safe-area inset (home-indicator / gesture bar) plus 14px
+  // breathing room so the 88×88 capture button clears the centre tab icon
+  // without overlapping it.
+  const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
+  const bottomOverlayPadding = tabBarBaseHeight + insets.bottom + 14;
   const captionClassName = getFontClass(fontSizePreference, {
     small: 'text-[11px]',
     medium: 'text-[13px]',
@@ -407,18 +460,26 @@ export default function CameraScreen() {
       <View className="flex-1 relative">
 
         {/* ── Header ── */}
-        <LinearGradient
-          colors={['#72DDF4', '#35B8E8']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          className={(Platform.OS === 'ios' ? 'pt-14' : 'pt-10') + ' pb-4 px-4 flex-row items-center'}
-        >
-          <AnimatedPressable onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </AnimatedPressable>
-          <Text className="flex-1 text-lg font-bold text-white text-center">ถ่ายรูปเครื่องวัดความดัน</Text>
-          <View className="w-10" />
-        </LinearGradient>
+        {/* Flat surface using the app's brand palette (Theme.* in
+            constants/colors.ts) so the camera screen reads as the same
+            product as the home / history tabs. Light surface = white over
+            the cyan GradientBackground; dark surface = #1A1632 (Theme.dark
+            .surface) with the #2D2654 border that the rest of the dark UI
+            uses. Safe-area-driven top padding so the title clears the
+            notch / Dynamic Island / Android edge-to-edge status bars. */}
+        <View className="items-center justify-center" style={{ paddingTop: insets.top + 12, paddingBottom: 12 }}>
+          <LinearGradient
+            colors={['#72DDF4', '#35B8E8']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            className="flex-row items-center px-5 py-2.5 rounded-xl shadow-lg"
+          >
+            <View className="mr-2">
+              <Ionicons name="people" size={20} color="white" />
+            </View>
+            <Text className={titleClassName + " font-bold text-white"}>ถ่ายรูปเครื่องวัดความดัน</Text>
+          </LinearGradient>
+        </View>
 
         {/* ── Camera / Preview ── */}
         {!capturedImage ? (
@@ -430,37 +491,50 @@ export default function CameraScreen() {
                 Hidden via the component's own ``devMode`` gate when off
                 — so production users see no layout shift. */}
             <OcrEngineSelector />
-            <View
-              className="flex-1 relative"
-              onLayout={(e) => {
-                const { width, height } = e.nativeEvent.layout;
-                setPreviewViewport((prev) =>
-                  prev && prev.width === width && prev.height === height
-                    ? prev
-                    : { width, height },
-                );
-              }}
-            >
+            {/* Letterbox the camera surface to a strict 3:4 portrait
+                viewport so the pixels the user frames match the pixels
+                the on-device YOLO + backend YOLO see. The previous
+                `absolute inset-0` cover-fit silently zoomed the sensor
+                feed past the screen edges, so anything tracked at the
+                edge of the live overlay was already off-frame in the
+                captured JPEG. The outer black surface provides the
+                letterbox bars on screens wider/taller than 3:4. */}
+            <View className="flex-1 bg-black items-center justify-center">
+              <View
+                className="w-full aspect-[3/4] relative overflow-hidden"
+                onLayout={(e) => {
+                  const { width, height } = e.nativeEvent.layout;
+                  setPreviewViewport((prev) =>
+                    prev && prev.width === width && prev.height === height
+                      ? prev
+                      : { width, height },
+                  );
+                }}
+              >
 
-              {/* Camera mount error fallback */}
+              {/* Camera mount error fallback — error icon stays #E74C3C
+                  (Colors.status.high) since this *is* a true error state.
+                  "ลองใหม่" uses the brand purple gradient (accentGradient)
+                  to match primary actions elsewhere in the app; "ตั้งค่า"
+                  is a neutral secondary surface. */}
               {cameraMountError ? (
                 <View className="absolute inset-0 items-center justify-center px-5">
                   <View
                     className={
-                      (isDark ? 'bg-[#0F172A]/95 border border-[#1F2937]' : 'bg-white/95') +
+                      (isDark ? 'bg-[#1A1632]/95 border border-[#2D2654]' : 'bg-white/95') +
                       ' w-full rounded-2xl p-4 items-center'
                     }
                   >
-                    <Ionicons name="alert-circle" size={26} color="#DC2626" />
-                    <Text className={isDark ? 'mt-2 text-base font-extrabold text-slate-200' : 'mt-2 text-base font-extrabold text-[#111827]'}>
+                    <Ionicons name="alert-circle" size={26} color="#E74C3C" />
+                    <Text className={isDark ? 'mt-2 text-base font-extrabold text-[#E8E4F5]' : 'mt-2 text-base font-extrabold text-[#2C3E50]'}>
                       กล้องใช้งานไม่ได้
                     </Text>
-                    <Text className={isDark ? 'mt-1.5 text-[13px] text-slate-400 text-center' : 'mt-1.5 text-[13px] text-gray-500 text-center'} numberOfLines={3}>
+                    <Text className={isDark ? 'mt-1.5 text-[13px] text-[#9C95C2] text-center' : 'mt-1.5 text-[13px] text-[#7F8C8D] text-center'} numberOfLines={3}>
                       {cameraMountError}
                     </Text>
-                    <View className="flex-row space-x-2.5 mt-3 w-full">
+                    <View className="flex-row gap-2.5 mt-3 w-full">
                       <AnimatedPressable onPress={retryCamera} className="flex-1 rounded-[14px] overflow-hidden">
-                        <LinearGradient colors={['#3B82F6', '#2563EB']} className="flex-row items-center justify-center py-3">
+                        <LinearGradient colors={['#A879E8', '#7E57C2', '#5E35B1']} className="flex-row items-center justify-center py-3">
                           <Ionicons name="refresh" size={18} color="white" />
                           <Text className={"text-white font-bold ml-2 " + captionClassName}>ลองใหม่</Text>
                         </LinearGradient>
@@ -469,13 +543,22 @@ export default function CameraScreen() {
                         onPress={() => void Linking.openSettings()}
                         className="flex-1 rounded-[14px] overflow-hidden"
                       >
-                        <LinearGradient
-                          colors={['#9CA3AF', '#6B7280']}
-                          className="flex-row items-center justify-center py-3"
+                        <View
+                          className={
+                            'flex-row items-center justify-center py-3 ' +
+                            (isDark ? 'bg-[#231C42] border border-[#2D2654]' : 'bg-[#EBF5FB] border border-white/80')
+                          }
                         >
-                          <Ionicons name="settings" size={18} color="white" />
-                          <Text className={"text-white font-bold ml-2 " + captionClassName}>ตั้งค่า</Text>
-                        </LinearGradient>
+                          <Ionicons name="settings" size={18} color={isDark ? '#E8E4F5' : '#2C3E50'} />
+                          <Text
+                            className={
+                              'font-bold ml-2 ' + captionClassName + ' ' +
+                              (isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]')
+                            }
+                          >
+                            ตั้งค่า
+                          </Text>
+                        </View>
                       </AnimatedPressable>
                     </View>
                   </View>
@@ -485,7 +568,7 @@ export default function CameraScreen() {
                   <CameraView
                     key={cameraKey}
                     ref={cameraRef}
-                    className="absolute inset-0"
+                    className="flex-1"
                     facing="back"
                     onMountError={(e) =>
                       setCameraMountError(e.message || 'ไม่สามารถเปิดกล้องได้')
@@ -515,8 +598,12 @@ export default function CameraScreen() {
                 </>
               )}
 
-              {/* Guide frame */}
-              <View className="flex-1 items-center justify-center">
+              {/* Guide frame — relative to viewport (75% width, 4:3 inner
+                  box) so it scales with the letterboxed camera surface
+                  instead of clipping on smaller devices. Mint corners,
+                  no pulse animation — a static guide reads calmer in a
+                  medical capture context. */}
+              <View className="absolute inset-0 items-center justify-center pointer-events-none mb-10">
                 <ScaleOnMount delay={300}>
                   <View className="flex-row items-center bg-black/60 px-4 py-2.5 rounded-2xl mb-5">
                     <Ionicons name="scan-outline" size={18} color="white" />
@@ -525,54 +612,107 @@ export default function CameraScreen() {
                     </Text>
                   </View>
                 </ScaleOnMount>
-                <View className="w-[280px] h-[260px] relative">
-                  <View className="absolute top-0 left-0 w-10 h-10 border-[#22C55E] border-t-4 border-l-4 rounded-tl-xl" />
-                  <View className="absolute top-0 right-0 w-10 h-10 border-[#22C55E] border-t-4 border-r-4 rounded-tr-xl" />
-                  <View className="absolute bottom-0 left-0 w-10 h-10 border-[#22C55E] border-b-4 border-l-4 rounded-bl-xl" />
-                  <View className="absolute bottom-0 right-0 w-10 h-10 border-[#22C55E] border-b-4 border-r-4 rounded-br-xl" />
+                <View className="w-[75%] aspect-[4/3] relative">
+                  <View className="absolute top-0 left-0 w-10 h-10 border-[#34D399] border-t-[3px] border-l-[3px] rounded-tl-xl" />
+                  <View className="absolute top-0 right-0 w-10 h-10 border-[#34D399] border-t-[3px] border-r-[3px] rounded-tr-xl" />
+                  <View className="absolute bottom-0 left-0 w-10 h-10 border-[#34D399] border-b-[3px] border-l-[3px] rounded-bl-xl" />
+                  <View className="absolute bottom-0 right-0 w-10 h-10 border-[#34D399] border-b-[3px] border-r-[3px] rounded-br-xl" />
                 </View>
+              </View>
               </View>
             </View>
 
             {/* Camera controls */}
             <View className="absolute bottom-0 left-0 right-0">
               <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']}
+                colors={['transparent', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.65)']}
                 className="pt-10"
-                style={{ paddingBottom: tabBarTotalHeight + 16 }}
+                style={{ paddingBottom: bottomOverlayPadding }}
               >
                 <View className="flex-row justify-between items-center px-10">
                   <AnimatedPressable onPress={pickImage} className="w-[70px] items-center">
-                    <View className="w-[50px] h-[50px] rounded-full bg-white/20 items-center justify-center">
-                      <Ionicons name="images" size={24} color="white" />
+                    <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
+                      <Ionicons name="images" size={22} color="white" />
                     </View>
-                    <Text className={"text-white mt-1.5 font-medium " + captionClassName}>แกลเลอรี่</Text>
-                  </AnimatedPressable>
-                  
-                  {/* Capture Button - Center */}
-                  <AnimatedPressable
-                    onPress={takePicture}
-                    disabled={isCapturing}
-                    className="items-center"
-                  >
-                    <View className="w-[76px] h-[76px] bg-white/30 rounded-full items-center justify-center p-1">
-                      <View className="w-full h-full bg-white rounded-[34px] items-center justify-center">
-                        <Ionicons name="camera" size={32} color="#D97706" />
-                      </View>
-                    </View>
-                    <Text className={"text-white mt-1.5 font-medium " + captionClassName}>
-                      {isCapturing ? 'กำลังถ่าย...' : 'ถ่ายภาพ'}
+                    <Text
+                      className={
+                        'text-white mt-1.5 font-medium ' +
+                        getFontClass(fontSizePreference, {
+                          small: 'text-[10px]',
+                          medium: 'text-[11px]',
+                          large: 'text-[12px]',
+                          xlarge: 'text-[13px]',
+                        })
+                      }
+                    >
+                      แกลเลอรี่
                     </Text>
                   </AnimatedPressable>
+
+                  {/* Capture Button — bold affordance: 88px outer ring +
+                      72px inner white disc. Filled camera icon, slate-900
+                      glyph. Haptic fires in takePicture(). Press-state
+                      scale handled here via Pressable's style callback,
+                      and the capturing state swaps the icon for an
+                      ActivityIndicator so the user gets immediate
+                      visual feedback even before the shutter resolves. */}
+                  <Pressable
+                    onPress={takePicture}
+                    disabled={isCapturing}
+                    style={({ pressed }) => ({
+                      transform: [{ scale: pressed && !isCapturing ? 0.95 : 1 }],
+                      alignItems: 'center',
+                    })}
+                  >
+                    <View className="w-[88px] h-[88px] rounded-full border-[3px] border-white/40 items-center justify-center">
+                      <View
+                        className={
+                          'w-[72px] h-[72px] rounded-full items-center justify-center ' +
+                          (isCapturing ? 'bg-[#EBF5FB]' : 'bg-white')
+                        }
+                      >
+                        {isCapturing ? (
+                          <ActivityIndicator size="small" color="#5E35B1" />
+                        ) : (
+                          <Ionicons name="camera" size={32} color="#5E35B1" />
+                        )}
+                      </View>
+                    </View>
+                    <Text
+                      className={
+                        'text-white mt-1.5 font-medium text-center ' +
+                        getFontClass(fontSizePreference, {
+                          small: 'text-[10px]',
+                          medium: 'text-[11px]',
+                          large: 'text-[12px]',
+                          xlarge: 'text-[13px]',
+                        })
+                      }
+                    >
+                      {isCapturing ? 'กำลังถ่าย...' : 'ถ่ายภาพ'}
+                    </Text>
+                  </Pressable>
 
                   <AnimatedPressable
                     onPress={() => setShowEntryModal(true)}
                     className="w-[70px] items-center"
                   >
-                    <View className="w-[50px] h-[50px] rounded-full bg-white/20 items-center justify-center">
+                    <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
                       <Ionicons name="create" size={22} color="white" />
                     </View>
-                    <Text className={"text-white mt-1.5 font-medium " + captionClassName}>กรอกค่า</Text>
+                    <Text
+                      className={
+                        'text-white mt-1.5 font-medium ' +
+                        getFontClass(fontSizePreference, {
+                          small: 'text-[10px]',
+                          medium: 'text-[11px]',
+                          large: 'text-[12px]',
+                          xlarge: 'text-[13px]',
+                        })
+                      }
+                    >
+                      กรอกค่า
+                    </Text>
                   </AnimatedPressable>
                 </View>
               </LinearGradient>
@@ -583,28 +723,40 @@ export default function CameraScreen() {
           <View className="flex-1">
             <UIImage source={capturedImage} className="flex-1" contentFit="contain" />
 
-            {/* AI analysis status badge */}
+            {/* AI analysis status badge — card lift over the preview using
+                the app's surface palette (white light / #1A1632 dark). The
+                phase dot reuses status colours from Colors.status (green
+                normal, orange elevated, red high) and the primary brand
+                cyan for in-flight phases, so the indicator language is
+                shared with home / history badges. */}
             {phase !== 'idle' && (
               <View className="absolute top-4 left-0 right-0 items-center">
                 <View
                   className={
-                    (phase === 'done'
-                      ? 'bg-green-600/80'
-                      : phase === 'failed'
-                      ? 'bg-red-600/80'
-                      : 'bg-black/60') + ' flex-row items-center px-4 py-2 rounded-full'
+                    'flex-row items-center gap-2 px-3.5 py-2 rounded-full border ' +
+                    (isDark
+                      ? 'bg-[#1A1632] border-[#2D2654] shadow-lg shadow-black/40'
+                      : 'bg-white border-[#EBF5FB] shadow-lg shadow-black/15')
                   }
                 >
-                  {isAnalyzing && (
-                    <Ionicons name="sync" size={14} color="white" style={{ marginRight: 6 }} />
-                  )}
-                  {phase === 'done' && (
-                    <Ionicons name="checkmark-circle" size={14} color="white" style={{ marginRight: 6 }} />
-                  )}
-                  {phase === 'failed' && (
-                    <Ionicons name="alert-circle" size={14} color="white" style={{ marginRight: 6 }} />
-                  )}
-                  <Text className="text-white text-[13px] font-semibold">
+                  <View
+                    className={
+                      'w-2 h-2 rounded-full ' +
+                      (phase === 'done'
+                        ? 'bg-[#27AE60]'
+                        : phase === 'failed'
+                        ? 'bg-[#E74C3C]'
+                        : phase === 'queued'
+                        ? 'bg-[#F39C12]'
+                        : 'bg-[#35B8E8]')
+                    }
+                  />
+                  <Text
+                    className={
+                      'text-[13px] font-semibold ' +
+                      (isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]')
+                    }
+                  >
                     {PHASE_LABEL[phase]}
                   </Text>
                 </View>
@@ -617,38 +769,54 @@ export default function CameraScreen() {
               </View>
             )}
 
-            {/* On-device pre-flight warning banner. Shows only when the
-                bundled YOLO disagrees with the captured image AND the user
-                hasn't yet chosen retake/proceed. Hidden once `analyze()` is
-                kicked off (phase ≠ 'idle') so it doesn't overlap with the
-                upload/queued/processing chips above. */}
-            {phase === 'idle' && preflight && preflight.status !== 'ok' && (
-              <View className="absolute top-16 left-4 right-4 rounded-2xl bg-black/70 px-4 py-3">
+            {/* On-device pre-flight warning banner. Shows when the bundled
+                YOLO disagrees with the captured image AND either we haven't
+                kicked off analyse yet (`idle`) OR the backend pass already
+                failed (`failed`) — in the latter case the on-device verdict
+                is the only diagnostic the user has, so keep it visible.
+                Hidden while the backend is uploading / queued / processing
+                so it doesn't compete with the status chip above. Sits at
+                top-24 so it always renders *below* the status badge at top-4
+                rather than overlapping it on the failed-phase frame. */}
+            {(phase === 'idle' || phase === 'failed') && preflight && preflight.status !== 'ok' && (
+              /* Warning surface uses Colors.status.elevated (#F39C12) — the
+                 same orange the status badge and home-screen elevated chip
+                 use, so warning language is consistent across the app.
+                 Override action ("ส่งต่อไป") uses the brand accent purple
+                 gradient (Theme.light.accentGradient) — primary action
+                 colour throughout the redesigned surface. */
+              <View
+                className="absolute top-24 left-4 right-4 rounded-2xl border px-4 py-3 shadow-lg shadow-black/20"
+                style={{ backgroundColor: 'rgba(243,156,18,0.95)', borderColor: 'rgba(217,119,6,0.45)' }}
+              >
                 <View className="flex-row items-center mb-2">
                   <Ionicons
-                    name={preflight.status === 'no-monitor' ? 'scan-outline' : 'eye-off-outline'}
-                    size={18}
-                    color="#FBBF24"
+                    name="alert-circle"
+                    size={20}
+                    color="#7A3E00"
                     style={{ marginRight: 8 }}
                   />
-                  <Text className={'text-amber-300 font-semibold ' + bodyClassName}>
+                  <Text className={'font-semibold ' + bodyClassName} style={{ color: '#3A1F00' }}>
                     {preflight.status === 'no-monitor'
                       ? 'ไม่เจอ BP monitor'
                       : 'ภาพไม่ชัดหรือไกลเกินไป'}
                   </Text>
                 </View>
-                <Text className={'text-white/90 mb-3 ' + captionClassName}>
+                <Text className={'mb-3 ' + captionClassName} style={{ color: 'rgba(58,31,0,0.92)' }}>
                   {preflight.status === 'no-monitor'
                     ? 'ลองถ่ายใหม่ให้เห็นเครื่องวัดทั้งหน้าจอ หรือกด "ส่งต่อไป" ถ้าต้องการให้ AI ตรวจสอบ'
                     : `ตรวจไม่พบค่า ${preflight.missingFields.join(' / ')} ลองถ่ายใหม่ให้ใกล้และชัดขึ้น`}
                 </Text>
-                <View className="flex-row space-x-2">
+                <View className="flex-row gap-2">
                   <AnimatedPressable
                     onPress={retakeAfterWarning}
                     className="flex-1 rounded-xl overflow-hidden"
                   >
-                    <View className="bg-white/15 px-3 py-2 items-center">
-                      <Text className={'text-white font-semibold ' + captionClassName}>
+                    <View
+                      className="px-3 py-2 items-center border"
+                      style={{ backgroundColor: '#FFF4E0', borderColor: 'rgba(217,119,6,0.45)' }}
+                    >
+                      <Text className={'font-semibold ' + captionClassName} style={{ color: '#3A1F00' }}>
                         ถ่ายใหม่
                       </Text>
                     </View>
@@ -657,11 +825,14 @@ export default function CameraScreen() {
                     onPress={sendAnyway}
                     className="flex-1 rounded-xl overflow-hidden"
                   >
-                    <View className="bg-blue-500 px-3 py-2 items-center">
+                    <LinearGradient
+                      colors={['#A879E8', '#7E57C2', '#5E35B1']}
+                      className="px-3 py-2 items-center"
+                    >
                       <Text className={'text-white font-semibold ' + captionClassName}>
                         ส่งต่อไป
                       </Text>
-                    </View>
+                    </LinearGradient>
                   </AnimatedPressable>
                 </View>
               </View>
@@ -670,29 +841,35 @@ export default function CameraScreen() {
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.8)']}
               className="absolute bottom-0 left-0 right-0 px-4 pt-6"
-              // Reserve space for the (tabs) bottom bar — without this the
-              // retake / confirm row sits behind the tab bar and is
-              // unreachable, especially noticeable when the AI badge has
-              // already moved on (the user sees "วิเคราะห์ไม่สำเร็จ" at the
-              // top with no controls at the bottom).
-              style={{ paddingBottom: tabBarTotalHeight + 16 }}
+              // Reserve space for the home-indicator / gesture bar — the
+              // (tabs) tab bar is hidden on this screen (see _layout.tsx)
+              // so we only need the safe-area inset plus breathing room
+              // so the retake / confirm row stays reachable.
+              style={{ paddingBottom: bottomOverlayPadding }}
             >
-              <View className="flex-row justify-center space-x-3">
+              {/* Retake = neutral brand-dark surface (Theme.dark.surfaceMuted
+                  reads as a calm neutral over the photo without screaming
+                  destructive). Confirm = brand accent purple gradient — the
+                  primary-action language shared with the rest of the app. */}
+              <View className="flex-row justify-center gap-3">
                 <AnimatedPressable
                   onPress={retake}
                   className="flex-1 rounded-2xl overflow-hidden shadow-lg"
                 >
-                  <LinearGradient
-                    colors={['#EF4444', '#DC2626']}
-                    className="flex-row items-center justify-center px-6 py-3.5"
+                  <View
+                    className="flex-row items-center justify-center px-5 py-3.5 border"
+                    style={{ backgroundColor: '#231C42', borderColor: '#2D2654' }}
                   >
-                    <Ionicons name="refresh" size={20} color="white" />
-                    <Text className={"text-white font-semibold ml-2 " + bodyClassName}>ถ่ายใหม่</Text>
-                  </LinearGradient>
+                    <Ionicons name="refresh" size={20} color="#E8E4F5" />
+                    <Text className={"font-semibold ml-2 " + bodyClassName} style={{ color: '#E8E4F5' }}>ถ่ายใหม่</Text>
+                  </View>
                 </AnimatedPressable>
 
                 <AnimatedPressable onPress={openEntry} className="flex-1 rounded-2xl overflow-hidden shadow-lg">
-                  <LinearGradient colors={['#3B82F6', '#2563EB']} className="flex-row items-center justify-center px-6 py-3.5">
+                  <LinearGradient
+                    colors={['#A879E8', '#7E57C2', '#5E35B1']}
+                    className="flex-row items-center justify-center px-5 py-3.5"
+                  >
                     <Ionicons name="checkmark" size={22} color="white" />
                     <Text className={"text-white font-semibold ml-2 " + bodyClassName}>ยืนยันภาพ</Text>
                   </LinearGradient>
@@ -709,28 +886,62 @@ export default function CameraScreen() {
           animationType="none"
           onRequestClose={() => setShowEntryModal(false)}
         >
-          <View className="flex-1 bg-black/45 justify-end">
+          {/* Tap-on-scrim dismisses the sheet (standard bottom-sheet UX).
+              The inner sheet captures touches via its own Pressable so taps
+              inside the form don't bubble back up and close the modal. */}
+          <Pressable
+            onPress={() => setShowEntryModal(false)}
+            className="flex-1 bg-black/45 justify-end"
+          >
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom + 10 : 0}
               className="flex-1 w-full justify-end"
             >
-              <View
+              <Pressable
+                onPress={() => { /* swallow — tap inside sheet must not dismiss */ }}
                 className={
-                  (isDark ? 'bg-[#0B1220] border border-[#1F2937]' : 'bg-white') +
-                  ' rounded-t-[22px] px-4 pt-3.5 ' +
+                  (isDark ? 'bg-[#1A1632] border border-[#2D2654]' : 'bg-white') +
+                  ' rounded-t-[22px] px-4 pt-2.5 ' +
                   (Platform.OS === 'ios' ? 'pb-7' : 'pb-4')
                 }
               >
-                {/* Modal header */}
+                {/* Drag handle — bottom-sheet affordance signalling the
+                    sheet is dismissible via the scrim above. Static (no
+                    gesture wiring) — the tap-on-scrim path already covers
+                    dismissal; this is purely a visual cue. */}
+                <View className="items-center mb-2">
+                  <View
+                    className={
+                      'w-10 h-1 rounded-full ' +
+                      (isDark ? 'bg-[#2D2654]' : 'bg-[#CFE3EE]')
+                    }
+                  />
+                </View>
+
+                {/* Modal header — semibold (not extrabold) keeps the
+                    clinical/calm register established by the rest of the
+                    redesigned surface. */}
                 <View className="flex-row items-center justify-between mb-1.5">
-                  <Text className={isDark ? 'text-[17px] font-extrabold text-slate-200' : 'text-[17px] font-extrabold text-[#111827]'}>
+                  <Text
+                    className={
+                      'font-semibold ' +
+                      (isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]') +
+                      ' ' +
+                      getFontClass(fontSizePreference, {
+                        small: 'text-base',
+                        medium: 'text-[17px]',
+                        large: 'text-lg',
+                        xlarge: 'text-xl',
+                      })
+                    }
+                  >
                     กรอกค่าความดัน
                   </Text>
                   <AnimatedPressable
                     onPress={() => setShowEntryModal(false)}
                     className={
-                      (isDark ? 'bg-[#111827]' : 'bg-gray-100') +
+                      (isDark ? 'bg-[#231C42]' : 'bg-[#EBF5FB]') +
                       ' w-9 h-9 items-center justify-center rounded-xl'
                     }
                   >
@@ -739,11 +950,18 @@ export default function CameraScreen() {
                 </View>
 
                 <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                  <Text className={isDark ? 'text-[13px] text-slate-400 mb-3' : 'text-[13px] text-gray-500 mb-3'}>
+                  <Text
+                    className={
+                      'mb-3 ' +
+                      (isDark ? 'text-[#9C95C2]' : 'text-[#7F8C8D]') +
+                      ' ' +
+                      captionClassName
+                    }
+                  >
                     {capturedImage ? 'ตรวจสอบรูปแล้วกรอกค่า SYS / DIA / ชีพจร' : 'ยังไม่มีรูป (ถ่ายรูปหรือเลือกรูปก่อน แล้วค่อยบันทึก)'}
                   </Text>
 
-                  <View className="flex-col">
+                  <View className="flex-col gap-3">
                     <View>
                       <CustomInput
                         placeholder="SYS"
@@ -776,19 +994,32 @@ export default function CameraScreen() {
 
                 {/* Actions — close lives on the X icon at top right of the
                     sheet; the bottom row gives the two flow-changing actions:
-                    retake (back to camera, keep typed values) and save. */}
-                <View className="flex-row space-x-3 mt-2">
+                    retake (back to camera, keep typed values) and save.
+                    Retake is neutral surface (Theme.surfaceMuted) — red
+                    read as "destructive / discard" which we don't want for
+                    a back-to-camera step that preserves the typed values.
+                    Save is the brand accent purple gradient to match the
+                    confirm row outside the modal. */}
+                <View className="flex-row gap-3 mt-2">
                   <AnimatedPressable
                     onPress={retake}
                     className="flex-1 rounded-2xl overflow-hidden"
                   >
-                    <LinearGradient
-                      colors={['#EF4444', '#DC2626']}
-                      className="flex-row items-center justify-center py-3.5"
+                    <View
+                      className="flex-row items-center justify-center py-3.5 border"
+                      style={{
+                        backgroundColor: isDark ? '#231C42' : '#EBF5FB',
+                        borderColor: isDark ? '#2D2654' : 'rgba(255,255,255,0.8)',
+                      }}
                     >
-                      <Ionicons name="refresh" size={18} color="white" />
-                      <Text className="text-white font-bold text-[15px] ml-2">ถ่ายใหม่</Text>
-                    </LinearGradient>
+                      <Ionicons name="refresh" size={18} color={isDark ? '#E8E4F5' : '#2C3E50'} />
+                      <Text
+                        className={'font-semibold ml-2 ' + bodyClassName}
+                        style={{ color: isDark ? '#E8E4F5' : '#2C3E50' }}
+                      >
+                        ถ่ายใหม่
+                      </Text>
+                    </View>
                   </AnimatedPressable>
 
                   <AnimatedPressable
@@ -796,20 +1027,32 @@ export default function CameraScreen() {
                     disabled={isSaving || !canAttemptSave}
                     className="flex-1 rounded-2xl overflow-hidden"
                   >
-                    <LinearGradient
-                      colors={
-                        isSaving || !canAttemptSave ? ['#9CA3AF', '#6B7280'] : ['#22C55E', '#16A34A']
-                      }
-                      className="flex-row items-center justify-center py-3.5"
-                    >
-                      <Ionicons name="save" size={18} color="white" />
-                      <Text className="text-white font-bold text-[15px] ml-2">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Text>
-                    </LinearGradient>
+                    {isSaving || !canAttemptSave ? (
+                      <View
+                        className="flex-row items-center justify-center py-3.5"
+                        style={{ backgroundColor: isDark ? '#2D2654' : '#BDC3C7' }}
+                      >
+                        <Ionicons name="save" size={18} color="white" />
+                        <Text className={'text-white font-semibold ml-2 ' + bodyClassName}>
+                          {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <LinearGradient
+                        colors={isDark ? ['#9C7BD9', '#6B45B5', '#4A2D9C'] : ['#A879E8', '#7E57C2', '#5E35B1']}
+                        className="flex-row items-center justify-center py-3.5"
+                      >
+                        <Ionicons name="save" size={18} color="white" />
+                        <Text className={'text-white font-semibold ml-2 ' + bodyClassName}>
+                          บันทึก
+                        </Text>
+                      </LinearGradient>
+                    )}
                   </AnimatedPressable>
                 </View>
-              </View>
+              </Pressable>
             </KeyboardAvoidingView>
-          </View>
+          </Pressable>
         </Modal>
 
       </View>

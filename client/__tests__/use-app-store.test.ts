@@ -73,7 +73,7 @@ describe("useAppStore — smoke", () => {
     expect(useAppStore.getState().sensitiveDataUnlocked).toBe(false);
   });
 
-  it("logout wipes user-scoped state", () => {
+  it("logout wipes user-scoped state", async () => {
     useAppStore.setState({
       isAuthenticated: true,
       user: { id: "u1", firstname: "A", lastname: "B", phone: "0000000000", createdAt: new Date() } as never,
@@ -82,7 +82,7 @@ describe("useAppStore — smoke", () => {
       posts: [{ id: "p1" } as never],
       sessions: [{ id: "s1" } as never],
     });
-    useAppStore.getState().logout();
+    await useAppStore.getState().logout();
     const s = useAppStore.getState();
     expect(s.isAuthenticated).toBe(false);
     expect(s.user).toBeNull();

@@ -102,6 +102,10 @@ export default function TabLayout() {
         name="camera"
         options={{
           title: '',
+          // Tab bar stays visible on the camera screen. The camera screen
+          // accounts for the tab bar height in its bottomOverlayPadding so
+          // the capture / retake / confirm row clears the bar (see
+          // camera.tsx → bottomOverlayPadding).
           tabBarIcon: ({ focused }) => (
             <View style={{ marginBottom: Platform.OS === 'ios' ? tabBarPaddingBottom + 10 : tabBarPaddingBottom + 6 }}>
               <LinearGradient
