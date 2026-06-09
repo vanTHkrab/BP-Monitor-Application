@@ -206,6 +206,22 @@ Key boundaries and design choices a senior should respect:
     mobile bundle, and the audit surface. Run `pnpm dlx depcheck` (or
     equivalent for Python) when in doubt before declaring a cleanup
     done.
+14. **Offer the right specialized agent before handling inline** — When a
+    user's prompt clearly matches the scope of one of the project's
+    specialized agents under `.agents/skills/` (e.g. `nest-dev`,
+    `expo-dev`, `ux-ui-designer`, `pr-write`, `bp-task`, `deep-research`,
+    `tester`, `writing-guide`) but the user did not explicitly invoke it
+    via `Agent(sub_agent, ...)` or `/agent <name>`, compare the prompt
+    against the available agent descriptions and ask the user whether to
+    delegate to that agent instead of answering inline. Don't silently
+    delegate, and don't silently answer inline when a clearly
+    better-fitting agent exists. Phrase the check as a short proposal
+    naming the candidate agent and why it fits ("This looks like a
+    `nest-dev` task because X — want me to hand it off, or handle it
+    here?"). If the user declines, proceed inline. If the match is
+    ambiguous — no clear candidate, or several weak matches — proceed
+    inline without asking. The goal is to surface the better tool once,
+    not to gate every reply behind a routing question.
 
 ## Engineering posture
 
