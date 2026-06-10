@@ -397,6 +397,34 @@ export default function CameraScreen() {
               title={permission.canAskAgain === false ? 'เปิดการตั้งค่า' : 'อนุญาตใช้กล้อง'}
               onPress={handleRequestCameraPermission}
             />
+            {/* Secondary recovery action — if the permission grant has
+                landed but the CameraView still hasn't picked it up (state
+                desync after hot-reload, OS lifecycle quirks), force the
+                hook to re-evaluate and bump the camera key so the next
+                render mounts a fresh CameraView. */}
+            <Pressable
+              onPress={async () => {
+                await requestPermission();
+                retryCamera();
+              }}
+              className="mt-3"
+            >
+              <Text
+                className={
+                  'font-semibold underline ' +
+                  (isDark ? 'text-[#9BEAF7]' : 'text-[#1898D4]') +
+                  ' ' +
+                  getFontClass(fontSizePreference, {
+                    small: 'text-[13px]',
+                    medium: 'text-sm',
+                    large: 'text-base',
+                    xlarge: 'text-lg',
+                  })
+                }
+              >
+                ลองใช้กล้องอีกครั้ง
+              </Text>
+            </Pressable>
           </View>
         </FadeInView>
       </GradientBackground>
@@ -467,7 +495,10 @@ export default function CameraScreen() {
             .surface) with the #2D2654 border that the rest of the dark UI
             uses. Safe-area-driven top padding so the title clears the
             notch / Dynamic Island / Android edge-to-edge status bars. */}
-        <View className="items-center justify-center" style={{ paddingTop: insets.top + 12, paddingBottom: 12 }}>
+        {/* No paddingBottom — the camera/preview surface below must sit
+            flush against the header (no visible gap), per the redesigned
+            layout. The gradient header pill keeps its own internal padding. */}
+        <View className="items-center justify-center" style={{ paddingTop: insets.top + 12, paddingBottom: 0 }}>
           <LinearGradient
             colors={['#72DDF4', '#35B8E8']}
             start={{ x: 0, y: 0 }}
@@ -497,11 +528,16 @@ export default function CameraScreen() {
                 `absolute inset-0` cover-fit silently zoomed the sensor
                 feed past the screen edges, so anything tracked at the
                 edge of the live overlay was already off-frame in the
-                captured JPEG. The outer black surface provides the
-                letterbox bars on screens wider/taller than 3:4. */}
-            <View className="flex-1 bg-black items-center justify-center">
+                captured JPEG. The outer wrapper is transparent so the
+                surrounding brand-blue GradientBackground reads through
+                the letterbox bars instead of a flat-black border — that
+                matches how home / history / settings present their
+                empty surfaces. The 3:4 viewport keeps `bg-black` so the
+                camera native surface still has a stable backdrop while
+                it mounts. */}
+            <View className="items-center justify-start">
               <View
-                className="w-full aspect-[3/4] relative overflow-hidden"
+                className="w-full aspect-[3/4] relative overflow-hidden bg-black"
                 onLayout={(e) => {
                   const { width, height } = e.nativeEvent.layout;
                   setPreviewViewport((prev) =>
@@ -622,13 +658,16 @@ export default function CameraScreen() {
               </View>
             </View>
 
-            {/* Camera controls */}
-            <View className="absolute bottom-0 left-0 right-0">
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.65)']}
-                className="pt-10"
-                style={{ paddingBottom: bottomOverlayPadding }}
-              >
+            {/* Camera controls — sit in the empty brand-blue space below
+                the 3:4 camera viewport, NOT as an absolute overlay on top
+                of the preview. Per the redesigned layout, the three
+                actions (gallery / capture / manual entry) live in the
+                gap between the camera surface and the bottom safe area
+                so they never occlude the framed monitor. `flex-1` claims
+                the remaining vertical space; we vertically center the
+                controls inside it. */}
+            <View className="flex-1 w-full" style={{ paddingBottom: bottomOverlayPadding }}>
+              <View className="flex-1 justify-center">
                 <View className="flex-row justify-between items-center px-10">
                   <AnimatedPressable onPress={pickImage} className="w-[70px] items-center">
                     <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
@@ -715,7 +754,7 @@ export default function CameraScreen() {
                     </Text>
                   </AnimatedPressable>
                 </View>
-              </LinearGradient>
+              </View>
             </View>
           </>
         ) : (
@@ -847,6 +886,31 @@ export default function CameraScreen() {
               // so the retake / confirm row stays reachable.
               style={{ paddingBottom: bottomOverlayPadding }}
             >
+              {/* AI analysis failed recovery — gives the user an explicit
+                  way back to the camera AND a hard remount of the native
+                  CameraView (bumped via `cameraKey`) so a stuck preview
+                  surface from the failed run doesn't carry over to the
+                  next attempt. Only renders on `failed` since `idle` /
+                  `done` / in-flight phases have their own affordances. */}
+              {phase === 'failed' && (
+                <View className="mb-3">
+                  <AnimatedPressable
+                    onPress={() => { retake(); retryCamera(); }}
+                    className="rounded-2xl overflow-hidden shadow-lg"
+                  >
+                    <View
+                      className="flex-row items-center justify-center px-5 py-3 border"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.95)', borderColor: 'rgba(235,245,251,0.9)' }}
+                    >
+                      <Ionicons name="camera-reverse" size={20} color="#1898D4" />
+                      <Text className={"font-semibold ml-2 " + bodyClassName} style={{ color: '#1898D4' }}>
+                        ลองใช้กล้องอีกครั้ง
+                      </Text>
+                    </View>
+                  </AnimatedPressable>
+                </View>
+              )}
+
               {/* Retake = neutral brand-dark surface (Theme.dark.surfaceMuted
                   reads as a calm neutral over the photo without screaming
                   destructive). Confirm = brand accent purple gradient — the
