@@ -76,7 +76,63 @@ Keep in-house when the task is:
 - Mechanical refactors that preserve the existing UI contract
 ```
 
-Also lean on session-loaded skills when available: `.claude/skills/expo`, `.claude/skills/nativewind`, and `impeccable` for UI polish. Do not create those skills — only use them when they are loaded.
+Also lean on session-loaded skills when available: `.claude/skills/expo/*`, `.claude/skills/nativewind/*`, and `impeccable` for UI polish. Do not create or edit those skills — they are external/plugin skills that get overwritten on update. Use them as authoritative references; this agent's job is to know **which** skill to reach for, not to re-summarize them.
+
+### Skill index — when to reach for which
+
+Treat the table below as a routing map. The skill file is the source of truth for the technique; this agent owns the BP-Monitor-specific judgment ("does this fit our offline-first + auth-fan-out + YOLO-parity invariants").
+
+```text
+Routing (skill — when to reach for it inside client/):
+
+— Expo / React Native —
+building-native-ui          Screen architecture, layout, components, animations, native tabs.
+                            Use before designing a new screen's structural shell.
+expo-router-…               Routing concerns live in building-native-ui (file-based routing,
+                            modals, typed routes, deep linking). Confirm deep-link intents
+                            against the auth + session-expired flow before adding new schemes.
+native-data-fetching        ANY network call, fetch/React Query/SWR, caching, offline.
+                            STOP — our store + SQLite mirror is the offline layer here.
+                            Read this skill for the technique, but persist through the
+                            existing slices + `pending_readings`, do NOT bolt on a second cache.
+expo-dev-client             When the change needs a custom native module / config plugin
+                            that Expo Go can't satisfy. Flag the EAS impact in the proposal.
+expo-tailwind-setup         Tailwind v4 / NativeWind v5 setup. Our project is on NativeWind v4
+                            today; treat this skill as forward-reference, not "rewrite now".
+expo-module                 Writing a new native module (Swift / Kotlin / TS). Almost never
+                            needed for feature work; if you reach for this, propose first.
+expo-api-routes             Out of scope — patient app doesn't host API routes; gateway does.
+expo-cicd-workflows         Out of scope — CI lives outside client/. Mention if a change
+                            implies a workflow update so the human routes it.
+expo-deployment             Out of scope for expo-dev — release management is human-driven.
+eas-update-insights         Out of scope — observability/health belongs to ops.
+expo-ui-jetpack-compose     Android-only deep-native UI. Last-resort; propose first.
+expo-ui-swift-ui            iOS-only deep-native UI. Last-resort; propose first.
+use-dom                     Reusing web code in a webview on native. Niche; propose first
+                            because it changes the trust boundary (JS sandbox, deep-link
+                            surface) and may conflict with our auth fan-out.
+upgrading-expo              Reach for this BEFORE proposing any SDK bump; never bump in a
+                            feature PR.
+
+— NativeWind —
+architecture                Understand the v5 CSS pipeline before non-trivial style debugging.
+debug-nw                    metro/babel/postcss/dep mismatch → start here, not in code.
+triage                      Upstream issue intake — out of scope for client/ feature work.
+add-test                    Scaffold a Tailwind/NativeWind utility test — only when adding
+                            shared className helpers under components/ or utils/font-scale.ts.
+
+— Project / cross-cutting —
+impeccable                  UI polish, visual hierarchy, motion, micro-interactions, copy
+                            tone. Pair with ux-ui-designer; impeccable is the lens, the
+                            agent owns the decision.
+```
+
+External documentation that this agent treats as authoritative when a skill above doesn't fully answer the question:
+- Expo: https://docs.expo.dev/ (SDK reference, Router guides, EAS).
+- React Native: https://reactnative.dev/ (core APIs, New Architecture status, RN 0.81 notes).
+- NativeWind: https://www.nativewind.dev/ (v4 docs match the current project).
+
+If the answer requires deep reading across either docs site or the React Native source, delegate the search to `Agent(deep-research)` rather than browsing inline — keeps the main context window clean and produces a cited report.
 
 ---
 
@@ -122,6 +178,120 @@ Alert surface — pick by audience:
 - In-app non-push alerts (e.g. reading alerts) → `utils/app-notifications.ts`.
 - Developer-side warnings (dev-only) → `logWarn(scope, ...)` — already `__DEV__`-guarded.
 NEVER leak `extensions.code` or raw English server messages into an Alert.
+```
+
+### Auth + session lifecycle (deepen the existing rule)
+
+Token storage already straddles SecureStore (native) and AsyncStorage (web). Beyond the storage split, every code path that talks to the gateway must respect the same fan-out so a revocation from another device flushes the app once:
+
+```text
+- All GraphQL traffic goes through one of the typed transports:
+  - `graphqlRequest` in `constants/api.ts` (small JSON ops)
+  - `gqlRequest` / `gqlUpload` in `lib/graphql-client.ts` (multipart-aware)
+  Both already call `fireUnauthenticated()` on HTTP 401 or `extensions.code === 'UNAUTHENTICATED'`
+  for token-bearing requests. New transports MUST do the same — copy the pattern, don't re-derive it.
+- `setUnauthenticatedHandler` is wired once at store-composition time in `store/use-app-store.ts`.
+  Do NOT register a second handler; the auth slice's `handleSessionExpired()` is idempotent and
+  owns the banner + local-state clear.
+- A logged-out user should never see a stale screen update — the auth slice clears slices it
+  owns; if a new slice caches user-scoped data, add it to the clear path in the same change.
+- Refresh / re-auth flows (when added) must funnel through the same transports — no out-of-band
+  fetch() with hand-rolled headers.
+```
+
+### Offline-first integrity (deepen the existing rule)
+
+The SQLite layer is doing double-duty: queue for pending writes, mirror of confirmed reads, and 7-day file cache for signed S3 image URLs. A change that touches reading or image flow must respect every job the layer is already doing:
+
+```text
+- `pending_readings` rows carry `syncStatus`: `pending` | `pending-image` | `synced`, and a
+  `remoteId` once the server confirms. A successful sync flips the row IN PLACE — do not
+  delete-then-insert, that re-orders history and breaks the offline mirror.
+- `cached_images` is keyed by extracted S3 path with a 7-day TTL. Use `utils/image-cache`
+  (`resolveImageUri` / `cleanupExpiredImages`) — do NOT cache via a second mechanism (no
+  `expo-image` `cachePolicy: 'memory-disk'` shortcuts for signed URLs; the URL rotates).
+- `useResolvedImageUri` is the hook for any UI that renders a remote image — feeds the remote
+  URI immediately, swaps to `file://` when the cache resolves. Reuse it; don't re-implement.
+- `syncPendingReadings` and `syncPendingPosts` use a promise-mutex. Concurrent callers RETURN
+  the in-flight promise; never a boolean flag, never AbortController as the gate.
+- The optimistic write path must produce a stable client ID (`createClientId(prefix, userId)`)
+  so retries reconcile against the same row. Reading IDs prefixed `local-`, post IDs `local-post-`.
+```
+
+### Image pipeline (BP capture → YOLO → upload)
+
+Three independent invariants that fail silently if mishandled — call them out in proposals when relevant:
+
+```text
+- On-device YOLO model parity: `client/assets/models/yolo12n.onnx` is byte-equal to
+  `server/app/ai-service/models/yolo12n.onnx`. SHA256 is enforced by the prestart hook.
+  If the backend retrains, `pnpm sync-yolo-model` + commit both copies in the same change.
+  Class IDs and thresholds in `lib/yolo/types.ts` mirror `analyzer/yolo.py::CLASS_NAMES` and
+  `_conf_threshold` — change one side, change the other.
+- Pre-flight is warn-not-block: `services/preflight-detection.service.ts → preflightCheckImage`
+  returns `ok` (with auto-crop) / `no-monitor` / `missing-fields`. The camera screen MUST
+  expose a "ส่งต่อไป" override on every non-ok verdict so a false negative doesn't strand
+  the user. Never gate upload on pre-flight verdict.
+- Binary PUT on native goes through `expo-file-system/legacy` `uploadAsync`
+  (`uploadType: BINARY_CONTENT`). `new Blob([Uint8Array])` compiles but throws at runtime on
+  RN — see MEMORY[rn_blob_arraybuffer_trap]. The fetch+Blob path is web-only.
+- BP images use the multipart path in `services/camera.service.ts`. Avatars + other one-shots
+  use `utils/upload-image.ts → uploadImageViaPresign`. Both share the presign → PUT → confirm
+  shape; do not invent a third.
+```
+
+### Bundle size + perf budget (phone-side)
+
+The app ships to phones; every dep is paid for at install time, app-launch time, and OTA-update
+time. Treat dependency additions and large utility imports as load-bearing decisions, not free.
+
+```text
+- No ghost packages (root rule 13). If you remove the last import of a dep, remove it from
+  `package.json` in the same change. New dep → diff must include the import that justifies it.
+  When in doubt, `pnpm dlx depcheck` from `client/`.
+- Prefer `pnpm expo install <pkg>` over `pnpm add <pkg>` for any package that Expo Go bundles
+  natively (see MEMORY[expo_install_for_bundled_pkgs]). Mismatched native versions = runtime
+  crash on Expo Go.
+- Bundled YOLO is 11.5 MB — already a meaningful share of the install. Do NOT bundle a second
+  on-device ML model without an explicit proposal + size trade-off in the brief.
+- Heavy utilities (e.g. `lodash`, `moment`) — reach for tree-shakable alternatives first
+  (`lodash-es` + per-function imports, or native `Intl`). Default to "use what's already here"
+  before adding a new transitive surface.
+- Image-render path uses `expo-image` via the `UIImage` / `Avatar` primitives. Don't import
+  `Image` from `react-native` for new code — the wrapper handles cache + fallback + error state.
+- Static imports of large JSON / asset blobs at module-top inflate the JS bundle even if unused
+  at runtime. Lazy-import (`await import('./big.json')`) when the asset is path-conditional.
+```
+
+### Security checklist (Expo-specific failure modes)
+
+The cross-cutting rules in root CLAUDE.md ("Areas of special attention") name the load-bearing
+surfaces. The Expo-side concrete checks live here:
+
+```text
+- Token storage: SecureStore on native, AsyncStorage only on web. NEVER write tokens to
+  AsyncStorage on native, even as a temporary fallback. `setAuthToken` already encodes the
+  split — go through it.
+- Deep links: if a new screen accepts URL params, validate every param at the screen boundary
+  (typed router helpers in Expo Router don't make untrusted input safe). Never accept a token,
+  user ID, or callback URL from a deep link — the auth flow is gateway-driven, not link-driven.
+- Camera / photo / location permissions: ask just-in-time at the action that needs the
+  permission, not at app boundary. Denial path must render an inline explanation + a settings
+  deep link — never block the rest of the screen.
+- EAS secrets + env: `EXPO_PUBLIC_*` env vars are bundled into the JS payload and READABLE by
+  anyone with the IPA/APK. Do not put API keys, signing secrets, or anything credential-shaped
+  in `EXPO_PUBLIC_*`. Anything sensitive must live behind the gateway.
+- WebView (`use-dom` skill): a webview inherits the JS bundle's network identity. If you use
+  it, the `source` URL must be project-owned and the message bridge must validate
+  origin + payload shape. Treat any inbound `postMessage` as untrusted.
+- SecureStore key naming: prefix project-owned keys so a future SDK upgrade or `expo-secure-store`
+  migration doesn't collide. Don't store JSON-stringified PII at rest if a token-derived lookup
+  works instead.
+- Logging: `logWarn` is `__DEV__`-guarded, but `console.log` is NOT. Never log tokens, raw
+  GraphQL responses (may carry tokens in extensions), or photo paths. Add a redaction step if
+  unsure.
+- Crash reporting (if added later): scrub user IDs + reading values before send. BP readings
+  are health data, not telemetry.
 ```
 
 ---
