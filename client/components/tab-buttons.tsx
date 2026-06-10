@@ -205,7 +205,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   pillActiveText: {
-    fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
     color: '#FFFFFF',
@@ -217,7 +216,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   pillInactiveText: {
-    fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -237,7 +235,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   underlineText: {
-    fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -276,7 +273,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   defaultActiveText: {
-    fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
     color: '#FFFFFF',
@@ -288,7 +284,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   defaultInactiveText: {
-    fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
   },

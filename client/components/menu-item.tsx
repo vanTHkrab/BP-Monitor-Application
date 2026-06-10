@@ -44,6 +44,7 @@ export const MenuItem: React.FC<MenuItemProps> = ({
     : (isDark ? 'border-[#334155]' : 'border-white');
 
   const titleClassName = isDanger ? 'text-red-500' : (isDark ? 'text-slate-200' : 'text-[#2C3E50]');
+  // raw: menu-row title scale sits between canonical `cardTitle` and `body` and predates the preset audit.
   const titleSizeClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-[13px]',
     small: 'text-[14px]',

@@ -4,7 +4,7 @@ import { GradientBackground } from '@/components/gradient-background';
 import { MenuItem } from '@/components/menu-item';
 import { Avatar } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
+import { fontPresetClass } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,24 +22,9 @@ export default function MenuScreen() {
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
   const insets = useSafeAreaInsets();
-  const headingClassName = getFontClass(fontSizePreference, {
-    small: 'text-base',
-    medium: 'text-lg',
-    large: 'text-xl',
-    xlarge: 'text-2xl',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
-  const captionClassName = getFontClass(fontSizePreference, {
-    small: 'text-xs',
-    medium: 'text-sm',
-    large: 'text-base',
-    xlarge: 'text-lg',
-  });
+  const headingClassName = fontPresetClass.heading(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
 
   const handleLogout = () => {
     Alert.alert(

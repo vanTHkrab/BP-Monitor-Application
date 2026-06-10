@@ -3,7 +3,7 @@ import { GradientBackground } from '@/components/gradient-background';
 import { Colors } from '@/constants/colors';
 import { healthTips } from '@/data/mockData';
 import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
+import { fontPresetClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
@@ -24,26 +24,9 @@ export default function HealthTipsScreen() {
   const isDark = themePreference === 'dark';
   const headerIconColor = isDark ? '#E2E8F0' : Colors.text.primary;
 
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-lg',
-    small: 'text-xl',
-    medium: 'text-2xl',
-    large: 'text-[28px]',
-    xlarge: 'text-[32px]',
-  });
-  const cardTitleClassName = getFontClass(fontSizePreference, {
-    small: 'text-[15px]',
-    medium: 'text-[17px]',
-    large: 'text-[19px]',
-    xlarge: 'text-[21px]',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-xs',
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
+  const titleClassName = fontPresetClass.subtitle(fontSizePreference);
+  const cardTitleClassName = fontPresetClass.cardTitle(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
 
   return (
     <GradientBackground>

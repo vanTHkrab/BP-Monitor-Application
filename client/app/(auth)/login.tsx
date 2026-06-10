@@ -4,7 +4,7 @@ import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { TabButtons } from "@/components/tab-buttons";
 import { useAppStore } from "@/store/use-app-store";
-import { getFontClass } from "@/utils/font-scale";
+import { fontPresetClass, getFontClass } from "@/utils/font-scale";
 import { formatThaiPhone, stripPhoneDigits } from "@/utils/phone-format";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -46,6 +46,7 @@ export default function LoginScreen() {
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === "dark";
 
+  // raw: auth hero title runs one scale step larger than canonical `title`.
   const titleClassName = getFontClass(fontSizePreference, {
     xsmall: "text-[24px]",
     small: "text-[26px]",
@@ -53,20 +54,8 @@ export default function LoginScreen() {
     large: "text-[30px]",
     xlarge: "text-[34px]",
   });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-xs",
-    small: "text-sm",
-    medium: "text-base",
-    large: "text-lg",
-    xlarge: "text-xl",
-  });
-  const captionClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-[11px]",
-    small: "text-xs",
-    medium: "text-[13px]",
-    large: "text-sm",
-    xlarge: "text-base",
-  });
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
+  const captionClassName = fontPresetClass.label(fontSizePreference);
 
   // Drive the rate-limit countdown off a wall-clock deadline so it stays
   // accurate even if JS gets backgrounded between ticks.

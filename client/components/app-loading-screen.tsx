@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store/use-app-store';
+import { getFontClass } from '@/utils/font-scale';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Text, useColorScheme, View } from 'react-native';
 import Animated, {
@@ -22,7 +23,29 @@ export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
 }) => {
   const themeHydrated = useAppStore((s) => s.themeHydrated);
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const systemScheme = useColorScheme();
+
+  // raw: splash brand title scale is splash-specific, not the canonical `title`.
+  const brandTitleClassName = getFontClass(fontSizePreference, {
+    small: 'text-2xl',
+    medium: 'text-3xl',
+    large: 'text-[34px]',
+    xlarge: 'text-4xl',
+  });
+  // raw: splash tagline + status copy ramps are tuned for the centered hero column.
+  const taglineClassName = getFontClass(fontSizePreference, {
+    small: 'text-[15px]',
+    medium: 'text-base',
+    large: 'text-[17px]',
+    xlarge: 'text-lg',
+  });
+  const messageClassName = getFontClass(fontSizePreference, {
+    small: 'text-[13px]',
+    medium: 'text-sm',
+    large: 'text-[15px]',
+    xlarge: 'text-base',
+  });
   const effectiveScheme =
     forceColorScheme ?? (themeHydrated ? themePreference : systemScheme ?? 'light');
   const isDark = effectiveScheme === 'dark';
@@ -70,21 +93,21 @@ export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
 
         <Animated.Text
           style={titleStyle}
-          className={(isDark ? 'text-slate-100' : 'text-[#2C3E50]') + ' text-3xl font-bold mt-6'}
+          className={(isDark ? 'text-slate-100' : 'text-[#2C3E50]') + ' font-bold mt-6 ' + brandTitleClassName}
         >
           BP Monitor
         </Animated.Text>
 
         <Animated.Text
           style={taglineStyle}
-          className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' text-base mt-1'}
+          className={(isDark ? 'text-slate-400' : 'text-[#7F8C8D]') + ' mt-1 ' + taglineClassName}
         >
           ดูแลความดันโลหิตของคุณ
         </Animated.Text>
 
         <Animated.View style={spinnerStyle} className="flex-row items-center mt-10">
           <ActivityIndicator size="small" color={isDark ? '#A879E8' : '#7E57C2'} />
-          <Text className={(isDark ? 'text-slate-300' : 'text-[#5E5870]') + ' text-sm ml-3'}>
+          <Text className={(isDark ? 'text-slate-300' : 'text-[#5E5870]') + ' ml-3 ' + messageClassName}>
             {message}
           </Text>
         </Animated.View>

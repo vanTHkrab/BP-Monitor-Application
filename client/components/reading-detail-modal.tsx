@@ -4,7 +4,7 @@ import { formatShortDate } from '@/data/mockData';
 import { useResolvedImageUri } from '@/hooks/use-resolved-image-uri';
 import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading } from '@/types';
-import { getFontClass } from '@/utils/font-scale';
+import { fontPresetClass, getFontClass } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -45,33 +45,17 @@ export function ReadingDetailModal({
     reading?.imageUri ? toDisplayImageUri(reading.imageUri) : undefined,
   );
 
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-lg',
-    small: 'text-xl',
-    medium: 'text-[22px]',
-    large: 'text-2xl',
-    xlarge: 'text-[28px]',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-xs',
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
-  const captionClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-[11px]',
-    small: 'text-xs',
-    medium: 'text-sm',
-    large: 'text-base',
-    xlarge: 'text-lg',
-  });
+  const titleClassName = fontPresetClass.title(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
+  // raw: BP value scale is domain-specific (modal numeric display), not generic typography.
   const readingValueClassName = getFontClass(fontSizePreference, {
     small: 'text-[44px]',
     medium: 'text-[48px]',
     large: 'text-[54px]',
     xlarge: 'text-[60px]',
   });
+  // raw: BP "/" separator pairs with the value scale above.
   const readingSeparatorClassName = getFontClass(fontSizePreference, {
     small: 'text-[38px]',
     medium: 'text-[42px]',
@@ -225,13 +209,7 @@ function InfoRow({
   last?: boolean;
 }) {
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-xs',
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
 
   return (
     <View className={'flex-row justify-between py-2 ' + (last ? '' : 'border-b border-gray-100 dark:border-slate-700')}>

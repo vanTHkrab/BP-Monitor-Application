@@ -28,6 +28,7 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  // raw: BP value scale is domain-specific (large numeric card display), not generic typography.
   const titleSizeClass = getFontClass(fontSizePreference, {
     xsmall: 'text-[30px]',
     small: 'text-[34px]',
@@ -35,6 +36,7 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
     large: 'text-[42px]',
     xlarge: 'text-[46px]',
   });
+  // raw: meta row sits one tick larger than canonical `caption` to balance the oversized BP value.
   const metaSizeClass = getFontClass(fontSizePreference, {
     xsmall: 'text-xs',
     small: 'text-[13px]',

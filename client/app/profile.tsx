@@ -4,7 +4,7 @@ import { GradientBackground } from "@/components/gradient-background";
 import { Avatar } from "@/components/ui/avatar";
 import { Colors } from "@/constants/colors";
 import { useAppStore } from "@/store/use-app-store";
-import { getFontClass } from "@/utils/font-scale";
+import { fontPresetClass } from "@/utils/font-scale";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -85,20 +85,8 @@ export default function ProfileScreen() {
   const headerIconColor =
     themePreference === "dark" ? "#E2E8F0" : Colors.text.primary;
   const isDark = themePreference === "dark";
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-lg",
-    small: "text-xl",
-    medium: "text-[22px]",
-    large: "text-2xl",
-    xlarge: "text-[28px]",
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-xs",
-    small: "text-sm",
-    medium: "text-base",
-    large: "text-lg",
-    xlarge: "text-xl",
-  });
+  const titleClassName = fontPresetClass.title(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
 
   const [firstname, setFirstname] = useState(user?.firstname || "");
   const [lastname, setLastname] = useState(user?.lastname || "");

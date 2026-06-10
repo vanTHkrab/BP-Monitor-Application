@@ -5,7 +5,7 @@ import { Colors, getStatusText, type BPStatus } from '@/constants/colors';
 import { formatThaiDate } from '@/data/mockData';
 import { useAppStore } from '@/store/use-app-store';
 import { shareReadingsExport } from '@/utils/export-data';
-import { getFontClass, getFontNumber } from '@/utils/font-scale';
+import { fontPresetClass, getFontClass, getFontNumber } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import {
   getInAppNotifications,
@@ -42,13 +42,9 @@ export default function HomeScreen() {
   const [notifications, setNotifications] = useState<InAppNotificationItem[]>([]);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const latestReading = readings[0];
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-lg',
-    small: 'text-xl',
-    medium: 'text-2xl',
-    large: 'text-[28px]',
-    xlarge: 'text-[32px]',
-  });
+  const titleClassName = fontPresetClass.subtitle(fontSizePreference);
+  // raw: hero section body uses a tighter [13/15/17/19] ramp distinct from
+  // canonical `body` to balance against the oversized greeting + reading.
   const sectionBodyClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-xs',
     small: 'text-[13px]',
@@ -59,43 +55,30 @@ export default function HomeScreen() {
 
   const textPrimaryClassName = isDark ? 'text-slate-200' : 'text-[#2C3E50]';
   const textSecondaryClassName = isDark ? 'text-slate-400' : 'text-[#7F8C8D]';
-  const captionClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-[11px]',
-    small: 'text-xs',
-    medium: 'text-sm',
-    large: 'text-base',
-    xlarge: 'text-lg',
-  });
-  const greetingClassName = getFontClass(fontSizePreference, {
-    small: 'text-base',
-    medium: 'text-lg',
-    large: 'text-xl',
-    xlarge: 'text-2xl',
-  });
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
+  const greetingClassName = fontPresetClass.heading(fontSizePreference);
+  // raw: BP value scale is domain-specific (hero numeric display), not generic typography.
   const readingValueClassName = getFontClass(fontSizePreference, {
     small: 'text-[48px]',
     medium: 'text-[52px]',
     large: 'text-[60px]',
     xlarge: 'text-[64px]',
   });
+  // raw: BP unit ("mmHg") pairs with the value scale above, not generic body.
   const readingUnitClassName = getFontClass(fontSizePreference, {
     small: 'text-lg',
     medium: 'text-xl',
     large: 'text-2xl',
     xlarge: 'text-[28px]',
   });
+  // raw: primary CTA label scale matches the home hero, not the body preset.
   const primaryActionClassName = getFontClass(fontSizePreference, {
     small: 'text-base',
     medium: 'text-lg',
     large: 'text-xl',
     xlarge: 'text-2xl',
   });
-  const cardTitleClassName = getFontClass(fontSizePreference, {
-    small: 'text-[15px]',
-    medium: 'text-[17px]',
-    large: 'text-[19px]',
-    xlarge: 'text-[21px]',
-  });
+  const cardTitleClassName = fontPresetClass.cardTitle(fontSizePreference);
   const notificationBadgeFontSize = getFontNumber(fontSizePreference, {
     small: 11,
     medium: 12,
