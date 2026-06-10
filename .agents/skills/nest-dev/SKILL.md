@@ -123,6 +123,270 @@ Dependencies:
 - Never mix Node.js + Python dep bumps.
 ```
 
+### Production-grade API security defaults
+
+Every new public surface inherits these expectations. They are NOT covered by `ValidationPipe` alone — name explicitly which apply when proposing non-trivial changes.
+
+```text
+CORS (Fastify + Mercurius):
+- Origins are an allowlist per environment (dev: localhost + Expo dev URL;
+  staging/prod: explicit domain list). No `*` in production — the mobile
+  client sends an Authorization header, so wildcard origin is both unsafe
+  and incompatible with credentialed-looking flows.
+- Configure once in `main.ts` via Fastify CORS plugin, not per-resolver.
+- A new web-facing app (e.g. a partner integration) is a CORS-policy decision
+  before it is a code decision — propose first.
+
+HTTP security headers:
+- Use `@fastify/helmet` (NOT `helmet` directly — wrong server stack).
+  CSP must allow only what the GraphQL endpoint needs; the mobile client
+  does not render HTML so default-deny is safe.
+- HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy: ship as
+  defaults. If turning one off, state why in the proposal.
+
+GraphQL-specific hardening:
+- Disable introspection in production. Dev/staging may keep it on.
+- Add a query depth limit (Mercurius `queryDepth` or a custom plugin).
+- Add a query complexity limit for any resolver that fans out via Prisma
+  `include`. A patient app should never accept a 10-level nested query —
+  it indicates either a bug or an attack.
+- Persisted queries (APQ) are the right long-term move; until then, do not
+  log raw query strings to any sink that survives the request (PII leakage).
+
+Rate limiting beyond login:
+- The current `login-throttle.guard.ts` Lua script (INCR + PEXPIRE) is the
+  canonical pattern — reuse the same shape for any new sensitive mutation
+  (password change, account delete, caregiver invite). DO NOT roll a per-IP
+  limiter at the Fastify layer alone; a JWT-bearing endpoint should key on
+  user id (or phone for pre-auth).
+- Global request-rate cap belongs at the reverse proxy / API gateway layer,
+  not in NestJS — propose infra change rather than code.
+
+Audit logging for sensitive operations:
+- logout-all, password change, account delete, caregiver permission change,
+  session revoke — every one of these is auditable. There is no audit table
+  today; if you add such a feature, propose the audit shape (Prisma model or
+  append-only S3 JSONL) before coding.
+
+Input sanitization beyond ValidationPipe:
+- Prisma parameterizes queries — SQL injection is handled.
+- The patient app does not render HTML, so XSS is out of band; however, any
+  field that could be embedded in an email, SMS, or admin web view needs
+  escaping at the render site, not the storage site.
+- File uploads: trust the wire-contract presign flow + S3 server-side checks.
+  Do not accept arbitrary client-claimed `mimeType` without re-checking via
+  S3 `Content-Type` or ai-service-side magic-byte sniffing.
+```
+
+### Scaling & operations checklist
+
+The api-gateway will not stay single-process forever. Treat every new module as if it had to run on N pods behind a load balancer — most breakage at scale comes from assumptions baked in single-process.
+
+```text
+Multi-instance correctness:
+- No in-memory shared state. The login throttler already has a per-process
+  in-memory fallback — that is for `redis.status !== 'ready'` ONLY, not the
+  hot path. Any new "remember X across requests" feature MUST use Redis or
+  Postgres, never a module-level Map / WeakMap.
+- @Cron jobs (e.g. `StorageCleanupService` daily orphan sweep) will fire on
+  EVERY pod. Either gate via a Redis distributed lock (SET NX PX) or migrate
+  to a job queue (BullMQ) where the queue picks one worker. Today the cron is
+  idempotent (orphan sweep), so it is safe; new cron tasks must verify.
+- WebSocket / GraphQL subscriptions need sticky sessions OR a shared pub/sub
+  fabric (Redis). If proposing subscriptions, name which path.
+
+Load balancer expectations:
+- Add a `GET /health` (liveness) and `GET /ready` (readiness) endpoint when
+  this question first comes up. Liveness = process responds; readiness =
+  Prisma `$queryRaw\`SELECT 1\`` and Redis ping both pass.
+- Long requests block the LB's keep-alive budget — the AI analysis flow MUST
+  remain poll-based (existing pattern), never a 90-second blocking GraphQL
+  call.
+
+Configuration hygiene:
+- `src/redis/redis.module.ts` hardcodes `host: 'localhost', port: 6379`.
+  This will silently break on the first K8s / multi-pod deploy. The fix is
+  `process.env.REDIS_URL ?? process.env.REDIS_HOST` with a sane local default —
+  flag this as a follow-up task when a related change comes up, OR open a
+  scoped PR for it (mechanical). Do not "fix while passing through" inside an
+  unrelated feature PR.
+- ANY new module that talks to an external service (S3, Redis, ai-service)
+  must read its endpoint from env, not a literal. Add the env var to
+  `.env.example` and the docker-compose / infra docs in the SAME change.
+
+Observability hooks (when first needed):
+- Per-request id propagated from a Fastify hook → exposed to resolvers via
+  AsyncLocalStorage → attached to every log line. Without this, multi-pod
+  debugging is guesswork.
+- `prisma:query` event listener with a slow-query threshold (≥ 100 ms) gated
+  on env. Free in dev, off in prod.
+- Counter / histogram metrics (Prometheus shape) for resolver duration, AI
+  enqueue latency, Redis hit/miss. The shape itself is a proposal — do not
+  silently pick a vendor.
+
+Connection pool sizing:
+- Prisma's default pool is small. When adding a hot resolver, check
+  `DATABASE_URL` for `?connection_limit=…` and document the chosen number in
+  the PR body. Prefer DataLoader to batching identical queries; do not raise
+  the pool size to mask N+1.
+
+Graceful shutdown:
+- NestJS lifecycle hooks (`onModuleDestroy`) on services that own Redis
+  subscriptions or background jobs. Without these, in-flight messages are
+  lost on rolling deploy. The AI processor in `src/ai/` already subscribes;
+  any new long-lived subscriber must implement shutdown.
+```
+
+### Redis design → delegate to `redis-dev`
+
+Redis design (key schema, TTL policy, Lua scripts, cache strategy, BullMQ
+queues, denylist / refresh rotation, lockout / OTP, idempotency, GraphQL
+subscription backend, transport wire-shape) lives in
+[`.agents/skills/redis-dev/SKILL.md`](../redis-dev/SKILL.md). That agent
+owns the Redis substrate across the monorepo and edits Redis-touching
+code paths in any app while keeping NestJS resolver/service business
+logic with `nest-dev`.
+
+```text
+Hand off to redis-dev when the task involves:
+- A new Redis key schema or TTL policy
+- A new Lua script (rate limiter, atomic counter, idempotency store)
+- A response cache layer or per-resolver cache decorator
+- A new BullMQ queue + worker, or migrating a @Cron job to a queue
+- GraphQL subscriptions backend (mqemitter-redis wiring)
+- A new microservice transport (Redis pub/sub channel, ClientProxy config)
+- Connection topology changes (sentinel, cluster, TLS, env-var read)
+- Anything touching `src/redis/`, `auth/login-throttle.guard.ts` Lua,
+  `ai/ai.module.ts` transport, or `ai/ai.process.ts` wire shape
+
+Keep in-house (still nest-dev's work) when the task is:
+- A resolver or service that CALLS into an existing Redis-backed pattern
+  (redis-dev designs the pattern; nest-dev wires the resolver to it)
+- Throwing an HttpException whose throttle / lockout logic redis-dev already
+  designed — the resolver-side branching stays here
+- Anything else NestJS / GraphQL / Prisma in shape
+
+Cross-cutting Redis changes (channel rename, key namespace migration,
+transport version bump) are paired changes — refuse one-sided edits and
+flag back so the dispatcher can route both redis-dev (Redis side) and
+nest-dev (resolver wiring) in the same task.
+```
+
+The hard rules that still apply on the NestJS side when integrating with
+the Redis layer:
+
+- All Redis access goes through the `REDIS_CLIENT` ioredis provider in
+  `src/redis/redis.module.ts` (DI-injected). Never instantiate a second
+  client in a feature module.
+- Consumers MUST check `redis.status === 'ready'` before issuing commands
+  and degrade gracefully — see `login-throttle.guard.ts` for the template.
+- The Redis client is OPTIONAL at boot (lazy-connect + suppressed errors)
+  by design. Don't change that without coordinating with redis-dev and
+  ai-service.
+
+### Microservice transport patterns (extending ai-service)
+
+The existing ai-service bridge is the project's only microservice today. Treat it as the template, NOT the limit.
+
+```text
+Current pattern (do not break):
+- Gateway → Redis pub/sub channel `analyze_bp_image` (request) and
+  `analyze_bp_image.reply` (response), correlated by `jobId`.
+- Payload shape lives in `src/ai/ai.process.ts` and is mirrored by
+  `ai-service/src/ai_service/handlers.py`. One-sided change refused.
+- Wire uses @nestjs/microservices ClientProxy in `src/ai/ai.module.ts`.
+
+When to add a new microservice:
+- A workload is CPU-bound and would otherwise block the Node event loop
+  (ML inference, PDF generation, image processing > a few hundred ms).
+- A workload needs a runtime Node cannot host (Python ML, native binaries).
+- A workload has independent scaling characteristics (high-throughput
+  background pipeline vs. user-facing latency budget).
+
+Transport choice — propose 2-3 options when adding a new service:
+- Redis pub/sub (current ai-service): simple, fits request/reply with
+  optional delivery, no in-flight backpressure. Good for fire-and-poll
+  workflows like the AI analysis.
+- BullMQ queue: durable, retries, dead-letter, dashboard. Good for
+  background jobs where the gateway is fine waiting.
+- gRPC / HTTP: synchronous, strongly typed, easier debugging. Good for
+  low-latency internal RPC where async pub/sub adds nothing.
+- TCP / NATS / Kafka: out of scope until throughput exceeds Redis.
+
+Reply correlation + timeouts:
+- The existing AI flow polls — the gateway does not block. Replicate this
+  for any new pub/sub-backed service. A blocking `await rpc(...)` over
+  pub/sub is a design smell.
+- Every request gets a `jobId` (or equivalent) the gateway can poll.
+- Every reply path has a timeout AND a poison-pill handler — a malformed
+  reply must not crash the consumer.
+
+Wire-contract discipline:
+- One owner per shape: gateway side owns the request schema, the service
+  owns the reply schema. Mirror in TS + Python, regenerate consumers, never
+  let one side drift.
+- Add a `schemaVersion` field from day one of any new service. The AI
+  contract currently lacks one — adding it across the boundary is itself a
+  paired change.
+```
+
+### Performance posture (deepen)
+
+The existing N+1 rule + throttled `lastActiveAt` write are necessary but not sufficient at scale. The bar for "fast enough" rises as the app grows.
+
+```text
+Latency budget per resolver:
+- p50 < 50ms for read resolvers, p50 < 150ms for writes (excluding AI poll).
+- A resolver that crosses the budget is a proposal item: cache, batch,
+  denormalize, or move to a queue. Document the chosen layer in the PR.
+
+N+1 detection:
+- DataLoader is the answer for any resolver with `@ResolveField` over a
+  list. Without DataLoader, GraphQL fan-out IS N+1 by construction.
+- Today the codebase has none — adding the FIRST DataLoader is a
+  cross-cutting decision (request-scoped provider in the GraphQL context).
+  Propose the loader registry shape before sprinkling individual loaders.
+
+Prisma query hygiene:
+- `findUnique` over `findFirst` on indexed columns (already in rules).
+- `select` over default `include` — return only fields the resolver uses.
+- `take` + cursor pagination, never offset for unbounded lists.
+- `$transaction(operations, { isolationLevel: 'Serializable' })` for any
+  read-modify-write that race-conditions matter (counter increments, slot
+  reservation, etc.). Default isolation is `ReadCommitted` — name the level
+  when you raise it.
+
+Hot path discipline:
+- `GqlAuthGuard` runs on every authenticated request. Adding a DB read there
+  is a per-request cost — the existing throttled `lastActiveAt` write is the
+  high-water mark; do not add a new query without proposing.
+- The `errorFormatter` runs on every error. Keep it allocation-light; do not
+  introduce JSON.parse / async work inside.
+
+Caching as a last resort, not first reach:
+- Cache invalidation IS the hard problem. A user-scoped read with a 5-second
+  cache solves nothing the LB does not already solve cheaper.
+- Cache only when (a) the read is hot, (b) the data is shared across users,
+  AND (c) staleness for N seconds is acceptable to the product.
+```
+
+### External documentation references
+
+When the project-specific guidance above does not answer a question, the canonical sources are:
+
+```text
+- NestJS: https://docs.nestjs.com/                    (modules, DI, guards, pipes, interceptors, microservices)
+- NestJS source: https://github.com/nestjs/nest       (read the source when docs are ambiguous — it is small)
+- Fastify: https://fastify.dev/docs/latest/           (the underlying HTTP adapter — CORS, hooks, plugins)
+- Mercurius: https://mercurius.dev/                   (GraphQL driver — subscriptions, federation, query depth)
+- Prisma: see .claude/skills/prisma/* (already installed in repo)
+- ioredis: https://github.com/redis/ioredis           (commands, pipelining, Lua, cluster)
+- BullMQ: https://docs.bullmq.io/                     (queues, workers, schedulers, dashboard)
+- OWASP API Security Top 10: https://owasp.org/API-Security/  (the API-side security baseline)
+```
+
+If a question requires deep reading across these or the source itself, delegate the search to `Agent(deep-research)` rather than browsing inline — keeps the main context window clean and produces a cited report.
+
 ---
 
 ## Step 4 — Verify
@@ -194,6 +458,8 @@ Hand off to `tester` on `DONE`. The full downstream chain is `tester` → `pr-wr
 
 | Concern | Owned by |
 |---------|----------|
+| Redis key schema, TTL, Lua, cache, queue, transport wire-shape | redis-dev |
+| Prisma schema, migrations, Prisma Client usage | prisma-dev |
 | Run the canonical test suite as the PR gate | tester |
 | Write commit messages or PR bodies | pr-write |
 | Review the PR for cross-cutting impact | pr-review |
