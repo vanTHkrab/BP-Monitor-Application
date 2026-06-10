@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store/use-app-store';
+import { getFontClass } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,9 +21,35 @@ export const ActivePatientBanner: React.FC = () => {
   const activePatientId = useAppStore((s) => s.activePatientId);
   const setActivePatientId = useAppStore((s) => s.setActivePatientId);
   const themePreference = useAppStore((s) => s.themePreference);
+  const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
   const insets = useSafeAreaInsets();
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const bannerTitleClassName = getFontClass(fontSizePreference, {
+    small: 'text-[13px]',
+    medium: 'text-sm',
+    large: 'text-[15px]',
+    xlarge: 'text-base',
+  });
+  const sheetTitleClassName = getFontClass(fontSizePreference, {
+    small: 'text-base',
+    medium: 'text-lg',
+    large: 'text-xl',
+    xlarge: 'text-2xl',
+  });
+  const captionClassName = getFontClass(fontSizePreference, {
+    small: 'text-[11px]',
+    medium: 'text-xs',
+    large: 'text-[13px]',
+    xlarge: 'text-sm',
+  });
+  const bodyClassName = getFontClass(fontSizePreference, {
+    small: 'text-[13px]',
+    medium: 'text-sm',
+    large: 'text-[15px]',
+    xlarge: 'text-base',
+  });
 
   const activePatient = useMemo(
     () => myPatients.find((p) => p.id === activePatientId) ?? null,
@@ -56,7 +83,7 @@ export const ActivePatientBanner: React.FC = () => {
           </View>
           <View className="flex-1">
             <Text className="text-white/70 text-[10px]">โหมดผู้ดูแล</Text>
-            <Text className="text-white font-bold text-sm" numberOfLines={1}>
+            <Text className={'text-white font-bold ' + bannerTitleClassName} numberOfLines={1}>
               {titleText}
             </Text>
           </View>
@@ -76,7 +103,7 @@ export const ActivePatientBanner: React.FC = () => {
           style={{ paddingBottom: Math.max(insets.bottom + 12, 24) }}
         >
           <View className="flex-row items-center justify-between mb-3">
-            <Text className={(isDark ? 'text-slate-100' : 'text-[#2C3E50]') + ' text-lg font-bold'}>
+            <Text className={(isDark ? 'text-slate-100' : 'text-[#2C3E50]') + ' font-bold ' + sheetTitleClassName}>
               เลือกผู้ป่วยที่ดูแล
             </Text>
             <Pressable
@@ -105,7 +132,7 @@ export const ActivePatientBanner: React.FC = () => {
                 <Text className={(isDark ? 'text-slate-200' : 'text-[#2C3E50]') + ' font-semibold'}>
                   ดูข้อมูลตนเอง
                 </Text>
-                <Text className={(isDark ? 'text-slate-400' : 'text-gray-500') + ' text-xs mt-0.5'}>
+                <Text className={(isDark ? 'text-slate-400' : 'text-gray-500') + ' mt-0.5 ' + captionClassName}>
                   ปิดโหมดผู้ดูแลชั่วคราว
                 </Text>
               </View>
@@ -114,7 +141,7 @@ export const ActivePatientBanner: React.FC = () => {
 
             {myPatients.length === 0 ? (
               <View className={(isDark ? 'bg-[#111827]' : 'bg-gray-50') + ' rounded-2xl p-4 items-center'}>
-                <Text className={(isDark ? 'text-slate-300' : 'text-gray-600') + ' text-sm text-center'}>
+                <Text className={(isDark ? 'text-slate-300' : 'text-gray-600') + ' text-center ' + bodyClassName}>
                   ยังไม่มีผู้ป่วยที่ตอบรับคำเชิญ
                 </Text>
                 <Pressable
@@ -124,7 +151,7 @@ export const ActivePatientBanner: React.FC = () => {
                   }}
                   className="mt-3"
                 >
-                  <Text className="text-[#7E57C2] font-semibold text-sm">จัดการคำเชิญ →</Text>
+                  <Text className={'text-[#7E57C2] font-semibold ' + bodyClassName}>จัดการคำเชิญ →</Text>
                 </Pressable>
               </View>
             ) : (
@@ -157,7 +184,7 @@ export const ActivePatientBanner: React.FC = () => {
                       <Text className={(selected ? 'text-[#5E35B1]' : isDark ? 'text-slate-200' : 'text-[#2C3E50]') + ' font-semibold'}>
                         คุณ {patient.firstname} {patient.lastname}
                       </Text>
-                      <Text className={(isDark ? 'text-slate-400' : 'text-gray-500') + ' text-xs mt-0.5'}>
+                      <Text className={(isDark ? 'text-slate-400' : 'text-gray-500') + ' mt-0.5 ' + captionClassName}>
                         {patient.relationship ?? 'ผู้ป่วย'} • {patient.phone}
                       </Text>
                     </View>

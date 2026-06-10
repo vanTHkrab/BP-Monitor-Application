@@ -134,6 +134,18 @@ export default function CameraScreen() {
       large: 'text-2xl',
       xlarge: 'text-[28px]',
     });
+  const loadingTextClassName = getFontClass(fontSizePreference, {
+    small: 'text-[15px]',
+    medium: 'text-base',
+    large: 'text-[17px]',
+    xlarge: 'text-lg',
+  });
+  const cameraErrorTitleClassName = getFontClass(fontSizePreference, {
+    small: 'text-[15px]',
+    medium: 'text-base',
+    large: 'text-[17px]',
+    xlarge: 'text-lg',
+  });
 
   const handleRequestCameraPermission = async () => {
     try {
@@ -343,7 +355,7 @@ export default function CameraScreen() {
     return (
       <GradientBackground>
         <View className="flex-1 items-center justify-center">
-          <Text className={isDark ? 'text-base text-[#E8E4F5]' : 'text-base text-[#2C3E50]'}>กำลังโหลด...</Text>
+          <Text className={(isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]') + ' ' + loadingTextClassName}>กำลังโหลด...</Text>
         </View>
       </GradientBackground>
     );
@@ -562,7 +574,7 @@ export default function CameraScreen() {
                     }
                   >
                     <Ionicons name="alert-circle" size={26} color="#E74C3C" />
-                    <Text className={isDark ? 'mt-2 text-base font-extrabold text-[#E8E4F5]' : 'mt-2 text-base font-extrabold text-[#2C3E50]'}>
+                    <Text className={(isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]') + ' mt-2 font-extrabold ' + cameraErrorTitleClassName}>
                       กล้องใช้งานไม่ได้
                     </Text>
                     <Text className={isDark ? 'mt-1.5 text-[13px] text-[#9C95C2] text-center' : 'mt-1.5 text-[13px] text-[#7F8C8D] text-center'} numberOfLines={3}>
