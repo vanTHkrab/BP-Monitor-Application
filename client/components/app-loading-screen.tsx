@@ -26,12 +26,14 @@ export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const systemScheme = useColorScheme();
 
+  // raw: splash brand title scale is splash-specific, not the canonical `title`.
   const brandTitleClassName = getFontClass(fontSizePreference, {
     small: 'text-2xl',
     medium: 'text-3xl',
     large: 'text-[34px]',
     xlarge: 'text-4xl',
   });
+  // raw: splash tagline + status copy ramps are tuned for the centered hero column.
   const taglineClassName = getFontClass(fontSizePreference, {
     small: 'text-[15px]',
     medium: 'text-base',

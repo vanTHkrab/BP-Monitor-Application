@@ -80,6 +80,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
         ? 'py-[18px] px-8'
         : 'py-4 px-7';
 
+  // raw: button label scale is domain-specific (size variant), not generic typography.
   const textSizeClassName = size === 'small'
     ? getFontClass(fontSizePreference, {
         xsmall: 'text-[11px]',

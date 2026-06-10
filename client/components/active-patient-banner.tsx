@@ -1,5 +1,5 @@
 import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
+import { fontPresetClass, getFontClass } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,30 +26,22 @@ export const ActivePatientBanner: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // raw: banner title stays compact to keep the floating banner thin.
   const bannerTitleClassName = getFontClass(fontSizePreference, {
     small: 'text-[13px]',
     medium: 'text-sm',
     large: 'text-[15px]',
     xlarge: 'text-base',
   });
+  // raw: bottom-sheet title scale, distinct from canonical `heading` to fit the picker row.
   const sheetTitleClassName = getFontClass(fontSizePreference, {
     small: 'text-base',
     medium: 'text-lg',
     large: 'text-xl',
     xlarge: 'text-2xl',
   });
-  const captionClassName = getFontClass(fontSizePreference, {
-    small: 'text-[11px]',
-    medium: 'text-xs',
-    large: 'text-[13px]',
-    xlarge: 'text-sm',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    small: 'text-[13px]',
-    medium: 'text-sm',
-    large: 'text-[15px]',
-    xlarge: 'text-base',
-  });
+  const captionClassName = fontPresetClass.label(fontSizePreference);
+  const bodyClassName = fontPresetClass.bodySmall(fontSizePreference);
 
   const activePatient = useMemo(
     () => myPatients.find((p) => p.id === activePatientId) ?? null,

@@ -35,3 +35,92 @@ export const getFontNumber = (
   if (preference === "large") return options.large;
   return options.medium;
 };
+
+/**
+ * Canonical font-size presets, keyed by semantic role. Prefer these over
+ * inline `getFontClass(...)` for generic typography (titles, body, captions,
+ * etc.). Use raw `getFontClass` only for domain-specific scales that don't
+ * fit any preset (e.g. BP value, auth hero, button size variants) and add a
+ * short comment on the raw site explaining why.
+ *
+ * Scale mapping reflects the audited drift winners across 28 screens — do
+ * not adjust these without re-auditing the consumers.
+ */
+export const fontPresetClass = {
+  // Screen / section title used by history, camera, profile, caregivers,
+  // security, and reading-detail-modal. Drift winner of the 6-screen
+  // canonical set.
+  title: (preference: FontSizePreference) =>
+    getFontClass(preference, {
+      small: "text-lg",
+      medium: "text-[22px]",
+      large: "text-2xl",
+      xlarge: "text-[28px]",
+    }),
+
+  // Hero-style title used by about/help/health-tips/history-list/home.
+  // One step above `title` at the upper preferences.
+  subtitle: (preference: FontSizePreference) =>
+    getFontClass(preference, {
+      small: "text-lg",
+      medium: "text-2xl",
+      large: "text-[28px]",
+      xlarge: "text-[32px]",
+    }),
+
+  // Chat-style heading (menu screen heading, chat title).
+  heading: (preference: FontSizePreference) =>
+    getFontClass(preference, {
+      small: "text-base",
+      medium: "text-xl",
+      large: "text-2xl",
+      xlarge: "text-[28px]",
+    }),
+
+  // List / card row title (menu items, card titles in feeds).
+  cardTitle: (preference: FontSizePreference) =>
+    getFontClass(preference, {
+      small: "text-[13px]",
+      medium: "text-[17px]",
+      large: "text-[19px]",
+      xlarge: "text-[21px]",
+    }),
+
+  // Default body copy. Canonical across the majority of screens.
+  body: (preference: FontSizePreference) =>
+    getFontClass(preference, {
+      small: "text-xs",
+      medium: "text-base",
+      large: "text-lg",
+      xlarge: "text-xl",
+    }),
+
+  // Banner / compact body — intentionally one step smaller than `body` at
+  // medium so banners read as secondary surfaces.
+  bodySmall: (preference: FontSizePreference) =>
+    getFontClass(preference, {
+      small: "text-xs",
+      medium: "text-sm",
+      large: "text-base",
+      xlarge: "text-lg",
+    }),
+
+  // Meta / helper text under primary content. Canonical caption.
+  caption: (preference: FontSizePreference) =>
+    getFontClass(preference, {
+      small: "text-[11px]",
+      medium: "text-sm",
+      large: "text-base",
+      xlarge: "text-lg",
+    }),
+
+  // Form helper / label text — one step smaller than `caption` at small
+  // and medium to keep auth/form helpers visually subordinate.
+  label: (preference: FontSizePreference) =>
+    getFontClass(preference, {
+      small: "text-[11px]",
+      medium: "text-[13px]",
+      large: "text-sm",
+      xlarge: "text-base",
+    }),
+} as const;

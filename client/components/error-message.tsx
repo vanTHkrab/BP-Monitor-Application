@@ -1,6 +1,6 @@
 import { formatError, type FormattedError } from "@/lib/error-message";
 import { useAppStore } from "@/store/use-app-store";
-import { getFontClass } from "@/utils/font-scale";
+import { fontPresetClass, getFontClass } from "@/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -81,13 +81,9 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = (props) => {
   const severity = props.severity ?? "error";
   const palette = severityStyles[severity];
 
-  const textSize = getFontClass(fontSizePreference, {
-    small: "text-xs",
-    medium: "text-sm",
-    large: "text-base",
-    xlarge: "text-lg",
-  });
+  const textSize = fontPresetClass.bodySmall(fontSizePreference);
 
+  // raw: dev-only error detail runs one step smaller than canonical `caption`.
   const detailSize = getFontClass(fontSizePreference, {
     small: "text-[10px]",
     medium: "text-xs",

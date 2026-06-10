@@ -151,9 +151,17 @@ if the SHA256 drifts, the dev start fails until you run `pnpm sync-yolo-model`.
 - Dark mode is driven by `themePreference` from the store, not by the
   device's `useColorScheme()`. Read `s.themePreference === 'dark'` as
   `isDark` and key off that.
-- Font sizes scale with `fontSizePreference`. Use `getFontClass(preference,
-  { small, medium, large, xlarge })` from `utils/font-scale.ts` rather than
-  hardcoding text sizes on user-facing copy.
+- Font sizes scale with `fontSizePreference`. Prefer the named presets in
+  `utils/font-scale.ts` —
+  `fontPresetClass.<token>(fontSizePreference)` where `<token>` is one of
+  `title` / `subtitle` / `heading` / `cardTitle` / `body` / `bodySmall` /
+  `caption` / `label`. These tokens encode the audited drift winners across
+  screens, so reuse them before reaching for `getFontClass`. Fall back to
+  raw `getFontClass(preference, { small, medium, large, xlarge })` only
+  when the scale is genuinely domain-specific (BP value display, auth
+  hero, button size variants, banner-intentional drift) and add a short
+  `// raw: <why>` comment on the site so the next reader knows it's a
+  conscious exception rather than pre-preset code.
 - Long screens (camera, history, chat) keep their JSX local. Only extract
   components when reused across at least two screens.
 

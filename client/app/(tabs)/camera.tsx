@@ -9,7 +9,7 @@ import { LivePreflightOverlay } from '@/components/live-preflight-overlay';
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
 import { useLivePreflight } from '@/hooks/use-live-preflight';
 import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
+import { fontPresetClass, getFontClass } from '@/utils/font-scale';
 import { prepareImageForAnalysis } from '@/utils/image-prepare';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -127,19 +127,15 @@ export default function CameraScreen() {
   // rather than a stand-alone clinical sub-app.
   const modalCloseIconColor = isDark ? '#E8E4F5' : '#374151';
 
-  const titleClassName = getFontClass(fontSizePreference, {
-      xsmall: 'text-lg',
-      small: 'text-xl',
-      medium: 'text-[22px]',
-      large: 'text-2xl',
-      xlarge: 'text-[28px]',
-    });
+  const titleClassName = fontPresetClass.title(fontSizePreference);
+  // raw: camera loading copy uses a tighter [15/base/17/lg] ramp to fit the spinner row.
   const loadingTextClassName = getFontClass(fontSizePreference, {
     small: 'text-[15px]',
     medium: 'text-base',
     large: 'text-[17px]',
     xlarge: 'text-lg',
   });
+  // raw: camera error title scale mirrors `loadingText` for visual parity, not generic title.
   const cameraErrorTitleClassName = getFontClass(fontSizePreference, {
     small: 'text-[15px]',
     medium: 'text-base',
@@ -379,6 +375,7 @@ export default function CameraScreen() {
               className={
                 (isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]') +
                 ' font-bold mb-3 ' +
+                // raw: permission hero title runs one scale step larger than canonical `title`.
                 getFontClass(fontSizePreference, {
                   small: 'text-xl',
                   medium: 'text-2xl',
@@ -393,12 +390,7 @@ export default function CameraScreen() {
               className={
                 (isDark ? 'text-[#9C95C2]' : 'text-[#7F8C8D]') +
                 ' text-center leading-6 mb-8 ' +
-                getFontClass(fontSizePreference, {
-                  small: 'text-sm',
-                  medium: 'text-base',
-                  large: 'text-lg',
-                  xlarge: 'text-xl',
-                })
+                fontPresetClass.body(fontSizePreference)
               }
             >
               {permission.canAskAgain === false
@@ -426,6 +418,7 @@ export default function CameraScreen() {
                   'font-semibold underline ' +
                   (isDark ? 'text-[#9BEAF7]' : 'text-[#1898D4]') +
                   ' ' +
+                  // raw: inline retry link scale, kept tight to sit under the CustomButton.
                   getFontClass(fontSizePreference, {
                     small: 'text-[13px]',
                     medium: 'text-sm',
@@ -482,18 +475,8 @@ export default function CameraScreen() {
   // without overlapping it.
   const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
   const bottomOverlayPadding = tabBarBaseHeight + insets.bottom + 14;
-  const captionClassName = getFontClass(fontSizePreference, {
-    small: 'text-[11px]',
-    medium: 'text-[13px]',
-    large: 'text-[15px]',
-    xlarge: 'text-[17px]',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
 
   return (
     <GradientBackground safeArea={false}>

@@ -7,7 +7,7 @@ import {
   ExportDataType,
   ExportFormat,
 } from "@/utils/export-data";
-import { getFontClass, getFontNumber } from "@/utils/font-scale";
+import { fontPresetClass, getFontNumber } from "@/utils/font-scale";
 import {
   DEFAULT_REMINDER_SETTINGS,
   getReminderSoundOption,
@@ -105,27 +105,9 @@ export default function SettingsScreen() {
   const headerIconColor = isDark ? "#E2E8F0" : Colors.text.primary;
   const maxExportAttempts = 3;
 
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-[15px]",
-    small: "text-base",
-    medium: "text-lg",
-    large: "text-xl",
-    xlarge: "text-2xl",
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-[13px]",
-    small: "text-sm",
-    medium: "text-base",
-    large: "text-lg",
-    xlarge: "text-xl",
-  });
-  const captionClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-[11px]",
-    small: "text-xs",
-    medium: "text-sm",
-    large: "text-base",
-    xlarge: "text-lg",
-  });
+  const titleClassName = fontPresetClass.title(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
   const fontOptionPreviewSize = (value: FontSizePreference) =>
     getFontNumber(value, {
       xsmall: 12,

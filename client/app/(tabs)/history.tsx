@@ -6,7 +6,7 @@ import { TabButtons } from '@/components/tab-buttons';
 import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading, TimeFilter } from '@/types';
 import { ExportDataType, ExportFormat, shareReadingsExport } from '@/utils/export-data';
-import { getFontClass, getFontNumber } from '@/utils/font-scale';
+import { fontPresetClass, getFontNumber } from '@/utils/font-scale';
 import {
   buildReminderTimelineForDate,
   loadReminderSettings,
@@ -35,27 +35,9 @@ export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const [reminderSettings, setReminderSettings] =
     useState<ReminderSettings | null>(null);
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-lg',
-    small: 'text-xl',
-    medium: 'text-[22px]',
-    large: 'text-2xl',
-    xlarge: 'text-[28px]',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-xs',
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
-  const captionClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-[11px]',
-    small: 'text-xs',
-    medium: 'text-sm',
-    large: 'text-base',
-    xlarge: 'text-lg',
-  });
+  const titleClassName = fontPresetClass.title(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
   const chartAxisFontSize = getFontNumber(fontSizePreference, {
     xsmall: 10,
     small: 11,

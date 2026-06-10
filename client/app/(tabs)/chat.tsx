@@ -5,7 +5,7 @@ import { TabButtons } from '@/components/tab-buttons';
 import { Avatar } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/use-app-store';
 import { PostComment } from '@/types';
-import { getFontClass, getFontNumber } from '@/utils/font-scale';
+import { fontPresetClass, getFontNumber } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -70,27 +70,9 @@ export default function CommunityScreen() {
   const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
   const tabBarHeight = tabBarBaseHeight + insets.bottom;
   const fabBottom = tabBarHeight + 16;
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-base',
-    small: 'text-lg',
-    medium: 'text-xl',
-    large: 'text-2xl',
-    xlarge: 'text-[28px]',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-xs',
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
-  const captionClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-[11px]',
-    small: 'text-xs',
-    medium: 'text-sm',
-    large: 'text-base',
-    xlarge: 'text-lg',
-  });
+  const titleClassName = fontPresetClass.heading(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
   const composerFontSize = getFontNumber(fontSizePreference, {
     xsmall: 13,
     small: 14,

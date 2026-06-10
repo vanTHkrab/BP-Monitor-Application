@@ -4,7 +4,7 @@ import { GradientBackground } from "@/components/gradient-background";
 import { Colors } from "@/constants/colors";
 import { useAppStore } from "@/store/use-app-store";
 import { CaregiverLink, PatientSummary } from "@/types";
-import { getFontClass } from "@/utils/font-scale";
+import { fontPresetClass } from "@/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
 import { Href, router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -30,27 +30,9 @@ export default function CaregiversScreen() {
   const isDark = themePreference === "dark";
   const headerIconColor = isDark ? "#E2E8F0" : Colors.text.primary;
   const isCaregiver = user?.role === 'caregiver';
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-lg",
-    small: "text-xl",
-    medium: "text-[22px]",
-    large: "text-2xl",
-    xlarge: "text-[28px]",
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-xs",
-    small: "text-sm",
-    medium: "text-base",
-    large: "text-lg",
-    xlarge: "text-xl",
-  });
-  const captionClassName = getFontClass(fontSizePreference, {
-    xsmall: "text-[11px]",
-    small: "text-xs",
-    medium: "text-sm",
-    large: "text-base",
-    xlarge: "text-lg",
-  });
+  const titleClassName = fontPresetClass.title(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
 
   const [patientPhone, setPatientPhone] = useState("");
   const [relationship, setRelationship] = useState("family");

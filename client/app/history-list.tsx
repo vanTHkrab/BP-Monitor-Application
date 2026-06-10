@@ -5,7 +5,7 @@ import { TabButtons } from '@/components/tab-buttons';
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading, TimeFilter } from '@/types';
-import { getFontClass } from '@/utils/font-scale';
+import { fontPresetClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -35,20 +35,8 @@ export default function HistoryListScreen() {
     }
   };
   const headerIconColor = isDark ? '#E2E8F0' : Colors.text.primary;
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-lg',
-    small: 'text-xl',
-    medium: 'text-2xl',
-    large: 'text-[28px]',
-    xlarge: 'text-[32px]',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-xs',
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
+  const titleClassName = fontPresetClass.subtitle(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days');
   const [selectedReading, setSelectedReading] =
     useState<BloodPressureReading | null>(null);

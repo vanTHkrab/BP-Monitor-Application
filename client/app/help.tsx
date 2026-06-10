@@ -1,7 +1,7 @@
 import { GradientBackground } from '@/components/gradient-background';
 import { Colors } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
-import { getFontClass } from '@/utils/font-scale';
+import { fontPresetClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
@@ -12,27 +12,9 @@ export default function HelpScreen() {
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const headerIconColor = themePreference === 'dark' ? '#E2E8F0' : Colors.text.primary;
   const isDark = themePreference === 'dark';
-  const titleClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-base',
-    small: 'text-lg',
-    medium: 'text-xl',
-    large: 'text-2xl',
-    xlarge: 'text-[28px]',
-  });
-  const bodyClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-xs',
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
-  });
-  const captionClassName = getFontClass(fontSizePreference, {
-    xsmall: 'text-[11px]',
-    small: 'text-xs',
-    medium: 'text-sm',
-    large: 'text-base',
-    xlarge: 'text-lg',
-  });
+  const titleClassName = fontPresetClass.subtitle(fontSizePreference);
+  const bodyClassName = fontPresetClass.body(fontSizePreference);
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
 
   const contactDeveloper = async () => {
     const url = 'mailto:support@bpapp.com?subject=BP%20Mobile%20-%20ติดต่อผู้พัฒนา';

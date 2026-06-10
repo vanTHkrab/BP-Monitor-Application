@@ -80,6 +80,8 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
+  // raw: community-post card uses a denser typography ladder (title→body→meta→action)
+  // than the canonical presets so the feed reads tighter on mid-density phones.
   const titleClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-[15px]',
     small: 'text-base',
@@ -87,6 +89,7 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
     large: 'text-lg',
     xlarge: 'text-xl',
   });
+  // raw: post body runs one step bigger than canonical body so paragraphs stay readable in-feed.
   const bodyClassName = getFontClass(fontSizePreference, {
     xsmall: 'text-sm',
     small: 'text-[15px]',
