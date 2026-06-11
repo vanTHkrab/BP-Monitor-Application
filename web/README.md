@@ -89,4 +89,4 @@ GraphQL paths). `lib/gateway.ts` calls the NestJS GraphQL endpoint;
 - [Root CLAUDE.md](../CLAUDE.md) — cross-cutting rules and system architecture
 - [web/CLAUDE.md](./CLAUDE.md) — conventions for working in this service
 - [infra/README.md](../infra/README.md) — Docker Compose setup
-- [docs/API.md](../docs/API.md) — GraphQL contract (api-gateway)
+- [docs/01-api/API.md](../docs/01-api/API.md) — GraphQL contract (api-gateway)

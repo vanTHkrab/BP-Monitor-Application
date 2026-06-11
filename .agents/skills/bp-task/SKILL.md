@@ -1,6 +1,6 @@
 ---
 name: bp-task
-description: Central task-board agent for the BP Monitor monorepo. Reads open work from TASK.md, PLAN.md, CLAUDE.md, and MEMORY.md. Adds, updates, and closes tasks on request. Accepts task-creation requests from other agents. Regenerates dev-web/task/index.html after every write.
+description: Central task-board agent for the BP Monitor monorepo. Reads open work from TASK.md, PLAN.md, CLAUDE.md, and MEMORY.md. Adds, updates, and closes tasks on request. Accepts task-creation requests from other agents. Regenerates docs/docs-web/task/index.html after every write.
 ---
 
 ## Responsibility
@@ -115,7 +115,7 @@ Steps:
 1. Assign the next available sequential ID for that scope.
 2. Append the task line under the correct `### scope` section in `TASK.md`.
 3. Update `_Last updated_` to today's date.
-4. Regenerate `dev-web/task/index.html`.
+4. Regenerate `docs/docs-web/task/index.html`.
 5. Reply: `Added **<ID>**: <description>`
 
 ### UPDATE — Change status or priority
@@ -131,7 +131,7 @@ Regenerate HTML. Confirm the change.
 
 ### EXPORT — Regenerate the HTML viewer
 
-Regenerate `dev-web/task/index.html` with current task data embedded.
+Regenerate `docs/docs-web/task/index.html` with current task data embedded.
 Run automatically after every ADD or UPDATE.
 Run on demand when user says "refresh", "export", or "update html".
 
@@ -155,7 +155,7 @@ Process it identically to a user ADD request. Reply with the assigned ID.
 
 ## HTML regeneration rule
 
-`dev-web/task/index.html` is self-contained. All task data is embedded as
+`docs/docs-web/task/index.html` is self-contained. All task data is embedded as
 `const TASKS = [...]` and `const LAST_UPDATED = "..."` inside a `<script>`
 block. No external network requests. Renders correctly at `file://`.
 

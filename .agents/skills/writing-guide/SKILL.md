@@ -66,7 +66,7 @@ constraints and should be split.
 |-----|----------|--------------------------|
 | `README.md` | Any developer, first time in the repo | When setup steps, service URLs, or structure change |
 | `CLAUDE.md` | Claude Code (AI agent) | When conventions, paths, or commands change |
-| `docs/API.md` | Client developers (mobile + web) | When the GraphQL contract, error codes, or auth flow changes |
+| `docs/01-api/API.md` | Client developers (mobile + web) | When the GraphQL contract, error codes, or auth flow changes |
 | `STRUCTURE.md` | New contributors to a service | When module layout or file-placement rules change |
 | `PLAN.md` | The team | When scope, status, or priorities shift |
 
@@ -204,7 +204,7 @@ surface and who owns what.>
 
 ---
 
-### docs/API.md
+### docs/01-api/API.md
 
 Purpose: the contract between the gateway and client developers. Not a guide
 to changing the gateway — a reference for building against it.

@@ -36,6 +36,16 @@ corepack enable
 
 ## Quick Start
 
+### Option A — Dev Container (recommended)
+
+Open the repo in VS Code with the Dev Containers extension and pick
+**Reopen in Container**. The container ships Node 22 + Python 3.13 + `uv` +
+`pnpm` and bootstraps every sub-project on first open. See
+[`.devcontainer/README.md`](./.devcontainer/README.md) for details, port
+forwards, and trade-offs.
+
+### Option B — Local install
+
 Install and run each app independently.
 
 ### 1. Mobile App (Expo)
@@ -101,7 +111,7 @@ uv run fastapi dev main.py
 
 - `client/README.md`
 - `server/README.md` — server tier overview + cross-service architecture
-- `docs/API.md` — GraphQL contract reference for client developers
+- `docs/01-api/API.md` — GraphQL contract reference for client developers
 - `server/app/api-gateway/README.md`
 - `server/app/ai-service/README.md`
 - `web/README.md`
