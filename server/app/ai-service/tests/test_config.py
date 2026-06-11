@@ -48,10 +48,27 @@ class TestDefaults:
 
     def test_default_thresholds_match_plan(self):
         cfg = AnalyzerConfig()
-        assert cfg.confidence_threshold == 0.5
+        # Mirrors client/lib/yolo/types.ts DEFAULT_CONF_THRESHOLD (0.25) /
+        # DEFAULT_IOU_THRESHOLD (0.45) — cross-process wire contract per
+        # root CLAUDE.md "Shared YOLO detector".
+        assert cfg.confidence_threshold == 0.25
+        assert cfg.iou_threshold == 0.45
         assert cfg.image_fetch_timeout_s == 5.0
         assert cfg.ocr_field_timeout_s == 5.0
         assert cfg.pipeline_timeout_s == 30.0
+
+    def test_default_onnx_thread_caps(self):
+        # ORT defaults to host-core count; we cap to avoid contention
+        # when three engines load side-by-side under the FastAPI worker.
+        cfg = AnalyzerConfig()
+        assert cfg.onnx_intra_op_threads == 2
+        assert cfg.onnx_inter_op_threads == 1
+
+    def test_session_options_picks_up_thread_caps(self):
+        cfg = AnalyzerConfig()
+        opts = cfg.build_onnx_session_options()
+        assert opts.intra_op_num_threads == cfg.onnx_intra_op_threads
+        assert opts.inter_op_num_threads == cfg.onnx_inter_op_threads
 
     def test_cpu_providers(self):
         assert AnalyzerConfig().onnx_providers == ["CPUExecutionProvider"]

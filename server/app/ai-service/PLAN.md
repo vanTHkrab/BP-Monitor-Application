@@ -194,7 +194,10 @@ with global env):
 | `AI_DETECTOR_PATH` | `models/yolo12n.onnx` (relative to `ai-service/`) | resolved against `Path(__file__).resolve().parents[2]`, not `os.getcwd()`. Renamed from `AI_MODEL_PATH` to avoid pydantic v2's protected `model_*` namespace and to leave room for a separate OCR-model env var later. |
 | `AI_OCR_ENGINE` | `ssocr` | switch for future engines |
 | `AI_DEVICE_MODE` | `cpu` | `cpu` \| `cuda` (requires `onnxruntime-gpu`) |
-| `AI_CONFIDENCE_THRESHOLD` | `0.5` | YOLO box confidence floor |
+| `AI_CONFIDENCE_THRESHOLD` | `0.25` | YOLO box confidence floor — mirrors `client/lib/yolo/types.ts` `DEFAULT_CONF_THRESHOLD` (cross-process wire contract per root CLAUDE.md "Shared YOLO detector") |
+| `AI_IOU_THRESHOLD` | `0.45` | YOLO per-class NMS IoU — mirrors `client/lib/yolo/types.ts` `DEFAULT_IOU_THRESHOLD` |
+| `AI_ONNX_INTRA_OP_THREADS` | `2` | ORT `intra_op_num_threads` cap (avoids contention across YOLO + CRNN + per-bucket CNN sessions) |
+| `AI_ONNX_INTER_OP_THREADS` | `1` | ORT `inter_op_num_threads` cap (paired with `ORT_SEQUENTIAL`) |
 | `AI_IMAGE_FETCH_TIMEOUT_S` | `5` | httpx GET on presigned URL |
 | `AI_OCR_FIELD_TIMEOUT_S` | `5` | wall-clock per field via asyncio |
 | `AI_PIPELINE_TIMEOUT_S` | `30` | end-to-end |
