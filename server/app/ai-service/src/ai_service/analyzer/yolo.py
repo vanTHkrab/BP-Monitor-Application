@@ -87,6 +87,7 @@ class YoloDetector:
         model_path: str | Path,
         *,
         providers: list[str] | None = None,
+        session_options: ort.SessionOptions | None = None,
         input_size: int = DEFAULT_INPUT_SIZE,
         conf_threshold: float = 0.25,
         iou_threshold: float = 0.45,
@@ -98,9 +99,21 @@ class YoloDetector:
         Raises if the model file is missing or the session can't be
         created — boot fails fast per PLAN.md's "fail-fast on model load"
         decision.
+
+        ``session_options`` should be the value of
+        ``AnalyzerConfig.build_onnx_session_options()`` — caps
+        intra/inter-op threads so the YOLO session doesn't fan out to
+        every host core under contention with the CRNN + per-bucket CNN
+        sessions. When ``None`` (test-only path) ORT picks its own
+        defaults, which mirrors the legacy behavior.
         """
         providers = providers or ["CPUExecutionProvider"]
-        session = ort.InferenceSession(str(model_path), providers=providers)
+        if session_options is None:
+            session = ort.InferenceSession(str(model_path), providers=providers)
+        else:
+            session = ort.InferenceSession(
+                str(model_path), session_options, providers=providers,
+            )
         return cls(
             session,
             input_size=input_size,

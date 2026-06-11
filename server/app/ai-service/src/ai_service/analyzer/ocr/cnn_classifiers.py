@@ -54,16 +54,30 @@ KNOWN_BRANDS: tuple[str, ...] = ("allwell", "omron", "sinocare", "yuwell", "life
 # ─── Module configuration ───────────────────────────────────────────────
 
 _MODELS_DIR: Path | None = None
+_SESSION_OPTIONS: Any | None = None
 
 
-def set_models_dir(path: str | Path) -> None:
+def set_models_dir(
+    path: str | Path,
+    *,
+    session_options: Any | None = None,
+) -> None:
     """Configure the directory containing CNN ONNX bundles + ``templates.npz``.
 
     Called once from ``main.lifespan()`` before any pipeline is built.
     Resets every cache so a unit test can swap the dir between runs.
+
+    ``session_options`` should be the value of
+    ``AnalyzerConfig.build_onnx_session_options()`` — every per-bucket
+    ORT session loaded lazily here uses it, so the CNN ensemble shares
+    the same intra/inter-op thread caps as the YOLO + CRNN sessions.
+    When ``None`` (test path) we fall back to a locally-built
+    ``SessionOptions`` with ``ORT_ENABLE_ALL`` — same as the legacy
+    behavior — so existing tests don't have to thread the config in.
     """
-    global _MODELS_DIR, _CNN_SESSIONS, _TEMPLATES_CACHE, _KNN_CACHE
+    global _MODELS_DIR, _SESSION_OPTIONS, _CNN_SESSIONS, _TEMPLATES_CACHE, _KNN_CACHE
     _MODELS_DIR = Path(path)
+    _SESSION_OPTIONS = session_options
     _CNN_SESSIONS = {}
     _TEMPLATES_CACHE = None
     _KNN_CACHE = None
@@ -105,8 +119,14 @@ def _cnn_session(bucket: str) -> Any | None:
         _CNN_SESSIONS[bucket] = None
         return None
 
-    sess_opts = ort.SessionOptions()
-    sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    # Prefer the shared SessionOptions configured via set_models_dir so
+    # every distilled-CNN session inherits the same intra/inter-op
+    # thread caps as YOLO + CRNN. Fall back to a locally-built one when
+    # the module was initialised without it (legacy test path).
+    sess_opts = _SESSION_OPTIONS
+    if sess_opts is None:
+        sess_opts = ort.SessionOptions()
+        sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     sess = ort.InferenceSession(
         str(path), sess_opts, providers=["CPUExecutionProvider"]
     )

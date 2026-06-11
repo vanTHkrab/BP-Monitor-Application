@@ -31,6 +31,7 @@ valid contract and the gateway tolerates them.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -74,6 +75,7 @@ class HandlerDeps:
     http_client: httpx.AsyncClient
     image_fetch_timeout_s: float
     model_version: str
+    pipeline_timeout_s: float = 30.0
     debug_dump_enabled: bool = False
     debug_dump_dir: Path = Path("debug_images")
 
@@ -235,7 +237,27 @@ async def handle_message(
     try:
         with dumper:
             dumper.dump("00_input", image)
-            result, pipeline_metrics = await pipeline.analyze(image)
+            # End-to-end wall-clock budget — protects the gateway's
+            # BullMQ worker from being kept waiting forever when a
+            # malformed image trips a pathological code path in YOLO
+            # or OCR. ``ocr_field_timeout_s`` already guards each OCR
+            # field individually; this is the higher-level cap that
+            # also covers detect + rectify.
+            result, pipeline_metrics = await asyncio.wait_for(
+                pipeline.analyze(image),
+                timeout=deps.pipeline_timeout_s,
+            )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "pipeline timeout jobId=%s engine=%s after %.1fs",
+            job_id, engine.value, deps.pipeline_timeout_s,
+        )
+        await reply_error(
+            redis_client,
+            request_id,
+            f"pipeline_timeout: exceeded {deps.pipeline_timeout_s:.1f}s budget",
+        )
+        return
     except Exception as e:  # noqa: BLE001 — last-resort guard for pipeline regressions
         logger.exception("pipeline crashed jobId=%s engine=%s", job_id, engine.value)
         await reply_error(redis_client, request_id, f"pipeline error: {e!s}")

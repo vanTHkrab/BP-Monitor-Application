@@ -36,9 +36,13 @@ curl -s http://localhost:8000/health
 | `AI_DETECTOR_PATH` | – | `models/yolo12n.onnx` | Path to YOLO ONNX weights (resolved from ai-service root) |
 | `AI_CRNN_PATH` | – | `models/crnn_int8.onnx` | Path to CRNN ONNX int8 weights |
 | `AI_DEFAULT_ENGINE` | – | `crnn` | Default OCR engine: `crnn` / `ssocr_cnn` / `ssocr` |
-| `AI_CONFIDENCE_THRESHOLD` | – | `0.5` | YOLO detection confidence floor |
+| `AI_CONFIDENCE_THRESHOLD` | – | `0.25` | YOLO detection confidence floor. **Mirrors `client/lib/yolo/types.ts` `DEFAULT_CONF_THRESHOLD`** — cross-process wire contract; change both sides together. |
+| `AI_IOU_THRESHOLD` | – | `0.45` | YOLO per-class NMS IoU threshold. **Mirrors `client/lib/yolo/types.ts` `DEFAULT_IOU_THRESHOLD`** — same wire-contract rule. |
 | `AI_IMAGE_FETCH_TIMEOUT_S` | – | `5` | Timeout for presigned-URL image download |
-| `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout |
+| `AI_OCR_FIELD_TIMEOUT_S` | – | `5` | Per-field OCR wall-clock cap (asyncio) |
+| `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout enforced in `handle_message` |
+| `AI_ONNX_INTRA_OP_THREADS` | – | `2` | `SessionOptions.intra_op_num_threads` cap for every ORT session (YOLO + CRNN + per-bucket CNNs) |
+| `AI_ONNX_INTER_OP_THREADS` | – | `1` | `SessionOptions.inter_op_num_threads` cap (paired with `ORT_SEQUENTIAL`) |
 | `AI_DEBUG_DUMP_ENABLED` | – | `0` | Set to `1` to write per-stage debug images (dev only) |
 | `AI_DEBUG_DUMP_DIR` | – | `<ai-service>/debug_images/` | Output directory for debug dumps |
 
