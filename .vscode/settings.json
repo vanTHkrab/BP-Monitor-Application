@@ -1,4 +1,22 @@
 {
+  // Use Prettier as the default formatter for all file types
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  // Override the default formatter for JavaScript files to use Prettier
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+
+  "eslint.useFlatConfig": true,
+
+  "jest.runMode": "on-demand",
+
   "editor.codeActionsOnSave": {
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",

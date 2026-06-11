@@ -1,0 +1,128 @@
+// BP Monitor — single dev container covering client/ (Expo RN), web/ (Next.js),
+// server/app/api-gateway/ (NestJS + Prisma), and server/app/ai-service/ (FastAPI).
+//
+// See .devcontainer/README.md for rationale, trade-offs, and how to use.
+// Comments are in English per project rule 7 (English for dev content).
+{
+  "name": "BP Monitor — monorepo dev",
+
+  // Node 22 LTS on Debian Bookworm (glibc). Bookworm avoids Alpine musl issues
+  // with native modules and onnxruntime/opencv wheels. The JS image is lighter
+  // than the universal image; Python is added via Feature below.
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+
+  // Order matters: python before uv (uv binds to a specific Python).
+  // Docker-outside-of-docker mounts the host socket so `docker compose` inside
+  // the container drives the host daemon directly. Trade-off: leaks host Docker
+  // (a `docker rm -f` from inside affects the host). Accepted for dev; see README.
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.13",
+      "installTools": false
+    },
+    "ghcr.io/va-h/devcontainers-features/uv:1": {
+      "shellAutocompletion": true
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false,
+      "installDockerBuildx": true,
+      "installDockerComposeSwitch": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // Ports listed here are forwarded with friendly labels in the VS Code UI.
+  // 3000  api-gateway (NestJS + GraphQL endpoint at /graphql)
+  // 3001  web (Next.js dev — 3001 matches infra/docker-compose convention)
+  // 8000  ai-service (FastAPI)
+  // 8081  Expo Metro bundler (SDK 54 default)
+  // 19000-19002  legacy Expo dev tools (harmless when unused)
+  // 5432  Postgres (when running infra/docker-compose stack)
+  // 6379  Redis  (when running infra/docker-compose stack)
+  "forwardPorts": [3000, 3001, 8000, 8081, 19000, 19001, 19002, 5432, 6379],
+  "portsAttributes": {
+    "3000": { "label": "api-gateway (GraphQL)", "onAutoForward": "notify" },
+    "3001": { "label": "web (Next.js)", "onAutoForward": "openBrowser" },
+    "8000": { "label": "ai-service (FastAPI)", "onAutoForward": "notify" },
+    "8081": { "label": "Expo Metro", "onAutoForward": "silent" },
+    "19000": { "label": "Expo dev (legacy)", "onAutoForward": "silent" },
+    "19001": { "label": "Expo dev (legacy)", "onAutoForward": "silent" },
+    "19002": { "label": "Expo dev tools (legacy)", "onAutoForward": "silent" },
+    "5432": { "label": "Postgres (compose)", "onAutoForward": "silent" },
+    "6379": { "label": "Redis (compose)", "onAutoForward": "silent" }
+  },
+
+  // Cache pnpm store + uv cache + each app's node_modules on named volumes so
+  // rebuilds and pnpm/uv operations stay fast across container recreations.
+  // node_modules per app rather than a single root volume because each
+  // package.json has its own pnpm-lock.yaml (no workspaces) and mixing trees
+  // breaks resolution.
+  "mounts": [
+    "source=bp-pnpm-store,target=/home/node/.local/share/pnpm/store,type=volume",
+    "source=bp-uv-cache,target=/home/node/.cache/uv,type=volume",
+    "source=bp-client-node-modules,target=${containerWorkspaceFolder}/client/node_modules,type=volume",
+    "source=bp-web-node-modules,target=${containerWorkspaceFolder}/web/node_modules,type=volume",
+    "source=bp-api-node-modules,target=${containerWorkspaceFolder}/server/app/api-gateway/node_modules,type=volume",
+    "source=bp-ai-venv,target=${containerWorkspaceFolder}/server/app/ai-service/.venv,type=volume"
+  ],
+
+  // Drop the contributor into the repo root with sensible env.
+  "containerEnv": {
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    "UV_LINK_MODE": "copy",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "remoteUser": "node",
+  "workspaceFolder": "/workspaces/BP-Monitor-Application",
+
+  // Eager bootstrap: install every sub-project on container create so the
+  // contributor can `pnpm dev` (root concurrently script) immediately. First
+  // open is slow (~3–5 min); subsequent opens reuse the cached volumes above.
+  // Volume-owned dirs need a chown because the Feature-installed volumes are
+  // created as root before the `node` user touches them.
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Core TS / JS / lint
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "EditorConfig.EditorConfig",
+
+        // Frameworks
+        "bradlc.vscode-tailwindcss",
+        "Prisma.prisma",
+        "GraphQL.vscode-graphql-syntax",
+        "GraphQL.vscode-graphql",
+
+        // Python (ai-service)
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+
+        // Infra
+        "ms-azuretools.vscode-docker",
+
+        // Project-specific: Mermaid diagrams (web/ uses them heavily)
+        "bierner.markdown-mermaid"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/server/app/ai-service/.venv/bin/python",
+        "files.exclude": {
+          "**/.expo": true,
+          "**/.next": true,
+          "**/dist": true
+        }
+      }
+    }
+  }
+}

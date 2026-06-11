@@ -164,4 +164,4 @@ pnpm prisma migrate dev       # apply pending migrations
 - [AGENT.md](./AGENT.md) — agent-style architecture overview
 - [PLAN.md](./PLAN.md) — roadmap and known gaps
 - [MEMORY.md](./MEMORY.md) — durable facts worth remembering across sessions
-- [../../../docs/API.md](../../../docs/API.md) — GraphQL contract reference for client developers (auth, error codes, operation catalogue, image-upload flow)
+- [../../../docs/01-api/API.md](../../../docs/01-api/API.md) — GraphQL contract reference for client developers (auth, error codes, operation catalogue, image-upload flow)

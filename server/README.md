@@ -74,7 +74,7 @@ Docker Compose, see [`../infra/README.md`](../infra/README.md).
 
 | File | Read when |
 | --- | --- |
-| [`docs/API.md`](../docs/API.md) | You're a client developer — you need the GraphQL contract (auth, error codes, operation catalogue, image-upload flow) |
+| [`docs/01-api/API.md`](../docs/01-api/API.md) | You're a client developer — you need the GraphQL contract (auth, error codes, operation catalogue, image-upload flow) |
 | [`CLAUDE.md`](./CLAUDE.md) | AI agents — server-wide guidance |
 | [`app/api-gateway/README.md`](./app/api-gateway/README.md) | Onboarding & ops for the gateway |
 | [`app/api-gateway/CLAUDE.md`](./app/api-gateway/CLAUDE.md) | Conventions inside the gateway (validation, error mapping, sessions) |
