@@ -212,3 +212,12 @@ __marimo__/
 prepare/
 
 debug_images/
+
+# Model artifacts — fetched at runtime from R2 (see docker-entrypoint.sh
+# and src/ai_service/scripts/fetch_models.py). Only the hash manifest and
+# .gitkeep are tracked; the binaries themselves are not.
+models/*.onnx
+models/*.pt
+models/*.npz
+!models/EXPECTED_HASHES.json
+!models/.gitkeep

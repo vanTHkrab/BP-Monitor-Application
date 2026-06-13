@@ -88,19 +88,34 @@ Key boundaries and design choices a senior should respect:
 - **Latency budgets are asymmetric** — UI interactions (mobile + web) must
   feel synchronous; AI analysis is allowed to be async (poll-based).
   Anything that blocks a screen on the AI path is a design smell.
-- **YOLO detector is shared verbatim** — `yolo12n.onnx` lives in both
-  `server/app/ai-service/models/` (backend) and `client/assets/models/`
-  (on-device pre-flight). The mobile app runs the same model on every
-  capture to gate / auto-crop before upload. SHA256 equality is enforced
-  on every `pnpm start` by `client/scripts/verify-yolo-model.mjs`; if you
-  retrain the detector, `cd client && pnpm sync-yolo-model` and commit
-  both copies in the same change. Class IDs and confidence thresholds
-  (`0.25` / IoU `0.45`) in `client/lib/yolo/types.ts` mirror
+- **YOLO detector is shared verbatim** — the same `yolo12n.onnx` runs in
+  both the backend (downloaded into `server/app/ai-service/models/` from R2
+  on first start) and the mobile app (bundled at
+  `client/assets/models/yolo12n.onnx` for on-device pre-flight). The mobile
+  app runs the same model on every capture to gate / auto-crop before
+  upload. The **canonical sha256 lives in
+  `server/app/ai-service/models/EXPECTED_HASHES.json`** — the binary itself
+  is no longer tracked in git on the backend side. SHA256 equality between
+  the bundled mobile copy and the backend manifest entry is enforced on
+  every `pnpm start` by `client/scripts/verify-yolo-model.mjs`; if you
+  retrain the detector, regenerate `EXPECTED_HASHES.json`, upload the new
+  bytes to R2, and on the mobile side `cd client && pnpm sync-yolo-model`
+  to refresh the bundled copy + companion hash file — all in the same
+  change. Class IDs and confidence thresholds (`0.25` / IoU `0.45`) in
+  `client/lib/yolo/types.ts` mirror
   `server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES` —
   they're a wire contract even though no network call crosses between
   them. Pre-flight is warn-not-block: the mobile UI offers "ส่งต่อไป"
   on every negative verdict so on-device false negatives never strand
   the user.
+
+  > Note: as of this change the backend stopped tracking the binary and
+  > switched to R2 + manifest. The mobile-side `verify-yolo-model.mjs`
+  > and `sync-yolo-model` scripts are being updated in a follow-up task
+  > by `expo-dev` to read the hash from the manifest (or the companion
+  > `client/assets/models/yolo12n.sha256` file) instead of `sha256sum`ing
+  > the backend copy directly. Treat the docs above as the target
+  > behavior; the client scripts catch up next.
 
 ## Cross-cutting rules
 
@@ -279,12 +294,16 @@ misbehave subtly when changed without context:
   `analyze_bp_image.reply` channels are typed only by convention. A field
   rename on one side and a stale deploy on the other will fail silently —
   the gateway will just keep polling for a reply that never matches.
-- **Shared YOLO detector.** `yolo12n.onnx` is bundled in both the mobile
-  app and the ai-service. They run the *same* model file for the *same*
-  set of classes, but if the two copies drift you get on-device pre-flight
-  approving an image the backend can't read (or vice-versa). The
-  `pnpm verify-yolo-model` hook on `pnpm start` guards SHA256 equality —
-  if you bypass it, expect silent disagreement between phone and server.
+- **Shared YOLO detector.** `yolo12n.onnx` runs in both the mobile app
+  (bundled at `client/assets/models/`) and the ai-service (downloaded into
+  `server/app/ai-service/models/` from R2 on first start). They run the
+  *same* model file for the *same* set of classes, but if the two copies
+  drift you get on-device pre-flight approving an image the backend can't
+  read (or vice-versa). The canonical sha256 lives in
+  `server/app/ai-service/models/EXPECTED_HASHES.json`; the
+  `pnpm verify-yolo-model` hook on `pnpm start` guards SHA256 equality
+  against it — if you bypass it, expect silent disagreement between phone
+  and server.
 - **Image upload paths.** Two paths exist (multipart for BP images, presign
   for avatars) and they have different runtime traps — notably the RN
   `new Blob([Uint8Array])` trap on native. Don't assume "I'll just upload
