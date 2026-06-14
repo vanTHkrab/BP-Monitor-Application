@@ -69,3 +69,11 @@ Never commit a real `.env` — only `.env.example` is tracked.
   Compose picks the target via the override files.
 - The mobile **client** is intentionally absent from compose — run it with
   `pnpm --dir client start`.
+- The `ai-service` container does **not** ship its OCR model weights
+  (`*.onnx`, `templates.npz`) in the image. On first start
+  `docker-entrypoint.sh` downloads them from `$AI_MODELS_R2_BASE_URL`
+  into `/app/models` and verifies sha256 against
+  `models/EXPECTED_HASHES.json`. The `ai_models` named volume persists
+  the cache across container recreates so subsequent boots skip the
+  download. Set `AI_MODELS_R2_BASE_URL` in `.env` before the first
+  `docker compose up`; the placeholder value is rejected at start.

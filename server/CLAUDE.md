@@ -40,8 +40,15 @@ pnpm --dir server/app/api-gateway test
 ```bash
 cd server/app/ai-service
 uv sync
+cp .env.example .env                                 # set AI_MODELS_R2_BASE_URL
+uv run python -m ai_service.scripts.fetch_models     # pull OCR model artifacts from R2
 uv run fastapi dev main.py
 ```
+
+Model weights (`*.onnx`, `templates.npz`) are no longer tracked in git —
+they are fetched on first start against `models/EXPECTED_HASHES.json`. In
+Docker, `docker-entrypoint.sh` handles the download before the FastAPI
+CMD runs.
 
 ## Working Rules For Claude
 

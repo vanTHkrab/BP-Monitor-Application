@@ -174,11 +174,20 @@ def build_registry(
     """Construct the three M2.2 engines, each as its own ``BPAnalysisPipeline``.
 
     ``cnn_classifiers`` is configured here once — all SSOCR engines
-    inherit the same models directory because the cache is module-level.
+    inherit the same models directory AND the shared ORT
+    ``SessionOptions`` (thread caps + execution mode) because both
+    caches are module-level.
     """
-    cnn_classifiers.set_models_dir(cfg.models_dir)
+    session_options = cfg.build_onnx_session_options()
+    cnn_classifiers.set_models_dir(
+        cfg.models_dir, session_options=session_options,
+    )
 
-    crnn_session = CRNNSession.load(cfg.crnn_path, providers=cfg.onnx_providers)
+    crnn_session = CRNNSession.load(
+        cfg.crnn_path,
+        providers=cfg.onnx_providers,
+        session_options=session_options,
+    )
 
     pipelines: dict[OCREngine, BPAnalysisPipeline] = {
         OCREngine.CRNN: BPAnalysisPipeline(

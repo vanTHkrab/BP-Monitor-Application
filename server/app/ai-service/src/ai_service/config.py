@@ -89,10 +89,26 @@ class AnalyzerConfig(BaseSettings):
         description="ONNX Runtime device target. 'cuda' requires onnxruntime-gpu.",
     )
     confidence_threshold: float = Field(
-        default=0.5,
+        default=0.25,
         ge=0.0,
         le=1.0,
-        description="Minimum YOLO box confidence to consider a detection.",
+        description="Minimum YOLO box confidence to consider a detection. "
+                    "MIRRORS the mobile pre-flight detector's "
+                    "DEFAULT_CONF_THRESHOLD in client/lib/yolo/types.ts — "
+                    "these two values form a cross-process wire contract "
+                    "even though no network call crosses between them (see "
+                    "root CLAUDE.md 'Shared YOLO detector'). Changing one "
+                    "side requires changing the other in the same commit, "
+                    "else mobile pre-flight will approve images the backend "
+                    "discards (or vice-versa).",
+    )
+    iou_threshold: float = Field(
+        default=0.45,
+        ge=0.0,
+        le=1.0,
+        description="NMS IoU threshold for per-class suppression. MIRRORS "
+                    "client/lib/yolo/types.ts DEFAULT_IOU_THRESHOLD — same "
+                    "wire-contract rule as ``confidence_threshold``.",
     )
 
     image_fetch_timeout_s: float = Field(
@@ -108,7 +124,39 @@ class AnalyzerConfig(BaseSettings):
     pipeline_timeout_s: float = Field(
         default=30.0,
         gt=0,
-        description="End-to-end timeout for one analyze_bp_image request.",
+        description="End-to-end timeout for one analyze_bp_image request. "
+                    "Enforced in ``handlers.handle_message`` via "
+                    "``asyncio.wait_for`` around ``pipeline.analyze``. "
+                    "Must stay below the BullMQ job timeout on the gateway "
+                    "(currently 55s) and above the worst-case sum of "
+                    "``ocr_field_timeout_s × 3`` plus detect + rectify "
+                    "headroom — 30s leaves ~10s of slack on both sides.",
+    )
+
+    onnx_intra_op_threads: int = Field(
+        default=2,
+        ge=0,
+        description="``SessionOptions.intra_op_num_threads`` for every "
+                    "``ort.InferenceSession`` constructed in this service "
+                    "(YOLO + CRNN + per-bucket distilled CNNs). 0 lets "
+                    "onnxruntime pick — its default is the full host core "
+                    "count, which causes contention when three engines "
+                    "load side-by-side under the FastAPI worker. The "
+                    "default of 2 assumes a 4-core container and leaves "
+                    "headroom for httpx, Redis, and other concurrent "
+                    "requests. Override via ``AI_ONNX_INTRA_OP_THREADS``.",
+    )
+    onnx_inter_op_threads: int = Field(
+        default=1,
+        ge=0,
+        description="``SessionOptions.inter_op_num_threads`` for every "
+                    "``ort.InferenceSession``. Combined with "
+                    "``ORT_SEQUENTIAL`` execution mode, this disables "
+                    "parallel op execution within a session — the right "
+                    "default for our small int8 graphs where the "
+                    "per-op overhead outweighs the parallelism gain. "
+                    "0 lets onnxruntime pick. Override via "
+                    "``AI_ONNX_INTER_OP_THREADS``.",
     )
 
     debug_dump_enabled: bool = Field(
@@ -147,3 +195,27 @@ class AnalyzerConfig(BaseSettings):
         if self.device_mode == DeviceMode.CUDA:
             return ["CUDAExecutionProvider", "CPUExecutionProvider"]
         return ["CPUExecutionProvider"]
+
+    def build_onnx_session_options(self) -> "ort.SessionOptions":  # type: ignore[name-defined]
+        """Construct shared ``SessionOptions`` for every ORT session.
+
+        Centralises three settings the service has burned itself on:
+        * ``intra_op_num_threads`` capped (default 2) — onnxruntime's
+          default is the full host core count, which causes contention
+          when three engines load side-by-side under the FastAPI worker.
+        * ``inter_op_num_threads`` capped (default 1) — combined with
+          sequential execution this disables parallel op dispatch within
+          one graph (the right call for our small int8 models).
+        * ``execution_mode = ORT_SEQUENTIAL`` — same reason.
+
+        Imported lazily so ``config`` stays import-cheap for tooling that
+        only needs the path fields (e.g. CLI helpers).
+        """
+        import onnxruntime as ort  # local import — keeps config import-light
+
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = self.onnx_intra_op_threads
+        opts.inter_op_num_threads = self.onnx_inter_op_threads
+        opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        return opts

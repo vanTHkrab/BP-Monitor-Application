@@ -1,6 +1,7 @@
 """Redis handler — wire-contract projection + the message-validation guards."""
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -31,13 +32,21 @@ from ai_service.handlers import (
 
 
 class MockPipeline:
-    def __init__(self, result: AnalysisResult | None = None, raises: Exception | None = None):
+    def __init__(
+        self,
+        result: AnalysisResult | None = None,
+        raises: Exception | None = None,
+        sleep_s: float = 0.0,
+    ):
         self._result = result
         self._raises = raises
+        self._sleep_s = sleep_s
 
     async def analyze(
         self, image: np.ndarray
     ) -> tuple[AnalysisResult, PipelineMetrics]:
+        if self._sleep_s > 0:
+            await asyncio.sleep(self._sleep_s)
         if self._raises:
             raise self._raises
         return self._result, PipelineMetrics(
@@ -277,6 +286,30 @@ class TestHandleMessage:
         payload = fake_redis.published[0][1]
         assert "pipeline error" in payload["err"]
         assert "boom" in payload["err"]
+
+    async def test_pipeline_timeout_returns_err(self, fake_redis, good_result, jpeg_bytes):
+        # Pipeline that sleeps past the configured budget triggers the
+        # asyncio.wait_for guard in handle_message; the gateway should
+        # see a structured 'pipeline_timeout' error rather than waiting
+        # for the request to bubble up to the BullMQ worker's own
+        # timeout (which is much longer and noisier).
+        slow = MockPipeline(good_result, sleep_s=0.2)
+        async with mock_http(lambda _r: httpx.Response(200, content=jpeg_bytes)) as http:
+            deps = HandlerDeps(
+                registry=build_registry(slow),
+                http_client=http,
+                image_fetch_timeout_s=2.0,
+                model_version="2026-01-29",
+                pipeline_timeout_s=0.05,
+            )
+            await handle_message(
+                fake_redis,
+                msg(imageUrl="https://example/img.jpg"),
+                deps,
+            )
+        payload = fake_redis.published[0][1]
+        assert "err" in payload
+        assert "pipeline_timeout" in payload["err"]
 
     async def test_unreadable_result_still_succeeds_with_status(
         self, fake_redis, unreadable_result, jpeg_bytes

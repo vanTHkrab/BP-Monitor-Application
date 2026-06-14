@@ -10,9 +10,18 @@ The full YOLO + CRNN pipeline (Milestones 1 and 2.2) is shipped.
 
 ```bash
 cd server/app/ai-service
-uv sync                              # install deps from uv.lock
-uv run fastapi dev main.py           # dev (auto-reload) on port 8000
+uv sync                                              # install deps from uv.lock
+cp .env.example .env                                 # then set AI_MODELS_R2_BASE_URL
+uv run python -m ai_service.scripts.fetch_models     # pull model weights from R2 (~62 MB)
+uv run fastapi dev main.py                           # dev (auto-reload) on port 8000
 ```
+
+> ⚠️ The `*.onnx` / `*.npz` model artifacts are no longer tracked in git —
+> they live in a public R2 bucket and are fetched on demand against the
+> sha256 manifest at `models/EXPECTED_HASHES.json`. Set
+> `AI_MODELS_R2_BASE_URL` in `.env` before the first run; the placeholder
+> URL is rejected at start time. `crnn.pt` is a training-source artifact
+> only and is not fetched at runtime.
 
 Verify the service is running:
 
@@ -31,14 +40,19 @@ curl -s http://localhost:8000/health
 
 | Var | Required | Default | Description |
 | --- | --- | --- | --- |
+| `AI_MODELS_R2_BASE_URL` | yes | – | Public R2 base URL hosting the model artifacts. Consumed by both `docker-entrypoint.sh` and `python -m ai_service.scripts.fetch_models`. The placeholder `https://REPLACE_ME.r2.dev/...` is rejected at start time. |
 | `REDIS_URL` | – | `redis://localhost:6379` | Redis connection string |
 | `LOG_LEVEL` | – | `INFO` | Python logging level |
 | `AI_DETECTOR_PATH` | – | `models/yolo12n.onnx` | Path to YOLO ONNX weights (resolved from ai-service root) |
 | `AI_CRNN_PATH` | – | `models/crnn_int8.onnx` | Path to CRNN ONNX int8 weights |
 | `AI_DEFAULT_ENGINE` | – | `crnn` | Default OCR engine: `crnn` / `ssocr_cnn` / `ssocr` |
-| `AI_CONFIDENCE_THRESHOLD` | – | `0.5` | YOLO detection confidence floor |
+| `AI_CONFIDENCE_THRESHOLD` | – | `0.25` | YOLO detection confidence floor. **Mirrors `client/lib/yolo/types.ts` `DEFAULT_CONF_THRESHOLD`** — cross-process wire contract; change both sides together. |
+| `AI_IOU_THRESHOLD` | – | `0.45` | YOLO per-class NMS IoU threshold. **Mirrors `client/lib/yolo/types.ts` `DEFAULT_IOU_THRESHOLD`** — same wire-contract rule. |
 | `AI_IMAGE_FETCH_TIMEOUT_S` | – | `5` | Timeout for presigned-URL image download |
-| `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout |
+| `AI_OCR_FIELD_TIMEOUT_S` | – | `5` | Per-field OCR wall-clock cap (asyncio) |
+| `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout enforced in `handle_message` |
+| `AI_ONNX_INTRA_OP_THREADS` | – | `2` | `SessionOptions.intra_op_num_threads` cap for every ORT session (YOLO + CRNN + per-bucket CNNs) |
+| `AI_ONNX_INTER_OP_THREADS` | – | `1` | `SessionOptions.inter_op_num_threads` cap (paired with `ORT_SEQUENTIAL`) |
 | `AI_DEBUG_DUMP_ENABLED` | – | `0` | Set to `1` to write per-stage debug images (dev only) |
 | `AI_DEBUG_DUMP_DIR` | – | `<ai-service>/debug_images/` | Output directory for debug dumps |
 
@@ -92,10 +106,14 @@ ai-service/
 │               ├── ssocr.py           # SSOCREngine — rule-based 7-segment; use_classifiers flag enables ssocr_cnn
 │               └── cnn_classifiers.py # ONNX CNN + numpy KNN + template match + brand detection
 ├── models/
-│   ├── yolo12n.onnx                   # YOLOv12n, 5 BP classes, 11.5 MB
-│   ├── crnn_int8.onnx                 # CRNN int8, 1.2 MB
-│   ├── cnn_2ch_distilled_*_int8.onnx  # 4 distilled CNN files, ~0.6 MB each
-│   └── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB)
+│   ├── EXPECTED_HASHES.json           # sha256 manifest (tracked) — single source of truth
+│   ├── yolo12n.onnx                   # YOLOv12n, 5 BP classes, 11.5 MB — fetched from R2
+│   ├── crnn_int8.onnx                 # CRNN int8, 1.2 MB — fetched from R2
+│   ├── cnn_2ch_distilled_*_int8.onnx  # 4 distilled CNN files, ~0.6 MB each — fetched from R2
+│   └── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB) — fetched from R2
+├── docker-entrypoint.sh               # downloads + sha256-verifies model artifacts on container start
+├── src/ai_service/scripts/
+│   └── fetch_models.py                # local-dev equivalent (`python -m ai_service.scripts.fetch_models`)
 ├── storage/
 │   └── fetch.py                       # async fetch_image() — presigned URL → BGR ndarray
 ├── tests/

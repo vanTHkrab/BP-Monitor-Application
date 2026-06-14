@@ -23,6 +23,10 @@ services:
     command: uv run fastapi dev main.py --host 0.0.0.0 --port 8000
     volumes:
       - ../../server/app/ai-service:/app
+      # Source-tree bind above shadows /app/models with the host directory.
+      # Re-layer the named volume so model artifacts still cache across
+      # container recreates (and so the host repo doesn't accumulate them).
+      - ai_models:/app/models
     ports:
       - "8000:8000"
     environment:

@@ -46,11 +46,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover —
     # YoloDetector.load takes ~100 ms — push to a thread so the event loop
     # stays responsive while ONNX Runtime constructs its session. Fails
     # fast (lifespan raises) if the model file is missing per PLAN.md.
+    # ``session_options`` carries the intra/inter-op thread caps from
+    # ``cfg`` so YOLO inference doesn't fan out to every host core when
+    # the CRNN + per-bucket CNN sessions are also loaded.
     detector = await asyncio.to_thread(
         YoloDetector.load,
         cfg.detector_path,
         providers=cfg.onnx_providers,
+        session_options=cfg.build_onnx_session_options(),
         conf_threshold=cfg.confidence_threshold,
+        iou_threshold=cfg.iou_threshold,
     )
 
     # Build all M2.2 engines at lifespan — each one loads its ONNX
@@ -73,6 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover —
         http_client=http_client,
         image_fetch_timeout_s=cfg.image_fetch_timeout_s,
         model_version=detector.model_version,
+        pipeline_timeout_s=cfg.pipeline_timeout_s,
         debug_dump_enabled=cfg.debug_dump_enabled,
         debug_dump_dir=cfg.debug_dump_dir,
     )

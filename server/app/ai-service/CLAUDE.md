@@ -36,7 +36,7 @@ it the service replies with a structured error ("missing imageUrl").
 | `main.py` | entry shim — re-exports `app` from `ai_service.main` so `uv run fastapi dev main.py` works without exposing the package layout |
 | `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds the engine registry, wires the Redis listener. Keep thin — only orchestration belongs here |
 | `src/ai_service/handlers.py` | Redis pub/sub handler — parses `ocrEngine`, dispatches via `EngineRegistry`, emits `engine` + `metrics` in the reply. Owns the wire contract |
-| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence threshold, timeouts, debug-dump toggle + dir) |
+| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence / IoU thresholds, timeouts, ORT thread caps, debug-dump toggle + dir). `confidence_threshold` (0.25) + `iou_threshold` (0.45) **mirror `client/lib/yolo/types.ts`** — cross-process wire contract per root CLAUDE.md "Shared YOLO detector". `build_onnx_session_options()` produces the shared `SessionOptions` (intra=2 / inter=1 / sequential / ORT_ENABLE_ALL) every ORT session in the service uses. |
 | `src/ai_service/debug_dump.py` | Per-request `DebugDumper` + `@debug_stage` decorator + `ContextVar`. When `AI_DEBUG_DUMP_ENABLED=1` the handler installs one dumper per Redis request and pipeline / rectify code writes intermediates (raw input, YOLO overlays, ROI, Canny, quad overlay, rectified, per-field OCR crops) to `debug_images/<jobId>/NN_<stage>.jpg`. Disabled-state is a single-branch no-op — no directories created, no disk writes. Dev-only; never enable in production |
 | `src/ai_service/analyzer/engines.py` | `EngineRegistry`, `AnalysisMetrics`, `build_registry()` — loads all three M2.2 engines side-by-side and resolves per-request selection |
 | `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector. Runs a first YOLO pass on the source image, calls `analyzer.rectify` to straighten the LCD, then a second YOLO pass on the rectified image before OCR — fallback to the original image is silent on any rectify failure |
@@ -50,10 +50,14 @@ it the service replies with a structured error ("missing imageUrl").
 | `src/ai_service/analyzer/ocr/ssocr.py` | `SSOCREngine` — rule-based 7-segment OCR; `use_classifiers` flag toggles the `ssocr_cnn` (full ensemble) vs `ssocr` (rule-only baseline) mode |
 | `src/ai_service/analyzer/ocr/cnn_classifiers.py` | ONNX CNN (`classify_by_cnn_2ch`) + numpy KNN (`classify_by_knn`) + template match + `detect_brand`. Configured once at lifespan via `set_models_dir()`; consumed by `ssocr.py` |
 | `src/ai_service/storage/fetch.py` | async `fetch_image()` (presigned URL → BGR ndarray) + `ImageFetchError` |
-| `models/yolo12n.onnx` | YOLOv12n detector, 5 BP-specific classes, exported with `nms=False` (11.5 MB). **Also bundled verbatim in the mobile app** at `client/assets/models/yolo12n.onnx` for on-device pre-flight (see [../../../client/CLAUDE.md](../../../client/CLAUDE.md)). When you retrain, the mobile copy must be refreshed in the same change — `client/scripts/verify-yolo-model.mjs` runs on every `pnpm start` and fails the dev build on SHA256 drift. |
-| `models/crnn_int8.onnx` | Trained 7-seg CRNN, ONNX int8 (1.2 MB) — `crnn` engine |
-| `models/cnn_2ch_distilled_*_int8.onnx` | Distilled 2-channel CNN (global/sys/dia/pul, ~0.6 MB each = 2.5 MB total) — `ssocr_cnn` engine |
-| `models/templates.npz` | KNN exemplars + mean templates for `ssocr_cnn` (~58 MB) |
+| `models/EXPECTED_HASHES.json` | SHA256 manifest — **single source of truth** for which model artifacts the service expects and what their bytes look like. Consumed by both `docker-entrypoint.sh` and `src/ai_service/scripts/fetch_models.py`. Tracked in git; the binaries it describes are not. |
+| `models/yolo12n.onnx` | YOLOv12n detector, 5 BP-specific classes, exported with `nms=False` (11.5 MB). **Fetched from R2 at startup**, not tracked in git. **Also bundled verbatim in the mobile app** at `client/assets/models/yolo12n.onnx` for on-device pre-flight (see [../../../client/CLAUDE.md](../../../client/CLAUDE.md)). The canonical sha256 lives in `EXPECTED_HASHES.json`; when you retrain, regenerate the manifest, upload the new bytes to R2, and refresh the mobile copy in the same change — `client/scripts/verify-yolo-model.mjs` runs on every `pnpm start` and fails the dev build on SHA256 drift. |
+| `models/crnn_int8.onnx` | Trained 7-seg CRNN, ONNX int8 (1.2 MB) — `crnn` engine. Fetched from R2. |
+| `models/cnn_2ch_distilled_*_int8.onnx` | Distilled 2-channel CNN (global/sys/dia/pul, ~0.6 MB each = 2.5 MB total) — `ssocr_cnn` engine. Fetched from R2. |
+| `models/templates.npz` | KNN exemplars + mean templates for `ssocr_cnn` (~58 MB). Fetched from R2. |
+| `models/crnn.pt` | Training-source PyTorch checkpoint for the CRNN (~4.7 MB). **Not** fetched at runtime — kept in R2 as a training-only artifact and intentionally absent from `EXPECTED_HASHES.json`. |
+| `docker-entrypoint.sh` | POSIX-sh shim that runs before the FastAPI CMD inside the container. Reads `$AI_MODELS_R2_BASE_URL`, downloads each `EXPECTED_HASHES.json` entry into `$MODELS_DIR` (default `/app/models`) with curl, verifies sha256, and refuses to `exec "$@"` on any mismatch. Cached on a Compose named volume (`ai_models`) so the download cost is paid once per host. |
+| `src/ai_service/scripts/fetch_models.py` | Local-dev mirror of the entrypoint — `uv run python -m ai_service.scripts.fetch_models [--dry-run]`. Uses httpx (already a dep) and reads the same manifest. Run once after `cp .env.example .env` before `uv run fastapi dev`. |
 | `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`. Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
 | `debug_images/` | Dev-only output directory for `DebugDumper` when `AI_DEBUG_DUMP_ENABLED=1`. Layout: `debug_images/<jobId>/NN_<stage>.jpg`. Created lazily on first dump; gitignored. Never written when the toggle is off |
 | `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
@@ -64,10 +68,38 @@ it the service replies with a structured error ("missing imageUrl").
 
 ```bash
 uv sync                              # install/lock deps
+cp .env.example .env                 # then set AI_MODELS_R2_BASE_URL
+uv run python -m ai_service.scripts.fetch_models   # pull models from R2
 uv run fastapi dev main.py           # dev (auto-reload, port 8000)
 uv run fastapi run main.py           # production-style
 uv run pytest                        # tests
 ```
+
+## Model artifacts (R2-hosted)
+
+`*.onnx` / `*.npz` weights are not tracked in git — they live in a public
+R2 bucket and are fetched on first start. The contract:
+
+- `models/EXPECTED_HASHES.json` is the manifest. Keys are filenames (relative
+  to `models/`); values are sha256 hex digests. Tracked in git so the
+  expected bytes are pinned even though the binaries themselves are not.
+- `AI_MODELS_R2_BASE_URL` env var points at the public R2 prefix. The
+  placeholder `https://REPLACE_ME.r2.dev/bp-monitor/models` is rejected at
+  start time — must be set to the real value before first run.
+- In Docker, `docker-entrypoint.sh` handles the download + verify before
+  `exec "$@"`. The `ai_models` named volume (see
+  `infra/docker-compose/docker-compose.yml`) persists the cache across
+  container recreates.
+- Outside Docker, run `uv run python -m ai_service.scripts.fetch_models`
+  once after editing `.env`. Both paths read the same manifest, so
+  regenerating it (after a retrain) updates both consumers in lockstep.
+- `crnn.pt` (training-source artifact, ~4.7 MB) is kept in R2 but is **not**
+  in the manifest and **not** fetched at runtime.
+
+The mobile app consumes the YOLO hash from this manifest (or the dedicated
+`client/assets/models/yolo12n.sha256` companion file maintained by
+`expo-dev`). Whenever the YOLO bytes change, both sides ship in the same
+PR — see the "Shared YOLO detector" section in the root `CLAUDE.md`.
 
 ## Wire protocol (must stay in sync with api-gateway)
 
