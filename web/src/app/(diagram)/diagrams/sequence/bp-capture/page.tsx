@@ -7,49 +7,83 @@ import { Mermaid } from "@/components/mermaid";
 
 const chart = `sequenceDiagram
     autonumber
-    participant U as Patient
-    participant App as Expo App
-    participant YOLO as On-device YOLO
-    participant GW as API Gateway
-    participant S3 as S3 Bucket
-    participant R as Redis
-    participant AI as AI Service
-    participant PG as Postgres
+    actor U as User
+    participant CAM as Camera Screen<br/>(use-camera-analysis)
+    participant YOLO as On-device YOLO<br/>(lib/yolo)
+    participant STORE as Zustand Store<br/>+ SQLite
+    participant GW as API Gateway<br/>(NestJS)
+    participant S3 as S3
+    participant BMQ as BullMQ<br/>(ai-analysis)
+    participant RDS as Redis pub/sub
+    participant AI as ai-service<br/>(FastAPI)
+    participant DB as Postgres
 
-    U->>App: Open camera, capture photo
-    App->>YOLO: preflightCheckImage(uri)
-    YOLO-->>App: verdict { ok | no-monitor | missing-fields }, bbox
+    U->>CAM: ถ่ายรูป / เลือกรูป
+    CAM->>YOLO: runPreflight(imageUri)
+    YOLO-->>CAM: verdict {ok|no-monitor|missing-fields}<br/>+ croppedUri
 
-    alt verdict ok
-        App->>App: Auto-crop around monitor + padding
-    else verdict not ok
-        App->>U: Show banner: "ถ่ายใหม่" / "ส่งต่อไป"
-        U->>App: Tap "ส่งต่อไป" (override)
+    alt verdict = ok
+        CAM->>U: preview cropped
+    else no-monitor / missing-fields
+        CAM->>U: banner เตือน + ปุ่ม "ถ่ายใหม่" / "ส่งต่อไป"
+    end
+    U->>CAM: confirm
+
+    Note over CAM,S3: Phase 2 — Upload
+    CAM->>GW: mutation RequestImageUpload
+    GW-->>CAM: {uploadUrl, key, headers}
+    CAM->>S3: PUT bytes (presigned)
+    S3-->>CAM: 200
+    CAM->>GW: mutation ConfirmImageUpload
+    GW->>DB: insert Image row
+    GW-->>CAM: {key, url, imageId}
+
+    Note over CAM,BMQ: Phase 3-4 — Enqueue + publish
+    CAM->>GW: mutation AnalyzeBPImage(s3Key)
+    GW->>GW: assertBPKeyOwnedBy<br/>+ presignGet (TTL 600s)
+    GW->>BMQ: enqueue {jobId, imageUrl, ...}
+    GW-->>CAM: {jobId, status:pending}
+    BMQ->>RDS: publish analyze_bp_image
+
+    Note over RDS,AI: Phase 5 — Pipeline
+    RDS->>AI: message
+    AI->>S3: GET imageUrl (presigned)
+    S3-->>AI: image bytes
+    AI->>AI: YOLO → rectify → YOLO → OCR → validate<br/>(timeout 30s)
+    AI->>RDS: publish analyze_bp_image.reply<br/>{id, response}
+
+    Note over RDS,GW: Phase 6 — Reply
+    RDS->>BMQ: deliver reply
+    BMQ->>DB: update Image.imageQualityScore
+    BMQ->>S3: append metrics JSONL
+    BMQ->>BMQ: job.returnvalue = AnalysisResult
+
+    Note over CAM,GW: Phase 7 — Poll
+    loop ทุก 1.5s, deadline 60s
+        CAM->>GW: query PollAnalysisJob(jobId)
+        GW->>BMQ: job.getState()
+        BMQ-->>GW: state + returnvalue
+        GW-->>CAM: {status, result?}
+    end
+    CAM->>U: prefill sys/dia/pulse<br/>(ถ้า confidence ≥ 0.70)
+
+    Note over U,DB: Phase 8 — Save
+    U->>CAM: confirm save
+    CAM->>STORE: createReading(...)
+    STORE->>STORE: optimistic insert (local-id)<br/>+ SQLite mirror pending
+    STORE->>GW: mutation submitBPReading
+    GW->>DB: BloodPressureReading.create<br/>connect Image
+    DB-->>GW: reading row
+    GW-->>STORE: {id, ...}
+    STORE->>STORE: SQLite update in-place<br/>syncStatus=synced + remoteId
+    STORE-->>U: ✓ saved
+
+    Note over STORE,GW: Offline path
+    alt offline / submit fail
+        STORE->>STORE: คงไว้ pending
+        STORE-->>GW: syncPendingReadings รอบหน้า<br/>(promise mutex)
     end
 
-    App->>GW: mutation uploadBPImage (multipart)
-    GW->>S3: putObject (s3Key)
-    GW-->>App: { jobId, s3Key }
-    GW->>R: publish analyze_bp_image { jobId, userId, s3Key, presignedGetUrl }
-    R-->>AI: deliver analyze_bp_image
-    AI->>S3: GET presigned image
-    AI->>AI: YOLO ROI → OCR → parse sys/dia/pulse
-    AI->>R: publish analyze_bp_image.reply { jobId, sys, dia, pulse, score }
-    R-->>GW: deliver reply
-    GW->>PG: update Image.image_quality_score by s3Key (updateMany)
-
-    loop poll every 1.5s
-        App->>GW: query analysisJob(jobId)
-        GW-->>App: status pending / done / failed
-    end
-
-    App->>U: Pre-fill sys/dia/pulse for confirmation
-    U->>App: Confirm + save
-    App->>App: createReading() optimistic update
-    App->>GW: mutation submitBPReading
-    GW->>PG: insert BloodPressureReading (+ Alert if needed)
-    GW-->>App: BloodPressureReading { id, status }
-    App->>App: Mark local row syncStatus=synced
 `;
 
 export default function BpCaptureSequencePage() {
