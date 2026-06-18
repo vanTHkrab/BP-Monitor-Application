@@ -139,7 +139,7 @@ export const createReadingsSlice: StateCreator<
     try {
       const data = await graphqlRequest<ReadingsQuery>(
         GQL_READINGS,
-        { limit: 200, offset: 0 },
+        { limit: 200, offset: 0, patientId: get().activePatientId ?? undefined },
         token,
       );
       const remote = data.readings.map(readingFromGql);
