@@ -18,7 +18,7 @@ const chart = `erDiagram
     User ||--o{ CaregiverPatient : "caregiver_of"
     User ||--o{ CaregiverPatient : "patient_of"
 
-    BloodPressureReading ||--o{ Image : "captured_by"
+    BloodPressureReading ||--o| Image : "captured_by"
     BloodPressureReading ||--o{ Alert : "triggers"
 
     Post ||--o{ PostComment : "has"
@@ -58,8 +58,10 @@ const chart = `erDiagram
     CaregiverPatient {
         uuid caregiver_id PK,FK
         uuid patient_id PK,FK
-        enum relationship
+        enum relationship "parent|patient|caregiver|child|spouse|sibling|friend|caregiver_professional|other"
+        enum status "pending|accepted|rejected"
         timestamp created_at
+        timestamp responded_at
     }
 
     BloodPressureReading {
