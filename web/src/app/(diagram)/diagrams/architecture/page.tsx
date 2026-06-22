@@ -5,75 +5,84 @@ import {
 } from "@/components/diagram-page";
 import { Mermaid } from "@/components/mermaid";
 
-const chart = `graph LR
-    subgraph Clients
-        M["Expo Mobile App<br/>(React Native + SQLite queue)"]
-        W["Web Dashboard<br/>(Next.js App Router)"]
+const chart = `flowchart LR
+    subgraph Mobile["📱 Mobile Client — Expo / React Native"]
+        direction TB
+        ZUSTAND["Zustand Store<br/>optimistic writes"]
+        SQLITE[("SQLite<br/>pending_readings<br/>queue + mirror")]
+        YOLOC["On-device YOLOv11n<br/>pre-flight gate"]
+        ZUSTAND --> SQLITE
+        ZUSTAND --> YOLOC
     end
 
-    subgraph Backend["API Gateway (NestJS + Mercurius)"]
-        G["GraphQL Resolvers"]
-        AUTH["Auth + Sessions<br/>(JWT, login throttle)"]
-        AI["AI Bridge<br/>(src/ai/)"]
-        STORAGE["Storage<br/>(presign + cleanup cron)"]
-        PRISMA["PrismaService"]
+    subgraph Gateway["🟣 API Gateway — NestJS + Mercurius"]
+        direction TB
+        GQL["GraphQL Resolvers"]
+        AUTHG["Auth + Sessions<br/>JWT, login throttle"]
+        AIBRIDGE["AI Bridge<br/>ai.process.ts"]
+        PRESIGN["Storage<br/>S3 presign + cron"]
+        PRISMA["PrismaService<br/>sole Postgres writer"]
+        GQL --> AUTHG
+        GQL --> AIBRIDGE
+        GQL --> PRESIGN
+        GQL --> PRISMA
     end
 
-    subgraph Infra["Shared Infrastructure"]
-        PG[("PostgreSQL<br/>(durable state)")]
-        REDIS[("Redis<br/>(pub/sub + throttle)")]
-        S3[("S3<br/>(images + metrics)")]
-    end
-
-    subgraph AIService["AI Service (FastAPI, Python)"]
-        LISTENER["Redis Listener"]
-        YOLO["YOLOv12n Detector"]
+    subgraph AIService["🟢 AI Service — FastAPI / Python"]
+        direction TB
+        SUB["Redis subscriber<br/>handlers.py"]
+        YOLOA["YOLOv11n Detector<br/>same .onnx as client"]
         OCR["OCR Pipeline"]
+        SUB --> YOLOA --> OCR
     end
 
-    M -- "GraphQL + multipart upload" --> G
-    W -- "GraphQL" --> G
-    M -- "PUT signed URL" --> S3
-    W -- "PUT signed URL" --> S3
+    subgraph DataLayer["⚪ Data Layer"]
+        direction TB
+        PG[("PostgreSQL<br/>durable state")]
+        REDIS{{"Redis<br/>pub/sub transport"}}
+        S3[("S3-compatible storage<br/>images + JSONL metrics")]
+    end
 
-    G --> AUTH
-    G --> AI
-    G --> STORAGE
-    G --> PRISMA
+    ZUSTAND -- "GraphQL + token auth" --> GQL
+    SQLITE -. "reconcile on next fetchX" .-> GQL
+    ZUSTAND -- "presign request, then direct PUT" --> S3
+
+    AUTHG --> REDIS
+    PRESIGN --> S3
     PRISMA --> PG
-    AUTH --> REDIS
-    STORAGE --> S3
-
-    AI -- "publish analyze_bp_image" --> REDIS
-    REDIS -- "subscribe analyze_bp_image" --> LISTENER
-    LISTENER --> YOLO
-    LISTENER --> OCR
-    YOLO -- "presigned GET" --> S3
+    AIBRIDGE -- "PUBLISH analyze_bp_image" --> REDIS
+    REDIS -- "SUBSCRIBE analyze_bp_image" --> SUB
+    SUB -- "PUBLISH analyze_bp_image.reply" --> REDIS
+    REDIS -- "SUBSCRIBE reply" --> AIBRIDGE
+    YOLOA -- "presigned GET" --> S3
     OCR -- "presigned GET" --> S3
-    LISTENER -- "publish analyze_bp_image.reply" --> REDIS
-    REDIS -- "subscribe reply" --> AI
 
-    classDef client fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
-    classDef gw fill:#fef3c7,stroke:#d97706,color:#92400e
-    classDef infra fill:#e5e7eb,stroke:#6b7280,color:#1f2937
-    classDef ai fill:#ede9fe,stroke:#7c3aed,color:#5b21b6
-    class M,W client
-    class G,AUTH,AI,STORAGE,PRISMA gw
-    class PG,REDIS,S3 infra
-    class LISTENER,YOLO,OCR ai
+    classDef client fill:#dbeafe,stroke:#2563eb,color:#1e3a8a,stroke-width:2px
+    classDef gw fill:#ede9fe,stroke:#7c3aed,color:#4c1d95,stroke-width:2px
+    classDef ai fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+    classDef data fill:#f3f4f6,stroke:#6b7280,color:#1f2937,stroke-width:2px
+    class ZUSTAND,SQLITE,YOLOC client
+    class GQL,AUTHG,AIBRIDGE,PRESIGN,PRISMA gw
+    class SUB,YOLOA,OCR ai
+    class PG,REDIS,S3 data
+
+    style Mobile fill:#eff6ff,stroke:#93c5fd,stroke-width:1px
+    style Gateway fill:#f5f3ff,stroke:#c4b5fd,stroke-width:1px
+    style AIService fill:#f0fdf4,stroke:#86efac,stroke-width:1px
+    style DataLayer fill:#f9fafb,stroke:#d1d5db,stroke-width:1px
 `;
 
 export default function ArchitecturePage() {
     return (
         <DiagramPage
             title="System Architecture"
-            subtitle="How the four runtimes talk to each other"
-            description="Two clients (mobile + web) speak GraphQL to one NestJS gateway, which owns Postgres via Prisma and bridges to the FastAPI AI service over a Redis pub/sub contract. Media bytes live in S3 and are never tunnelled through the gateway."
+            subtitle="How the mobile client, gateway, AI service, and data layer talk to each other"
+            description="The mobile client speaks GraphQL to one NestJS gateway, which owns Postgres via Prisma and bridges to the FastAPI AI service over a Redis pub/sub contract. Media bytes flow client → S3 directly via presigned PUT."
             tags={["Architecture", "End-to-end"]}
         >
             <DiagramSection
                 title="The full picture"
-                description="Solid arrows are direct calls. Pub/sub edges are explicit. Postgres is the only durable store; Redis is a transport, not a database."
+                description="Edges are direct calls or pub/sub hops. Postgres is the only durable store; Redis is a transport, not a database; SQLite on mobile is a queue + mirror, not authority."
             >
                 <Mermaid chart={chart} />
             </DiagramSection>
@@ -82,19 +91,19 @@ export default function ArchitecturePage() {
                 <InsightList
                     items={[
                         {
-                            label: "One gateway, multiple clients",
+                            label: "One gateway, one client",
                             detail:
-                                "Mobile and web hit the same GraphQL endpoint with the same auth scheme. Any breaking schema change ships to two clients simultaneously.",
+                                "The mobile app hits the GraphQL endpoint with a token auth scheme. Any breaking schema change ships straight to the patient-facing client.",
                         },
                         {
                             label: "Redis is the only AI contract",
                             detail:
-                                "Channels analyze_bp_image and analyze_bp_image.reply, with payload shapes owned by api-gateway/src/ai/ and mirrored by ai-service/src/ai_service. Both sides must change together.",
+                                "Channels analyze_bp_image and analyze_bp_image.reply, with payload shapes owned by api-gateway/src/ai/ai.process.ts and mirrored by ai-service/src/ai_service/handlers.py. Both sides must change together.",
                         },
                         {
-                            label: "S3 is direct from client",
+                            label: "S3 is direct from the mobile client",
                             detail:
-                                "Clients PUT to S3 via presigned URLs the gateway hands out. Bytes never tunnel through the gateway, so it doesn't become an upload bottleneck.",
+                                "BP images and avatars PUT straight to S3 via a presigned URL the gateway hands out (client/services/camera.service.ts, client/utils/upload-image.ts). Bytes never tunnel through the gateway, so it doesn't become an upload bottleneck.",
                         },
                         {
                             label: "Redis is optional at boot",
@@ -124,7 +133,7 @@ export default function ArchitecturePage() {
                         {
                             label: "Postgres as the only source of truth",
                             detail:
-                                "SQLite (mobile) and Redis (transport) are caches/queues, not authority. Reconciliation is on the next fetchX call; we accept some staleness for offline resilience.",
+                                "SQLite (mobile) and Redis (transport) are caches/queues, not authority. The mobile store writes optimistically, queues to SQLite (pending_readings) on failure, and reconciles on the next fetchX call; we accept some staleness for offline resilience.",
                         },
                     ]}
                 />
