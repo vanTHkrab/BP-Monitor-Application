@@ -223,8 +223,8 @@ The SQLite layer is doing double-duty: queue for pending writes, mirror of confi
 Three independent invariants that fail silently if mishandled — call them out in proposals when relevant:
 
 ```text
-- On-device YOLO model parity: `client/assets/models/yolo12n.onnx` is byte-equal to
-  `server/app/ai-service/models/yolo12n.onnx`. SHA256 is enforced by the prestart hook.
+- On-device YOLO model parity: `client/assets/models/yolo11n.onnx` is byte-equal to
+  `server/app/ai-service/models/yolo11n.onnx`. SHA256 is enforced by the prestart hook.
   If the backend retrains, `pnpm sync-yolo-model` + commit both copies in the same change.
   Class IDs and thresholds in `lib/yolo/types.ts` mirror `analyzer/yolo.py::CLASS_NAMES` and
   `_conf_threshold` — change one side, change the other.
@@ -252,7 +252,7 @@ time. Treat dependency additions and large utility imports as load-bearing decis
 - Prefer `pnpm expo install <pkg>` over `pnpm add <pkg>` for any package that Expo Go bundles
   natively (see MEMORY[expo_install_for_bundled_pkgs]). Mismatched native versions = runtime
   crash on Expo Go.
-- Bundled YOLO is 11.5 MB — already a meaningful share of the install. Do NOT bundle a second
+- Bundled YOLO is 10.7 MB — already a meaningful share of the install. Do NOT bundle a second
   on-device ML model without an explicit proposal + size trade-off in the brief.
 - Heavy utilities (e.g. `lodash`, `moment`) — reach for tree-shakable alternatives first
   (`lodash-es` + per-function imports, or native `Intl`). Default to "use what's already here"

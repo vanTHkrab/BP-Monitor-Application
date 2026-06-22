@@ -66,8 +66,8 @@ Docker daemon — see *Docker access* below.
     `packageManager` field if pinned).
   - `pnpm install` in `client/`, `web/`, and `server/app/api-gateway/`.
   - `uv sync` in `server/app/ai-service/`.
-  - `pnpm verify-yolo-model` to confirm `client/assets/models/yolo12n.onnx`
-    SHA256 matches `server/app/ai-service/models/yolo12n.onnx`.
+  - `pnpm verify-yolo-model` to confirm `client/assets/models/yolo11n.onnx`
+    SHA256 matches `server/app/ai-service/models/yolo11n.onnx`.
 
 ---
 
@@ -136,7 +136,7 @@ fork the config:
 | `uv: command not found` | uv Feature install failed mid-build | Rebuild container: F1 → **Dev Containers: Rebuild Container** |
 | Metro can't be reached from phone | Phone not on same network / `adb reverse` not run | Run `adb reverse tcp:8081 tcp:8081` from the host |
 | `docker compose` says "permission denied" | Host socket group mismatch | The `docker-outside-of-docker` Feature handles this; on the rare miss, `sudo chmod 666 /var/run/docker.sock` (host) |
-| YOLO drift warning at bootstrap | `client/assets/models/yolo12n.onnx` differs from `server/app/ai-service/models/yolo12n.onnx` | `pnpm --dir client sync-yolo-model` then commit both copies in the same change (paired change with `expo-dev` + `ocr-dev`) |
+| YOLO drift warning at bootstrap | `client/assets/models/yolo11n.onnx` differs from `server/app/ai-service/models/yolo11n.onnx` | `pnpm --dir client sync-yolo-model` then commit both copies in the same change (paired change with `expo-dev` + `ocr-dev`) |
 
 ---
 

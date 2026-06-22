@@ -1,6 +1,6 @@
-"""YOLOv12n detector — onnxruntime-based, loaded once per process.
+"""YOLOv11n detector — onnxruntime-based, loaded once per process.
 
-The bundled model (``models/yolo12n.onnx``) was custom-trained on BP
+The bundled model (``models/yolo11n.onnx``) was custom-trained on BP
 monitors with five classes — `{0: BP_Monitor, 1: BP_Screen_Monitor,
 2: dia, 3: pulse, 4: sys}` — and exported with ``nms=False``, so NMS is
 implemented here in Python (cv2.dnn.NMSBoxes).
@@ -25,8 +25,8 @@ from .types import BoundingBox
 
 # ---------------------------------------------------------------------------
 # Model metadata — kept inline so cold start doesn't need to parse ONNX.
-# Source of truth lives in models/yolo12n.onnx's metadata_props (verifiable
-# with `python -c "import onnx; print(onnx.load('models/yolo12n.onnx').metadata_props)"`).
+# Source of truth lives in models/yolo11n.onnx's metadata_props (verifiable
+# with `python -c "import onnx; print(onnx.load('models/yolo11n.onnx').metadata_props)"`).
 # ---------------------------------------------------------------------------
 
 CLASS_NAMES: dict[int, str] = {
@@ -52,7 +52,7 @@ class _Candidate:
 
 
 class YoloDetector:
-    """ONNX Runtime wrapper around the BP-monitor YOLOv12n detector."""
+    """ONNX Runtime wrapper around the BP-monitor YOLOv11n detector."""
 
     def __init__(
         self,

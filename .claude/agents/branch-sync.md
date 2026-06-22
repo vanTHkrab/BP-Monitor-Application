@@ -207,7 +207,7 @@ Inspect the touched-files list to surface follow-ups the user owes:
   affected sub-project.
 - If `server/app/ai-service/pyproject.toml` or `uv.lock` changed: suggest
   `uv sync` in `server/app/ai-service/`.
-- If `server/app/ai-service/models/yolo12n.onnx` changed: suggest
+- If `server/app/ai-service/models/yolo11n.onnx` changed: suggest
   `cd client && pnpm sync-yolo-model` so the on-device pre-flight model
   stays SHA256-equal to the backend copy.
 - If any file under `server/app/api-gateway/prisma/migrations/` changed:
@@ -291,7 +291,7 @@ invocation of `tester` / `gh-stack`) owns next steps.
 | Invent semantics when resolving a conflict the user didn't describe | the user (agent applies literal instructions only) |
 | Bypass pre-commit / pre-merge hooks | nobody — investigate and fix the underlying failure |
 | Re-install dependencies after lockfile changes | the user (agent surfaces the command, does not run it) |
-| Re-sync `yolo12n.onnx` between `client/` and `server/app/ai-service/` after a model bump | the user via `cd client && pnpm sync-yolo-model` |
+| Re-sync `yolo11n.onnx` between `client/` and `server/app/ai-service/` after a model bump | the user via `cd client && pnpm sync-yolo-model` |
 | Review or apply Prisma migrations brought in by the sync | the user / `nest-dev` for gateway-side review |
 | Create, modify, or delete other agents' `SKILL.md` files | `agent-create` |
 | Decide whether the sync should happen at all | the user / the task brief |

@@ -42,7 +42,7 @@ LAYOUT (top to bottom):
    - Heading: "เทคนิค/วิธีการ/เทคโนโลยี"
    - 3–4 icon + short-label steps in a horizontal or zigzag flow:
      [1] ถ่ายภาพจอวัด (Expo RN mobile capture)
-     → [2] ตรวจจับตำแหน่งจอด้วย YOLOv12n (on-device pre-flight + ai-service)
+     → [2] ตรวจจับตำแหน่งจอด้วย YOLOv11n (on-device pre-flight + ai-service)
      → [3] OCR อ่านตัวเลข 7-segment (OpenCV preprocessing + digit recognition)
      → [4] ส่งผลขึ้นระบบ/แดชบอร์ดแบบ Offline-first sync (GraphQL + SQLite queue)
    - Use simple flat icons (camera, AI chip/brain, magnifying glass over

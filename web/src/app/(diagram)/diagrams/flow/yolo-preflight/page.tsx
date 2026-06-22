@@ -8,7 +8,7 @@ import { Mermaid } from "@/components/mermaid";
 const chart = `flowchart TD
     A["Shutter tap"] --> B["preflightCheckImage(uri)"]
     B --> C["letterbox + JPEG decode<br/>→ [1,3,512,512] float32 RGB"]
-    C --> D["onnxruntime InferenceSession<br/>yolo12n.onnx (11.5 MB)"]
+    C --> D["onnxruntime InferenceSession<br/>yolo11n.onnx (10.7 MB)"]
     D --> E["Decode [1, 4+C, anchors]<br/>per-class NMS<br/>(conf 0.25 / IoU 0.45)"]
     E --> F{"Classify verdict"}
 
@@ -41,7 +41,7 @@ export default function YoloPreflightPage() {
         <DiagramPage
             title="On-device YOLO Pre-flight"
             subtitle="Same model, same crop, two runtimes"
-            description="A 11.5 MB ONNX detector runs on the phone before every upload. It classifies the frame as ok / no-monitor / missing-fields and (on ok) auto-crops around the monitor. The same model file runs in the FastAPI AI service — SHA256 equality is enforced by a prestart hook so the two sides cannot silently disagree."
+            description="A 10.7 MB ONNX detector runs on the phone before every upload. It classifies the frame as ok / no-monitor / missing-fields and (on ok) auto-crops around the monitor. The same model file runs in the FastAPI AI service — SHA256 equality is enforced by a prestart hook so the two sides cannot silently disagree."
             tags={["Flow", "ML", "Mobile"]}
         >
             <DiagramSection
@@ -57,7 +57,7 @@ export default function YoloPreflightPage() {
                         {
                             label: "Byte-identical model file",
                             detail:
-                                "client/assets/models/yolo12n.onnx and server/app/ai-service/models/yolo12n.onnx are the same bytes. pnpm verify-yolo-model on every pnpm start asserts SHA256 equality.",
+                                "client/assets/models/yolo11n.onnx and server/app/ai-service/models/yolo11n.onnx are the same bytes. pnpm verify-yolo-model on every pnpm start asserts SHA256 equality.",
                         },
                         {
                             label: "Class IDs are a wire contract",

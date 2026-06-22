@@ -17,7 +17,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const bundled = resolve(here, '..', 'assets', 'models', 'yolo12n.onnx');
+const bundled = resolve(here, '..', 'assets', 'models', 'yolo11n.onnx');
 const canonical = resolve(
   here,
   '..',
@@ -26,7 +26,7 @@ const canonical = resolve(
   'app',
   'ai-service',
   'models',
-  'yolo12n.onnx',
+  'yolo11n.onnx',
 );
 
 function sha256(path) {
@@ -53,7 +53,7 @@ const canonicalHash = sha256(canonical);
 
 if (bundledHash !== canonicalHash) {
   fail(
-    `SHA256 mismatch between bundled and canonical yolo12n.onnx:\n` +
+    `SHA256 mismatch between bundled and canonical yolo11n.onnx:\n` +
       `  bundled:   ${bundledHash}\n` +
       `  canonical: ${canonicalHash}`,
   );

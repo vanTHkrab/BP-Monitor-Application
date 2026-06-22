@@ -35,8 +35,8 @@ Last updated: 2026-05-21
 | --- | --- | --- |
 | Model format | **ONNX** (export from `.pt` with `yolo export ... format=onnx simplify=True`) | ~200 MB image vs ~2 GB ultralytics; cold start <1 s; portable; no AGPL tangle |
 | Model runtime | **onnxruntime (CPU)** — do NOT depend on `ultralytics` or `torch` at runtime | Saves ~2 GB from container image; opens door for `onnxruntime-react-native` on-device later. Cost: implement NMS in Python (model exported with `nms=False`) |
-| NMS | **In Python post-process** — not embedded in the ONNX graph | The bundled `yolo12n.onnx` was exported with `nms=False`; onnxruntime has no built-in NMS op |
-| YOLO classes | **Single-stage, 5 classes**: `{0: BP_Monitor, 1: BP_Screen_Monitor, 2: dia, 3: pulse, 4: sys}` | Verified via ONNX metadata of the supplied `models/yolo12n.onnx`. Field crops come directly from sys/dia/pulse detections — no two-stage pipeline needed |
+| NMS | **In Python post-process** — not embedded in the ONNX graph | The bundled `yolo11n.onnx` was exported with `nms=False`; onnxruntime has no built-in NMS op |
+| YOLO classes | **Single-stage, 5 classes**: `{0: BP_Monitor, 1: BP_Screen_Monitor, 2: dia, 3: pulse, 4: sys}` | Verified via ONNX metadata of the supplied `models/yolo11n.onnx`. Field crops come directly from sys/dia/pulse detections — no two-stage pipeline needed |
 | OCR engine | **In-process Python**, via an `OCRReader` Protocol under `analyzer/ocr/` so additional engines (Tesseract, Paddle, EasyOCR) can be added later without touching the pipeline | Faster than subprocess (no spawn cost); debuggable in-process. Cost: pipeline must catch OCR exceptions so one bad image cannot kill the worker |
 | Config | **env vars + `pydantic-settings`** (`AnalyzerConfig.from_env()`) | Matches the existing `REDIS_URL` / `LOG_LEVEL` pattern in ai-service; 12-factor; container-friendly; no file mount required at deploy |
 | Image fetch | **Presigned GET URL** passed in the AI request payload (the message gateway publishes on the Redis MS channel) | ai-service holds no S3 credentials → smaller blast radius |
@@ -47,8 +47,8 @@ Last updated: 2026-05-21
 
 ```text
 ai-service/
-├── models/                       # ⬅ moved out of src/ — yolo12n.onnx lives here
-│   └── yolo12n.onnx              # 11.5 MB, 5 BP-specific classes (see decision table)
+├── models/                       # ⬅ moved out of src/ — yolo11n.onnx lives here
+│   └── yolo11n.onnx              # 10.7 MB, 5 BP-specific classes (see decision table)
 └── src/
     └── ai_service/
         ├── main.py               # FastAPI lifespan — load model + start Redis listener
@@ -191,7 +191,7 @@ with global env):
 
 | Env var | Default | Notes |
 | --- | --- | --- |
-| `AI_DETECTOR_PATH` | `models/yolo12n.onnx` (relative to `ai-service/`) | resolved against `Path(__file__).resolve().parents[2]`, not `os.getcwd()`. Renamed from `AI_MODEL_PATH` to avoid pydantic v2's protected `model_*` namespace and to leave room for a separate OCR-model env var later. |
+| `AI_DETECTOR_PATH` | `models/yolo11n.onnx` (relative to `ai-service/`) | resolved against `Path(__file__).resolve().parents[2]`, not `os.getcwd()`. Renamed from `AI_MODEL_PATH` to avoid pydantic v2's protected `model_*` namespace and to leave room for a separate OCR-model env var later. |
 | `AI_OCR_ENGINE` | `ssocr` | switch for future engines |
 | `AI_DEVICE_MODE` | `cpu` | `cpu` \| `cuda` (requires `onnxruntime-gpu`) |
 | `AI_CONFIDENCE_THRESHOLD` | `0.25` | YOLO box confidence floor — mirrors `client/lib/yolo/types.ts` `DEFAULT_CONF_THRESHOLD` (cross-process wire contract per root CLAUDE.md "Shared YOLO detector") |
@@ -289,11 +289,11 @@ These don't block design but block real deploy. Resolve before
 implementing:
 
 1. ~~**Where does the model file live?**~~ ✅ **RESOLVED 2026-05-17** — baked into
-   the Docker image at `ai-service/models/yolo12n.onnx` (11.5 MB, well under the
+   the Docker image at `ai-service/models/yolo11n.onnx` (10.7 MB, well under the
    50 MB break-even for image bake vs S3 fetch). Revisit if the model balloons
    after retraining or if model rotation cadence exceeds image build cadence.
 2. ~~**YOLO class taxonomy**~~ ✅ **RESOLVED 2026-05-17** — single-stage, 5 classes
-   per the supplied `yolo12n.onnx` metadata: `{0: BP_Monitor, 1: BP_Screen_Monitor,
+   per the supplied `yolo11n.onnx` metadata: `{0: BP_Monitor, 1: BP_Screen_Monitor,
    2: dia, 3: pulse, 4: sys}`. No display_panel routing needed; sys/dia/pulse
    crops come directly from class IDs 4/2/3.
 3. **GPU available on deploy target?** If yes, swap `onnxruntime`
@@ -306,7 +306,7 @@ implementing:
    already populated by ultralytics export). Expose as `model_version`
    in `AnalysisResult`. Still open: how to surface a *retrain* version
    distinct from ultralytics's `8.4.8` library version — likely a
-   filename convention (`yolo12n-bp-2026-01-29.onnx`) or an extra
+   filename convention (`yolo11n-bp-2026-01-29.onnx`) or an extra
    `metadata_props` key set during export.
 
 ## Error modes — explicit handling
@@ -374,8 +374,8 @@ path resolution that breaks in containers. Resolve in this order:
 
    Verify `uv.lock` changed and commit both `pyproject.toml` + `uv.lock`
    in the same commit.
-2. **Move the model** from `src/models/yolo12n.onnx` to
-   `ai-service/models/yolo12n.onnx`. Update `Dockerfile` `COPY` line.
+2. **Move the model** from `src/models/yolo11n.onnx` to
+   `ai-service/models/yolo11n.onnx`. Update `Dockerfile` `COPY` line.
 3. **Port what's keepable from `prepare/`:**
    - `prepare/models.py::_letterbox()` → `analyzer/preprocessing.py`
      (well-written, reuse as-is — translate Thai comments to English
@@ -458,7 +458,7 @@ label, in 30 ms/image instead of 500.
 ```text
 ai-service/
 ├── models/
-│   ├── yolo12n.onnx               # existing
+│   ├── yolo11n.onnx               # existing
 │   └── crnn_int8.onnx             # NEW — 1.20 MB, baked in Docker image
 └── src/ai_service/
     └── analyzer/
@@ -560,7 +560,7 @@ contract stable (zero changes in `pipeline.py`).
 | **Input distribution mismatch** — CRNN trained on hand-curated crop-SDP crops; YOLO crops from production S3 may differ (border noise, aspect, glare) | Smoke-test on 20-30 real S3 images through the full pipeline before flipping the default. Compare `BoundingBox.crop_from` output against `crop-SDP/{sys,dia,pul}/*.jpg` shape distribution |
 | **ONNX input/output names** | Verify with `python -c "import onnx; m=onnx.load('models/crnn_int8.onnx'); print([i.name for i in m.graph.input], [o.name for o in m.graph.output])"` before writing the adapter |
 | **Confidence calibration** — CRNN conf is mean softmax-max over non-blank timesteps; differs from ssocr's rule-engine score. `SUCCESS_CONFIDENCE_FLOOR = 0.75` may need re-tuning | Observe distribution of `combined_confidence = yolo_conf × crnn_conf` over 50 production images. Re-tune the floor only if SUCCESS verdict rate looks visibly wrong |
-| **No `model_version`** in CRNN ONNX (yolo12n.onnx has `metadata_props['date']`; CRNN doesn't) | Encode in filename — rename to `crnn_int8-2026-05-20.onnx` and read the date from the file stem, OR add a `metadata_props` entry during a re-export (cheap, no retrain) |
+| **No `model_version`** in CRNN ONNX (yolo11n.onnx has `metadata_props['date']`; CRNN doesn't) | Encode in filename — rename to `crnn_int8-2026-05-20.onnx` and read the date from the file stem, OR add a `metadata_props` entry during a re-export (cheap, no retrain) |
 | **`prepare/ocr/crnn/dataset.py` imports torch** | We do NOT port `dataset.py` — only `_preprocess_for_crnn` logic (cv2-only). Rewrite as pure numpy in the new `crnn.py` |
 
 ### Migration sequence (each step verifiable before the next)
@@ -731,7 +731,7 @@ Field naming follows snake_case to match the existing reply payload
 ```text
 ai-service/
 ├── models/
-│   ├── yolo12n.onnx                              # existing
+│   ├── yolo11n.onnx                              # existing
 │   ├── crnn_int8.onnx                            # NEW (1.2 MB)
 │   ├── cnn_2ch_distilled_global_int8.onnx        # NEW (0.6 MB)
 │   ├── cnn_2ch_distilled_sys_int8.onnx           # NEW (0.6 MB)

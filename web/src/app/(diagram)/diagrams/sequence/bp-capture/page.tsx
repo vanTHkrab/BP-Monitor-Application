@@ -73,12 +73,12 @@ export default function BpCaptureSequencePage() {
                         {
                             label: "Save backend roundtrips on obviously bad shots",
                             detail:
-                                "If the model says no-monitor we never burn the AI service compute or the user's data plan. Verdict comes from a 11.5 MB ONNX model already on the phone.",
+                                "If the model says no-monitor we never burn the AI service compute or the user's data plan. Verdict comes from a 10.7 MB ONNX model already on the phone.",
                         },
                         {
                             label: "Same model file on both sides",
                             detail:
-                                "client/assets/models/yolo12n.onnx and server/app/ai-service/models/yolo12n.onnx are byte-identical (SHA256 enforced by prestart hook). The phone's verdict is the backend's verdict.",
+                                "client/assets/models/yolo11n.onnx and server/app/ai-service/models/yolo11n.onnx are byte-identical (SHA256 enforced by prestart hook). The phone's verdict is the backend's verdict.",
                         },
                         {
                             label: "Warn, do not block",
