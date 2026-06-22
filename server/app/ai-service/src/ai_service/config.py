@@ -69,7 +69,7 @@ class AnalyzerConfig(BaseSettings):
                     "cnn_classifiers reads everything relative to this path.",
     )
     detector_path: Path = Field(
-        default_factory=lambda: AI_SERVICE_ROOT / "models" / "yolo12n.onnx",
+        default_factory=lambda: AI_SERVICE_ROOT / "models" / "yolo11n.onnx",
         description="Path to the ONNX detector model. Relative paths anchor to "
                     "the ai-service root, not cwd.",
     )

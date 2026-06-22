@@ -24,7 +24,7 @@ from ai_service.config import AI_SERVICE_ROOT
 @pytest.fixture(scope="module")
 def detector() -> YoloDetector:
     """Module-scoped — load model once, share across tests (saves ~100 ms x N)."""
-    return YoloDetector.load(AI_SERVICE_ROOT / "models" / "yolo12n.onnx")
+    return YoloDetector.load(AI_SERVICE_ROOT / "models" / "yolo11n.onnx")
 
 
 class TestModelMetadata:

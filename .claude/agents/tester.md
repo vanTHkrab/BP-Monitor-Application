@@ -186,7 +186,7 @@ clearly saves a round trip.
 |---------|--------------|---------------------------|
 | `pnpm: command not found` | corepack not enabled | run `corepack enable` once on the dev machine; do **not** install pnpm globally |
 | `uv: command not found` | uv not installed | run `pip install uv` or `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| `verify-yolo-model` SHA mismatch | client and ai-service copies of `yolo12n.onnx` diverged | run `cd client && pnpm sync-yolo-model`, then re-run tester |
+| `verify-yolo-model` SHA mismatch | client and ai-service copies of `yolo11n.onnx` diverged | run `cd client && pnpm sync-yolo-model`, then re-run tester |
 | `expo-doctor` warns about a bundled-pkg version mismatch | a dep was added with `pnpm add` instead of `pnpm expo install` | switch to `pnpm expo install <pkg>` and commit the updated lockfile |
 | `tsc` errors only in `web/` after a Next.js bump | Next.js 16 internals changed | read the relevant guide under `web/node_modules/next/dist/docs/` before patching |
 | `pytest` collection error mentioning a missing import | `uv sync` has not been run since the last `pyproject.toml` change | run `uv sync` and re-run tester |

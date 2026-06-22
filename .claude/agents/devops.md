@@ -115,8 +115,8 @@ Confirm scope, locate the affected delivery surface, decide whether the task is 
        (paired with nest-dev + ocr-dev in the same task; refuse to one-side it)
      - changing a Prisma migration ordering or boot-time migration policy
        (paired with prisma-dev; migrations-as-deploys is a co-owned concern)
-     - shipping a different yolo12n.onnx through the container build than the
-       one client/assets/models/yolo12n.onnx has
+     - shipping a different yolo11n.onnx through the container build than the
+       one client/assets/models/yolo11n.onnx has
        (SHA256 equality is enforced by `pnpm verify-yolo-model` on the client;
         a server-side swap requires `pnpm sync-yolo-model` on the client and
         both copies committed in the same change — paired with expo-dev + ocr-dev)
@@ -267,9 +267,9 @@ Container builds (Dockerfile + .dockerignore):
   ~150-300 MB; the ai-service is allowed to be larger because of model
   weights — but the MEMORY note on `ai_service_yolo_model` favors
   onnxruntime over ultralytics to save ~2 GB).
-- For ai-service builds: the YOLO model `yolo12n.onnx` is bundled in
+- For ai-service builds: the YOLO model `yolo11n.onnx` is bundled in
   `server/app/ai-service/models/`. It is shared verbatim with
-  `client/assets/models/yolo12n.onnx` (SHA256 enforced by `pnpm
+  `client/assets/models/yolo11n.onnx` (SHA256 enforced by `pnpm
   verify-yolo-model`). Container builds that touch this path are a
   cross-cutting paired change with expo-dev + ocr-dev — flag and stop.
 
@@ -457,8 +457,8 @@ grep -hoE '\$\{[A-Z_][A-Z0-9_]*' infra/docker-compose*.yml | sort -u
 # match the client copy (cross-cutting wire contract — see Step 1 cross-cut
 # detection). If you didn't touch the model, this is a sanity-only check.
 cd /home/vanthkrab/Workshops/edu-final-project/BP-Monitor-Application
-sha256sum server/app/ai-service/models/yolo12n.onnx
-sha256sum client/assets/models/yolo12n.onnx
+sha256sum server/app/ai-service/models/yolo11n.onnx
+sha256sum client/assets/models/yolo11n.onnx
 # Both hashes MUST match. If they don't, STOP — this is paired work.
 
 # 7. Cost / resource regression check — state explicitly in the verdict if
@@ -643,7 +643,7 @@ If a question requires deep reading across these or the source itself, delegate 
 | Web dashboard feature code (`web/src/`) | no dedicated agent yet — flag and stop |
 | Redis topology, key schema, Lua, BullMQ, channel naming | `redis-dev` |
 | Top-level reply-schema design on `analyze_bp_image.reply` | `nest-dev` + `ocr-dev` (paired) |
-| Replacing `yolo12n.onnx` end-to-end across mobile + server | human (confirmation gated), paired with `expo-dev` + `ocr-dev` |
+| Replacing `yolo11n.onnx` end-to-end across mobile + server | human (confirmation gated), paired with `expo-dev` + `ocr-dev` |
 | Visual design, dashboards-as-UX, screenshots, end-user copy | `ux-ui-designer` |
 | Running the canonical test suite as the ship gate | `tester` |
 | Writing commit messages or PR bodies | `pr-write` |

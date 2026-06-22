@@ -88,10 +88,10 @@ Key boundaries and design choices a senior should respect:
 - **Latency budgets are asymmetric** — UI interactions (mobile + web) must
   feel synchronous; AI analysis is allowed to be async (poll-based).
   Anything that blocks a screen on the AI path is a design smell.
-- **YOLO detector is shared verbatim** — the same `yolo12n.onnx` runs in
+- **YOLO detector is shared verbatim** — the same `yolo11n.onnx` runs in
   both the backend (downloaded into `server/app/ai-service/models/` from R2
   on first start) and the mobile app (bundled at
-  `client/assets/models/yolo12n.onnx` for on-device pre-flight). The mobile
+  `client/assets/models/yolo11n.onnx` for on-device pre-flight). The mobile
   app runs the same model on every capture to gate / auto-crop before
   upload. The **canonical sha256 lives in
   `server/app/ai-service/models/EXPECTED_HASHES.json`** — the binary itself
@@ -113,7 +113,7 @@ Key boundaries and design choices a senior should respect:
   > switched to R2 + manifest. The mobile-side `verify-yolo-model.mjs`
   > and `sync-yolo-model` scripts are being updated in a follow-up task
   > by `expo-dev` to read the hash from the manifest (or the companion
-  > `client/assets/models/yolo12n.sha256` file) instead of `sha256sum`ing
+  > `client/assets/models/yolo11n.sha256` file) instead of `sha256sum`ing
   > the backend copy directly. Treat the docs above as the target
   > behavior; the client scripts catch up next.
 
@@ -294,7 +294,7 @@ misbehave subtly when changed without context:
   `analyze_bp_image.reply` channels are typed only by convention. A field
   rename on one side and a stale deploy on the other will fail silently —
   the gateway will just keep polling for a reply that never matches.
-- **Shared YOLO detector.** `yolo12n.onnx` runs in both the mobile app
+- **Shared YOLO detector.** `yolo11n.onnx` runs in both the mobile app
   (bundled at `client/assets/models/`) and the ai-service (downloaded into
   `server/app/ai-service/models/` from R2 on first start). They run the
   *same* model file for the *same* set of classes, but if the two copies

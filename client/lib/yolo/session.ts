@@ -1,7 +1,7 @@
 /**
  * Lazy-loaded, process-wide YOLO InferenceSession.
  *
- * The model is bundled (~11.5 MB) via require() — Metro treats `.onnx` as an
+ * The model is bundled (~10.7 MB) via require() — Metro treats `.onnx` as an
  * asset extension (see metro.config.js). On first call we use expo-asset to
  * materialise the asset to a local file URI, then hand that to
  * onnxruntime-react-native's InferenceSession.create.
@@ -61,7 +61,7 @@ export function getYoloSession(): Promise<InferenceSession> {
     // The require() is intentionally inline so Metro picks it up as a
     // require-time asset reference rather than a runtime string path.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const asset = Asset.fromModule(require('../../assets/models/yolo12n.onnx'));
+    const asset = Asset.fromModule(require('../../assets/models/yolo11n.onnx'));
     await asset.downloadAsync();
 
     const localUri = asset.localUri ?? asset.uri;

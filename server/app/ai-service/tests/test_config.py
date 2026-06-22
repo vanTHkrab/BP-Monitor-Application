@@ -26,7 +26,7 @@ def _clean_ai_env(monkeypatch):
 class TestDefaults:
     def test_detector_path_anchors_to_ai_service_root(self):
         cfg = AnalyzerConfig()
-        assert cfg.detector_path == AI_SERVICE_ROOT / "models" / "yolo12n.onnx"
+        assert cfg.detector_path == AI_SERVICE_ROOT / "models" / "yolo11n.onnx"
 
     def test_model_file_actually_exists_at_default(self):
         cfg = AnalyzerConfig()
@@ -91,9 +91,9 @@ class TestEnvOverride:
     def test_relative_path_anchors_to_ai_service_root_not_cwd(self, monkeypatch, tmp_path):
         # Running pytest from any directory must not affect the resolved path.
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("AI_DETECTOR_PATH", "models/yolo12n.onnx")
+        monkeypatch.setenv("AI_DETECTOR_PATH", "models/yolo11n.onnx")
         cfg = AnalyzerConfig()
-        assert cfg.detector_path == AI_SERVICE_ROOT / "models" / "yolo12n.onnx"
+        assert cfg.detector_path == AI_SERVICE_ROOT / "models" / "yolo11n.onnx"
 
     def test_absolute_path_passes_through_unchanged(self, monkeypatch):
         monkeypatch.setenv("AI_DETECTOR_PATH", "/tmp/custom-model.onnx")
