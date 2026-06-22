@@ -28,6 +28,18 @@ quality metadata lives next to the image it describes. Until a
 dedicated quality model exists it is derived from YOLO detection
 confidence (see ``_image_quality_score``). Always-null replies are a
 valid contract and the gateway tolerates them.
+
+SINGLETON CONSTRAINT — the reply path below uses Redis **pub/sub**
+(``pubsub.subscribe`` + ``client.publish`` on ``analyze_bp_image.reply``),
+which is fan-out with no ack and no persistence. The service is therefore
+correct *only* while exactly one ai-service subscriber exists. Running
+≥2 replicas duplicates every analysis; a restart mid-job drops the
+in-flight message (gateway times out → BullMQ retry). This holds today
+only because no compose file sets ``replicas``. Before the first
+multi-replica or rolling-deploy production, replace this pub/sub reply
+path with a durable single-delivery transport (Redis Streams consumer
+group, or direct BullMQ consume). See
+``docs/plan/ai-service-reply-transport.md``.
 """
 from __future__ import annotations
 
