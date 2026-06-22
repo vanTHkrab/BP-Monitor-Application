@@ -65,7 +65,7 @@ const INITIAL_STATE: AnalysisState = {
   error: null,
 };
 
-const CONFIDENCE_THRESHOLD = 0.70;
+const CONFIDENCE_THRESHOLD = 0.50;
 
 export function useCameraAnalysis() {
   const [state, setState] = useState<AnalysisState>(INITIAL_STATE);
