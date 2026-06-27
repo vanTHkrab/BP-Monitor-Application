@@ -332,6 +332,7 @@ export const createReadingsSlice: StateCreator<
           pendingId,
           Number(remote.id),
           remote.s3Key ?? null,
+          remote.clientId ?? clientId,
         );
         prewarmImageCache(remote.s3Key);
         set((state) => ({
@@ -474,6 +475,7 @@ export const createReadingsSlice: StateCreator<
               row.id,
               Number(remote.id),
               remote.s3Key ?? null,
+              remote.clientId ?? row.clientId,
             );
             prewarmImageCache(remote.s3Key);
             set((state) => ({

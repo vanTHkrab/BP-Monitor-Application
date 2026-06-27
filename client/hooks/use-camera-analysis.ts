@@ -51,6 +51,12 @@ interface AnalysisState {
    *  ``uploadedUrl``; ``createReading`` attaches the new reading to this
    *  image via FK. ``null`` until upload succeeds. */
   uploadedImageId: number | null;
+  /** True when the backend returned readings but its confidence fell below
+   *  ``CONFIDENCE_THRESHOLD``. The camera screen shows a confirmation popup
+   *  (the read values + confirm / cancel) instead of silently auto-filling.
+   *  Cleared once the user resolves the prompt via ``confirmLowConfidence`` /
+   *  ``dismissLowConfidence``. */
+  lowConfidence: boolean;
   error: string | null;
 }
 
@@ -62,6 +68,7 @@ const INITIAL_STATE: AnalysisState = {
   preflight: null,
   uploadedUrl: null,
   uploadedImageId: null,
+  lowConfidence: false,
   error: null,
 };
 
@@ -121,6 +128,7 @@ export function useCameraAnalysis() {
         prefill: {},
         uploadedUrl: null,
         uploadedImageId: null,
+        lowConfidence: false,
         error: null,
       }));
 
@@ -138,6 +146,13 @@ export function useCameraAnalysis() {
 
         const hasGoodReading =
           result && result.confidence >= CONFIDENCE_THRESHOLD && result.readings;
+        // Readings came back but the model wasn't confident enough to
+        // auto-fill. We don't drop them on the floor — the screen surfaces a
+        // confirmation popup so the user can eyeball the values against the
+        // monitor and opt in (confirmLowConfidence) or enter manually.
+        const lowConfidence = Boolean(
+          result && result.readings && result.confidence < CONFIDENCE_THRESHOLD,
+        );
 
         if (__DEV__) {
           console.log('[analyze]', {
@@ -145,6 +160,7 @@ export function useCameraAnalysis() {
             threshold: CONFIDENCE_THRESHOLD,
             readings: result?.readings,
             willPrefill: Boolean(hasGoodReading),
+            lowConfidence,
           });
         }
 
@@ -156,6 +172,7 @@ export function useCameraAnalysis() {
           prefill: hasGoodReading ? { ...result!.readings! } : {},
           uploadedUrl,
           uploadedImageId,
+          lowConfidence,
           error: null,
         }));
       } catch (err) {
@@ -169,6 +186,23 @@ export function useCameraAnalysis() {
     },
     [],
   );
+
+  /** User accepted the low-confidence reading from the popup — promote the
+   *  AI values into `prefill` so the auto-fill effect populates the form, and
+   *  clear the `lowConfidence` flag so the popup doesn't fire again. */
+  const confirmLowConfidence = useCallback(() => {
+    setState((prev) =>
+      prev.result?.readings
+        ? { ...prev, prefill: { ...prev.result.readings }, lowConfidence: false }
+        : { ...prev, lowConfidence: false },
+    );
+  }, []);
+
+  /** User dismissed the popup — leave the form empty for manual entry and
+   *  clear the flag so it doesn't re-trigger. */
+  const dismissLowConfidence = useCallback(() => {
+    setState((prev) => ({ ...prev, lowConfidence: false }));
+  }, []);
 
   const save = useCallback(
     async (params: { imageUri: string; systolic: number; diastolic: number; pulse: number }) => {
@@ -197,5 +231,14 @@ export function useCameraAnalysis() {
     [state.uploadedUrl, state.uploadedImageId],
   );
 
-  return { ...state, isSaving, runPreflight, analyze, save, reset };
+  return {
+    ...state,
+    isSaving,
+    runPreflight,
+    analyze,
+    save,
+    reset,
+    confirmLowConfidence,
+    dismissLowConfidence,
+  };
 }

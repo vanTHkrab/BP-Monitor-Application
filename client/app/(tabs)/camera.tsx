@@ -29,11 +29,12 @@ export default function CameraScreen() {
   // ─── Safe area ────────────────────────────────────────────────────────────────
   // Used by the header padding (so the title clears the notch / status bar)
   // and the bottom overlays (so capture / retake / confirm buttons clear the
-  // home-indicator on iOS and gesture bar on Android). The (tabs) tab bar
-  // is visible on this screen — the overlay bottom budget reserves the
-  // tab-bar base height (60 iOS / 62 Android, mirrors _layout.tsx:43-44)
-  // plus the safe-area inset plus a small breathing margin so the floating
-  // capture button sits above the centre tab icon.
+  // home-indicator on iOS and gesture bar on Android). The (tabs) tab bar is
+  // hidden on this route (see app/(tabs)/_layout.tsx → camera
+  // `tabBarStyle: { display: 'none' }`), so the overlay bottom budget reserves
+  // the safe-area inset plus a small breathing margin only — there is no tab
+  // bar to clear. Leaving the screen is handled by the on-screen close (X)
+  // button rendered over the header.
   const insets = useSafeAreaInsets();
 
   // ─── Permissions ─────────────────────────────────────────────────────────────
@@ -53,6 +54,21 @@ export default function CameraScreen() {
   const [diastolic, setDiastolic] = useState('');
   const [pulse, setPulse] = useState('');
 
+  // ─── Inline validation / banner state (P2) ─────────────────────────────────────
+  // Per-field validation messages surfaced under each CustomInput via its
+  // `error` prop. A field with an empty string ("") renders the red highlight
+  // without text (companion-field flag) — used for the SYS≤DIA case where both
+  // fields are wrong but only one message is shown. Replaces the six
+  // Alert.alert validation popups.
+  const [fieldErrors, setFieldErrors] = useState<{
+    systolic?: string;
+    diastolic?: string;
+    pulse?: string;
+  }>({});
+  // Save-flow banner above the form (not-logged-in / save failure). Replaces
+  // the Alert.alert error popups in saveReading.
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   // ─── Store ────────────────────────────────────────────────────────────────────
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
@@ -71,11 +87,14 @@ export default function CameraScreen() {
     prefill,
     result,
     preflight,
+    lowConfidence,
     isSaving,
     runPreflight,
     analyze,
     save,
     reset: resetAnalysis,
+    confirmLowConfidence,
+    dismissLowConfidence,
   } = useCameraAnalysis();
 
   // The original (uncropped) image URI captured from the camera/picker, kept
@@ -120,6 +139,19 @@ export default function CameraScreen() {
       setPulse((prev) => (prev.trim() ? prev : String(prefill.pulse)));
     }
   }, [prefill]);
+
+  // Low-confidence handling (P2). The AI read values but wasn't confident
+  // enough to auto-fill (confidence < threshold). Rather than silently dropping
+  // the reading — or popping an Alert — we surface an inline banner near the
+  // form (rendered below) with "ใช้ค่านี้" / "แก้เอง" actions wired to the
+  // SAME hook handlers the Alert used. The hook integration is unchanged: the
+  // `lowConfidence` flag still drives the banner's visibility and is cleared by
+  // `confirmLowConfidence` (promotes values into `prefill`) or
+  // `dismissLowConfidence` (leaves the form empty). Derive the readable values
+  // + confidence % for the banner copy.
+  const lowConfidenceReadings =
+    lowConfidence && result?.readings ? result.readings : null;
+  const lowConfidencePct = Math.round((result?.confidence ?? 0) * 100);
 
   // ─── Derived ──────────────────────────────────────────────────────────────────
   // Icon tints come from the app palette (Theme.* in constants/colors.ts) so
@@ -270,10 +302,65 @@ export default function CameraScreen() {
     resetAnalysis();
   };
 
+  // ─── Validation ───────────────────────────────────────────────────────────────
+  // Physiologically-plausible bounds. Values outside these ranges almost
+  // certainly indicate a typo or OCR misread; saving them would pollute
+  // history and trigger spurious alerts.
+  const SYS_MIN = 50, SYS_MAX = 250;
+  const DIA_MIN = 30, DIA_MAX = 150;
+  const HR_MIN = 30, HR_MAX = 220;
+
+  // Pure validator (P2). Returns a per-field error map (empty when valid) so
+  // the messages render inline under each CustomInput instead of in an Alert.
+  // The SYS≤DIA case flags both fields: the message lives on `systolic`, and
+  // `diastolic` gets a "" companion-flag so CustomInput shows the red border
+  // without duplicating the text.
+  const validateForm = (): {
+    systolic?: string;
+    diastolic?: string;
+    pulse?: string;
+  } => {
+    const sys = Number(systolic);
+    const dia = Number(diastolic);
+    const hr = Number(pulse);
+    const errors: { systolic?: string; diastolic?: string; pulse?: string } = {};
+
+    if (!systolic.trim() || !Number.isFinite(sys)) errors.systolic = 'กรุณากรอกตัวเลข';
+    else if (sys < SYS_MIN || sys > SYS_MAX) errors.systolic = 'ค่าตัวบนควรอยู่ระหว่าง 50–250';
+
+    if (!diastolic.trim() || !Number.isFinite(dia)) errors.diastolic = 'กรุณากรอกตัวเลข';
+    else if (dia < DIA_MIN || dia > DIA_MAX) errors.diastolic = 'ค่าตัวล่างควรอยู่ระหว่าง 30–150';
+
+    if (!pulse.trim() || !Number.isFinite(hr)) errors.pulse = 'กรุณากรอกตัวเลข';
+    else if (hr < HR_MIN || hr > HR_MAX) errors.pulse = 'ชีพจรควรอยู่ระหว่าง 30–220';
+
+    // SYS ≤ DIA only meaningful once both are in-range numbers — flag both.
+    if (!errors.systolic && !errors.diastolic && sys <= dia) {
+      errors.systolic = 'ค่าตัวบนต้องมากกว่าตัวล่าง';
+      errors.diastolic = '';
+    }
+
+    return errors;
+  };
+
   // ─── Save handler ─────────────────────────────────────────────────────────────
   const saveReading = async () => {
+    setSaveError(null);
+
     if (!isAuthenticated) {
-      Alert.alert('กรุณาเข้าสู่ระบบ', 'ต้องเข้าสู่ระบบก่อนบันทึกข้อมูล');
+      setSaveError('กรุณาเข้าสู่ระบบก่อนบันทึกข้อมูล');
+      return;
+    }
+
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
+
+    if (!capturedImage) {
+      setSaveError('กรุณาถ่ายรูปหรือเลือกรูปก่อนบันทึก');
       return;
     }
 
@@ -281,44 +368,11 @@ export default function CameraScreen() {
     const dia = Number(diastolic);
     const hr = Number(pulse);
 
-    // Physiologically-plausible bounds. Values outside these ranges almost
-    // certainly indicate a typo or OCR misread; saving them would pollute
-    // history and trigger spurious alerts.
-    const SYS_MIN = 50, SYS_MAX = 250;
-    const DIA_MIN = 30, DIA_MAX = 150;
-    const HR_MIN = 30, HR_MAX = 220;
-
-    if (!Number.isFinite(sys) || !Number.isFinite(dia) || !Number.isFinite(hr)) {
-      Alert.alert('ข้อมูลไม่ถูกต้อง', 'กรุณากรอกค่า SYS / DIA / ชีพจร ให้ถูกต้อง');
-      return;
-    }
-    if (sys < SYS_MIN || sys > SYS_MAX) {
-      Alert.alert('ค่า SYS ผิดปกติ', `กรุณากรอกค่า SYS ระหว่าง ${SYS_MIN}–${SYS_MAX} mmHg`);
-      return;
-    }
-    if (dia < DIA_MIN || dia > DIA_MAX) {
-      Alert.alert('ค่า DIA ผิดปกติ', `กรุณากรอกค่า DIA ระหว่าง ${DIA_MIN}–${DIA_MAX} mmHg`);
-      return;
-    }
-    if (hr < HR_MIN || hr > HR_MAX) {
-      Alert.alert('ค่าชีพจรผิดปกติ', `กรุณากรอกค่าชีพจรระหว่าง ${HR_MIN}–${HR_MAX} bpm`);
-      return;
-    }
-    if (sys <= dia) {
-      Alert.alert('ข้อมูลไม่ถูกต้อง', 'ค่า SYS ต้องมากกว่า DIA');
-      return;
-    }
-
-    if (!capturedImage) {
-      Alert.alert('ไม่มีรูป', 'กรุณาถ่ายรูปหรือเลือกรูปก่อน');
-      return;
-    }
-
     try {
       const ok = await save({ imageUri: capturedImage, systolic: sys, diastolic: dia, pulse: hr });
 
       if (!ok) {
-        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้');
+        setSaveError('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง');
         return;
       }
 
@@ -340,9 +394,12 @@ export default function CameraScreen() {
       };
 
       const { title, body } = alertConfig[status] ?? alertConfig.normal;
+      // One-shot post-save BP-status confirmation with health advice — kept as
+      // Alert per project convention (critical-BP confirmation). The full
+      // inline result card is P3, out of scope here.
       Alert.alert(title, body, [{ text: 'ตกลง', onPress: proceed }]);
     } catch {
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้');
+      setSaveError('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง');
     }
   };
 
@@ -412,6 +469,8 @@ export default function CameraScreen() {
                 retryCamera();
               }}
               className="mt-3"
+              accessibilityRole="button"
+              accessibilityLabel="ลองใช้กล้องอีกครั้ง"
             >
               <Text
                 className={
@@ -445,6 +504,8 @@ export default function CameraScreen() {
   const retake = () => {
     setCapturedImage(null);
     setShowEntryModal(false);
+    setFieldErrors({});
+    setSaveError(null);
     resetAnalysis();
   };
 
@@ -454,6 +515,8 @@ export default function CameraScreen() {
     setSystolic('');
     setDiastolic('');
     setPulse('');
+    setFieldErrors({});
+    setSaveError(null);
     resetAnalysis();
   };
 
@@ -465,16 +528,45 @@ export default function CameraScreen() {
 
   const openEntry = () => setShowEntryModal(true);
 
-  const canAttemptSave =
-    Boolean(capturedImage) && !!systolic.trim() && !!diastolic.trim() && !!pulse.trim();
+  // Leave the camera screen. The bottom tab bar is hidden on this route, so
+  // this on-screen close (X) is the user's way out. Prefer popping the back
+  // stack when there is one (matches the post-save `router.back()` path and
+  // the rest of the app's modal/screen back affordances); otherwise fall back
+  // to the home tab so the user is never stranded on a bar-less screen.
+  const closeCamera = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
 
-  // Bottom overlay padding budget. Tab bar is visible on this screen — its
-  // base height (60 iOS / 62 Android) mirrors app/(tabs)/_layout.tsx:43-44.
-  // We add the safe-area inset (home-indicator / gesture bar) plus 14px
-  // breathing room so the 88×88 capture button clears the centre tab icon
-  // without overlapping it.
-  const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
-  const bottomOverlayPadding = tabBarBaseHeight + insets.bottom + 14;
+  // The save button is locked while AI work is in flight (the user shouldn't
+  // be able to persist values the AI is still resolving) and during the save
+  // round-trip itself. `aiBusy` mirrors the in-flight backend phases.
+  const aiBusy = phase === 'uploading' || phase === 'queued' || phase === 'processing';
+  const canAttemptSave =
+    Boolean(capturedImage) &&
+    !!systolic.trim() &&
+    !!diastolic.trim() &&
+    !!pulse.trim();
+  // The primary save button is genuinely non-tappable when busy or incomplete.
+  const saveDisabled = isSaving || aiBusy || !canAttemptSave;
+  // Busy label takes priority: "กำลังบันทึก..." during the save round-trip,
+  // "กรุณารอสักครู่" while the AI is still resolving the reading.
+  const saveLabel = isSaving
+    ? 'กำลังบันทึก...'
+    : aiBusy
+      ? 'กรุณารอสักครู่'
+      : 'บันทึก';
+
+  // Bottom overlay padding budget. The tab bar is hidden on this route
+  // (app/(tabs)/_layout.tsx → camera `tabBarStyle: { display: 'none' }`), so
+  // there is no bar to clear — we only reserve the safe-area inset
+  // (home-indicator / gesture bar) plus 14px breathing room so the controls
+  // never sit under the home indicator. Matches how the preview state below
+  // budgets its bottom overlay.
+  const bottomOverlayPadding = insets.bottom + 14;
   const captionClassName = fontPresetClass.caption(fontSizePreference);
   const bodyClassName = fontPresetClass.body(fontSizePreference);
 
@@ -493,7 +585,7 @@ export default function CameraScreen() {
         {/* No paddingBottom — the camera/preview surface below must sit
             flush against the header (no visible gap), per the redesigned
             layout. The gradient header pill keeps its own internal padding. */}
-        <View className="items-center justify-center" style={{ paddingTop: insets.top + 12, paddingBottom: 0 }}>
+        {/* <View className="items-center justify-center" style={{ paddingTop: insets.top + 12, paddingBottom: 0 }}>
           <LinearGradient
             colors={['#72DDF4', '#35B8E8']}
             start={{ x: 0, y: 0 }}
@@ -505,7 +597,7 @@ export default function CameraScreen() {
             </View>
             <Text className={titleClassName + " font-bold text-white"}>ถ่ายรูปเครื่องวัดความดัน</Text>
           </LinearGradient>
-        </View>
+        </View> */}
 
         {/* ── Camera / Preview ── */}
         {!capturedImage ? (
@@ -564,7 +656,12 @@ export default function CameraScreen() {
                       {cameraMountError}
                     </Text>
                     <View className="flex-row gap-2.5 mt-3 w-full">
-                      <AnimatedPressable onPress={retryCamera} className="flex-1 rounded-[14px] overflow-hidden">
+                      <AnimatedPressable
+                        onPress={retryCamera}
+                        className="flex-1 rounded-[14px] overflow-hidden"
+                        accessibilityRole="button"
+                        accessibilityLabel="ลองเปิดกล้องใหม่"
+                      >
                         <LinearGradient colors={['#A879E8', '#7E57C2', '#5E35B1']} className="flex-row items-center justify-center py-3">
                           <Ionicons name="refresh" size={18} color="white" />
                           <Text className={"text-white font-bold ml-2 " + captionClassName}>ลองใหม่</Text>
@@ -573,6 +670,8 @@ export default function CameraScreen() {
                       <AnimatedPressable
                         onPress={() => void Linking.openSettings()}
                         className="flex-1 rounded-[14px] overflow-hidden"
+                        accessibilityRole="button"
+                        accessibilityLabel="เปิดหน้าตั้งค่าสิทธิ์กล้อง"
                       >
                         <View
                           className={
@@ -664,21 +763,16 @@ export default function CameraScreen() {
             <View className="flex-1 w-full" style={{ paddingBottom: bottomOverlayPadding }}>
               <View className="flex-1 justify-center">
                 <View className="flex-row justify-between items-center px-10">
-                  <AnimatedPressable onPress={pickImage} className="w-[70px] items-center">
+                  <AnimatedPressable
+                    onPress={pickImage}
+                    className="w-[70px] items-center"
+                    accessibilityRole="button"
+                    accessibilityLabel="เลือกรูปจากอัลบั้ม"
+                  >
                     <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
                       <Ionicons name="images" size={22} color="white" />
                     </View>
-                    <Text
-                      className={
-                        'text-white mt-1.5 font-medium ' +
-                        getFontClass(fontSizePreference, {
-                          small: 'text-[10px]',
-                          medium: 'text-[11px]',
-                          large: 'text-[12px]',
-                          xlarge: 'text-[13px]',
-                        })
-                      }
-                    >
+                    <Text className={'text-white mt-1.5 font-medium ' + captionClassName}>
                       แกลเลอรี่
                     </Text>
                   </AnimatedPressable>
@@ -693,6 +787,9 @@ export default function CameraScreen() {
                   <Pressable
                     onPress={takePicture}
                     disabled={isCapturing}
+                    accessibilityRole="button"
+                    accessibilityLabel="ถ่ายภาพเครื่องวัดความดัน"
+                    accessibilityState={{ disabled: isCapturing, busy: isCapturing }}
                     style={({ pressed }) => ({
                       transform: [{ scale: pressed && !isCapturing ? 0.95 : 1 }],
                       alignItems: 'center',
@@ -712,17 +809,7 @@ export default function CameraScreen() {
                         )}
                       </View>
                     </View>
-                    <Text
-                      className={
-                        'text-white mt-1.5 font-medium text-center ' +
-                        getFontClass(fontSizePreference, {
-                          small: 'text-[10px]',
-                          medium: 'text-[11px]',
-                          large: 'text-[12px]',
-                          xlarge: 'text-[13px]',
-                        })
-                      }
-                    >
+                    <Text className={'text-white mt-1.5 font-medium text-center ' + captionClassName}>
                       {isCapturing ? 'กำลังถ่าย...' : 'ถ่ายภาพ'}
                     </Text>
                   </Pressable>
@@ -730,21 +817,13 @@ export default function CameraScreen() {
                   <AnimatedPressable
                     onPress={() => setShowEntryModal(true)}
                     className="w-[70px] items-center"
+                    accessibilityRole="button"
+                    accessibilityLabel="กรอกค่าความดันด้วยตนเอง"
                   >
                     <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
                       <Ionicons name="create" size={22} color="white" />
                     </View>
-                    <Text
-                      className={
-                        'text-white mt-1.5 font-medium ' +
-                        getFontClass(fontSizePreference, {
-                          small: 'text-[10px]',
-                          medium: 'text-[11px]',
-                          large: 'text-[12px]',
-                          xlarge: 'text-[13px]',
-                        })
-                      }
-                    >
+                    <Text className={'text-white mt-1.5 font-medium ' + captionClassName}>
                       กรอกค่า
                     </Text>
                   </AnimatedPressable>
@@ -766,6 +845,10 @@ export default function CameraScreen() {
             {phase !== 'idle' && (
               <View className="absolute top-4 left-0 right-0 items-center">
                 <View
+                  // Announce phase transitions to screen readers as the
+                  // analysis moves uploading → queued → processing → done.
+                  accessibilityLiveRegion="polite"
+                  accessibilityLabel={PHASE_LABEL[phase]}
                   className={
                     'flex-row items-center gap-2 px-3.5 py-2 rounded-full border ' +
                     (isDark
@@ -845,6 +928,8 @@ export default function CameraScreen() {
                   <AnimatedPressable
                     onPress={retakeAfterWarning}
                     className="flex-1 rounded-xl overflow-hidden"
+                    accessibilityRole="button"
+                    accessibilityLabel="ถ่ายภาพใหม่"
                   >
                     <View
                       className="px-3 py-2 items-center border"
@@ -858,6 +943,8 @@ export default function CameraScreen() {
                   <AnimatedPressable
                     onPress={sendAnyway}
                     className="flex-1 rounded-xl overflow-hidden"
+                    accessibilityRole="button"
+                    accessibilityLabel="ส่งภาพนี้ให้ระบบตรวจสอบต่อ"
                   >
                     <LinearGradient
                       colors={['#A879E8', '#7E57C2', '#5E35B1']}
@@ -875,10 +962,11 @@ export default function CameraScreen() {
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.8)']}
               className="absolute bottom-0 left-0 right-0 px-4 pt-6"
-              // Reserve space for the home-indicator / gesture bar — the
-              // (tabs) tab bar is hidden on this screen (see _layout.tsx)
-              // so we only need the safe-area inset plus breathing room
-              // so the retake / confirm row stays reachable.
+              // Reserve space for the home-indicator / gesture bar only — the
+              // (tabs) tab bar is hidden on this route (see _layout.tsx →
+              // camera `tabBarStyle: { display: 'none' }`), so the safe-area
+              // inset plus breathing room keeps the retake / confirm row
+              // reachable. Same budget as the live state above.
               style={{ paddingBottom: bottomOverlayPadding }}
             >
               {/* AI analysis failed recovery — gives the user an explicit
@@ -892,6 +980,8 @@ export default function CameraScreen() {
                   <AnimatedPressable
                     onPress={() => { retake(); retryCamera(); }}
                     className="rounded-2xl overflow-hidden shadow-lg"
+                    accessibilityRole="button"
+                    accessibilityLabel="ลองใช้กล้องอีกครั้ง"
                   >
                     <View
                       className="flex-row items-center justify-center px-5 py-3 border"
@@ -914,6 +1004,8 @@ export default function CameraScreen() {
                 <AnimatedPressable
                   onPress={retake}
                   className="flex-1 rounded-2xl overflow-hidden shadow-lg"
+                  accessibilityRole="button"
+                  accessibilityLabel="ถ่ายภาพใหม่"
                 >
                   <View
                     className="flex-row items-center justify-center px-5 py-3.5 border"
@@ -924,7 +1016,12 @@ export default function CameraScreen() {
                   </View>
                 </AnimatedPressable>
 
-                <AnimatedPressable onPress={openEntry} className="flex-1 rounded-2xl overflow-hidden shadow-lg">
+                <AnimatedPressable
+                  onPress={openEntry}
+                  className="flex-1 rounded-2xl overflow-hidden shadow-lg"
+                  accessibilityRole="button"
+                  accessibilityLabel="ยืนยันภาพและกรอกค่าความดัน"
+                >
                   <LinearGradient
                     colors={['#A879E8', '#7E57C2', '#5E35B1']}
                     className="flex-row items-center justify-center px-5 py-3.5"
@@ -1003,6 +1100,8 @@ export default function CameraScreen() {
                       (isDark ? 'bg-[#231C42]' : 'bg-[#EBF5FB]') +
                       ' w-9 h-9 items-center justify-center rounded-xl'
                     }
+                    accessibilityRole="button"
+                    accessibilityLabel="ปิดหน้ากรอกค่าความดัน"
                   >
                     <Ionicons name="close" size={22} color={modalCloseIconColor} />
                   </AnimatedPressable>
@@ -1020,32 +1119,121 @@ export default function CameraScreen() {
                     {capturedImage ? 'ตรวจสอบรูปแล้วกรอกค่า SYS / DIA / ชีพจร' : 'ยังไม่มีรูป (ถ่ายรูปหรือเลือกรูปก่อน แล้วค่อยบันทึก)'}
                   </Text>
 
+                  {/* Save-flow error banner (P2) — not-logged-in / save failure.
+                      Colors.status.high (#E74C3C). Replaces the Alert.alert
+                      error popups. assertive so screen readers interrupt. */}
+                  {saveError && (
+                    <View
+                      accessibilityRole="alert"
+                      accessibilityLiveRegion="assertive"
+                      className="mb-3 rounded-xl px-3.5 py-3 flex-row items-center"
+                      style={{ backgroundColor: 'rgba(231,76,60,0.12)', borderWidth: 1, borderColor: '#E74C3C' }}
+                    >
+                      <Ionicons name="alert-circle" size={18} color="#E74C3C" style={{ marginRight: 8 }} />
+                      <Text className={'flex-1 font-semibold ' + captionClassName} style={{ color: '#E74C3C' }}>
+                        {saveError}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Low-confidence inline banner (P2) — replaces the
+                      Alert.alert prompt. Colors.status.elevated (#F39C12).
+                      "ใช้ค่านี้" / "แก้เอง" call the SAME hook handlers
+                      (confirmLowConfidence / dismissLowConfidence) the Alert
+                      used; the hook integration is unchanged. */}
+                  {lowConfidenceReadings && (
+                    <View
+                      accessibilityLiveRegion="polite"
+                      className="mb-3 rounded-xl px-3.5 py-3"
+                      style={{ backgroundColor: 'rgba(243,156,18,0.12)', borderWidth: 1, borderColor: '#F39C12' }}
+                    >
+                      <View className="flex-row items-center mb-1">
+                        <Ionicons name="help-circle" size={18} color="#B97400" style={{ marginRight: 8 }} />
+                        <Text className={'font-semibold ' + bodyClassName} style={{ color: '#7A4E00' }}>
+                          ช่วยตรวจสอบตัวเลขให้หน่อยนะคะ
+                        </Text>
+                      </View>
+                      <Text className={'mb-3 ' + captionClassName} style={{ color: 'rgba(122,78,0,0.92)' }}>
+                        {`ระบบไม่แน่ใจ (ความมั่นใจ ${lowConfidencePct}%) กรุณาเทียบกับหน้าจอเครื่องวัด`}
+                      </Text>
+                      <View className="flex-row gap-2">
+                        <AnimatedPressable
+                          onPress={confirmLowConfidence}
+                          className="flex-1 rounded-lg overflow-hidden"
+                          accessibilityRole="button"
+                          accessibilityLabel="ใช้ค่าที่ระบบอ่านได้"
+                        >
+                          <LinearGradient
+                            colors={['#A879E8', '#7E57C2', '#5E35B1']}
+                            className="px-3 py-2 items-center"
+                          >
+                            <Text className={'text-white font-semibold ' + captionClassName}>ใช้ค่านี้</Text>
+                          </LinearGradient>
+                        </AnimatedPressable>
+                        <AnimatedPressable
+                          onPress={dismissLowConfidence}
+                          className="flex-1 rounded-lg overflow-hidden"
+                          accessibilityRole="button"
+                          accessibilityLabel="กรอกค่าด้วยตนเอง"
+                        >
+                          <View
+                            className="px-3 py-2 items-center border"
+                            style={{ backgroundColor: '#FFF4E0', borderColor: 'rgba(217,119,6,0.45)' }}
+                          >
+                            <Text className={'font-semibold ' + captionClassName} style={{ color: '#7A4E00' }}>แก้เอง</Text>
+                          </View>
+                        </AnimatedPressable>
+                      </View>
+                    </View>
+                  )}
+
                   <View className="flex-col gap-3">
                     <View>
                       <CustomInput
                         placeholder="SYS"
                         value={systolic}
-                        onChangeText={setSystolic}
+                        onChangeText={(t) => {
+                          setSystolic(t);
+                          if (fieldErrors.systolic !== undefined || fieldErrors.diastolic !== undefined) {
+                            setFieldErrors((prev) => ({ ...prev, systolic: undefined, diastolic: undefined }));
+                          }
+                          if (saveError) setSaveError(null);
+                        }}
                         icon="arrow-up"
                         keyboardType="numeric"
+                        error={fieldErrors.systolic}
                       />
                     </View>
                     <View>
                       <CustomInput
                         placeholder="DIA"
                         value={diastolic}
-                        onChangeText={setDiastolic}
+                        onChangeText={(t) => {
+                          setDiastolic(t);
+                          if (fieldErrors.diastolic !== undefined || fieldErrors.systolic !== undefined) {
+                            setFieldErrors((prev) => ({ ...prev, diastolic: undefined, systolic: undefined }));
+                          }
+                          if (saveError) setSaveError(null);
+                        }}
                         icon="arrow-down"
                         keyboardType="numeric"
+                        error={fieldErrors.diastolic}
                       />
                     </View>
                     <View>
                       <CustomInput
                         placeholder="ชีพจร"
                         value={pulse}
-                        onChangeText={setPulse}
+                        onChangeText={(t) => {
+                          setPulse(t);
+                          if (fieldErrors.pulse !== undefined) {
+                            setFieldErrors((prev) => ({ ...prev, pulse: undefined }));
+                          }
+                          if (saveError) setSaveError(null);
+                        }}
                         icon="heart"
                         keyboardType="numeric"
+                        error={fieldErrors.pulse}
                       />
                     </View>
                   </View>
@@ -1063,6 +1251,8 @@ export default function CameraScreen() {
                   <AnimatedPressable
                     onPress={retake}
                     className="flex-1 rounded-2xl overflow-hidden"
+                    accessibilityRole="button"
+                    accessibilityLabel="ถ่ายภาพใหม่"
                   >
                     <View
                       className="flex-row items-center justify-center py-3.5 border"
@@ -1083,17 +1273,22 @@ export default function CameraScreen() {
 
                   <AnimatedPressable
                     onPress={saveReading}
-                    disabled={isSaving || !canAttemptSave}
+                    disabled={saveDisabled}
                     className="flex-1 rounded-2xl overflow-hidden"
+                    accessibilityRole="button"
+                    accessibilityLabel="บันทึกค่าความดัน"
+                    // Greyed + non-tappable while AI is in flight or the save
+                    // round-trip is running; busy is announced to a11y tooling.
+                    accessibilityState={{ disabled: saveDisabled, busy: isSaving || aiBusy }}
                   >
-                    {isSaving || !canAttemptSave ? (
+                    {saveDisabled ? (
                       <View
                         className="flex-row items-center justify-center py-3.5"
-                        style={{ backgroundColor: isDark ? '#2D2654' : '#BDC3C7' }}
+                        style={{ backgroundColor: isDark ? '#2D2654' : Colors.button.disabled }}
                       >
                         <Ionicons name="save" size={18} color="white" />
                         <Text className={'text-white font-semibold ml-2 ' + bodyClassName}>
-                          {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+                          {saveLabel}
                         </Text>
                       </View>
                     ) : (
