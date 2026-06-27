@@ -51,7 +51,7 @@ export const authErrorToThai = (msg?: string): string => {
   return "เกิดข้อผิดพลาด กรุณาลองใหม่";
 };
 
-export type AuthErrorField = "phone" | "password" | "both" | null;
+export type AuthErrorField = "phone" | "email" | "password" | "both" | null;
 
 export interface AuthErrorView {
   /** User-facing Thai message. Never includes raw English or codes. */
@@ -139,12 +139,24 @@ export const formatAuthError = (
   }
 
   if (code === "CONFLICT") {
+    if (options.context === "register") {
+      // Register throws CONFLICT for either a duplicate phone *or* a
+      // duplicate email, with distinct Thai messages but the same code
+      // (see api-gateway auth.service.ts). Sniff the backend message so the
+      // error lands on the right field — defaulting to phone, the required
+      // field, when the message doesn't name the email explicitly.
+      const isEmail = raw.includes("อีเมล");
+      return {
+        message: isEmail
+          ? "อีเมลนี้ถูกใช้งานแล้ว"
+          : "เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว",
+        field: isEmail ? "email" : "phone",
+        retryAfterSec: null,
+      };
+    }
     return {
-      message:
-        options.context === "register"
-          ? "เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว"
-          : "ข้อมูลซ้ำกับที่มีอยู่แล้วในระบบ",
-      field: options.context === "register" ? "phone" : null,
+      message: "ข้อมูลซ้ำกับที่มีอยู่แล้วในระบบ",
+      field: null,
       retryAfterSec: null,
     };
   }

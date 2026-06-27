@@ -4,8 +4,12 @@ import { GradientBackground } from "@/components/gradient-background";
 import { Avatar } from "@/components/ui/avatar";
 import { Colors } from "@/constants/colors";
 import { useAppStore } from "@/store/use-app-store";
+import { formatIsoDate, isValidIsoDate, parseIsoDate } from "@/utils/date";
 import { fontPresetClass } from "@/utils/font-scale";
 import { useFocusEffect } from "@react-navigation/native";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -14,6 +18,8 @@ import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Platform,
+  Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -95,6 +101,7 @@ export default function ProfileScreen() {
   const [dob, setDob] = useState(
     user?.dob ? user.dob.toISOString().slice(0, 10) : "",
   );
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [gender, setGender] = useState<"male" | "female" | "other" | "">(
     user?.gender || "",
   );
@@ -112,6 +119,14 @@ export default function ProfileScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
 
   const isLocked = hideSensitiveData && !sensitiveDataUnlocked;
+
+  const handleDobChange = (event: DateTimePickerEvent, selected?: Date) => {
+    // Android shows a modal dialog the OS dismisses on any action, so we close
+    // here; the iOS spinner is inline and stays open until "เสร็จสิ้น".
+    if (Platform.OS !== "ios") setShowDobPicker(false);
+    if (event.type === "dismissed") return;
+    if (selected) setDob(formatIsoDate(selected));
+  };
 
   useEffect(() => {
     setFirstname(user?.firstname || "");
@@ -292,8 +307,8 @@ export default function ProfileScreen() {
       return;
     }
 
-    if (dob.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(dob.trim())) {
-      Alert.alert("ข้อมูลไม่ถูกต้อง", "วันเกิดต้องอยู่ในรูปแบบ YYYY-MM-DD");
+    if (dob.trim() && !isValidIsoDate(dob.trim())) {
+      Alert.alert("ข้อมูลไม่ถูกต้อง", "วันเกิดไม่ถูกต้อง (รูปแบบ YYYY-MM-DD เช่น 2000-01-31)");
       return;
     }
 
@@ -485,13 +500,53 @@ export default function ProfileScreen() {
                 keyboardType="email-address"
                 editable={isEditing}
               />
-              <CustomInput
-                placeholder="วันเกิด YYYY-MM-DD"
-                value={dob}
-                onChangeText={setDob}
-                icon="calendar-outline"
-                editable={isEditing}
-              />
+              {/* The native date picker has no react-native-web build, so web
+                  (and the read-only view) keep the plain field; native taps the
+                  field while editing to open the OS picker. */}
+              {Platform.OS === "web" || !isEditing ? (
+                <CustomInput
+                  placeholder="วันเกิด YYYY-MM-DD"
+                  value={dob}
+                  onChangeText={setDob}
+                  icon="calendar-outline"
+                  editable={isEditing}
+                />
+              ) : (
+                <Pressable onPress={() => setShowDobPicker(true)}>
+                  {/* editable=false → the Pressable owns the tap and opens
+                      the native picker instead of the keyboard */}
+                  <CustomInput
+                    placeholder="วันเกิด"
+                    value={dob}
+                    onChangeText={setDob}
+                    icon="calendar-outline"
+                    editable={false}
+                  />
+                </Pressable>
+              )}
+
+              {Platform.OS !== "web" && isEditing && showDobPicker && (
+                <>
+                  <DateTimePicker
+                    value={parseIsoDate(dob) ?? new Date(2000, 0, 1)}
+                    mode="date"
+                    // iOS renders the wheel inline; Android shows a dialog
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    maximumDate={new Date()}
+                    onChange={handleDobChange}
+                  />
+                  {Platform.OS === "ios" && (
+                    <Pressable
+                      onPress={() => setShowDobPicker(false)}
+                      className="self-end mb-4 px-4 py-2"
+                    >
+                      <Text className={bodyClassName + " font-semibold text-[#7E57C2]"}>
+                        เสร็จสิ้น
+                      </Text>
+                    </Pressable>
+                  )}
+                </>
+              )}
 
               <View className="mb-4">
                 <Text className={bodyClassName + " font-semibold text-gray-500 dark:text-slate-300 mb-2 ml-1"}>

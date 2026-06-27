@@ -338,9 +338,30 @@ export const upsertSyncedReading = async (
     );
     return;
   }
+  // Atomic fallback: a concurrent path (markReadingSynced flipping a
+  // queued row to synced in place) may have written this remoteId between
+  // the SELECT above and this INSERT, and the server can return rows
+  // without a clientId so the clientId branch is skipped entirely. Target
+  // the remoteId partial unique index and update in place on conflict
+  // instead of throwing UNIQUE constraint failed. ``excluded`` refers to
+  // the values this INSERT attempted; clientId is preserved via COALESCE so
+  // an existing local clientId is never clobbered by a null from the server.
   await db.runAsync(
     `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, imageId, notes, status, createdAt, updatedAt)
-     VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+     VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(remoteId) WHERE remoteId IS NOT NULL DO UPDATE SET
+       userId = excluded.userId,
+       clientId = COALESCE(excluded.clientId, pending_readings.clientId),
+       syncStatus = 'synced',
+       systolic = excluded.systolic,
+       diastolic = excluded.diastolic,
+       pulse = excluded.pulse,
+       measuredAt = excluded.measuredAt,
+       imageUri = excluded.imageUri,
+       imageId = excluded.imageId,
+       notes = excluded.notes,
+       status = excluded.status,
+       updatedAt = excluded.updatedAt;`,
     [
       row.userId,
       row.clientId,
@@ -365,14 +386,21 @@ export const markReadingSynced = async (
   localId: number,
   remoteId: number,
   imageUri: string | null,
+  clientId?: string | null,
 ): Promise<void> => {
   const db = await getDb();
   if (!db) return;
+  // Persist the server's clientId too (only when provided) so the reconcile
+  // path (cacheRemoteReading → upsertSyncedReading) can match this row by
+  // clientId on later passes instead of falling through to the remoteId
+  // branch. COALESCE guards against overwriting an existing local clientId
+  // with a null the server omitted.
   await db.runAsync(
     `UPDATE pending_readings
-       SET remoteId = ?, syncStatus = 'synced', imageUri = ?, updatedAt = ?
+       SET remoteId = ?, syncStatus = 'synced', imageUri = ?,
+           clientId = COALESCE(?, clientId), updatedAt = ?
      WHERE id = ?;`,
-    [remoteId, imageUri, new Date().toISOString(), localId],
+    [remoteId, imageUri, clientId ?? null, new Date().toISOString(), localId],
   );
 };
 

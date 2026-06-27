@@ -4,8 +4,12 @@ import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { TabButtons } from "@/components/tab-buttons";
 import { useAppStore } from "@/store/use-app-store";
+import { formatIsoDate, isValidIsoDate, parseIsoDate } from "@/utils/date";
 import { fontPresetClass, getFontClass } from "@/utils/font-scale";
 import { formatThaiPhone, stripPhoneDigits } from "@/utils/phone-format";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -46,6 +50,7 @@ export default function RegisterScreen() {
   const [registerPhone, setRegisterPhone] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerDob, setRegisterDob] = useState("");
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [registerGender, setRegisterGender] = useState<
     "male" | "female" | "other" | ""
   >("");
@@ -96,6 +101,18 @@ export default function RegisterScreen() {
       clearFieldError(field);
       if (generalError) setGeneralError(null);
     };
+
+  const handleDobChange = (event: DateTimePickerEvent, selected?: Date) => {
+    // Android shows a modal dialog the OS dismisses on any action, so we close
+    // here; the iOS spinner is inline and stays open until "เสร็จสิ้น".
+    if (Platform.OS !== "ios") setShowDobPicker(false);
+    if (event.type === "dismissed") return;
+    if (selected) {
+      setRegisterDob(formatIsoDate(selected));
+      clearFieldError("dob");
+      if (generalError) setGeneralError(null);
+    }
+  };
 
   const pickRegisterAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -181,8 +198,8 @@ export default function RegisterScreen() {
       next.email = "รูปแบบอีเมลไม่ถูกต้อง";
     }
 
-    if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-      next.dob = "วันเกิดต้องอยู่ในรูปแบบ YYYY-MM-DD";
+    if (dob && !isValidIsoDate(dob)) {
+      next.dob = "วันเกิดไม่ถูกต้อง (รูปแบบ YYYY-MM-DD เช่น 2000-01-31)";
     }
 
     let weight: number | undefined;
@@ -256,17 +273,28 @@ export default function RegisterScreen() {
 
       const s = useAppStore.getState();
       const message =
-        s.authErrorMessage ?? "ไม่สามารถลงทะเบียนได้ กรุณาลองใหม่";
+        s.authErrorMessage ?? "กรุณาตรวจสอบข้อมูลแล้วลองใหม่อีกครั้ง";
+
+      // Pin the error to the offending input when the backend identified one
+      // (duplicate phone / email, invalid password). Other causes (network,
+      // generic conflict) have no field hint and rely on the summary below.
       switch (s.authErrorField) {
         case "phone":
           setErrors({ phone: message });
+          break;
+        case "email":
+          setErrors({ email: message });
           break;
         case "password":
           setErrors({ password: message });
           break;
         default:
-          setGeneralError(message);
+          break;
       }
+
+      // Always surface a notice below the submit button so the failure is
+      // unambiguous even when the offending field is scrolled off-screen.
+      setGeneralError(message);
     } finally {
       setIsLoading(false);
     }
@@ -372,26 +400,6 @@ export default function RegisterScreen() {
                     variant="default"
                   />
                 </View>
-
-                {generalError && (
-                  <View className={bannerClassName}>
-                    <Ionicons
-                      name="alert-circle"
-                      size={20}
-                      color="#EF4444"
-                      style={{ marginTop: 1, marginRight: 8 }}
-                    />
-                    <Text
-                      className={
-                        captionClassName +
-                        " flex-1 font-semibold " +
-                        (isDark ? "text-red-300" : "text-red-700")
-                      }
-                    >
-                      {generalError}
-                    </Text>
-                  </View>
-                )}
 
                 <View className="items-center mb-4">
                   <Pressable
@@ -543,13 +551,58 @@ export default function RegisterScreen() {
                   error={errors.email}
                 />
 
-                <CustomInput
-                  placeholder="วันเกิด YYYY-MM-DD (ไม่บังคับ)"
-                  value={registerDob}
-                  onChangeText={bindInput("dob", setRegisterDob)}
-                  icon="calendar-outline"
-                  error={errors.dob}
-                />
+                {/* The native date picker has no react-native-web build, so
+                    web keeps the typeable YYYY-MM-DD fallback; native taps the
+                    field to open the OS picker (keyboard suppressed via
+                    editable=false). */}
+                {Platform.OS === "web" ? (
+                  <CustomInput
+                    placeholder="วันเกิด YYYY-MM-DD (ไม่บังคับ)"
+                    value={registerDob}
+                    onChangeText={bindInput("dob", setRegisterDob)}
+                    icon="calendar-outline"
+                    error={errors.dob}
+                  />
+                ) : (
+                  <Pressable
+                    onPress={() => {
+                      clearFieldError("dob");
+                      setShowDobPicker(true);
+                    }}
+                  >
+                    <CustomInput
+                      placeholder="วันเกิด (ไม่บังคับ)"
+                      value={registerDob}
+                      onChangeText={bindInput("dob", setRegisterDob)}
+                      icon="calendar-outline"
+                      editable={false}
+                      error={errors.dob}
+                    />
+                  </Pressable>
+                )}
+
+                {Platform.OS !== "web" && showDobPicker && (
+                  <>
+                    <DateTimePicker
+                      value={parseIsoDate(registerDob) ?? new Date(2000, 0, 1)}
+                      mode="date"
+                      // iOS renders the wheel inline; Android shows a dialog
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      maximumDate={new Date()}
+                      onChange={handleDobChange}
+                    />
+                    {Platform.OS === "ios" && (
+                      <Pressable
+                        onPress={() => setShowDobPicker(false)}
+                        className="self-end mb-4 px-4 py-2"
+                      >
+                        <Text className={`${bodyClassName} font-semibold text-[#7E57C2]`}>
+                          เสร็จสิ้น
+                        </Text>
+                      </Pressable>
+                    )}
+                  </>
+                )}
 
                 <View className="mb-4">
                   <Text
@@ -654,6 +707,37 @@ export default function RegisterScreen() {
                     variant="secondary"
                   />
                 </View>
+
+                {generalError && (
+                  <View className={bannerClassName + " mt-3"}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={20}
+                      color="#EF4444"
+                      style={{ marginTop: 1, marginRight: 8 }}
+                    />
+                    <View className="flex-1">
+                      <Text
+                        className={
+                          captionClassName +
+                          " font-bold " +
+                          (isDark ? "text-red-300" : "text-red-700")
+                        }
+                      >
+                        ไม่สามารถลงทะเบียนผู้ใช้งานใหม่ได้
+                      </Text>
+                      <Text
+                        className={
+                          captionClassName +
+                          " mt-0.5 " +
+                          (isDark ? "text-red-300/90" : "text-red-700/90")
+                        }
+                      >
+                        {generalError}
+                      </Text>
+                    </View>
+                  </View>
+                )}
 
                 <Text
                   className={

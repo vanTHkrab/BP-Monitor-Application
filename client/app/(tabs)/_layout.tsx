@@ -102,10 +102,15 @@ export default function TabLayout() {
         name="camera"
         options={{
           title: '',
-          // Tab bar stays visible on the camera screen. The camera screen
-          // accounts for the tab bar height in its bottomOverlayPadding so
-          // the capture / retake / confirm row clears the bar (see
+          // Hide the bottom tab bar on the camera route only. React Navigation
+          // v7 detects `display: 'none'` here and absolutely-positions the bar
+          // out of the layout (see @react-navigation/bottom-tabs BottomTabBar
+          // `isTabBarHidden`), so the camera surface gets the full height and
+          // the bar reappears automatically on sibling tabs. The camera screen
+          // provides its own on-screen close (X) affordance to leave, and now
+          // budgets its bottom overlays from the safe-area inset only (see
           // camera.tsx → bottomOverlayPadding).
+          // tabBarStyle: { display: 'none' },
           tabBarIcon: ({ focused }) => (
             <View style={{ marginBottom: Platform.OS === 'ios' ? tabBarPaddingBottom + 10 : tabBarPaddingBottom + 6 }}>
               <LinearGradient

@@ -1,11 +1,11 @@
 import { cssInterop } from 'nativewind';
 import React from 'react';
-import { Pressable, View, ViewStyle } from 'react-native';
+import { type AccessibilityProps, Pressable, View, ViewStyle } from 'react-native';
 
 cssInterop(View, { className: 'style' });
 cssInterop(Pressable, { className: 'style' });
 
-interface AnimatedPressableProps {
+interface AnimatedPressableProps extends AccessibilityProps {
   children: React.ReactNode;
   onPress?: () => void;
   style?: ViewStyle;
@@ -21,6 +21,7 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   className,
   scaleValue = 0.97,
   disabled = false,
+  ...accessibilityProps
 }) => {
   void scaleValue;
   return (
@@ -29,6 +30,7 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
       disabled={disabled}
       className={className}
       style={style}
+      {...accessibilityProps}
     >
       {children}
     </Pressable>
