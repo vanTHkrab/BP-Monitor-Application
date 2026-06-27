@@ -11,6 +11,7 @@ import pytest
 from ai_service.analyzer.ocr.base import OCRResult
 from ai_service.analyzer.pipeline import (
     BPAnalysisPipeline,
+    _mean_field_confidence,
     _parse_int,
     _pick_best_per_class,
 )
@@ -274,16 +275,35 @@ class TestRectifyFallbackChain:
         return sys_box, dia_box, pul_box, screen_box
 
     async def test_rotation_rescues_when_perspective_fails(
-        self, fake_image, make_ocr_readers,
+        self, fake_image, make_ocr_readers, monkeypatch,
     ):
+        # Gate forced ON so this stays a real "tilted image clears the gate
+        # and is rescued" scenario regardless of the shipped default.
         # Uniform fake_image → Canny has nothing to bite → perspective
         # quad detection fails. The first-pass field centroids form a
-        # ~25° tilted line, so the rotation fallback should trigger
-        # and the pipeline should still succeed.
+        # ~25° tilted line, so the rotation fallback should trigger.
+        # The second pass detects the same fields with *higher*
+        # confidence (straightening genuinely helped), clearing the
+        # MIN_ROTATION_CONFIDENCE_GAIN gate so the rotation is committed.
+        monkeypatch.setattr(
+            "ai_service.analyzer.pipeline.USE_ROTATION_CONFIDENCE_GATE", True,
+        )
         sys_b, dia_b, pul_b, screen_b = self._tilted_fields()
+        sys_hi = BoundingBox(
+            x1=300, y1=80, x2=360, y2=140,
+            cls=int(BPClass.SYSTOLIC), class_name="sys", confidence=0.98,
+        )
+        dia_hi = BoundingBox(
+            x1=240, y1=180, x2=300, y2=240,
+            cls=int(BPClass.DIASTOLIC), class_name="dia", confidence=0.98,
+        )
+        pul_hi = BoundingBox(
+            x1=180, y1=280, x2=240, y2=340,
+            cls=int(BPClass.PULSE), class_name="pulse", confidence=0.98,
+        )
         detector = SequentialMockDetector(
             [sys_b, dia_b, pul_b, screen_b],   # first pass on source
-            [sys_b, dia_b, pul_b],             # second pass on rotated
+            [sys_hi, dia_hi, pul_hi],          # second pass on rotated
         )
         pipe = BPAnalysisPipeline(
             detector=detector,
@@ -356,3 +376,112 @@ class TestRectifyFallbackChain:
         # First-pass fields still drive a valid result.
         assert res.status == AnalysisStatus.SUCCESS
         assert metrics.rectify_ms > 0.0
+
+    @staticmethod
+    def _lower_conf_second_pass():
+        """Same field geometry as ``_tilted_fields`` but lower confidence —
+        what an already-upright LCD looks like after a needless rotate +
+        resample (the rotation didn't help)."""
+        sys_lo = BoundingBox(
+            x1=300, y1=80, x2=360, y2=140,
+            cls=int(BPClass.SYSTOLIC), class_name="sys", confidence=0.90,
+        )
+        dia_lo = BoundingBox(
+            x1=240, y1=180, x2=300, y2=240,
+            cls=int(BPClass.DIASTOLIC), class_name="dia", confidence=0.88,
+        )
+        pul_lo = BoundingBox(
+            x1=180, y1=280, x2=240, y2=340,
+            cls=int(BPClass.PULSE), class_name="pulse", confidence=0.88,
+        )
+        return sys_lo, dia_lo, pul_lo
+
+    async def test_rotation_rejected_when_gate_on_and_no_confidence_gain(
+        self, fake_image, make_ocr_readers, monkeypatch,
+    ):
+        # Gate forced ON (independent of the shipped default). Rotation is
+        # estimated and the second pass finds all 3 fields — but no more
+        # confidently than the first pass. The gate rejects the rotation, so
+        # the pipeline stays on the original image and the *first-pass* field
+        # confidences (0.94/0.92/0.92) drive the result, not the lower
+        # second-pass ones — that's how we observe the rejection.
+        monkeypatch.setattr(
+            "ai_service.analyzer.pipeline.USE_ROTATION_CONFIDENCE_GATE", True,
+        )
+        sys_b, dia_b, pul_b, screen_b = self._tilted_fields()
+        detector = SequentialMockDetector(
+            [sys_b, dia_b, pul_b, screen_b],        # first pass — conf ~0.93
+            list(self._lower_conf_second_pass()),   # second pass — no gain
+        )
+        pipe = BPAnalysisPipeline(
+            detector=detector,
+            ocr_readers=make_ocr_readers("120", "80", "72", 0.95),
+            field_timeout_s=1.0,
+        )
+        res, metrics = await pipe.analyze(fake_image)
+
+        assert res.status == AnalysisStatus.SUCCESS
+        assert (res.systolic, res.diastolic, res.pulse) == (120, 80, 72)
+        # min(0.92*0.95) over first-pass fields → original fields were kept.
+        assert res.confidence == pytest.approx(0.92 * 0.95)
+        assert metrics.rectify_ms > 0.0
+
+    async def test_rotation_applied_when_gate_disabled(
+        self, fake_image, make_ocr_readers, monkeypatch,
+    ):
+        # Gate forced OFF (the current shipped default). The same
+        # no-confidence-gain second pass is now *committed* anyway — the
+        # rotation passes on the 3-field check alone. We observe that the
+        # lower second-pass confidences (0.88) drive the result, proving the
+        # rotated fields were used.
+        monkeypatch.setattr(
+            "ai_service.analyzer.pipeline.USE_ROTATION_CONFIDENCE_GATE", False,
+        )
+        sys_b, dia_b, pul_b, screen_b = self._tilted_fields()
+        detector = SequentialMockDetector(
+            [sys_b, dia_b, pul_b, screen_b],
+            list(self._lower_conf_second_pass()),
+        )
+        pipe = BPAnalysisPipeline(
+            detector=detector,
+            ocr_readers=make_ocr_readers("120", "80", "72", 0.95),
+            field_timeout_s=1.0,
+        )
+        res, metrics = await pipe.analyze(fake_image)
+
+        assert res.status == AnalysisStatus.SUCCESS
+        assert (res.systolic, res.diastolic, res.pulse) == (120, 80, 72)
+        # min(0.88*0.95) over second-pass fields → rotated fields were used.
+        assert res.confidence == pytest.approx(0.88 * 0.95)
+        assert metrics.rectify_ms > 0.0
+
+
+class TestMeanFieldConfidence:
+    def test_averages_over_shared_classes_only(self):
+        fields = {
+            BPClass.SYSTOLIC: BoundingBox(
+                0, 0, 10, 10, cls=int(BPClass.SYSTOLIC),
+                class_name="sys", confidence=0.9,
+            ),
+            BPClass.DIASTOLIC: BoundingBox(
+                0, 0, 10, 10, cls=int(BPClass.DIASTOLIC),
+                class_name="dia", confidence=0.8,
+            ),
+        }
+        # Only sys is in the requested set → its confidence alone.
+        assert _mean_field_confidence(fields, {BPClass.SYSTOLIC}) == 0.9
+        # Both present → mean.
+        got = _mean_field_confidence(
+            fields, {BPClass.SYSTOLIC, BPClass.DIASTOLIC},
+        )
+        assert got == pytest.approx(0.85)
+
+    def test_empty_overlap_is_zero(self):
+        fields = {
+            BPClass.SYSTOLIC: BoundingBox(
+                0, 0, 10, 10, cls=int(BPClass.SYSTOLIC),
+                class_name="sys", confidence=0.9,
+            ),
+        }
+        assert _mean_field_confidence(fields, set()) == 0.0
+        assert _mean_field_confidence(fields, {BPClass.PULSE}) == 0.0

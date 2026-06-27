@@ -16,10 +16,12 @@ import cv2
 import numpy as np
 import pytest
 
+import ai_service.analyzer.rectify as rectify_mod
 from ai_service.analyzer.rectify import (
     MAX_ROTATION_DEG,
     MIN_RECTIFIED_EDGE,
     MIN_ROTATION_DEG,
+    USE_RIGHT_EDGE_ALIGNMENT,
     _auto_canny,
     _order_corners,
     _padded_roi,
@@ -255,6 +257,23 @@ def _stacked_fields(
     }
 
 
+def _field_box_right_aligned(
+    cls: BPClass, right_x: float, cy: float, width: float, height: float = 30.0,
+) -> BoundingBox:
+    """Synthesize a right-aligned ``BoundingBox``.
+
+    ``x2`` is pinned to ``right_x`` (the shared right edge of the LCD's
+    right-aligned digits); the box grows LEFT by ``width``. A wider
+    (more-digit) box therefore has the same right edge but a centroid
+    shifted left — exactly the digit-count scatter Fix B targets.
+    """
+    half_h = height * 0.5
+    return BoundingBox(
+        x1=right_x - width, y1=cy - half_h, x2=right_x, y2=cy + half_h,
+        cls=int(cls), class_name=cls.name.lower(), confidence=0.9,
+    )
+
+
 class TestEstimateRotationFromFields:
     def test_upright_image_returns_none(self):
         # sys directly above dia above pulse — line is vertical, no
@@ -337,6 +356,65 @@ class TestEstimateRotationFromFields:
         fields = _stacked_fields((100, 100), (101, 200), (102, 300))
         angle = estimate_rotation_from_fields(fields)
         assert angle is None or abs(angle) >= MIN_ROTATION_DEG
+
+    def test_default_mode_is_right_edge(self):
+        # Guard the shipped default so a later flip is a conscious choice.
+        assert USE_RIGHT_EDGE_ALIGNMENT is True
+
+    def test_right_aligned_digit_scatter_no_spurious_tilt(self, monkeypatch):
+        # Regression for the Rossmax 102/64/78 bug: device is upright but
+        # sys=102 (3 digits) is wider than dia=64 / pulse=78 (2 digits).
+        # All three RIGHT edges share x=200 (right-aligned LCD); the wider
+        # sys box extends further left, so its CENTROID sits ~10px left of
+        # the 2-digit boxes. Stacked over a 200px vertical baseline that
+        # centroid scatter fabricates a ~few-degree tilt.
+        #
+        # Widths: 3-digit ≈ 60px, 2-digit ≈ 40px → centroids at x=170 (sys)
+        # vs x=180 (dia/pulse). atan(10/200) ≈ 2.86° — above MIN_ROTATION_DEG,
+        # so legacy centroid mode WOULD invent a rotation here.
+        fields = {
+            BPClass.SYSTOLIC: _field_box_right_aligned(
+                BPClass.SYSTOLIC, right_x=200, cy=100, width=60),
+            BPClass.DIASTOLIC: _field_box_right_aligned(
+                BPClass.DIASTOLIC, right_x=200, cy=200, width=40),
+            BPClass.PULSE: _field_box_right_aligned(
+                BPClass.PULSE, right_x=200, cy=300, width=40),
+        }
+
+        # Right-edge mode (shipped default): right edges are perfectly
+        # vertical → no tilt invented. None, or sub-MIN_ROTATION_DEG.
+        monkeypatch.setattr(rectify_mod, "USE_RIGHT_EDGE_ALIGNMENT", True)
+        angle = estimate_rotation_from_fields(fields)
+        assert angle is None or abs(angle) < MIN_ROTATION_DEG
+
+        # Legacy centroid mode: same boxes now fabricate a real tilt — this
+        # is the failure mode Fix B removes. Asserting it proves the test
+        # boxes actually trigger the bug and the toggle is what fixes it.
+        monkeypatch.setattr(rectify_mod, "USE_RIGHT_EDGE_ALIGNMENT", False)
+        legacy_angle = estimate_rotation_from_fields(fields)
+        assert legacy_angle is not None
+        assert abs(legacy_angle) >= MIN_ROTATION_DEG
+        # atan(10px centroid drift / 200px baseline) ≈ 2.86°. Sign is
+        # negative: the centroid drifts left going down the LCD, which the
+        # estimator reads as a CW-correction request.
+        assert abs(legacy_angle) == pytest.approx(2.86, abs=0.5)
+
+    def test_right_edge_mode_still_detects_real_tilt(self, monkeypatch):
+        # A genuine tilt must still be caught under right-edge mode: shift
+        # every right edge by the same per-row amount so the right-edge
+        # line itself is slanted (the device really is rotated).
+        monkeypatch.setattr(rectify_mod, "USE_RIGHT_EDGE_ALIGNMENT", True)
+        fields = {
+            BPClass.SYSTOLIC: _field_box_right_aligned(
+                BPClass.SYSTOLIC, right_x=180, cy=100, width=60),
+            BPClass.DIASTOLIC: _field_box_right_aligned(
+                BPClass.DIASTOLIC, right_x=190, cy=200, width=40),
+            BPClass.PULSE: _field_box_right_aligned(
+                BPClass.PULSE, right_x=200, cy=300, width=40),
+        }
+        angle = estimate_rotation_from_fields(fields)
+        assert angle is not None
+        assert abs(angle) >= MIN_ROTATION_DEG
 
 
 class TestRotateImageKeepContent:

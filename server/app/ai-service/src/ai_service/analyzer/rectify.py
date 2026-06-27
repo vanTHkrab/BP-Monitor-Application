@@ -11,12 +11,17 @@ Two-stage straighten chain that runs after the first YOLO pass:
 2. **Field-layout rotation** (``estimate_rotation_from_fields`` →
    ``rotate_image_keep_content``) — fallback for the rounded-bezel
    case (Omron and similar) where ``approxPolyDP`` cannot reduce the
-   contour to 4 vertices. Fits a line through the ``sys`` / ``dia`` /
-   ``pulse`` centroids the first YOLO pass already produced and
-   rotates the whole image so that line stands vertical. This signal
+   contour to 4 vertices. Fits a line through a per-field reference
+   point of the ``sys`` / ``dia`` / ``pulse`` boxes the first YOLO pass
+   already produced and rotates the whole image so that line stands
+   vertical. The reference defaults to each box's right-edge midpoint
+   (``USE_RIGHT_EDGE_ALIGNMENT``) because BP LCDs are right-aligned —
+   centroids scatter horizontally when the readings differ in digit
+   count and fabricate a spurious tilt; right edges do not. This signal
    is model-agnostic — every BP monitor we've seen renders the three
-   fields vertically stacked — and doesn't depend on bezel quality at
-   all. It only handles pure rotation, not perspective foreshortening.
+   fields vertically stacked and right-aligned — and doesn't depend on
+   bezel quality at all. It only handles pure rotation, not perspective
+   foreshortening.
 
 Fallback is silent at every stage: when any step fails (ROI too small,
 no contour above the area floor, no 4-vertex quad, non-convex quad,
@@ -70,6 +75,34 @@ AUTO_CANNY_SIGMA = 0.33
 MIN_RECTIFIED_EDGE = 64
 
 # ── Field-layout rotation tunables ─────────────────────────────────────
+
+# Alignment reference for the field-layout line fit.
+#
+# BP LCDs render the three readings RIGHT-ALIGNED: the rightmost digit
+# of sys / dia / pulse sits on a shared vertical line regardless of how
+# many digits each value has. A naive centroid line fit
+# (``(x1+x2)/2, (y1+y2)/2``) breaks on this: when the readings differ in
+# digit count (e.g. ``sys=102`` is 3 digits, ``dia=64`` / ``pulse=78``
+# are 2 digits), the 3-digit box extends further LEFT, dragging its
+# centroid x left relative to the 2-digit boxes. Over the short vertical
+# baseline between the three fields, that horizontal centroid scatter
+# fabricates a few-degrees tilt on an image that is actually upright,
+# and Stage 2 then rotates the frame — making it worse. Reproduced on a
+# Rossmax monitor (102/64/78): rectified output came out tilted CW with
+# black corners from an upright source.
+#
+# When ``True`` (default), the line fit uses each field's RIGHT-EDGE
+# midpoint ``(x2, (y1+y2)/2)`` instead of the centroid. Because the LCD
+# is right-aligned, those right edges genuinely line up vertically on an
+# upright device, so the digit-count noise is removed at the source.
+#
+# Flip to ``False`` to restore the legacy centroid behaviour. The toggle
+# exists as an escape hatch: if a vendor that does NOT right-align its
+# digits ever shows up (none of the brands seen so far —
+# allwell / omron / sinocare / yuwell / lifebox / rossmax — do, they are
+# all right-aligned), centroid mode is the correct fallback for that
+# layout and can be re-enabled without code surgery.
+USE_RIGHT_EDGE_ALIGNMENT: bool = True
 
 # A line fit needs at least two points. With one detected field the
 # direction is undefined and we'd be guessing.
@@ -188,12 +221,23 @@ def rectify_perspective(
 def estimate_rotation_from_fields(
     field_boxes: Mapping[BPClass, BoundingBox],
 ) -> float | None:
-    """Estimate the rotation correction (degrees) from field-box centroids.
+    """Estimate the rotation correction (degrees) from the field boxes.
 
-    Fits a line through the centroids of whichever of ``sys`` / ``dia``
-    / ``pulse`` are present and returns the angle to pass to
+    Fits a line through a reference point of whichever of ``sys`` /
+    ``dia`` / ``pulse`` are present and returns the angle to pass to
     ``cv2.getRotationMatrix2D`` to bring the LCD upright. Positive =
     rotate CCW (visually), negative = rotate CW.
+
+    **Reference point.** BP LCDs render the readings right-aligned, so by
+    default (``USE_RIGHT_EDGE_ALIGNMENT = True``) the line is fit through
+    each field's RIGHT-EDGE midpoint ``(x2, (y1+y2)/2)``. Those right
+    edges share a vertical line on an upright device regardless of how
+    many digits each value has, so a 3-digit ``sys`` next to 2-digit
+    ``dia`` / ``pulse`` no longer fabricates a spurious tilt. Flipping
+    the toggle to ``False`` restores the legacy CENTROID reference
+    ``((x1+x2)/2, (y1+y2)/2)``, which is only correct on a non-right-
+    aligned vendor layout (none seen to date) — see the
+    ``USE_RIGHT_EDGE_ALIGNMENT`` tunable docstring for the full rationale.
 
     The canonical orientation assumed is the Omron-style layout where
     ``sys`` is rendered above ``dia`` above ``pulse`` on the LCD; the
@@ -203,8 +247,8 @@ def estimate_rotation_from_fields(
     a ~180° offset and be rejected by the ``MAX_ROTATION_DEG`` cap.
 
     Returns ``None`` (no rotation applied) when:
-      - fewer than ``MIN_FIELDS_FOR_ROTATION`` centroids are available
-      - first/last centroids closer than ``MIN_FIELD_SPREAD`` (degenerate)
+      - fewer than ``MIN_FIELDS_FOR_ROTATION`` reference points are available
+      - first/last reference points closer than ``MIN_FIELD_SPREAD`` (degenerate)
       - the resulting correction is below ``MIN_ROTATION_DEG`` (noise)
       - the correction exceeds ``MAX_ROTATION_DEG`` (suspect misfit)
     """
@@ -217,9 +261,13 @@ def estimate_rotation_from_fields(
         box = field_boxes.get(cls)
         if box is None:
             continue
-        cx = (box.x1 + box.x2) * 0.5
-        cy = (box.y1 + box.y2) * 0.5
-        pts.append((cx, cy))
+        # Right-edge midpoint (default) defeats right-aligned-LCD digit-
+        # count scatter; centroid is the legacy fallback for a non-right-
+        # aligned vendor. Both share the same vertical (y) midpoint — only
+        # the x reference differs.
+        ref_x = box.x2 if USE_RIGHT_EDGE_ALIGNMENT else (box.x1 + box.x2) * 0.5
+        ref_y = (box.y1 + box.y2) * 0.5
+        pts.append((ref_x, ref_y))
 
     if len(pts) < MIN_FIELDS_FOR_ROTATION:
         return None

@@ -55,6 +55,29 @@ logger = logging.getLogger(__name__)
 # LOW_CONFIDENCE so the gateway / client can decide whether to re-prompt.
 SUCCESS_CONFIDENCE_FLOOR: float = 0.60
 
+# Quality gate for the field-layout rotation fallback. The rotation angle
+# is estimated from field-box centroids, which scatter when the readings
+# differ in digit count — a 3-digit sys vs a 2-digit dia shifts its
+# centroid on a right-aligned LCD — and that scatter can fabricate a
+# few-degrees tilt on an already-upright image. The "still found 3 fields"
+# check alone can't catch this: YOLO keeps finding the fields through a
+# small spurious tilt. So we only *keep* the rotation when the second YOLO
+# pass is at least this much more confident on the field boxes than the
+# first pass; otherwise the rotation didn't help and we stay on the
+# original image. Raise to demand a clearer win; lower toward 0.0 to accept
+# any non-regression. OCR hasn't run at this stage, so the gate compares
+# YOLO detection confidence, not OCR / in-range — those come later.
+MIN_ROTATION_CONFIDENCE_GAIN: float = 0.02
+
+# Master switch for the confidence quality gate above ("feature A"). When
+# False the gate is skipped: a rotation that cleared angle estimation + the
+# 3-field check is committed without checking whether it improved detection
+# confidence. Currently OFF to isolate the behaviour of the right-edge
+# alignment fix ("feature B" — see rectify.USE_RIGHT_EDGE_ALIGNMENT) on its
+# own. NOTE: the gate *blocks* rotations, so turning it off lets MORE
+# rotations through, not fewer. Flip back to True to re-enable the safety net.
+USE_ROTATION_CONFIDENCE_GATE: bool = False
+
 
 class BPAnalysisPipeline:
     """Run YOLO + OCR + validation on one BP image, return AnalysisResult."""
@@ -266,7 +289,11 @@ class BPAnalysisPipeline:
         ``approxPolyDP`` contour cannot collapse to 4 vertices.
         Returns ``(rotated_image, field_boxes)`` on success, ``None``
         when the rotation cannot be estimated, is below the noise
-        floor, or the second YOLO pass loses fields after the warp.
+        floor, the second YOLO pass loses fields after the warp, or —
+        when the confidence gate is enabled
+        (``USE_ROTATION_CONFIDENCE_GATE``, currently off) — the rotation
+        fails the ``MIN_ROTATION_CONFIDENCE_GAIN`` check because the
+        second pass is no more confident than the first.
         """
         angle = estimate_rotation_from_fields(first_pass_fields)
         if angle is None:
@@ -296,7 +323,38 @@ class BPAnalysisPipeline:
             )
             return None
 
-        logger.info("rectify[rotation]: applied %.1f° to upright the LCD", angle)
+        # Quality gate ("feature A", toggled by USE_ROTATION_CONFIDENCE_GATE):
+        # the angle came from centroid/right-edge geometry, not from image
+        # quality, so a spurious tilt on an already-upright LCD can still leave
+        # 3 fields detectable. When enabled, only commit to the rotation when
+        # it actually made the field detections more confident — compared over
+        # the fields the two passes share. When disabled, the rotation is
+        # committed on the 3-field check alone.
+        if USE_ROTATION_CONFIDENCE_GATE:
+            shared = set(first_pass_fields) & set(rot_fields)
+            pass1_conf = _mean_field_confidence(first_pass_fields, shared)
+            pass2_conf = _mean_field_confidence(rot_fields, shared)
+            if pass2_conf < pass1_conf + MIN_ROTATION_CONFIDENCE_GAIN:
+                logger.info(
+                    "rectify[rotation]: %.1f° did not improve detection "
+                    "(conf %.3f → %.3f); keeping original",
+                    angle,
+                    pass1_conf,
+                    pass2_conf,
+                )
+                return None
+            logger.info(
+                "rectify[rotation]: applied %.1f° to upright the LCD (conf %.3f → %.3f)",
+                angle,
+                pass1_conf,
+                pass2_conf,
+            )
+        else:
+            logger.info(
+                "rectify[rotation]: applied %.1f° to upright the LCD "
+                "(confidence gate disabled)",
+                angle,
+            )
         return rotated, rot_fields
 
     # ─── internals ─────────────────────────────────────────────────────
@@ -461,6 +519,20 @@ def _pick_best_per_class(
         if bp_class not in by_class or box.confidence > by_class[bp_class].confidence:
             by_class[bp_class] = box
     return by_class
+
+
+def _mean_field_confidence(
+    fields: dict[BPClass, BoundingBox],
+    classes: set[BPClass],
+) -> float:
+    """Mean YOLO confidence over ``classes`` present in ``fields``.
+
+    Used to compare the pre- and post-rotation detections on the same set
+    of fields. Returns ``0.0`` when no class overlaps so a missing overlap
+    can't masquerade as a high score.
+    """
+    confs = [fields[c].confidence for c in classes if c in fields]
+    return float(sum(confs) / len(confs)) if confs else 0.0
 
 
 def _pick_screen_box(boxes: list[BoundingBox]) -> BoundingBox | None:
