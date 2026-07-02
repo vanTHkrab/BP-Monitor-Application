@@ -228,10 +228,13 @@ Three independent invariants that fail silently if mishandled — call them out 
   If the backend retrains, `pnpm sync-yolo-model` + commit both copies in the same change.
   Class IDs and thresholds in `lib/yolo/types.ts` mirror `analyzer/yolo.py::CLASS_NAMES` and
   `_conf_threshold` — change one side, change the other.
-- Pre-flight is warn-not-block: `services/preflight-detection.service.ts → preflightCheckImage`
-  returns `ok` (with auto-crop) / `no-monitor` / `missing-fields`. The camera screen MUST
-  expose a "ส่งต่อไป" override on every non-ok verdict so a false negative doesn't strand
-  the user. Never gate upload on pre-flight verdict.
+- Pre-flight is warn-not-block, when wired: `services/preflight-detection.service.ts →
+  preflightCheckImage` returns `ok` (with auto-crop) / `no-monitor` / `missing-fields`. If it's
+  wired into a capture flow, that flow MUST expose a "ส่งต่อไป" override on every non-ok
+  verdict so a false negative doesn't strand the user — never gate upload on pre-flight
+  verdict. **Currently `app/(tabs)/camera.tsx` does not call this service at all** (bypassed at
+  the UI level, service/model/lib left in place for a fast revert — see client/CLAUDE.md
+  "On-device pre-flight"); don't assume the banner/override exists until you've checked.
 - Binary PUT on native goes through `expo-file-system/legacy` `uploadAsync`
   (`uploadType: BINARY_CONTENT`). `new Blob([Uint8Array])` compiles but throws at runtime on
   RN — see MEMORY[rn_blob_arraybuffer_trap]. The fetch+Blob path is web-only.
