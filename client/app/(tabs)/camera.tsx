@@ -5,10 +5,9 @@ import { DevMetricsChip, OcrEngineSelector } from '@/components/dev-ocr-controls
 import { GradientBackground } from '@/components/gradient-background';
 import { UIImage } from '@/components/ui/image';
 import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors';
-import { LivePreflightOverlay } from '@/components/live-preflight-overlay';
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
-import { useLivePreflight } from '@/hooks/use-live-preflight';
 import { useAppStore } from '@/store/use-app-store';
+import { cropToViewport } from '@/utils/crop-to-viewport';
 import { fontPresetClass, getFontClass } from '@/utils/font-scale';
 import { prepareImageForAnalysis } from '@/utils/image-prepare';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,6 +47,22 @@ export default function CameraScreen() {
   const [isCapturing, setIsCapturing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
+  // ─── Camera viewport geometry (WYSIWYG capture crop) ────────────────────────────
+  // The full-screen CameraView renders in `cover` fit: the sensor feed is scaled
+  // up to fill the screen and the overflow is cropped off-screen. But
+  // `takePictureAsync` returns the *full* sensor frame (~4:3), wider/taller than
+  // what the preview actually showed, so anything framed in the on-screen guide
+  // ends up smaller/further-away in the saved JPEG (preview ≠ captured).
+  //
+  // We measure the live viewport via `onLayout` on the full-screen container
+  // (rather than `Dimensions.get`) because that gives the *actual* rendered box
+  // of the surface the preview cover-fits into — robust to rotation, the hidden
+  // tab bar, and any insets, with no manual subtraction. We then center-crop the
+  // captured photo to this aspect so capture matches preview. `viewportAspect`
+  // is a ref (not state) so reading it in the async capture handler never closes
+  // over a stale value and updating it on layout never triggers a re-render.
+  const viewportAspect = useRef<number | null>(null);
+
   // ─── Modal / form state ───────────────────────────────────────────────────────
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [systolic, setSystolic] = useState('');
@@ -86,42 +101,14 @@ export default function CameraScreen() {
     phase,
     prefill,
     result,
-    preflight,
     lowConfidence,
     isSaving,
-    runPreflight,
     analyze,
     save,
     reset: resetAnalysis,
     confirmLowConfidence,
     dismissLowConfidence,
   } = useCameraAnalysis();
-
-  // The original (uncropped) image URI captured from the camera/picker, kept
-  // separately from `capturedImage` (which is what's shown in the preview —
-  // the auto-cropped variant when pre-flight succeeded). On "send anyway"
-  // from the warning banner we feed this URI to `analyze()` so the backend
-  // still sees the full frame even when on-device thinks it's a bad shot.
-  const originalImageRef = useRef<string | null>(null);
-
-  // Live-preview overlay viewport measurement. The hook below polls
-  // takePictureAsync at ~2 fps and the overlay needs the on-screen pixel
-  // size of the CameraView container to map detection boxes correctly.
-  const [previewViewport, setPreviewViewport] = useState<{ width: number; height: number } | null>(
-    null,
-  );
-
-  // Live on-device YOLO over the camera preview. Only active when the user
-  // is framing a shot — once `capturedImage` is set we switch to the static
-  // preview (cropped or original) and stop the polling loop. The entry
-  // modal also pauses live detection because takePictureAsync while a modal
-  // is overlaid would be wasted work the user can't see.
-  const isFramingShot = !capturedImage && isCameraReady && !showEntryModal;
-  const liveFrame = useLivePreflight({
-    cameraRef,
-    enabled: isFramingShot,
-    intervalMs: 500,
-  });
 
   // Auto-fill form when AI returns confident readings.
   // Functional setState reads the *current* value at update time, so a slow
@@ -212,49 +199,33 @@ export default function CameraScreen() {
   // payload on every shot just for us to discard it; only `photo.uri` is
   // actually consumed downstream. The base64 alone is ~7 MB for an iPhone
   // capture and was a real OOM hazard on lower-end Android devices.
-  // Captures share the same post-resize flow: run on-device YOLO pre-flight,
-  // then either auto-continue with the cropped image (status === 'ok') or
-  // show a warning banner that lets the user re-shoot or send the original
-  // anyway. Pre-flight failures (model load error, etc.) fall through to the
-  // legacy "just analyze it" path so a bad detector load never blocks the
-  // capture flow — see hooks/use-camera-analysis.ts → runPreflight().
+  // Captures share the same post-resize flow: resize, then hand the image
+  // straight to the backend analysis pipeline. On-device YOLO pre-flight is
+  // currently bypassed in this UI flow — the backend YOLO does its own ROI
+  // detection on the uploaded frame, so we don't gate or auto-crop on the
+  // device. (The pre-flight service + bundled model are intentionally kept
+  // in place so this bypass can be reverted without re-adding the plumbing.)
   const startCaptureFlow = async (uri: string, width: number, height: number) => {
+    // A new capture means a fresh AI read — clear the form so the auto-fill
+    // effect below writes the *new* readings into empty fields. Without this,
+    // the effect's "don't clobber what the user typed" guard
+    // (`prev.trim() ? prev : ...`) would also refuse to replace values left
+    // over from a previous shot (e.g. after a retake, since `retake` keeps the
+    // typed values on purpose). Clearing here scopes the overwrite to a real
+    // new capture: within a single shot the guard still protects keystrokes
+    // the user types while the AI is resolving. The clears flush long before
+    // the async `analyze` round-trip resolves, so there's no race with prefill.
+    setSystolic('');
+    setDiastolic('');
+    setPulse('');
+    setFieldErrors({});
+    setSaveError(null);
     // prepareImageForAnalysis may resize (long-edge cap 1600px) and returns
-    // the *post-resize* dimensions. We MUST pass those to pre-flight — if
-    // we pass the pre-resize dims here, YOLO would map detections back into
-    // a coordinate space the file behind `prepared.uri` doesn't actually
-    // live in, and the auto-crop step would then ask ImageManipulator to
-    // crop a rectangle outside the image bounds (out-of-range error).
+    // the *post-resize* dimensions. We send the post-resize image to the
+    // backend — uncropped — and let backend YOLO locate the monitor.
     const prepared = await prepareImageForAnalysis(uri, width, height);
-    originalImageRef.current = prepared.uri;
     setCapturedImage(prepared.uri);
-
-    const pre = await runPreflight({
-      imageUri: prepared.uri,
-      sourceWidth: prepared.width,
-      sourceHeight: prepared.height,
-    });
-
-    if (!pre) {
-      // Pre-flight failed (e.g. detector load error). Stay safe and continue
-      // with backend analysis on the original.
-      void analyze(prepared.uri, { ocrEngine: ocrEngineOverride });
-      return;
-    }
-
-    if (pre.status === 'ok' && pre.croppedUri) {
-      // Auto-crop succeeded. Use the tighter image for both the preview and
-      // the upload — it's smaller (faster S3 PUT) and the backend YOLO will
-      // see exactly the same crop the on-device pass agreed on.
-      setCapturedImage(pre.croppedUri);
-      void analyze(pre.croppedUri, { ocrEngine: ocrEngineOverride });
-      return;
-    }
-
-    // status === 'no-monitor' | 'missing-fields' — leave the preview on the
-    // original image and let the warning banner render (it reads
-    // `preflight.status` from the hook). The user picks "ถ่ายใหม่" (reset)
-    // or "ส่งต่อไป" (calls analyze on the original).
+    void analyze(prepared.uri, { ocrEngine: ocrEngineOverride });
   };
 
   const takePicture = async () => {
@@ -266,7 +237,27 @@ export default function CameraScreen() {
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
       if (!photo) return;
-      await startCaptureFlow(photo.uri, photo.width, photo.height);
+      // WYSIWYG: the live preview cover-fit the sensor feed into the full-screen
+      // viewport, cropping the overflow off-screen, but `takePictureAsync`
+      // returns the full sensor frame. Center-crop the captured photo to the
+      // viewport aspect so "what was captured" == "what was framed". Only the
+      // camera-capture path does this — gallery picks (pickImage) aren't bound
+      // to the live preview, so there's no mismatch to correct and cropping
+      // would discard image area for nothing.
+      //
+      // photo.width/height from takePictureAsync are already orientation-
+      // normalized to the upright frame the user saw (the URI's pixels match
+      // these dims), so photoAspect lines up with the on-screen viewportAspect
+      // without an extra EXIF rotation step. If the viewport hasn't been
+      // measured yet (no onLayout pass), cropToViewport receives a null aspect
+      // and safely returns the original image.
+      const cropped = await cropToViewport(
+        photo.uri,
+        photo.width,
+        photo.height,
+        viewportAspect.current ?? 0,
+      );
+      await startCaptureFlow(cropped.uri, cropped.width, cropped.height);
     } catch {
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
     } finally {
@@ -284,22 +275,6 @@ export default function CameraScreen() {
       const asset = result.assets[0];
       await startCaptureFlow(asset.uri, asset.width, asset.height);
     }
-  };
-
-  // Called by the "ส่งต่อไป" button in the pre-flight warning banner —
-  // overrides the on-device verdict and hands the original image to the
-  // backend pipeline.
-  const sendAnyway = () => {
-    const uri = originalImageRef.current;
-    if (!uri) return;
-    setCapturedImage(uri);
-    void analyze(uri, { ocrEngine: ocrEngineOverride });
-  };
-
-  const retakeAfterWarning = () => {
-    originalImageRef.current = null;
-    setCapturedImage(null);
-    resetAnalysis();
   };
 
   // ─── Validation ───────────────────────────────────────────────────────────────
@@ -560,13 +535,21 @@ export default function CameraScreen() {
       ? 'กรุณารอสักครู่'
       : 'บันทึก';
 
-  // Bottom overlay padding budget. The tab bar is hidden on this route
-  // (app/(tabs)/_layout.tsx → camera `tabBarStyle: { display: 'none' }`), so
-  // there is no bar to clear — we only reserve the safe-area inset
-  // (home-indicator / gesture bar) plus 14px breathing room so the controls
-  // never sit under the home indicator. Matches how the preview state below
-  // budgets its bottom overlay.
-  const bottomOverlayPadding = insets.bottom + 14;
+  // Bottom overlay padding budget. The bottom tab bar IS visible on this
+  // route (app/(tabs)/_layout.tsx → camera `tabBarStyle: { display: 'none' }`
+  // is commented out), and it is an absolutely-positioned purple bar, so the
+  // controls overlay must clear it as well as the safe-area inset.
+  //
+  // TAB_BAR_TOTAL_HEIGHT mirrors the geometry in app/(tabs)/_layout.tsx:
+  //   tabBarBaseHeight (60 iOS / 62 Android) + insets.bottom + marginBottom
+  //   (2 iOS / 4 Android). It is duplicated here as a local constant rather
+  //   than imported to avoid coupling this screen to the navigator config —
+  //   if those numbers change in _layout.tsx, update this constant to match.
+  const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
+  const tabBarMarginBottom = Platform.OS === 'ios' ? 2 : 4;
+  const tabBarTotalHeight = tabBarBaseHeight + insets.bottom + tabBarMarginBottom;
+  // Lift the controls clear of the tab bar, then add 14px breathing room.
+  const bottomOverlayPadding = tabBarTotalHeight + 14;
   const captionClassName = fontPresetClass.caption(fontSizePreference);
   const bodyClassName = fontPresetClass.body(fontSizePreference);
 
@@ -601,240 +584,247 @@ export default function CameraScreen() {
 
         {/* ── Camera / Preview ── */}
         {!capturedImage ? (
-          <>
-            {/* Dev-only OCR engine picker — rendered in normal flow
-                between the header and the camera surface so it can't be
-                hidden by ``CameraView``'s native compositing (Android in
-                particular ignores RN's zIndex against native surfaces).
-                Hidden via the component's own ``devMode`` gate when off
-                — so production users see no layout shift. */}
-            <OcrEngineSelector />
-            {/* Letterbox the camera surface to a strict 3:4 portrait
-                viewport so the pixels the user frames match the pixels
-                the on-device YOLO + backend YOLO see. The previous
-                `absolute inset-0` cover-fit silently zoomed the sensor
-                feed past the screen edges, so anything tracked at the
-                edge of the live overlay was already off-frame in the
-                captured JPEG. The outer wrapper is transparent so the
-                surrounding brand-blue GradientBackground reads through
-                the letterbox bars instead of a flat-black border — that
-                matches how home / history / settings present their
-                empty surfaces. The 3:4 viewport keeps `bg-black` so the
-                camera native surface still has a stable backdrop while
-                it mounts. */}
-            <View className="items-center justify-start">
-              <View
-                className="w-full aspect-[3/4] relative overflow-hidden bg-black"
-                onLayout={(e) => {
-                  const { width, height } = e.nativeEvent.layout;
-                  setPreviewViewport((prev) =>
-                    prev && prev.width === width && prev.height === height
-                      ? prev
-                      : { width, height },
-                  );
-                }}
-              >
-
-              {/* Camera mount error fallback — error icon stays #E74C3C
-                  (Colors.status.high) since this *is* a true error state.
-                  "ลองใหม่" uses the brand purple gradient (accentGradient)
-                  to match primary actions elsewhere in the app; "ตั้งค่า"
-                  is a neutral secondary surface. */}
-              {cameraMountError ? (
-                <View className="absolute inset-0 items-center justify-center px-5">
-                  <View
-                    className={
-                      (isDark ? 'bg-[#1A1632]/95 border border-[#2D2654]' : 'bg-white/95') +
-                      ' w-full rounded-2xl p-4 items-center'
-                    }
-                  >
-                    <Ionicons name="alert-circle" size={26} color="#E74C3C" />
-                    <Text className={(isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]') + ' mt-2 font-extrabold ' + cameraErrorTitleClassName}>
-                      กล้องใช้งานไม่ได้
-                    </Text>
-                    <Text className={isDark ? 'mt-1.5 text-[13px] text-[#9C95C2] text-center' : 'mt-1.5 text-[13px] text-[#7F8C8D] text-center'} numberOfLines={3}>
-                      {cameraMountError}
-                    </Text>
-                    <View className="flex-row gap-2.5 mt-3 w-full">
-                      <AnimatedPressable
-                        onPress={retryCamera}
-                        className="flex-1 rounded-[14px] overflow-hidden"
-                        accessibilityRole="button"
-                        accessibilityLabel="ลองเปิดกล้องใหม่"
-                      >
-                        <LinearGradient colors={['#A879E8', '#7E57C2', '#5E35B1']} className="flex-row items-center justify-center py-3">
-                          <Ionicons name="refresh" size={18} color="white" />
-                          <Text className={"text-white font-bold ml-2 " + captionClassName}>ลองใหม่</Text>
-                        </LinearGradient>
-                      </AnimatedPressable>
-                      <AnimatedPressable
-                        onPress={() => void Linking.openSettings()}
-                        className="flex-1 rounded-[14px] overflow-hidden"
-                        accessibilityRole="button"
-                        accessibilityLabel="เปิดหน้าตั้งค่าสิทธิ์กล้อง"
-                      >
-                        <View
-                          className={
-                            'flex-row items-center justify-center py-3 ' +
-                            (isDark ? 'bg-[#231C42] border border-[#2D2654]' : 'bg-[#EBF5FB] border border-white/80')
-                          }
-                        >
-                          <Ionicons name="settings" size={18} color={isDark ? '#E8E4F5' : '#2C3E50'} />
-                          <Text
-                            className={
-                              'font-bold ml-2 ' + captionClassName + ' ' +
-                              (isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]')
-                            }
-                          >
-                            ตั้งค่า
-                          </Text>
-                        </View>
-                      </AnimatedPressable>
-                    </View>
-                  </View>
-                </View>
-              ) : (
-                <>
-                  <CameraView
-                    key={cameraKey}
-                    ref={cameraRef}
-                    className="flex-1"
-                    facing="back"
-                    onMountError={(e) =>
-                      setCameraMountError(e.message || 'ไม่สามารถเปิดกล้องได้')
-                    }
-                    onCameraReady={() => setIsCameraReady(true)}
-                  />
-                  {!isCameraReady && (
-                    <View className="absolute inset-0 items-center justify-center">
-                      <View className="flex-row items-center bg-black/55 px-3.5 py-2.5 rounded-full">
-                        <Ionicons name="time-outline" size={16} color="white" />
-                        <Text className="text-white text-[13px] font-semibold ml-2">กำลังเปิดกล้อง...</Text>
-                      </View>
-                    </View>
-                  )}
-                  {/* Live YOLO overlay — boxes redraw at ~2 fps. Only renders
-                      while the user is framing a shot (the hook itself is
-                      gated by isFramingShot). */}
-                  {liveFrame && previewViewport && (
-                    <LivePreflightOverlay
-                      detections={liveFrame.detections}
-                      pictureWidth={liveFrame.pictureWidth}
-                      pictureHeight={liveFrame.pictureHeight}
-                      viewportWidth={previewViewport.width}
-                      viewportHeight={previewViewport.height}
-                    />
-                  )}
-                </>
-              )}
-
-              {/* Guide frame — relative to viewport (75% width, 4:3 inner
-                  box) so it scales with the letterboxed camera surface
-                  instead of clipping on smaller devices. Mint corners,
-                  no pulse animation — a static guide reads calmer in a
-                  medical capture context. */}
-              <View className="absolute inset-0 items-center justify-center pointer-events-none mb-10">
-                <ScaleOnMount delay={300}>
-                  <View className="flex-row items-center bg-black/60 px-4 py-2.5 rounded-2xl mb-5">
-                    <Ionicons name="scan-outline" size={18} color="white" />
-                    <Text className={"text-white font-medium ml-2 " + bodyClassName}>
-                      วางหน้าจอเครื่องวัดให้ตรงกรอบ
-                    </Text>
-                  </View>
-                </ScaleOnMount>
-                <View className="w-[75%] aspect-[4/3] relative">
-                  <View className="absolute top-0 left-0 w-10 h-10 border-[#34D399] border-t-[3px] border-l-[3px] rounded-tl-xl" />
-                  <View className="absolute top-0 right-0 w-10 h-10 border-[#34D399] border-t-[3px] border-r-[3px] rounded-tr-xl" />
-                  <View className="absolute bottom-0 left-0 w-10 h-10 border-[#34D399] border-b-[3px] border-l-[3px] rounded-bl-xl" />
-                  <View className="absolute bottom-0 right-0 w-10 h-10 border-[#34D399] border-b-[3px] border-r-[3px] rounded-br-xl" />
-                </View>
-              </View>
-              </View>
-            </View>
-
-            {/* Camera controls — sit in the empty brand-blue space below
-                the 3:4 camera viewport, NOT as an absolute overlay on top
-                of the preview. Per the redesigned layout, the three
-                actions (gallery / capture / manual entry) live in the
-                gap between the camera surface and the bottom safe area
-                so they never occlude the framed monitor. `flex-1` claims
-                the remaining vertical space; we vertically center the
-                controls inside it. */}
-            <View className="flex-1 w-full" style={{ paddingBottom: bottomOverlayPadding }}>
-              <View className="flex-1 justify-center">
-                <View className="flex-row justify-between items-center px-10">
-                  <AnimatedPressable
-                    onPress={pickImage}
-                    className="w-[70px] items-center"
-                    accessibilityRole="button"
-                    accessibilityLabel="เลือกรูปจากอัลบั้ม"
-                  >
-                    <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
-                      <Ionicons name="images" size={22} color="white" />
-                    </View>
-                    <Text className={'text-white mt-1.5 font-medium ' + captionClassName}>
-                      แกลเลอรี่
-                    </Text>
-                  </AnimatedPressable>
-
-                  {/* Capture Button — bold affordance: 88px outer ring +
-                      72px inner white disc. Filled camera icon, slate-900
-                      glyph. Haptic fires in takePicture(). Press-state
-                      scale handled here via Pressable's style callback,
-                      and the capturing state swaps the icon for an
-                      ActivityIndicator so the user gets immediate
-                      visual feedback even before the shutter resolves. */}
-                  <Pressable
-                    onPress={takePicture}
-                    disabled={isCapturing}
-                    accessibilityRole="button"
-                    accessibilityLabel="ถ่ายภาพเครื่องวัดความดัน"
-                    accessibilityState={{ disabled: isCapturing, busy: isCapturing }}
-                    style={({ pressed }) => ({
-                      transform: [{ scale: pressed && !isCapturing ? 0.95 : 1 }],
-                      alignItems: 'center',
-                    })}
-                  >
-                    <View className="w-[88px] h-[88px] rounded-full border-[3px] border-white/40 items-center justify-center">
+          // Full-screen camera: the CameraView fills the whole screen
+          // (`absolute inset-0`) and every chrome element (status / guide
+          // frame / controls) floats on top as an absolute overlay keyed off
+          // the safe-area insets. The previous layout letterboxed the sensor
+          // to a 3:4 viewport with the controls in a flex gap below; this
+          // redesign hands the entire viewport to the live preview so the
+          // user frames the monitor against the full sensor feed.
+          <View
+            className="absolute inset-0 bg-black"
+            // Measure the rendered viewport box the CameraView cover-fits into.
+            // We store the aspect (w/h) in a ref and use it to center-crop the
+            // captured photo so capture matches preview (see takePicture). Using
+            // the measured box — not Dimensions.get — keeps this robust to
+            // rotation and the hidden tab bar with no manual inset math.
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              if (width > 0 && height > 0) {
+                viewportAspect.current = width / height;
+              }
+            }}
+          >
+            {/* Camera mount error fallback — error icon stays #E74C3C
+                (Colors.status.high) since this *is* a true error state.
+                "ลองใหม่" uses the brand purple gradient (accentGradient)
+                to match primary actions elsewhere in the app; "ตั้งค่า"
+                is a neutral secondary surface. */}
+            {cameraMountError ? (
+              <View className="absolute inset-0 items-center justify-center px-5">
+                <View
+                  className={
+                    (isDark ? 'bg-[#1A1632]/95 border border-[#2D2654]' : 'bg-white/95') +
+                    ' w-full rounded-2xl p-4 items-center'
+                  }
+                >
+                  <Ionicons name="alert-circle" size={26} color="#E74C3C" />
+                  <Text className={(isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]') + ' mt-2 font-extrabold ' + cameraErrorTitleClassName}>
+                    กล้องใช้งานไม่ได้
+                  </Text>
+                  <Text className={isDark ? 'mt-1.5 text-[13px] text-[#9C95C2] text-center' : 'mt-1.5 text-[13px] text-[#7F8C8D] text-center'} numberOfLines={3}>
+                    {cameraMountError}
+                  </Text>
+                  <View className="flex-row gap-2.5 mt-3 w-full">
+                    <AnimatedPressable
+                      onPress={retryCamera}
+                      className="flex-1 rounded-[14px] overflow-hidden"
+                      accessibilityRole="button"
+                      accessibilityLabel="ลองเปิดกล้องใหม่"
+                    >
+                      <LinearGradient colors={['#A879E8', '#7E57C2', '#5E35B1']} className="flex-row items-center justify-center py-3">
+                        <Ionicons name="refresh" size={18} color="white" />
+                        <Text className={"text-white font-bold ml-2 " + captionClassName}>ลองใหม่</Text>
+                      </LinearGradient>
+                    </AnimatedPressable>
+                    <AnimatedPressable
+                      onPress={() => void Linking.openSettings()}
+                      className="flex-1 rounded-[14px] overflow-hidden"
+                      accessibilityRole="button"
+                      accessibilityLabel="เปิดหน้าตั้งค่าสิทธิ์กล้อง"
+                    >
                       <View
                         className={
-                          'w-[72px] h-[72px] rounded-full items-center justify-center ' +
-                          (isCapturing ? 'bg-[#EBF5FB]' : 'bg-white')
+                          'flex-row items-center justify-center py-3 ' +
+                          (isDark ? 'bg-[#231C42] border border-[#2D2654]' : 'bg-[#EBF5FB] border border-white/80')
                         }
                       >
-                        {isCapturing ? (
-                          <ActivityIndicator size="small" color="#5E35B1" />
-                        ) : (
-                          <Ionicons name="camera" size={32} color="#5E35B1" />
-                        )}
+                        <Ionicons name="settings" size={18} color={isDark ? '#E8E4F5' : '#2C3E50'} />
+                        <Text
+                          className={
+                            'font-bold ml-2 ' + captionClassName + ' ' +
+                            (isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]')
+                          }
+                        >
+                          ตั้งค่า
+                        </Text>
                       </View>
-                    </View>
-                    <Text className={'text-white mt-1.5 font-medium text-center ' + captionClassName}>
-                      {isCapturing ? 'กำลังถ่าย...' : 'ถ่ายภาพ'}
-                    </Text>
-                  </Pressable>
-
-                  <AnimatedPressable
-                    onPress={() => setShowEntryModal(true)}
-                    className="w-[70px] items-center"
-                    accessibilityRole="button"
-                    accessibilityLabel="กรอกค่าความดันด้วยตนเอง"
-                  >
-                    <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
-                      <Ionicons name="create" size={22} color="white" />
-                    </View>
-                    <Text className={'text-white mt-1.5 font-medium ' + captionClassName}>
-                      กรอกค่า
-                    </Text>
-                  </AnimatedPressable>
+                    </AnimatedPressable>
+                  </View>
                 </View>
               </View>
+            ) : (
+              <>
+                <CameraView
+                  key={cameraKey}
+                  ref={cameraRef}
+                  className="absolute inset-0"
+                  facing="back"
+                  onMountError={(e) =>
+                    setCameraMountError(e.message || 'ไม่สามารถเปิดกล้องได้')
+                  }
+                  onCameraReady={() => setIsCameraReady(true)}
+                />
+                {!isCameraReady && (
+                  <View className="absolute inset-0 items-center justify-center">
+                    <View className="flex-row items-center bg-black/55 px-3.5 py-2.5 rounded-full">
+                      <Ionicons name="time-outline" size={16} color="white" />
+                      <Text className="text-white text-[13px] font-semibold ml-2">กำลังเปิดกล้อง...</Text>
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Dev-only OCR engine picker — floats top-left below the safe
+                area. Hidden via the component's own ``devMode`` gate when
+                off, so production users see no overlay. */}
+            <View
+              className="absolute left-3 right-3 pointer-events-box-none"
+              style={{ top: insets.top + 8 }}
+            >
+              <OcrEngineSelector />
             </View>
-          </>
+
+            {/* Guide frame — floats centered over the full-screen preview
+                (75% width, square 1:1 inner box — taller than the old 4:3 to
+                better fit upright BP monitors). Mint corners + a faint center
+                crosshair to help aim at the middle of the screen; no pulse
+                animation — a static guide reads calmer in a medical capture
+                context. */}
+            {/* Center the guide frame within the space *above* the tab bar,
+                not the full screen — otherwise the visible tab bar pulls the
+                perceived center downward. Bottom inset = tabBarTotalHeight so
+                `justify-center` centers between the top edge and the tab bar. */}
+            <View
+              className="absolute top-0 left-0 right-0 items-center justify-center pointer-events-none"
+              style={{ bottom: tabBarTotalHeight }}
+            >
+              <ScaleOnMount delay={300}>
+                <View className="flex-row items-center bg-black/60 px-4 py-2.5 rounded-2xl mb-5">
+                  <Ionicons name="scan-outline" size={18} color="white" />
+                  <Text className={"text-white font-medium ml-2 " + bodyClassName}>
+                    วางหน้าจอเครื่องวัดให้ตรงกรอบ
+                  </Text>
+                </View>
+              </ScaleOnMount>
+              <View className="w-[75%] aspect-square relative">
+                <View className="absolute top-0 left-0 w-10 h-10 border-[#34D399] border-t-[3px] border-l-[3px] rounded-tl-xl" />
+                <View className="absolute top-0 right-0 w-10 h-10 border-[#34D399] border-t-[3px] border-r-[3px] rounded-tr-xl" />
+                <View className="absolute bottom-0 left-0 w-10 h-10 border-[#34D399] border-b-[3px] border-l-[3px] rounded-bl-xl" />
+                <View className="absolute bottom-0 right-0 w-10 h-10 border-[#34D399] border-b-[3px] border-r-[3px] rounded-br-xl" />
+                {/* Center crosshair — faint white lines crossing at the middle
+                    of the frame to help center the monitor. Thin, low-opacity,
+                    short, and non-interactive so it guides without obscuring
+                    the live feed. */}
+                <View className="absolute top-1/2 left-1/2 w-8 h-px -ml-4 -mt-px bg-white/40" />
+                <View className="absolute top-1/2 left-1/2 w-px h-8 -ml-px -mt-4 bg-white/40" />
+              </View>
+            </View>
+
+            {/* Camera controls — float over the bottom of the full-screen
+                preview. A bottom-up scrim keeps the white glyphs legible
+                against bright sensor feeds. The three actions (gallery /
+                capture / manual entry) sit above the home-indicator via the
+                safe-area inset budget. */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.55)']}
+              className="absolute bottom-0 left-0 right-0 pt-10"
+              style={{ paddingBottom: bottomOverlayPadding }}
+            >
+              <View className="flex-row justify-between items-center px-10">
+                <AnimatedPressable
+                  onPress={pickImage}
+                  className="w-[70px] items-center"
+                  accessibilityRole="button"
+                  accessibilityLabel="เลือกรูปจากอัลบั้ม"
+                >
+                  <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
+                    <Ionicons name="images" size={22} color="white" />
+                  </View>
+                  <Text className={'text-white mt-1.5 font-medium ' + captionClassName}>
+                    แกลเลอรี่
+                  </Text>
+                </AnimatedPressable>
+
+                {/* Capture Button — bold affordance: 88px outer ring +
+                    72px inner white disc. Filled camera icon, slate-900
+                    glyph. Haptic fires in takePicture(). Press-state
+                    scale handled here via Pressable's style callback,
+                    and the capturing state swaps the icon for an
+                    ActivityIndicator so the user gets immediate
+                    visual feedback even before the shutter resolves. */}
+                <Pressable
+                  onPress={takePicture}
+                  disabled={isCapturing}
+                  accessibilityRole="button"
+                  accessibilityLabel="ถ่ายภาพเครื่องวัดความดัน"
+                  accessibilityState={{ disabled: isCapturing, busy: isCapturing }}
+                  style={({ pressed }) => ({
+                    transform: [{ scale: pressed && !isCapturing ? 0.95 : 1 }],
+                    alignItems: 'center',
+                  })}
+                >
+                  <View className="w-[88px] h-[88px] rounded-full border-[3px] border-white/40 items-center justify-center">
+                    <View
+                      className={
+                        'w-[72px] h-[72px] rounded-full items-center justify-center ' +
+                        (isCapturing ? 'bg-[#EBF5FB]' : 'bg-white')
+                      }
+                    >
+                      {isCapturing ? (
+                        <ActivityIndicator size="small" color="#5E35B1" />
+                      ) : (
+                        <Ionicons name="camera" size={32} color="#5E35B1" />
+                      )}
+                    </View>
+                  </View>
+                  <Text className={'text-white mt-1.5 font-medium text-center ' + captionClassName}>
+                    {isCapturing ? 'กำลังถ่าย...' : 'ถ่ายภาพ'}
+                  </Text>
+                </Pressable>
+
+                <AnimatedPressable
+                  onPress={() => setShowEntryModal(true)}
+                  className="w-[70px] items-center"
+                  accessibilityRole="button"
+                  accessibilityLabel="กรอกค่าความดันด้วยตนเอง"
+                >
+                  <View className="w-[50px] h-[50px] rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
+                    <Ionicons name="create" size={22} color="white" />
+                  </View>
+                  <Text className={'text-white mt-1.5 font-medium ' + captionClassName}>
+                    กรอกค่า
+                  </Text>
+                </AnimatedPressable>
+              </View>
+            </LinearGradient>
+          </View>
         ) : (
           /* ── Image preview ── */
-          <View className="flex-1">
-            <UIImage source={capturedImage} className="flex-1" contentFit="contain" />
+          // Full-screen preview to match the live camera branch above: the
+          // captured frame fills the whole viewport (`absolute inset-0` over a
+          // black backdrop) exactly like `CameraView`, and every chrome element
+          // (phase status chip, failed-run recovery, retake / confirm row)
+          // floats on top as an absolute overlay keyed off the safe-area insets.
+          // `contentFit="contain"` (not cover) is deliberate — the whole BP
+          // monitor must stay visible so the user can eye-check it against the
+          // AI read before saving; cover would crop the digits at the edges.
+          // The black backdrop fills the letterbox bars contain leaves around a
+          // non-fullscreen-aspect photo, keeping the surface visually identical
+          // to the live camera state.
+          <View className="absolute inset-0 bg-black">
+            <UIImage source={capturedImage} className="absolute inset-0" contentFit="contain" />
 
             {/* AI analysis status badge — card lift over the preview using
                 the app's surface palette (white light / #1A1632 dark). The
@@ -843,7 +833,7 @@ export default function CameraScreen() {
                 cyan for in-flight phases, so the indicator language is
                 shared with home / history badges. */}
             {phase !== 'idle' && (
-              <View className="absolute top-4 left-0 right-0 items-center">
+              <View className="absolute top-20 left-0 right-0 items-center">
                 <View
                   // Announce phase transitions to screen readers as the
                   // analysis moves uploading → queued → processing → done.
@@ -883,79 +873,6 @@ export default function CameraScreen() {
                   totalMs={result?.metrics?.totalMs}
                   rssDeltaMb={result?.metrics?.rssDeltaMb}
                 />
-              </View>
-            )}
-
-            {/* On-device pre-flight warning banner. Shows when the bundled
-                YOLO disagrees with the captured image AND either we haven't
-                kicked off analyse yet (`idle`) OR the backend pass already
-                failed (`failed`) — in the latter case the on-device verdict
-                is the only diagnostic the user has, so keep it visible.
-                Hidden while the backend is uploading / queued / processing
-                so it doesn't compete with the status chip above. Sits at
-                top-24 so it always renders *below* the status badge at top-4
-                rather than overlapping it on the failed-phase frame. */}
-            {(phase === 'idle' || phase === 'failed') && preflight && preflight.status !== 'ok' && (
-              /* Warning surface uses Colors.status.elevated (#F39C12) — the
-                 same orange the status badge and home-screen elevated chip
-                 use, so warning language is consistent across the app.
-                 Override action ("ส่งต่อไป") uses the brand accent purple
-                 gradient (Theme.light.accentGradient) — primary action
-                 colour throughout the redesigned surface. */
-              <View
-                className="absolute top-24 left-4 right-4 rounded-2xl border px-4 py-3 shadow-lg shadow-black/20"
-                style={{ backgroundColor: 'rgba(243,156,18,0.95)', borderColor: 'rgba(217,119,6,0.45)' }}
-              >
-                <View className="flex-row items-center mb-2">
-                  <Ionicons
-                    name="alert-circle"
-                    size={20}
-                    color="#7A3E00"
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text className={'font-semibold ' + bodyClassName} style={{ color: '#3A1F00' }}>
-                    {preflight.status === 'no-monitor'
-                      ? 'ไม่เจอ BP monitor'
-                      : 'ภาพไม่ชัดหรือไกลเกินไป'}
-                  </Text>
-                </View>
-                <Text className={'mb-3 ' + captionClassName} style={{ color: 'rgba(58,31,0,0.92)' }}>
-                  {preflight.status === 'no-monitor'
-                    ? 'ลองถ่ายใหม่ให้เห็นเครื่องวัดทั้งหน้าจอ หรือกด "ส่งต่อไป" ถ้าต้องการให้ AI ตรวจสอบ'
-                    : `ตรวจไม่พบค่า ${preflight.missingFields.join(' / ')} ลองถ่ายใหม่ให้ใกล้และชัดขึ้น`}
-                </Text>
-                <View className="flex-row gap-2">
-                  <AnimatedPressable
-                    onPress={retakeAfterWarning}
-                    className="flex-1 rounded-xl overflow-hidden"
-                    accessibilityRole="button"
-                    accessibilityLabel="ถ่ายภาพใหม่"
-                  >
-                    <View
-                      className="px-3 py-2 items-center border"
-                      style={{ backgroundColor: '#FFF4E0', borderColor: 'rgba(217,119,6,0.45)' }}
-                    >
-                      <Text className={'font-semibold ' + captionClassName} style={{ color: '#3A1F00' }}>
-                        ถ่ายใหม่
-                      </Text>
-                    </View>
-                  </AnimatedPressable>
-                  <AnimatedPressable
-                    onPress={sendAnyway}
-                    className="flex-1 rounded-xl overflow-hidden"
-                    accessibilityRole="button"
-                    accessibilityLabel="ส่งภาพนี้ให้ระบบตรวจสอบต่อ"
-                  >
-                    <LinearGradient
-                      colors={['#A879E8', '#7E57C2', '#5E35B1']}
-                      className="px-3 py-2 items-center"
-                    >
-                      <Text className={'text-white font-semibold ' + captionClassName}>
-                        ส่งต่อไป
-                      </Text>
-                    </LinearGradient>
-                  </AnimatedPressable>
-                </View>
               </View>
             )}
 

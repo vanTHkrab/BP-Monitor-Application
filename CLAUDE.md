@@ -91,23 +91,29 @@ Key boundaries and design choices a senior should respect:
 - **YOLO detector is shared verbatim** — the same `yolo11n.onnx` runs in
   both the backend (downloaded into `server/app/ai-service/models/` from R2
   on first start) and the mobile app (bundled at
-  `client/assets/models/yolo11n.onnx` for on-device pre-flight). The mobile
-  app runs the same model on every capture to gate / auto-crop before
-  upload. The **canonical sha256 lives in
-  `server/app/ai-service/models/EXPECTED_HASHES.json`** — the binary itself
-  is no longer tracked in git on the backend side. SHA256 equality between
-  the bundled mobile copy and the backend manifest entry is enforced on
-  every `pnpm start` by `client/scripts/verify-yolo-model.mjs`; if you
-  retrain the detector, regenerate `EXPECTED_HASHES.json`, upload the new
-  bytes to R2, and on the mobile side `cd client && pnpm sync-yolo-model`
-  to refresh the bundled copy + companion hash file — all in the same
-  change. Class IDs and confidence thresholds (`0.25` / IoU `0.45`) in
+  `client/assets/models/yolo11n.onnx`). **On-device pre-flight is currently
+  bypassed in the UI** — `client/app/(tabs)/camera.tsx` no longer calls
+  `preflightCheckImage`/`runPreflight`, so captures are not gated or
+  auto-cropped on-device before upload; the backend still runs its own YOLO
+  ROI detection server-side. The pre-flight service
+  (`client/services/preflight-detection.service.ts`), `client/lib/yolo/`,
+  the bundled model, and the live-preview overlay
+  (`client/components/live-preflight-overlay.tsx` +
+  `client/hooks/use-live-preflight.ts`) are all left in place, unwired but
+  ready, so this is a small revert rather than a rebuild. The **canonical
+  sha256 lives in `server/app/ai-service/models/EXPECTED_HASHES.json`** —
+  the binary itself is no longer tracked in git on the backend side. SHA256
+  equality between the bundled mobile copy and the backend manifest entry
+  is enforced on every `pnpm start` by `client/scripts/verify-yolo-model.mjs`
+  regardless of whether the UI calls the detector; if you retrain the
+  detector, regenerate `EXPECTED_HASHES.json`, upload the new bytes to R2,
+  and on the mobile side `cd client && pnpm sync-yolo-model` to refresh the
+  bundled copy + companion hash file — all in the same change. Class IDs
+  and confidence thresholds (`0.25` / IoU `0.45`) in
   `client/lib/yolo/types.ts` mirror
   `server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES` —
-  they're a wire contract even though no network call crosses between
-  them. Pre-flight is warn-not-block: the mobile UI offers "ส่งต่อไป"
-  on every negative verdict so on-device false negatives never strand
-  the user.
+  they remain a wire contract even with the pre-flight UI unwired, since a
+  future revert must not silently drift from the backend.
 
   > Note: as of this change the backend stopped tracking the binary and
   > switched to R2 + manifest. The mobile-side `verify-yolo-model.mjs`
