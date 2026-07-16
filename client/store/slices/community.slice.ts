@@ -161,6 +161,18 @@ export const createCommunitySlice: StateCreator<
           localCount: localRows.length,
           userId: currentUser.id,
         });
+        // Clear any prior sync-failure flags before re-attempting — a fresh
+        // pass should present as "saving", not "failed", until it actually
+        // fails again.
+        if (localRows.length > 0) {
+          set((state) => ({
+            posts: state.posts.map((p) =>
+              p.syncStatus === "local" && p.syncError
+                ? { ...p, syncError: false }
+                : p,
+            ),
+          }));
+        }
         for (const row of localRows) {
           try {
             const docId = row.clientId || `local-post-${row.userId}-${row.id}`;
@@ -195,6 +207,15 @@ export const createCommunitySlice: StateCreator<
               localId: row.id,
               clientId: row.clientId,
             });
+            // Flag this post so the card surfaces a tappable retry instead of
+            // sitting on a silent "saved on device" badge forever.
+            set((state) => ({
+              posts: state.posts.map((p) =>
+                p.id === toLocalPostId(row.id)
+                  ? { ...p, syncError: true }
+                  : p,
+              ),
+            }));
           }
         }
 

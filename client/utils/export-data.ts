@@ -1,4 +1,16 @@
+// File I/O + share-sheet plumbing for the data-export feature. The report
+// content itself (CSV bodies, PDF HTML, filenames) is built by the pure
+// helpers in `utils/export-report.ts`.
+
+import { logWarn } from '@/store/shared/log';
 import { BloodPressureReading, CommunityPost } from '@/types';
+import {
+  buildExportFileName,
+  buildPostsCsv,
+  buildPostsPdfHtml,
+  buildReadingsCsv,
+  buildReadingsPdfHtml,
+} from '@/utils/export-report';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -12,11 +24,17 @@ export interface ExportPayloadOptions {
   format: ExportFormat;
   readings: BloodPressureReading[];
   posts: CommunityPost[];
+  /**
+   * Display name of the data subject — the patient whose readings are being
+   * exported. When a caregiver exports while viewing an active patient, pass
+   * the patient's name (see `resolveExportSubjectName` in export-report),
+   * not the caregiver's. Drives the report header and the filename.
+   */
   userName?: string | null;
   /**
    * When true, strip identifiers and image URLs from the exported file
-   * (internal IDs, userId, S3 imageUri, etc). Use when sharing data outside
-   * the patient's own device.
+   * (internal IDs, userId, S3 imageUri, recorded-by attribution, subject
+   * name). Use when sharing data outside the patient's own device.
    */
   anonymize?: boolean;
 }
@@ -36,8 +54,9 @@ const ensureExportDir = async (): Promise<ExportDirResult> => {
     const exportDir = `${baseDir}${EXPORT_DIR_NAME}/`;
     try {
       await FileSystem.makeDirectoryAsync(exportDir, { intermediates: true } as any);
-    } catch {
-      // ignore if already exists
+    } catch (error) {
+      // Directory may already exist — only surface unexpected failures in dev.
+      logWarn('Export', 'makeDirectoryAsync failed (may already exist)', error);
     }
     return { type: 'fs', uri: exportDir };
   }
@@ -49,13 +68,14 @@ const ensureExportDir = async (): Promise<ExportDirResult> => {
       if (tempDir) {
         try {
           await FileSystem.deleteAsync(uri, { idempotent: true } as any);
-        } catch {
-          // ignore cleanup failure
+        } catch (error) {
+          logWarn('Export', 'temp probe cleanup failed', error);
         }
         return { type: 'fs', uri: tempDir };
       }
-    } catch {
+    } catch (error) {
       // fall through to SAF/throw
+      logWarn('Export', 'printToFileAsync directory probe failed', error);
     }
   }
 
@@ -79,31 +99,6 @@ const ensureExportDir = async (): Promise<ExportDirResult> => {
   );
 };
 
-const toIsoString = (value: Date | string | number): string => {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString();
-};
-
-const csvEscape = (value: unknown): string => {
-  if (value === null || value === undefined) return '';
-  const str = String(value);
-  if (/[",\n]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-};
-
-const escapeHtml = (value: unknown): string => {
-  if (value === null || value === undefined) return '';
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-};
-
 const stringifyErrorSafe = (error: unknown): string => {
   if (!error) return '';
   if (error instanceof Error) {
@@ -120,180 +115,14 @@ const stringifyErrorSafe = (error: unknown): string => {
   }
 };
 
-const buildReadingsCsv = (readings: BloodPressureReading[], anonymize = false): string => {
-  const header = anonymize
-    ? ['systolic', 'diastolic', 'pulse', 'status', 'measuredAt', 'notes']
-    : ['id', 'systolic', 'diastolic', 'pulse', 'status', 'measuredAt', 'notes', 'imageUri'];
-  const rows = readings.map((r) =>
-    anonymize
-      ? [r.systolic, r.diastolic, r.pulse, r.status, toIsoString(r.measuredAt), r.notes ?? '']
-      : [
-          r.id,
-          r.systolic,
-          r.diastolic,
-          r.pulse,
-          r.status,
-          toIsoString(r.measuredAt),
-          r.notes ?? '',
-          r.imageUri ?? '',
-        ],
-  );
+// First attempt gets the clean name; retries get a numeric suffix so a
+// half-written file from a failed attempt can never be reused by accident.
+const withAttemptSuffix = (baseName: string, attempt: number): string =>
+  attempt > 1 ? `${baseName}_${attempt}` : baseName;
 
-  return [header.join(','), ...rows.map((row) => row.map(csvEscape).join(','))].join('\n');
-};
-
-const buildPostsCsv = (posts: CommunityPost[], anonymize = false): string => {
-  const header = anonymize
-    ? ['category', 'content', 'likes', 'comments', 'createdAt']
-    : ['id', 'userId', 'userName', 'category', 'content', 'likes', 'comments', 'createdAt'];
-  const rows = posts.map((p) =>
-    anonymize
-      ? [p.category, p.content, p.likes, p.comments, toIsoString(p.createdAt)]
-      : [
-          p.id,
-          p.userId,
-          p.userName,
-          p.category,
-          p.content,
-          p.likes,
-          p.comments,
-          toIsoString(p.createdAt),
-        ],
-  );
-
-  return [header.join(','), ...rows.map((row) => row.map(csvEscape).join(','))].join('\n');
-};
-
-const buildReadingsPdfHtml = (
-  readings: BloodPressureReading[],
-  userName?: string | null,
-  anonymize = false,
-): string => {
-  const rows = readings
-    .map(
-      (r) => `
-        <tr>
-          ${anonymize ? '' : `<td>${escapeHtml(r.id)}</td>`}
-          <td>${escapeHtml(r.systolic)}</td>
-          <td>${escapeHtml(r.diastolic)}</td>
-          <td>${escapeHtml(r.pulse)}</td>
-          <td>${escapeHtml(r.status)}</td>
-          <td>${escapeHtml(toIsoString(r.measuredAt))}</td>
-          <td>${escapeHtml(r.notes ?? '')}</td>
-        </tr>
-      `
-    )
-    .join('');
-  const userLine = anonymize
-    ? `สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}`
-    : `ผู้ใช้: ${escapeHtml(userName ?? '-')} | สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}`;
-
-  return `
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          body { font-family: Arial, sans-serif; color: #1f2937; padding: 16px; }
-          h1 { font-size: 20px; margin-bottom: 4px; }
-          h2 { font-size: 14px; font-weight: normal; margin: 0 0 16px; color: #6b7280; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
-          th { background: #f3f4f6; }
-        </style>
-      </head>
-      <body>
-        <h1>รายงานค่าความดัน</h1>
-        <h2>${userLine}</h2>
-        <table>
-          <thead>
-            <tr>
-              ${anonymize ? '' : '<th>ID</th>'}
-              <th>SYS</th>
-              <th>DIA</th>
-              <th>Pulse</th>
-              <th>Status</th>
-              <th>Measured At</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      </body>
-    </html>
-  `;
-};
-
-const buildPostsPdfHtml = (
-  posts: CommunityPost[],
-  userName?: string | null,
-  anonymize = false,
-): string => {
-  const rows = posts
-    .map(
-      (p) => `
-        <tr>
-          ${anonymize ? '' : `<td>${escapeHtml(p.id)}</td><td>${escapeHtml(p.userName)}</td>`}
-          <td>${escapeHtml(p.category)}</td>
-          <td>${escapeHtml(p.content)}</td>
-          <td>${escapeHtml(p.likes)}</td>
-          <td>${escapeHtml(p.comments)}</td>
-          <td>${escapeHtml(toIsoString(p.createdAt))}</td>
-        </tr>
-      `
-    )
-    .join('');
-  const userLine = anonymize
-    ? `สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}`
-    : `ผู้ใช้: ${escapeHtml(userName ?? '-')} | สร้างเมื่อ: ${escapeHtml(toIsoString(new Date()))}`;
-
-  return `
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          body { font-family: Arial, sans-serif; color: #1f2937; padding: 16px; }
-          h1 { font-size: 20px; margin-bottom: 4px; }
-          h2 { font-size: 14px; font-weight: normal; margin: 0 0 16px; color: #6b7280; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
-          th { background: #f3f4f6; }
-        </style>
-      </head>
-      <body>
-        <h1>รายงานโพสต์ชุมชน</h1>
-        <h2>${userLine}</h2>
-        <table>
-          <thead>
-            <tr>
-              ${anonymize ? '' : '<th>ID</th><th>User</th>'}
-              <th>Category</th>
-              <th>Content</th>
-              <th>Likes</th>
-              <th>Comments</th>
-              <th>Created At</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      </body>
-    </html>
-  `;
-};
-
-const buildFileNameBase = (dataType: ExportDataType): string => {
-  const prefix = dataType === 'readings' ? 'bp-readings' : 'bp-posts';
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `${prefix}-${timestamp}`;
-};
-
-const createCsvFile = async (content: string, dataType: ExportDataType, attempt: number): Promise<string> => {
+const createCsvFile = async (content: string, baseName: string, attempt: number): Promise<string> => {
   const exportDir = await ensureExportDir();
-  const baseName = buildFileNameBase(dataType);
-  const fileName = `${baseName}-${attempt}.csv`;
+  const fileName = `${withAttemptSuffix(baseName, attempt)}.csv`;
 
   if (exportDir.type === 'saf') {
     const saf = (FileSystem as any).StorageAccessFramework as
@@ -318,10 +147,9 @@ const createCsvFile = async (content: string, dataType: ExportDataType, attempt:
   return fileUri;
 };
 
-const createPdfFile = async (html: string, dataType: ExportDataType, attempt: number): Promise<string> => {
+const createPdfFile = async (html: string, baseName: string, attempt: number): Promise<string> => {
   const exportDir = await ensureExportDir();
-  const baseName = buildFileNameBase(dataType);
-  const fileName = `${baseName}-${attempt}.pdf`;
+  const fileName = `${withAttemptSuffix(baseName, attempt)}.pdf`;
   const { uri } = await Print.printToFileAsync({ html });
 
   if (exportDir.type === 'saf') {
@@ -359,19 +187,21 @@ const createExportFile = async (options: ExportPayloadOptions, attempt: number):
     throw new Error('ไม่พบข้อมูลโพสต์สำหรับส่งออก');
   }
 
+  const baseName = buildExportFileName({ dataType, readings, userName, anonymize });
+
   try {
     if (format === 'csv') {
       const content = dataType === 'readings'
         ? buildReadingsCsv(readings, anonymize)
         : buildPostsCsv(posts, anonymize);
-      return createCsvFile(content, dataType, attempt);
+      return createCsvFile(content, baseName, attempt);
     }
 
     const html =
       dataType === 'readings'
         ? buildReadingsPdfHtml(readings, userName, anonymize)
         : buildPostsPdfHtml(posts, userName, anonymize);
-    return createPdfFile(html, dataType, attempt);
+    return createPdfFile(html, baseName, attempt);
   } catch (error) {
     const details = stringifyErrorSafe(error);
     throw new Error(`สร้างไฟล์ไม่สำเร็จ (attempt ${attempt})${details ? `: ${details}` : ''}`);
@@ -407,7 +237,7 @@ export const createExportFileWithRetry = async (options: ExportPayloadOptions, m
       return await createExportFile(options, attempt);
     } catch (error) {
       lastError = error;
-      console.error('Export attempt failed:', { attempt, error });
+      logWarn('Export', 'export attempt failed', error, { attempt });
     }
   }
 

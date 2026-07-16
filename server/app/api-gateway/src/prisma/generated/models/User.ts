@@ -305,6 +305,7 @@ export type UserWhereInput = {
   caregiverLinks?: Prisma.CaregiverPatientListRelationFilter
   patientLinks?: Prisma.CaregiverPatientListRelationFilter
   readings?: Prisma.BloodPressureReadingListRelationFilter
+  recordedReadings?: Prisma.BloodPressureReadingListRelationFilter
   posts?: Prisma.PostListRelationFilter
   postComments?: Prisma.PostCommentListRelationFilter
   postCommentLikes?: Prisma.PostCommentLikeListRelationFilter
@@ -333,6 +334,7 @@ export type UserOrderByWithRelationInput = {
   caregiverLinks?: Prisma.CaregiverPatientOrderByRelationAggregateInput
   patientLinks?: Prisma.CaregiverPatientOrderByRelationAggregateInput
   readings?: Prisma.BloodPressureReadingOrderByRelationAggregateInput
+  recordedReadings?: Prisma.BloodPressureReadingOrderByRelationAggregateInput
   posts?: Prisma.PostOrderByRelationAggregateInput
   postComments?: Prisma.PostCommentOrderByRelationAggregateInput
   postCommentLikes?: Prisma.PostCommentLikeOrderByRelationAggregateInput
@@ -364,6 +366,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   caregiverLinks?: Prisma.CaregiverPatientListRelationFilter
   patientLinks?: Prisma.CaregiverPatientListRelationFilter
   readings?: Prisma.BloodPressureReadingListRelationFilter
+  recordedReadings?: Prisma.BloodPressureReadingListRelationFilter
   posts?: Prisma.PostListRelationFilter
   postComments?: Prisma.PostCommentListRelationFilter
   postCommentLikes?: Prisma.PostCommentLikeListRelationFilter
@@ -436,6 +439,7 @@ export type UserCreateInput = {
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
@@ -464,6 +468,7 @@ export type UserUncheckedCreateInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
@@ -492,6 +497,7 @@ export type UserUpdateInput = {
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
@@ -520,6 +526,7 @@ export type UserUncheckedUpdateInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -650,6 +657,11 @@ export type UserScalarRelationFilter = {
   isNot?: Prisma.UserWhereInput
 }
 
+export type UserNullableScalarRelationFilter = {
+  is?: Prisma.UserWhereInput | null
+  isNot?: Prisma.UserWhereInput | null
+}
+
 export type StringFieldUpdateOperationsInput = {
   set?: string
 }
@@ -758,12 +770,28 @@ export type UserCreateNestedOneWithoutReadingsInput = {
   connect?: Prisma.UserWhereUniqueInput
 }
 
+export type UserCreateNestedOneWithoutRecordedReadingsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutRecordedReadingsInput, Prisma.UserUncheckedCreateWithoutRecordedReadingsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutRecordedReadingsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
 export type UserUpdateOneRequiredWithoutReadingsNestedInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutReadingsInput, Prisma.UserUncheckedCreateWithoutReadingsInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutReadingsInput
   upsert?: Prisma.UserUpsertWithoutReadingsInput
   connect?: Prisma.UserWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutReadingsInput, Prisma.UserUpdateWithoutReadingsInput>, Prisma.UserUncheckedUpdateWithoutReadingsInput>
+}
+
+export type UserUpdateOneWithoutRecordedReadingsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutRecordedReadingsInput, Prisma.UserUncheckedCreateWithoutRecordedReadingsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutRecordedReadingsInput
+  upsert?: Prisma.UserUpsertWithoutRecordedReadingsInput
+  disconnect?: Prisma.UserWhereInput | boolean
+  delete?: Prisma.UserWhereInput | boolean
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutRecordedReadingsInput, Prisma.UserUpdateWithoutRecordedReadingsInput>, Prisma.UserUncheckedUpdateWithoutRecordedReadingsInput>
 }
 
 export type UserCreateNestedOneWithoutPostsInput = {
@@ -843,6 +871,7 @@ export type UserCreateWithoutSessionsInput = {
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
@@ -870,6 +899,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
@@ -913,6 +943,7 @@ export type UserUpdateWithoutSessionsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
@@ -940,6 +971,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -966,6 +998,7 @@ export type UserCreateWithoutCaregiverLinksInput = {
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
@@ -993,6 +1026,7 @@ export type UserUncheckedCreateWithoutCaregiverLinksInput = {
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
@@ -1025,6 +1059,7 @@ export type UserCreateWithoutPatientLinksInput = {
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
@@ -1052,6 +1087,7 @@ export type UserUncheckedCreateWithoutPatientLinksInput = {
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
@@ -1095,6 +1131,7 @@ export type UserUpdateWithoutCaregiverLinksInput = {
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
@@ -1122,6 +1159,7 @@ export type UserUncheckedUpdateWithoutCaregiverLinksInput = {
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -1160,6 +1198,7 @@ export type UserUpdateWithoutPatientLinksInput = {
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
@@ -1187,6 +1226,7 @@ export type UserUncheckedUpdateWithoutPatientLinksInput = {
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -1214,6 +1254,7 @@ export type UserCreateWithoutImagesInput = {
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
@@ -1241,6 +1282,7 @@ export type UserUncheckedCreateWithoutImagesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
@@ -1284,6 +1326,7 @@ export type UserUpdateWithoutImagesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
@@ -1311,6 +1354,7 @@ export type UserUncheckedUpdateWithoutImagesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -1338,6 +1382,7 @@ export type UserCreateWithoutAlertsInput = {
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
@@ -1365,6 +1410,7 @@ export type UserUncheckedCreateWithoutAlertsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
@@ -1408,6 +1454,7 @@ export type UserUpdateWithoutAlertsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
@@ -1435,6 +1482,7 @@ export type UserUncheckedUpdateWithoutAlertsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -1462,6 +1510,7 @@ export type UserCreateWithoutReadingsInput = {
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
@@ -1489,6 +1538,7 @@ export type UserUncheckedCreateWithoutReadingsInput = {
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
@@ -1499,6 +1549,67 @@ export type UserUncheckedCreateWithoutReadingsInput = {
 export type UserCreateOrConnectWithoutReadingsInput = {
   where: Prisma.UserWhereUniqueInput
   create: Prisma.XOR<Prisma.UserCreateWithoutReadingsInput, Prisma.UserUncheckedCreateWithoutReadingsInput>
+}
+
+export type UserCreateWithoutRecordedReadingsInput = {
+  id?: string
+  email?: string | null
+  firstname: string
+  lastname: string
+  phone: string
+  passwordHash: string
+  role?: $Enums.UserRole
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  images?: Prisma.ImageCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  posts?: Prisma.PostCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutRecordedReadingsInput = {
+  id?: string
+  email?: string | null
+  firstname: string
+  lastname: string
+  phone: string
+  passwordHash: string
+  role?: $Enums.UserRole
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutRecordedReadingsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutRecordedReadingsInput, Prisma.UserUncheckedCreateWithoutRecordedReadingsInput>
 }
 
 export type UserUpsertWithoutReadingsInput = {
@@ -1532,6 +1643,7 @@ export type UserUpdateWithoutReadingsInput = {
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
@@ -1559,6 +1671,74 @@ export type UserUncheckedUpdateWithoutReadingsInput = {
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserUpsertWithoutRecordedReadingsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutRecordedReadingsInput, Prisma.UserUncheckedUpdateWithoutRecordedReadingsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutRecordedReadingsInput, Prisma.UserUncheckedCreateWithoutRecordedReadingsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutRecordedReadingsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutRecordedReadingsInput, Prisma.UserUncheckedUpdateWithoutRecordedReadingsInput>
+}
+
+export type UserUpdateWithoutRecordedReadingsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  images?: Prisma.ImageUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  posts?: Prisma.PostUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutRecordedReadingsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -1587,6 +1767,7 @@ export type UserCreateWithoutPostsInput = {
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
@@ -1614,6 +1795,7 @@ export type UserUncheckedCreateWithoutPostsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
@@ -1657,6 +1839,7 @@ export type UserUpdateWithoutPostsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
@@ -1684,6 +1867,7 @@ export type UserUncheckedUpdateWithoutPostsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -1711,6 +1895,7 @@ export type UserCreateWithoutPostCommentsInput = {
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
@@ -1738,6 +1923,7 @@ export type UserUncheckedCreateWithoutPostCommentsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
@@ -1781,6 +1967,7 @@ export type UserUpdateWithoutPostCommentsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
@@ -1808,6 +1995,7 @@ export type UserUncheckedUpdateWithoutPostCommentsInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -1835,6 +2023,7 @@ export type UserCreateWithoutPostCommentLikesInput = {
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
@@ -1862,6 +2051,7 @@ export type UserUncheckedCreateWithoutPostCommentLikesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
@@ -1905,6 +2095,7 @@ export type UserUpdateWithoutPostCommentLikesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
@@ -1932,6 +2123,7 @@ export type UserUncheckedUpdateWithoutPostCommentLikesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -1959,6 +2151,7 @@ export type UserCreateWithoutPostLikesInput = {
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
@@ -1986,6 +2179,7 @@ export type UserUncheckedCreateWithoutPostLikesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
   readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
   posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
@@ -2029,6 +2223,7 @@ export type UserUpdateWithoutPostLikesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
@@ -2056,6 +2251,7 @@ export type UserUncheckedUpdateWithoutPostLikesInput = {
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
   readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
   posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
@@ -2073,6 +2269,7 @@ export type UserCountOutputType = {
   caregiverLinks: number
   patientLinks: number
   readings: number
+  recordedReadings: number
   posts: number
   postComments: number
   postCommentLikes: number
@@ -2086,6 +2283,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   caregiverLinks?: boolean | UserCountOutputTypeCountCaregiverLinksArgs
   patientLinks?: boolean | UserCountOutputTypeCountPatientLinksArgs
   readings?: boolean | UserCountOutputTypeCountReadingsArgs
+  recordedReadings?: boolean | UserCountOutputTypeCountRecordedReadingsArgs
   posts?: boolean | UserCountOutputTypeCountPostsArgs
   postComments?: boolean | UserCountOutputTypeCountPostCommentsArgs
   postCommentLikes?: boolean | UserCountOutputTypeCountPostCommentLikesArgs
@@ -2135,6 +2333,13 @@ export type UserCountOutputTypeCountPatientLinksArgs<ExtArgs extends runtime.Typ
  * UserCountOutputType without action
  */
 export type UserCountOutputTypeCountReadingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.BloodPressureReadingWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountRecordedReadingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.BloodPressureReadingWhereInput
 }
 
@@ -2195,6 +2400,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   caregiverLinks?: boolean | Prisma.User$caregiverLinksArgs<ExtArgs>
   patientLinks?: boolean | Prisma.User$patientLinksArgs<ExtArgs>
   readings?: boolean | Prisma.User$readingsArgs<ExtArgs>
+  recordedReadings?: boolean | Prisma.User$recordedReadingsArgs<ExtArgs>
   posts?: boolean | Prisma.User$postsArgs<ExtArgs>
   postComments?: boolean | Prisma.User$postCommentsArgs<ExtArgs>
   postCommentLikes?: boolean | Prisma.User$postCommentLikesArgs<ExtArgs>
@@ -2264,6 +2470,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   caregiverLinks?: boolean | Prisma.User$caregiverLinksArgs<ExtArgs>
   patientLinks?: boolean | Prisma.User$patientLinksArgs<ExtArgs>
   readings?: boolean | Prisma.User$readingsArgs<ExtArgs>
+  recordedReadings?: boolean | Prisma.User$recordedReadingsArgs<ExtArgs>
   posts?: boolean | Prisma.User$postsArgs<ExtArgs>
   postComments?: boolean | Prisma.User$postCommentsArgs<ExtArgs>
   postCommentLikes?: boolean | Prisma.User$postCommentLikesArgs<ExtArgs>
@@ -2282,6 +2489,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     caregiverLinks: Prisma.$CaregiverPatientPayload<ExtArgs>[]
     patientLinks: Prisma.$CaregiverPatientPayload<ExtArgs>[]
     readings: Prisma.$BloodPressureReadingPayload<ExtArgs>[]
+    recordedReadings: Prisma.$BloodPressureReadingPayload<ExtArgs>[]
     posts: Prisma.$PostPayload<ExtArgs>[]
     postComments: Prisma.$PostCommentPayload<ExtArgs>[]
     postCommentLikes: Prisma.$PostCommentLikePayload<ExtArgs>[]
@@ -2703,6 +2911,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   caregiverLinks<T extends Prisma.User$caregiverLinksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$caregiverLinksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CaregiverPatientPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   patientLinks<T extends Prisma.User$patientLinksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$patientLinksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CaregiverPatientPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   readings<T extends Prisma.User$readingsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$readingsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BloodPressureReadingPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  recordedReadings<T extends Prisma.User$recordedReadingsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$recordedReadingsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BloodPressureReadingPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   posts<T extends Prisma.User$postsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$postsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PostPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   postComments<T extends Prisma.User$postCommentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$postCommentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PostCommentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   postCommentLikes<T extends Prisma.User$postCommentLikesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$postCommentLikesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PostCommentLikePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -3244,6 +3453,30 @@ export type User$patientLinksArgs<ExtArgs extends runtime.Types.Extensions.Inter
  * User.readings
  */
 export type User$readingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the BloodPressureReading
+   */
+  select?: Prisma.BloodPressureReadingSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the BloodPressureReading
+   */
+  omit?: Prisma.BloodPressureReadingOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.BloodPressureReadingInclude<ExtArgs> | null
+  where?: Prisma.BloodPressureReadingWhereInput
+  orderBy?: Prisma.BloodPressureReadingOrderByWithRelationInput | Prisma.BloodPressureReadingOrderByWithRelationInput[]
+  cursor?: Prisma.BloodPressureReadingWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.BloodPressureReadingScalarFieldEnum | Prisma.BloodPressureReadingScalarFieldEnum[]
+}
+
+/**
+ * User.recordedReadings
+ */
+export type User$recordedReadingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   /**
    * Select specific fields to fetch from the BloodPressureReading
    */

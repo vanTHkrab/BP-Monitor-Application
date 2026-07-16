@@ -57,6 +57,19 @@ export default function TabLayout() {
         tabBarActiveTintColor: '#FFFFFF',
         tabBarInactiveTintColor: isDark ? '#C4B5FD' : '#F2EAFE',
         headerShown: false,
+        // Perceived-smoothness trio for JS bottom tabs (v7):
+        // - `animation: 'shift'` cross-fades + micro-shifts scenes instead of
+        //   the default hard cut, so switching reads as motion, not a flash.
+        // - `lazy` (the default, kept explicit) mounts each tab on first
+        //   visit only — heavy screens (camera, history chart) don't pay
+        //   their mount cost up front, and never re-mount on later switches.
+        // - `freezeOnBlur` stops blurred tabs from re-rendering on store
+        //   updates (react-native-screens react-freeze), so a focus-refetch
+        //   landing new data mid-transition only renders the visible scene.
+        //   Screens still get fresh data on return via useFocusFetch.
+        animation: 'shift',
+        lazy: true,
+        freezeOnBlur: true,
         tabBarButton: (props) => <HapticTab {...props} />,
         tabBarStyle: {
           backgroundColor: isDark ? '#4C1D95' : '#7E57C2',

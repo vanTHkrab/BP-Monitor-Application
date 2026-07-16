@@ -75,8 +75,16 @@ export const readingFromRow = (row: {
   notes: string | null;
   status: string;
   createdAt: string;
+  recordedById: string | null;
+  recordedByName: string | null;
 }): BloodPressureReading => {
   const imageUri = row.imageUri ?? undefined;
+  // Attribution survives offline launches via the mirror columns. Both
+  // columns are written together (see local-db write paths); the id is the
+  // load-bearing half, so a name-less row still resolves the "who".
+  const recordedBy: BloodPressureReading["recordedBy"] = row.recordedById
+    ? { id: row.recordedById, name: row.recordedByName ?? "" }
+    : undefined;
   if (row.syncStatus === "synced" && row.remoteId != null) {
     return {
       id: String(row.remoteId),
@@ -91,6 +99,7 @@ export const readingFromRow = (row: {
       status: row.status as BloodPressureReading["status"],
       createdAt: new Date(row.createdAt),
       syncStatus: "synced",
+      recordedBy,
     };
   }
   return {
@@ -106,6 +115,7 @@ export const readingFromRow = (row: {
     status: row.status as BloodPressureReading["status"],
     createdAt: new Date(row.createdAt),
     syncStatus: row.syncStatus,
+    recordedBy,
   };
 };
 
@@ -153,6 +163,18 @@ export const userFromGql = (u: UserGql): User => ({
   congenitalDisease: u.congenitalDisease ?? undefined,
 });
 
+// Composes the display name once so every surface (row caption, detail
+// modal, SQLite mirror) renders attribution the same way.
+export const recordedByFromGql = (
+  raw: ReadingGql["recordedBy"],
+): BloodPressureReading["recordedBy"] =>
+  raw
+    ? {
+        id: String(raw.id),
+        name: `${raw.firstname} ${raw.lastname}`.trim(),
+      }
+    : undefined;
+
 export const readingFromGql = (r: ReadingGql): BloodPressureReading => ({
   id: String(r.id),
   userId: r.userId,
@@ -166,6 +188,7 @@ export const readingFromGql = (r: ReadingGql): BloodPressureReading => ({
   notes: r.notes ?? undefined,
   createdAt: r.createdAt ? new Date(r.createdAt) : undefined,
   syncStatus: "synced",
+  recordedBy: recordedByFromGql(r.recordedBy),
 });
 
 export const postFromGql = (p: PostGql): CommunityPost => ({

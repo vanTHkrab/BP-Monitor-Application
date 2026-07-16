@@ -236,7 +236,7 @@ mutation Login($input: LoginInput!) {
 
 | Op | Type | Auth |
 | --- | --- | --- |
-| `readings(limit, offset)` | Query | ✅ |
+| `readings(limit, offset, patientId)` | Query | ✅ |
 | `createReading(input)` | Mutation | ✅ |
 | `deleteReading(id)` | Mutation | ✅ |
 
@@ -244,6 +244,7 @@ mutation Login($input: LoginInput!) {
 mutation CreateReading($input: CreateReadingInput!) {
   createReading(input: $input) {
     id clientId systolic diastolic pulse status measuredAt s3Key notes createdAt
+    recordedBy { id firstname lastname }
   }
 }
 ```
@@ -254,6 +255,18 @@ mutation CreateReading($input: CreateReadingInput!) {
 - `s3Key` is optional and only set when the reading came from the image
   flow (after `analyzeBPImage` returns). The gateway enforces that the
   key is owned by the calling user.
+- **Caregiver on-behalf writes** — `CreateReadingInput.patientId: ID`
+  (nullable) creates the reading for that patient instead of the caller.
+  Requires an **accepted** `CaregiverPatient` link, the same rule as the
+  `readings(patientId:)` query; otherwise 403 `FORBIDDEN`
+  ("ไม่มีสิทธิ์เข้าถึงข้อมูลของผู้ป่วยรายนี้"). Omitting `patientId`
+  (or passing your own id) is a normal self-entry.
+- **Attribution** — `ReadingType.recordedBy` (nullable
+  `ReadingRecordedByType { id firstname lastname }`) is set only when
+  someone other than the reading's owner entered it (caregiver flow).
+  `null` = the patient entered it themselves. Deleting the recorder's
+  account degrades `recordedBy` to `null` (SetNull), never deletes the
+  reading.
 
 ### 5.3 BP Image analysis (3-step flow)
 
@@ -347,6 +360,10 @@ mints inline via `StorageService.signImageKey`. Default TTL is 10 minutes.
   right now).
 - `parentId` on `createComment` makes the comment a reply; top-level
   comments pass `null`.
+- Input validation (global `ValidationPipe`): `content` must be a non-empty
+  string (posts ≤ 5000 chars, comments ≤ 2000); `category` must be one of
+  `general` / `experience` / `qa`. Violations return `400 BAD_USER_INPUT`
+  with the failing constraints under `extensions.validationErrors`.
 
 ### 5.5 Alerts
 
@@ -373,6 +390,10 @@ doesn't need a follow-up query.
   role the caller plays.
 - `relationship` defaults to `"caregiver"` and can be overridden (e.g.
   `"spouse"`, `"child"`).
+- An **accepted** link is the authorization for both caregiver data
+  access paths: reading the patient's data (`readings(patientId:)`) and
+  writing on their behalf (`createReading(input: { patientId })` — see
+  §5.2). Pending/rejected links grant nothing.
 
 ---
 

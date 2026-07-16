@@ -86,6 +86,7 @@ model User {
   caregiverLinks   CaregiverPatient[]     @relation("CaregiverUser")
   patientLinks     CaregiverPatient[]     @relation("PatientUser")
   readings         BloodPressureReading[]
+  recordedReadings BloodPressureReading[] @relation("ReadingRecordedBy")
   posts            Post[]
   postComments     PostComment[]
   postCommentLikes PostCommentLike[]
@@ -165,21 +166,28 @@ model Alert {
 }
 
 model BloodPressureReading {
-  id         Int      @id @default(autoincrement())
-  userId     String   @map("user_id") @db.Uuid
-  clientId   String?  @unique @map("client_id") @db.VarChar(255)
-  systolic   Int
-  diastolic  Int
-  pulse      Int
-  status     BpStatus
-  measuredAt DateTime @map("measured_at")
-  notes      String?  @db.VarChar(500)
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+  id       Int     @id @default(autoincrement())
+  userId   String  @map("user_id") @db.Uuid
+  clientId String? @unique @map("client_id") @db.VarChar(255)
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  images Image[]
-  alerts Alert[]
+  /// Who physically entered this reading. NULL = the patient themselves;
+  /// otherwise the entering user's id (typically a linked caregiver).
+  recordedById String?  @map("recorded_by_id") @db.Uuid
+  systolic     Int
+  diastolic    Int
+  pulse        Int
+  status       BpStatus
+  measuredAt   DateTime @map("measured_at")
+  notes        String?  @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // SetNull: deleting the recorder's account must not delete or block the
+  // patient's reading — attribution degrades to the patient-default label.
+  recordedBy User?   @relation("ReadingRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  images     Image[]
+  alerts     Alert[]
 
   @@index([userId, measuredAt(sort: Desc)])
   @@map("blood_pressure_readings")

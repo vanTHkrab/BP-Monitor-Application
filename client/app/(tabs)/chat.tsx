@@ -3,6 +3,8 @@ import { CommunityPostCard } from '@/components/community-post-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/tab-buttons';
 import { Avatar } from '@/components/ui/avatar';
+import { Colors, Theme } from '@/constants/colors';
+import { useFocusFetch } from '@/hooks/use-focus-fetch';
 import { useAppStore } from '@/store/use-app-store';
 import { PostComment } from '@/types';
 import { fontPresetClass, getFontNumber } from '@/utils/font-scale';
@@ -10,7 +12,7 @@ import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -35,7 +37,6 @@ export default function CommunityScreen() {
     toggleCommentLike,
     isAuthenticated,
     isOnline,
-    authToken,
     user,
   } = useAppStore();
   const themePreference = useAppStore((s) => s.themePreference);
@@ -60,7 +61,17 @@ export default function CommunityScreen() {
   const selectedComments = selectedPostId
     ? commentsByPostId[selectedPostId] ?? []
     : [];
-  const canSubmitComment = commentText.trim().length > 0 && !isCommentSubmitting;
+  // Comments are online-only and require a server-side post id. Rather than a
+  // silent `return false`, name the reason so the composer can explain itself
+  // and disable send. (An offline comment queue is a tracked follow-up — a
+  // comment on an unsynced local post has no server id to attach to yet.)
+  const commentBlockReason: string | null = !isOnline
+    ? 'กำลังออฟไลน์ — เชื่อมต่ออินเทอร์เน็ตเพื่อแสดงความคิดเห็น'
+    : selectedPost?.syncStatus === 'local'
+      ? 'โพสต์นี้ยังไม่ซิงก์ขึ้นเซิร์ฟเวอร์ จึงยังแสดงความคิดเห็นไม่ได้'
+      : null;
+  const canSubmitComment =
+    commentText.trim().length > 0 && !isCommentSubmitting && !commentBlockReason;
 
   const closeComposer = () => {
     setIsComposerOpen(false);
@@ -87,17 +98,19 @@ export default function CommunityScreen() {
     { key: 'qa', label: 'Q&A' }
   ];
 
-  useEffect(() => {
-    void syncPendingPosts();
-    void fetchPosts();
-  }, [
-    authToken,
-    fetchPosts,
-    isAuthenticated,
-    isOnline,
-    syncPendingPosts,
-    user?.id,
-  ]);
+  // Silent refetch on every focus (deferred past the tab transition), not
+  // just on mount — returning to the tab reconciles the feed against the
+  // server without blanking rendered posts. `isOnline` stays a dependency
+  // so regaining network while sitting on this tab re-runs the pair (the
+  // sync mutex dedupes overlap with the root-layout NetInfo trigger).
+  useFocusFetch(
+    useCallback(async () => {
+      // Push queued posts first so a just-created offline post is folded
+      // into the list the fetch returns.
+      if (isOnline) await syncPendingPosts();
+      await fetchPosts();
+    }, [fetchPosts, isOnline, syncPendingPosts]),
+  );
 
   const filteredPosts = posts.filter(post => {
     if (activeTab === 'general') return post.category === 'general';
@@ -293,6 +306,11 @@ export default function CommunityScreen() {
       Alert.alert('ข้อความว่าง', 'กรุณาพิมพ์ความคิดเห็นก่อนส่ง');
       return;
     }
+    // Safety net behind the disabled send button: never fail silently.
+    if (commentBlockReason) {
+      Alert.alert('แสดงความคิดเห็นไม่ได้ตอนนี้', commentBlockReason);
+      return;
+    }
 
     setIsCommentSubmitting(true);
     try {
@@ -363,6 +381,7 @@ export default function CommunityScreen() {
                   onMore={() => openPostActions(post.id)}
                   onPress={() => openComments(post.id)}
                   onComment={() => openComments(post.id)}
+                  onRetrySync={() => void syncPendingPosts()}
                 />
               </FadeInView>
             ))
@@ -679,6 +698,29 @@ export default function CommunityScreen() {
               </ScrollView>
 
               <View className="border-t border-gray-200 dark:border-slate-700 pt-3">
+                {commentBlockReason ? (
+                  <View
+                    accessibilityLiveRegion="polite"
+                    className="flex-row items-center rounded-xl px-3 py-2 mb-2"
+                    style={{
+                      backgroundColor: isDark ? Theme.dark.surfaceMuted : Theme.light.surfaceMuted,
+                      borderWidth: 1,
+                      borderColor: isOnline ? Colors.secondary.purple : Colors.primary.blue,
+                    }}
+                  >
+                    <Ionicons
+                      name={isOnline ? 'time-outline' : 'cloud-offline-outline'}
+                      size={16}
+                      color={isOnline ? Colors.secondary.purple : Colors.primary.blue}
+                    />
+                    <Text
+                      className={captionClassName + ' ml-2 flex-1 font-medium'}
+                      style={{ color: isDark ? Theme.dark.textPrimary : Theme.light.textPrimary }}
+                    >
+                      {commentBlockReason}
+                    </Text>
+                  </View>
+                ) : null}
                 {editingCommentId ? (
                   <View className="flex-row items-center mb-2">
                     <Text className={(isDark ? 'text-violet-200' : 'text-violet-700') + ' flex-1 font-bold ' + captionClassName}>

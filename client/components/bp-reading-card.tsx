@@ -2,7 +2,7 @@ import { Colors, type BPStatus } from '@/constants/colors';
 import { formatShortDate, getRelativeTime } from '@/data/mockData';
 import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading } from '@/types';
-import { getFontClass } from '@/utils/font-scale';
+import { fontPresetClass, getFontClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
@@ -27,6 +27,7 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
+  const currentUserId = useAppStore((s) => s.user?.id);
   const isDark = themePreference === 'dark';
   // raw: BP value scale is domain-specific (large numeric card display), not generic typography.
   const titleSizeClass = getFontClass(fontSizePreference, {
@@ -93,9 +94,21 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
     }
   };
 
-  const dateText = showFullDate 
+  const dateText = showFullDate
     ? formatShortDate(reading.measuredAt)
     : getRelativeTime(reading.measuredAt);
+
+  const captionClassName = fontPresetClass.caption(fontSizePreference);
+  // Attribution caption. One rule for both audiences: no recordedBy means
+  // the owner entered it themselves (no label — default stays clean);
+  // recordedBy matching the viewer means "you recorded this for them"
+  // (caregiver mode); any other recorder is named outright (patient seeing
+  // a caregiver's entry, or a caregiver seeing another caregiver's entry).
+  const attributionText = reading.recordedBy
+    ? reading.recordedBy.id === currentUserId
+      ? 'คุณบันทึกให้'
+      : `บันทึกโดย ${reading.recordedBy.name}`
+    : null;
 
   return (
     <AnimatedPressable onPress={onPress} className="mb-3">
@@ -127,6 +140,21 @@ export const BPReadingCard: React.FC<BPReadingCardProps> = ({
                 {reading.pulse} bpm
               </Text>
             </View>
+            {attributionText ? (
+              <View className="flex-row items-center mt-1.5">
+                <Ionicons
+                  name="person-outline"
+                  size={13}
+                  color={isDark ? '#94A3B8' : '#7F8C8D'}
+                />
+                <Text
+                  className={(isDark ? 'text-slate-400' : 'text-gray-500') + ' ml-1 ' + captionClassName}
+                  numberOfLines={1}
+                >
+                  {attributionText}
+                </Text>
+              </View>
+            ) : null}
           </View>
           
           <View className="items-end gap-2">

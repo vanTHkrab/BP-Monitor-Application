@@ -16,6 +16,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 import { GqlAuthGuard } from '../auth/auth.guard';
@@ -24,6 +25,16 @@ import { CaregiverService } from '../caregiver/caregiver.service';
 import { BpStatus } from '../prisma/generated/enums';
 import { StorageService } from '../storage/storage.service';
 import { ReadingService } from './reading.service';
+
+@ObjectType({
+  description:
+    'ผู้ที่บันทึกค่าความดันแทนเจ้าของข้อมูล (เช่น caregiver) — null เมื่อผู้ป่วยบันทึกเอง',
+})
+export class ReadingRecordedByType {
+  @Field(() => ID) id: string;
+  @Field() firstname: string;
+  @Field() lastname: string;
+}
 
 @ObjectType()
 export class ReadingType {
@@ -38,6 +49,10 @@ export class ReadingType {
   @Field({ nullable: true }) s3Key?: string;
   @Field({ nullable: true }) notes?: string;
   @Field() createdAt: Date;
+  // NULL = the patient entered the reading themselves (self-entries carry
+  // no attribution row); non-null = the user who recorded it on their behalf.
+  @Field(() => ReadingRecordedByType, { nullable: true })
+  recordedBy?: ReadingRecordedByType;
 }
 
 @InputType()
@@ -84,6 +99,14 @@ export class CreateReadingInput {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  // Caregiver mode: create the reading on behalf of this patient. Requires
+  // an accepted CaregiverPatient link — the same rule the readings(patientId:)
+  // query enforces. Omit (or send your own id) to create for yourself.
+  @Field(() => ID, { nullable: true })
+  @IsOptional()
+  @IsUUID()
+  patientId?: string;
 }
 
 @Resolver()
@@ -107,10 +130,7 @@ export class ReadingResolver {
   ): Promise<ReadingType[]> {
     const targetUserId = patientId ?? user.id;
     if (targetUserId !== user.id) {
-      await this.caregiverService.assertCanActOnBehalfOf(
-        user.id,
-        targetUserId,
-      );
+      await this.caregiverService.assertCanActOnBehalfOf(user.id, targetUserId);
     }
     const rows = await this.readingService.listByUser(
       targetUserId,
@@ -120,13 +140,22 @@ export class ReadingResolver {
     return Promise.all(rows.map((r) => this.toReadingType(r)));
   }
 
-  @Mutation(() => ReadingType, { description: 'บันทึกค่าความดันโลหิต' })
+  @Mutation(() => ReadingType, {
+    description:
+      'บันทึกค่าความดันโลหิต (caregiver ระบุ patientId เพื่อบันทึกแทนผู้ป่วยที่ดูแล)',
+  })
   @UseGuards(GqlAuthGuard)
   async createReading(
     @CurrentUser() user: { id: string },
     @Args('input') input: CreateReadingInput,
   ): Promise<ReadingType> {
-    const r = await this.readingService.create(user.id, input);
+    // Same authorization gate as the readings(patientId:) query above —
+    // writing on behalf of a patient requires an accepted caregiver link.
+    const targetUserId = input.patientId ?? user.id;
+    if (targetUserId !== user.id) {
+      await this.caregiverService.assertCanActOnBehalfOf(user.id, targetUserId);
+    }
+    const r = await this.readingService.create(targetUserId, input, user.id);
     return this.toReadingType(r);
   }
 
@@ -152,6 +181,7 @@ export class ReadingResolver {
     notes: string | null;
     createdAt: Date;
     images: { s3Key: string }[];
+    recordedBy: { id: string; firstname: string; lastname: string } | null;
   }): Promise<ReadingType> {
     // 1:0..1 today (Image.readingId @unique), so the first row is the
     // only row. If we later relax to multi-image, return the array and
@@ -170,6 +200,7 @@ export class ReadingResolver {
       s3Key: signedS3Key ?? undefined,
       notes: r.notes ?? undefined,
       createdAt: r.createdAt,
+      recordedBy: r.recordedBy ?? undefined,
     };
   }
 }

@@ -374,6 +374,11 @@ export const createAuthSlice: StateCreator<AppState, [], [], AuthSlice> = (
         logWarn("Auth", "setActivePatientId persist failed", error);
       }
       set({ activePatientId: id });
+      // Refresh the readings view for the newly-selected context right away.
+      // Screens also refetch on focus, but the patient picker is an overlay —
+      // it doesn't change navigation focus, so without this the previous
+      // patient's rows would linger until the next tab switch.
+      void get().fetchReadings();
     },
 
     handleSessionExpired: async () => {

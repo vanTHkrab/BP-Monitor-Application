@@ -1,3 +1,4 @@
+import { Colors, Theme } from '@/constants/colors';
 import { useAppStore } from '@/store/use-app-store';
 import { CommunityPost } from '@/types';
 import { getFontClass, getFontNumber } from '@/utils/font-scale';
@@ -68,6 +69,7 @@ interface CommunityPostCardProps {
   onLike?: () => void;
   onComment?: () => void;
   onMore?: () => void;
+  onRetrySync?: () => void;
 }
 
 export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
@@ -76,6 +78,7 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
   onLike,
   onComment,
   onMore,
+  onRetrySync,
 }) => {
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
@@ -118,8 +121,31 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
     large: 17,
     xlarge: 18,
   });
-  const syncLabel = post.syncStatus === 'local' ? 'บันทึกในเครื่อง' : post.syncStatus === 'pending-update' ? 'รอซิงก์' : null;
-  const syncBadgeColor = post.syncStatus === 'local' ? '#FF8A45' : '#7E57C2';
+  // Sync badge: a failed offline push is tappable to retry (danger token); a
+  // still-queued post reads as an informative status, not an error.
+  const isSyncFailed = post.syncStatus === 'local' && post.syncError === true;
+  const syncBadge = isSyncFailed
+    ? {
+        label: 'ซิงก์ไม่สำเร็จ',
+        icon: 'refresh' as const,
+        color: isDark ? Theme.dark.danger : Theme.light.danger,
+        retry: true,
+      }
+    : post.syncStatus === 'local'
+      ? {
+          label: 'บันทึกในเครื่อง',
+          icon: 'cloud-offline-outline' as const,
+          color: Colors.accent.orange,
+          retry: false,
+        }
+      : post.syncStatus === 'pending-update'
+        ? {
+            label: 'รอซิงก์',
+            icon: 'time-outline' as const,
+            color: Colors.secondary.purple,
+            retry: false,
+          }
+        : null;
 
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [contentLineCount, setContentLineCount] = React.useState(0);
@@ -169,12 +195,25 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
               {formatRelativeTimeTH(post.createdAt)}
             </Text>
           </View>
-          {syncLabel ? (
-            <View className="px-2 py-1 rounded-full mr-2" style={{ backgroundColor: isDark ? '#0B1220' : '#EEF2FF', borderWidth: 1, borderColor: syncBadgeColor }}>
-              <Text style={{ color: syncBadgeColor }} className={metaClassName + " font-bold"}>
-                {syncLabel}
+          {syncBadge ? (
+            <AnimatedPressable
+              onPress={syncBadge.retry ? onRetrySync : undefined}
+              disabled={!syncBadge.retry}
+              className="flex-row items-center px-2 py-1 rounded-full mr-2"
+              style={{ backgroundColor: isDark ? '#0B1220' : '#EEF2FF', borderWidth: 1, borderColor: syncBadge.color }}
+              accessibilityRole={syncBadge.retry ? 'button' : 'text'}
+              accessibilityLabel={
+                syncBadge.retry
+                  ? 'ซิงก์โพสต์ไม่สำเร็จ แตะเพื่อลองใหม่'
+                  : `สถานะโพสต์: ${syncBadge.label}`
+              }
+              accessibilityHint={syncBadge.retry ? 'ลองส่งโพสต์นี้ขึ้นเซิร์ฟเวอร์อีกครั้ง' : undefined}
+            >
+              <Ionicons name={syncBadge.icon} size={12} color={syncBadge.color} style={{ marginRight: 3 }} />
+              <Text style={{ color: syncBadge.color }} className={metaClassName + " font-bold"}>
+                {syncBadge.retry ? `${syncBadge.label} · ลองใหม่` : syncBadge.label}
               </Text>
-            </View>
+            </AnimatedPressable>
           ) : null}
           <AnimatedPressable className="p-1" onPress={onMore}>
             <Ionicons name="ellipsis-horizontal" size={18} color={isDark ? '#94A3B8' : '#9CA3AF'} />

@@ -95,14 +95,14 @@ client/
 ├── constants/                 # api.ts (GraphQL client + queries), colors.ts (BP status), tabs.ts
 ├── data/                      # local-db.ts (SQLite schema + offline queues), mockData.ts
 ├── hooks/                     # use-camera-analysis, use-color-scheme, use-theme-color, use-live-preflight, use-resolved-image-uri
-├── lib/                       # graphql-client.ts (multipart-aware GraphQL client)
+├── lib/                       # graphql-client.ts (multipart-aware GraphQL client), yolo/ (on-device detector), ocr/ (on-device OCR stub)
 ├── services/                  # camera.service.ts (BP image upload + analysis polling)
 ├── store/                     # Single Zustand store composed from slices
 │   ├── use-app-store.ts         # Composer — merges every slice
 │   ├── slices/                # auth, readings, community, caregivers, preferences, network
 │   └── shared/                # log, client-id, error-format, mappers
 ├── types/                     # Shared TypeScript types
-├── utils/                     # export-data.ts, reminders.ts, font-scale.ts, upload-image.ts
+├── utils/                     # export-data.ts, export-report.ts, date-format.ts, reminders.ts, font-scale.ts, upload-image.ts, pending-image-store.ts
 ├── assets/                    # Fonts, images, sounds
 ├── android/, ios/             # Native projects (rebuilt by `expo prebuild`)
 ├── app.json                   # Expo config
