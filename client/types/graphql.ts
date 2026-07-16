@@ -93,6 +93,15 @@ export interface LoginSessionsQuery {
 
 // ── Readings ──
 
+// Mirrors ReadingRecordedByType in the gateway schema. Present on a
+// reading only when a linked caregiver recorded it on the patient's
+// behalf; null/absent means the patient entered it themselves.
+export interface ReadingRecordedByGql {
+  id: string | number;
+  firstname: string;
+  lastname: string;
+}
+
 export interface ReadingGql {
   id: string | number;
   userId: string;
@@ -105,6 +114,7 @@ export interface ReadingGql {
   s3Key?: string | null;
   notes?: string | null;
   createdAt?: Iso | null;
+  recordedBy?: ReadingRecordedByGql | null;
 }
 
 export interface ReadingsQuery {

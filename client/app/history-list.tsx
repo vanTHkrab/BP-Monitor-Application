@@ -3,12 +3,13 @@ import { GradientBackground } from '@/components/gradient-background';
 import { ReadingDetailModal } from '@/components/reading-detail-modal';
 import { TabButtons } from '@/components/tab-buttons';
 import { Colors } from '@/constants/colors';
+import { useFocusFetch } from '@/hooks/use-focus-fetch';
 import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading, TimeFilter } from '@/types';
 import { fontPresetClass } from '@/utils/font-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HistoryListScreen() {
@@ -20,6 +21,17 @@ export default function HistoryListScreen() {
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
   const [refreshing, setRefreshing] = useState(false);
+
+  // Silent refetch on focus — same sequence as onRefresh below but without
+  // the spinner, so the list opens with cached rows and reconciles in the
+  // background (this modal previously only refreshed via pull-to-refresh).
+  useFocusFetch(
+    useCallback(async () => {
+      await syncPendingReadings();
+      await fetchReadings();
+      await fetchAlerts();
+    }, [fetchAlerts, fetchReadings, syncPendingReadings]),
+  );
 
   // Push the pending queue first so newly-synced rows are folded into the
   // mirror cache by the time fetchReadings pulls; then refresh alerts so

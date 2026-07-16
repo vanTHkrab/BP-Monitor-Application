@@ -26,6 +26,10 @@ import type {
   ReadingsQuery,
 } from "@/types/graphql";
 import { resolveImageUri } from "@/utils/image-cache";
+import {
+  deletePendingImageForClientId,
+  persistPendingImage,
+} from "@/utils/pending-image-store";
 import { LocalImageMissingError, uploadImageViaPresign } from "@/utils/upload-image";
 import type { StateCreator } from "zustand";
 import {
@@ -82,6 +86,12 @@ const cacheRemoteReading = async (
       createdAt: gql.createdAt
         ? new Date(gql.createdAt).toISOString()
         : new Date().toISOString(),
+      // Caregiver attribution — persisted so "บันทึกโดย ..." captions
+      // survive offline launches. Null ⇒ patient entered it themselves.
+      recordedById: gql.recordedBy ? String(gql.recordedBy.id) : null,
+      recordedByName: gql.recordedBy
+        ? `${gql.recordedBy.firstname} ${gql.recordedBy.lastname}`.trim()
+        : null,
     });
     prewarmImageCache(gql.s3Key);
   } catch (error) {
@@ -235,6 +245,91 @@ export const createReadingsSlice: StateCreator<
     const pulse = Number(input.pulse);
     const status = getBPStatus(systolic, diastolic);
     const clientId = createClientId("reading", currentUser.id);
+
+    // ── Caregiver mode: save on behalf of the active patient ──
+    // The reading must be attributed to the patient, not the caregiver, so
+    // the mutation input carries `patientId` (the write-side counterpart of
+    // the `readings(patientId:)` query contract; the gateway authorizes the
+    // caregiver-patient link server-side). This path is online-only by
+    // design: `pending_readings` rows have no target-patient column and the
+    // sync loop replays them under the logged-in user's id, so queueing here
+    // would silently mis-attribute the reading on a later sync (or after the
+    // caregiver switches patients). Failing fast keeps the queue clean.
+    if (currentUser.role === "caregiver") {
+      const patientId = get().activePatientId;
+      if (!patientId) {
+        logWarn("Readings", "caregiver createReading without active patient");
+        return false;
+      }
+      if (!get().isOnline || !token) {
+        logWarn(
+          "Readings",
+          "caregiver createReading requires an online session",
+          undefined,
+          { isOnline: get().isOnline },
+        );
+        return false;
+      }
+      try {
+        let imageId: number | null = input.imageId ?? null;
+        // Camera analysis flow pre-uploads and passes imageId; a caregiver
+        // save with a still-local image uses the same presign path as the
+        // patient flow. Upload failure fails the whole save — no queue row.
+        if (imageId == null && input.imageUri && !/^https?:\/\//i.test(input.imageUri)) {
+          const uploaded = await uploadImageViaPresign({
+            uri: input.imageUri,
+            kind: "blood-pressure",
+            token,
+          });
+          imageId = uploaded.imageId;
+        }
+        const result = await graphqlRequest<CreateReadingMutation>(
+          GQL_CREATE_READING,
+          {
+            input: {
+              systolic,
+              diastolic,
+              pulse,
+              status,
+              measuredAt: measuredAt.toISOString(),
+              clientId,
+              imageId,
+              notes: input.notes ?? null,
+              patientId,
+            },
+          },
+          token,
+        );
+        // The actor is the logged-in caregiver, so attribution is known
+        // client-side. The gateway echoes ``recordedBy`` on createReading;
+        // the fallback keeps the label (and the SQLite mirror) correct
+        // even if a response omits it, without waiting for a refetch.
+        const remote: typeof result.createReading = {
+          ...result.createReading,
+          recordedBy: result.createReading.recordedBy ?? {
+            id: currentUser.id,
+            firstname: currentUser.firstname,
+            lastname: currentUser.lastname,
+          },
+        };
+        const remoteReading = readingFromGql(remote);
+        // Mirror into the caregiver's local cache — consistent with how
+        // fetchReadings mirrors the patient rows viewed in caregiver mode.
+        await cacheRemoteReading(currentUser.id, remote);
+        set((state) => ({
+          readings: sortReadingsDesc([remoteReading, ...state.readings]),
+        }));
+        void get().fetchAlerts();
+        return true;
+      } catch (error) {
+        logWarn("Readings", "caregiver createReading failed", error, {
+          clientId,
+          patientId,
+        });
+        return false;
+      }
+    }
+
     let imageUri = input.imageUri;
     // ``imageId`` is non-null in two cases: caller pre-uploaded
     // (camera analysis save flow), or this function uploaded just below
@@ -263,6 +358,17 @@ export const createReadingsSlice: StateCreator<
       }
     }
 
+    // The reading is being queued with a still-local image (offline, or the
+    // upload above failed). The capture / image-manipulator output lives in
+    // OS *cache* storage which can be evicted before the queue drains — copy
+    // it into durable document storage keyed by clientId so a delayed sync
+    // still finds the bytes. Falls back to the original cache URI on copy
+    // failure (never blocks the save); deleted again after markReadingSynced
+    // or by the app-launch orphan sweep.
+    if (imageUri && !imageReadyForRemote) {
+      imageUri = await persistPendingImage(imageUri, clientId);
+    }
+
     // Always insert into local pending first
     const pendingId = await insertPendingReading({
       userId: currentUser.id,
@@ -277,6 +383,10 @@ export const createReadingsSlice: StateCreator<
       notes: input.notes ?? null,
       status,
       createdAt: new Date().toISOString(),
+      // Patient self-entry — no attribution. The caregiver path above
+      // never queues, so pending rows are always the owner's own entries.
+      recordedById: null,
+      recordedByName: null,
     });
 
     if (pendingId) {
@@ -370,7 +480,11 @@ export const createReadingsSlice: StateCreator<
 
     if (isLocalReadingId(id)) {
       const localId = parseLocalReadingId(id);
+      // Grab the clientId before the row leaves state so the durable photo
+      // copy (if the queued reading had one) is released with it.
+      const localClientId = get().readings.find((r) => r.id === id)?.clientId;
       if (!Number.isNaN(localId)) await deletePendingReading(localId);
+      void deletePendingImageForClientId(localClientId);
       set((state) => ({
         readings: state.readings.filter((r) => r.id !== id),
       }));
@@ -478,6 +592,12 @@ export const createReadingsSlice: StateCreator<
               remote.clientId ?? row.clientId,
             );
             prewarmImageCache(remote.s3Key);
+            // Row is confirmed server-side — drop the durable photo copy
+            // keyed to this clientId. Keying by clientId (not row.imageUri)
+            // also covers the resume case where a previous pass already
+            // replaced imageUri with the uploaded https URL. Best-effort;
+            // the app-launch orphan sweep catches anything missed here.
+            void deletePendingImageForClientId(row.clientId);
             set((state) => ({
               readings: sortReadingsDesc(
                 state.readings.map((r) =>

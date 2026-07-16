@@ -3,9 +3,11 @@ import { BPReadingCard } from '@/components/bp-reading-card';
 import { GradientBackground } from '@/components/gradient-background';
 import { ReadingDetailModal } from '@/components/reading-detail-modal';
 import { TabButtons } from '@/components/tab-buttons';
+import { useFocusFetch } from '@/hooks/use-focus-fetch';
 import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading, TimeFilter } from '@/types';
 import { ExportDataType, ExportFormat, shareReadingsExport } from '@/utils/export-data';
+import { resolveExportSubjectName } from '@/utils/export-report';
 import { fontPresetClass, getFontNumber } from '@/utils/font-scale';
 import {
   buildReminderTimelineForDate,
@@ -25,10 +27,15 @@ cssInterop(LinearGradient, { className: 'style' });
 
 export default function HistoryScreen() {
   const readings = useAppStore((s) => s.readings);
+  const fetchReadings = useAppStore((s) => s.fetchReadings);
   const posts = useAppStore((s) => s.posts);
   const user = useAppStore((s) => s.user);
   const activePatientId = useAppStore((s) => s.activePatientId);
+  const myPatients = useAppStore((s) => s.myPatients);
   const isCaregiverWithoutPatient = user?.role === 'caregiver' && !activePatientId;
+  // Readings in the store belong to the active patient when a caregiver is
+  // viewing one — the export must be titled with the patient's name.
+  const exportSubjectName = resolveExportSubjectName(user, activePatientId, myPatients);
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
   const isDark = themePreference === 'dark';
@@ -70,6 +77,16 @@ export default function HistoryScreen() {
         active = false;
       };
     }, [user?.id]),
+  );
+
+  // Silent readings refetch on every focus (deferred past the tab
+  // transition) so the chart + list reconcile against the server without
+  // blanking the already-rendered data.
+  useFocusFetch(
+    useCallback(() => {
+      if (!user?.id) return;
+      void fetchReadings();
+    }, [fetchReadings, user?.id]),
   );
 
   const timeFilterTabs = [
@@ -219,7 +236,7 @@ export default function HistoryScreen() {
           format,
           readings: readingsForExport,
           posts,
-          userName: user ? `${user.firstname} ${user.lastname}`.trim() : undefined,
+          userName: exportSubjectName,
         },
         maxExportAttempts,
       );

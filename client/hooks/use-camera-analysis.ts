@@ -1,3 +1,4 @@
+import { isOcrUnavailable, readBpFromImage } from '@/lib/ocr';
 import { analyzeImage } from '@/services/camera.service';
 import {
   preflightCheckImage,
@@ -114,6 +115,57 @@ export function useCameraAnalysis() {
     [],
   );
 
+  /**
+   * Run the on-device OCR engine (offline counterpart of `analyze`).
+   * Currently a stub — `readBpFromImage` always reports unavailable until
+   * the model is bundled — so this returns `false` and touches no state,
+   * indistinguishable from "no OCR" for the user. When the engine lands,
+   * a successful read feeds the SAME prefill + low-confidence confirm flow
+   * the backend result uses, so no re-plumbing is needed.
+   *
+   * Returns `true` when values were produced (state updated), `false` when
+   * the caller should fall through to plain manual entry.
+   */
+  const readOnDevice = useCallback(async (imageUri: string): Promise<boolean> => {
+    try {
+      const ocr = await readBpFromImage({ imageUri });
+      if (isOcrUnavailable(ocr)) {
+        // Expected while the model is a stub; log-only so the offline flow
+        // proceeds straight to manual entry with zero UI churn.
+        if (__DEV__) console.log('[readOnDevice] unavailable:', ocr.reason);
+        return false;
+      }
+      const readings = { systolic: ocr.sys, diastolic: ocr.dia, pulse: ocr.pulse };
+      const confident = ocr.confidence >= CONFIDENCE_THRESHOLD;
+      const result: AnalysisResult = {
+        readings,
+        confidence: ocr.confidence,
+        roiImageUrl: null,
+        rawText: null,
+        status: confident ? 'success' : 'low_confidence',
+        engine: null,
+        metrics: null,
+      };
+      // Mirrors the tail of `analyze()`: confident reads prefill the form,
+      // uncertain ones raise the low-confidence confirm banner (resolved by
+      // confirmLowConfidence / dismissLowConfidence exactly as for backend
+      // results). No uploadedUrl/uploadedImageId — the image is still local
+      // and `save()` → `createReading` handles the queued upload.
+      setState((prev) => ({
+        ...prev,
+        phase: 'done',
+        result,
+        prefill: confident ? { ...readings } : {},
+        lowConfidence: !confident,
+        error: null,
+      }));
+      return true;
+    } catch (err) {
+      logWarn('ocr', 'on-device OCR failed; falling back to manual entry', err);
+      return false;
+    }
+  }, []);
+
   const analyze = useCallback(
     async (imageUri: string, opts?: { ocrEngine?: OcrEngine }) => {
       abortRef.current?.abort();
@@ -205,7 +257,17 @@ export function useCameraAnalysis() {
   }, []);
 
   const save = useCallback(
-    async (params: { imageUri: string; systolic: number; diastolic: number; pulse: number }) => {
+    async (params: {
+      imageUri: string;
+      systolic: number;
+      diastolic: number;
+      pulse: number;
+      /** When the reading came from a photo, the moment the photo was
+       *  captured — that IS the measurement time. Without it (manual entry
+       *  with no capture timestamp) we fall back to now. Matters offline:
+       *  capture-then-late-save must not shift the measurement time. */
+      measuredAt?: Date;
+    }) => {
       // Route through the store so we inherit the offline queue + optimistic
       // UI used by manual entry. If analyze succeeded, `uploadedUrl` is the
       // already-S3-hosted URL and `uploadedImageId` is the FK the gateway
@@ -219,7 +281,7 @@ export function useCameraAnalysis() {
           systolic: params.systolic,
           diastolic: params.diastolic,
           pulse: params.pulse,
-          measuredAt: new Date(),
+          measuredAt: params.measuredAt ?? new Date(),
           imageUri: state.uploadedUrl ?? params.imageUri,
           imageId: state.uploadedImageId ?? undefined,
         });
@@ -235,6 +297,7 @@ export function useCameraAnalysis() {
     ...state,
     isSaving,
     runPreflight,
+    readOnDevice,
     analyze,
     save,
     reset,
