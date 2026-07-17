@@ -51,8 +51,8 @@ it the service replies with a structured error ("missing imageUrl").
 | `src/ai_service/analyzer/ocr/cnn_classifiers.py` | ONNX CNN (`classify_by_cnn_2ch`) + numpy KNN (`classify_by_knn`) + template match + `detect_brand`. Configured once at lifespan via `set_models_dir()`; consumed by `ssocr.py` |
 | `src/ai_service/storage/fetch.py` | async `fetch_image()` (presigned URL → BGR ndarray) + `ImageFetchError` |
 | `models/EXPECTED_HASHES.json` | SHA256 manifest — **single source of truth** for which model artifacts the service expects and what their bytes look like. Consumed by both `docker-entrypoint.sh` and `src/ai_service/scripts/fetch_models.py`. Tracked in git; the binaries it describes are not. |
-| `models/yolo11n.onnx` | YOLOv11n detector, 5 BP-specific classes, exported with `nms=False` (10.7 MB). **Fetched from R2 at startup**, not tracked in git. **Also bundled verbatim in the mobile app** at `client/assets/models/yolo11n.onnx` for on-device pre-flight (see [../../../client/CLAUDE.md](../../../client/CLAUDE.md)). The canonical sha256 lives in `EXPECTED_HASHES.json`; when you retrain, regenerate the manifest, upload the new bytes to R2, and refresh the mobile copy in the same change — `client/scripts/verify-yolo-model.mjs` runs on every `pnpm start` and fails the dev build on SHA256 drift. |
-| `models/crnn_int8.onnx` | Trained 7-seg CRNN, ONNX int8 (1.2 MB) — `crnn` engine. Fetched from R2. |
+| `models/yolo11n.onnx` | YOLOv11n detector, 5 BP-specific classes, exported with `nms=False` (10.7 MB). **Fetched from R2 at startup**, not tracked in git. **Also bundled verbatim in the mobile app** at `client/assets/models/yolo11n.onnx` for on-device pre-flight (see [../../../client/CLAUDE.md](../../../client/CLAUDE.md)). The canonical sha256 lives in `EXPECTED_HASHES.json`; when you retrain, regenerate the manifest, upload the new bytes to R2, and refresh the mobile copy in the same change — `client/scripts/verify-models.mjs` runs on every `pnpm start` and fails the dev build on SHA256 drift. |
+| `models/crnn_int8.onnx` | Trained 7-seg CRNN, ONNX int8 (1.2 MB) — `crnn` engine. Fetched from R2. **Also bundled verbatim in the mobile app** at `client/assets/models/crnn_int8.onnx` for on-device offline OCR (the `client/modules/bp-vision` native module); `client/scripts/verify-models.mjs` gates its SHA256 against `EXPECTED_HASHES.json` alongside the YOLO model. Preprocessing (BGR2GRAY + INTER_AREA 96×32) and CTC decode are ported to Kotlin verbatim — retrain one side, refresh the other. |
 | `models/cnn_2ch_distilled_*_int8.onnx` | Distilled 2-channel CNN (global/sys/dia/pul, ~0.6 MB each = 2.5 MB total) — `ssocr_cnn` engine. Fetched from R2. |
 | `models/templates.npz` | KNN exemplars + mean templates for `ssocr_cnn` (~58 MB). Fetched from R2. |
 | `models/crnn.pt` | Training-source PyTorch checkpoint for the CRNN (~4.7 MB). **Not** fetched at runtime — kept in R2 as a training-only artifact and intentionally absent from `EXPECTED_HASHES.json`. |
@@ -96,10 +96,12 @@ R2 bucket and are fetched on first start. The contract:
 - `crnn.pt` (training-source artifact, ~4.7 MB) is kept in R2 but is **not**
   in the manifest and **not** fetched at runtime.
 
-The mobile app consumes the YOLO hash from this manifest (or the dedicated
-`client/assets/models/yolo11n.sha256` companion file maintained by
-`expo-dev`). Whenever the YOLO bytes change, both sides ship in the same
-PR — see the "Shared YOLO detector" section in the root `CLAUDE.md`.
+The mobile app verifies its bundled copies of both `yolo11n.onnx` and
+`crnn_int8.onnx` directly against the hashes in this manifest
+(`client/scripts/verify-models.mjs`, wired as the client's `prestart` /
+`preandroid` / `preios` hook — no separate companion `.sha256` file).
+Whenever either model's bytes change, both sides ship in the same PR — see
+the "Shared YOLO detector" section in the root `CLAUDE.md`.
 
 ## Wire protocol (must stay in sync with api-gateway)
 

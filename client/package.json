@@ -12,10 +12,10 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "sync-yolo-model": "node ./scripts/sync-yolo-model.mjs",
-    "verify-yolo-model": "node ./scripts/verify-yolo-model.mjs",
-    "prestart": "node ./scripts/verify-yolo-model.mjs",
-    "preandroid": "node ./scripts/verify-yolo-model.mjs",
-    "preios": "node ./scripts/verify-yolo-model.mjs"
+    "verify-models": "node ./scripts/verify-models.mjs",
+    "prestart": "node ./scripts/verify-models.mjs",
+    "preandroid": "node ./scripts/verify-models.mjs",
+    "preios": "node ./scripts/verify-models.mjs"
   },
   "jest": {
     "preset": "jest-expo",

@@ -21,13 +21,14 @@ pnpm web                    # web preview (limited — uses AsyncStorage instead
 pnpm lint
 pnpm test                   # jest-expo suite
 pnpm exec tsc --noEmit -p . # type-check
-pnpm sync-yolo-model        # copy yolo11n.onnx from server/app/ai-service/models/
-pnpm verify-yolo-model      # confirm bundled model SHA256 matches the canonical copy
+pnpm sync-yolo-model        # copy yolo11n.onnx + crnn_int8.onnx from server/app/ai-service/models/
+pnpm verify-models          # confirm bundled model SHA256s match the ai-service manifest
 ```
 
-The `prestart` / `preandroid` / `preios` scripts run `verify-yolo-model` so a
-stale on-device detector can never silently disagree with backend inference —
-if the SHA256 drifts, the dev start fails until you run `pnpm sync-yolo-model`.
+The `prestart` / `preandroid` / `preios` scripts run `verify-models` so a stale
+on-device model (YOLO detector or CRNN OCR) can never silently disagree with
+backend inference — if either SHA256 drifts from the ai-service manifest
+(`EXPECTED_HASHES.json`), the dev start fails until you run `pnpm sync-yolo-model`.
 
 ## Important Paths
 
@@ -39,11 +40,11 @@ if the SHA256 drifts, the dev start fails until you run `pnpm sync-yolo-model`.
 | `constants/api.ts` | GraphQL endpoint resolver, token storage, all GraphQL operation strings. |
 | `constants/colors.ts` | BP-status thresholds + Tailwind color tokens. |
 | `data/local-db.ts` | SQLite schema + helpers. `pending_readings` is both the offline queue **and** the mirror of synced readings (rows carry a `syncStatus` of `pending` / `pending-image` / `synced` and a `remoteId` once confirmed); `cached_images` tracks 7-day-cached image files keyed by extracted S3 path. |
-| `assets/models/yolo11n.onnx` | Bundled YOLOv11n detector (10.7 MB) — verbatim copy of `server/app/ai-service/models/yolo11n.onnx`. `scripts/verify-yolo-model.mjs` (wired as `prestart` / `preandroid` / `preios`) fails the dev start if the SHA256 drifts; run `pnpm sync-yolo-model` to refresh. Loaded by `lib/yolo/session.ts` for on-device pre-flight. |
+| `assets/models/` | Bundled on-device ONNX models — verbatim copies of the ai-service's: `yolo11n.onnx` (YOLOv11n detector, 10.7 MB) and `crnn_int8.onnx` (7-seg CRNN digit recognizer, 1.2 MB). `scripts/verify-models.mjs` (wired as `prestart` / `preandroid` / `preios`) fails the dev start if either SHA256 drifts from the ai-service manifest `EXPECTED_HASHES.json`; run `pnpm sync-yolo-model` to refresh both. The config plugin `modules/bp-vision/plugin/withBpVisionModels.js` copies both into `android/app/src/main/assets/models/` at every `expo prebuild` so the native `bp-vision` module loads them from the APK. YOLO is loaded by `lib/yolo/session.ts` (JS pre-flight, currently unwired) and by the native module; CRNN by the native module for on-device OCR. |
 | `lib/yolo/` | On-device YOLO inference. `types.ts` mirrors backend class layout (`0 BP_Monitor` / `1 BP_Screen_Monitor` / `2 dia` / `3 pulse` / `4 sys`); `preprocess.ts` does letterbox + JPEG-decode → `[1,3,512,512]` float32 RGB; `postprocess.ts` decodes Ultralytics-style `[1, 4+C, anchors]` + per-class NMS; `session.ts` lazy-loads the InferenceSession; `detect.ts` orchestrates the four. The backend equivalent is `server/app/ai-service/src/ai_service/analyzer/yolo.py` — keep them in sync, the model file is shared verbatim. |
 | `services/preflight-detection.service.ts` | `preflightCheckImage` — runs the on-device detector, classifies the result as `ok` / `no-monitor` / `missing-fields`, and (on `ok`) auto-crops the source image around the monitor bbox + padding. **Currently unwired from `app/(tabs)/camera.tsx`** — the camera screen no longer calls it, so captures are not gated or auto-cropped on-device before upload. Kept in place (with `lib/yolo/`, the bundled model, and `components/live-preflight-overlay.tsx` + `hooks/use-live-preflight.ts`) so re-wiring it is a small revert rather than a rebuild. |
-| `hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. `runPreflight()` still exists and can run the on-device YOLO check via `state.preflight`, but `app/(tabs)/camera.tsx` no longer calls it (see `services/preflight-detection.service.ts` above). The camera screen calls `analyze()` directly after capture **when online**; when offline it calls `readOnDevice()` instead (on-device OCR via `lib/ocr/` — a stub today, always unavailable) and falls through to manual entry with an informative offline banner, skipping the doomed backend request. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry; it accepts an optional `measuredAt` — the camera screen passes the capture timestamp so an offline capture-then-late-save keeps the real measurement time. |
-| `lib/ocr/` | On-device BP-display OCR scaffold. `types.ts` defines the engine contract (`OnDeviceOcrResult` = `{ sys, dia, pulse, confidence }` \| `{ unavailable: true, reason }`); `read.ts → readBpFromImage` is an explicit stub returning `unavailable: 'model-not-bundled'` until the OCR model is trained. When the model lands it must mirror `lib/yolo/session.ts` (lazy singleton, expo-asset materialization, Expo Go short-circuit) and the `verify-yolo-model` SHA256 bundling mechanism. A successful read feeds the same prefill + low-confidence confirm flow as backend results via `use-camera-analysis.ts → readOnDevice()`. |
+| `hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. `runPreflight()` still exists and can run the on-device YOLO check via `state.preflight`, but `app/(tabs)/camera.tsx` no longer calls it (see `services/preflight-detection.service.ts` above). The camera screen calls `analyze()` directly after capture **when online**; when offline it calls `readOnDevice()` instead (on-device OCR via `lib/ocr/` — backed by the `bp-vision` native module on Android; unavailable on iOS / web / Expo Go) and falls through to manual entry with an informative offline banner, skipping the doomed backend request. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry; it accepts an optional `measuredAt` — the camera screen passes the capture timestamp so an offline capture-then-late-save keeps the real measurement time. |
+| `lib/ocr/` | On-device BP-display OCR. `types.ts` defines the engine contract (`OnDeviceOcrResult` = `{ sys, dia, pulse, confidence }` \| `{ unavailable: true, reason }`); `read.ts → readBpFromImage` is a thin pass-through over the `bp-vision` native module's `readBp` (`modules/bp-vision → readBpOnDevice`), which runs the full on-device pipeline (YOLO pass 1 → Stage-2 field-layout rotation → YOLO pass 2 → per-field CRNN → validate → aggregate) natively on Android. Returns `unavailable` on iOS / web / Expo Go and on any ordinary failure (no monitor, unreadable fields, out-of-range, sys≤dia) — never throws. A successful read feeds the same prefill + low-confidence confirm flow as backend results via `use-camera-analysis.ts → readOnDevice()`. The on-device engine deliberately skips perspective rectification (Stage 1) and the backend's 0.60 success floor; see `modules/bp-vision/android/.../BpOcrPipeline.kt`. |
 | `utils/pending-image-store.ts` | Durable storage for photos attached to queued readings. Capture/manipulator output lives in OS *cache* storage which can be evicted before an offline queue drains; `persistPendingImage` copies the file into `Paths.document/pending-images/` keyed by the reading's clientId (called by `createReading` when queueing with a still-local image; falls back to the cache URI on failure — never blocks the save). `deletePendingImageForClientId` releases the copy once the row is confirmed (`markReadingSynced` call sites, local deletes); `cleanupOrphanedPendingImages` is the app-launch GC sweep in `app/_layout.tsx` that removes files whose clientId no longer matches an unsynced `pending_readings` row. |
 | `lib/graphql-client.ts` | Multipart-aware GraphQL client used by the AI image-upload path. |
 | `lib/graphql-error.ts` | `GraphQLClientError` class — typed error thrown by `graphqlRequest` carrying `code` (server's `extensions.code`), `httpStatus`, and `retryAfterSec`. |
@@ -134,7 +135,7 @@ if the SHA256 drifts, the dev start fails until you run `pnpm sync-yolo-model`.
   small diff rather than a rebuild. The bundled YOLO
   (`assets/models/yolo11n.onnx`) is still the **same model file** as
   `server/app/ai-service/models/yolo11n.onnx` — SHA256 is still enforced
-  by `scripts/verify-yolo-model.mjs` at every `pnpm start` / `pnpm android`
+  by `scripts/verify-models.mjs` at every `pnpm start` / `pnpm android`
   / `pnpm ios` regardless of whether the UI calls the detector. If the
   backend retrains the detector, run `pnpm sync-yolo-model` and commit
   both copies in the same change. Class IDs and thresholds (conf 0.25 /
@@ -145,8 +146,8 @@ if the SHA256 drifts, the dev start fails until you run `pnpm sync-yolo-model`.
 - **Offline capture flow**: `startCaptureFlow` in `app/(tabs)/camera.tsx`
   branches on the store's `isOnline` before calling `analyze()`. Offline it
   skips the backend request entirely, tries the on-device OCR hook
-  (`use-camera-analysis.ts → readOnDevice()`, backed by the `lib/ocr/` stub
-  — always unavailable until the model is bundled), keeps the captured
+  (`use-camera-analysis.ts → readOnDevice()`, backed by the `bp-vision`
+  native OCR module on Android — unavailable on iOS / web / Expo Go), keeps the captured
   photo, opens the manual entry sheet, and shows an informative (cyan, not
   error-red) offline banner. The save queues through the normal offline
   path; `measuredAt` is stamped at capture time (not save time), so a late

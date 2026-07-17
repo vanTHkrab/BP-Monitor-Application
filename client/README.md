@@ -95,7 +95,7 @@ client/
 ├── constants/                 # api.ts (GraphQL client + queries), colors.ts (BP status), tabs.ts
 ├── data/                      # local-db.ts (SQLite schema + offline queues), mockData.ts
 ├── hooks/                     # use-camera-analysis, use-color-scheme, use-theme-color, use-live-preflight, use-resolved-image-uri
-├── lib/                       # graphql-client.ts (multipart-aware GraphQL client), yolo/ (on-device detector), ocr/ (on-device OCR stub)
+├── lib/                       # graphql-client.ts (multipart-aware GraphQL client), yolo/ (on-device detector), ocr/ (on-device OCR — bp-vision native engine)
 ├── services/                  # camera.service.ts (BP image upload + analysis polling)
 ├── store/                     # Single Zustand store composed from slices
 │   ├── use-app-store.ts         # Composer — merges every slice

@@ -14,3 +14,9 @@ local.properties
 
 # Bundle artifacts
 *.jsbundle
+
+# On-device ONNX models — generated at every `expo prebuild` by the bp-vision
+# config plugin (modules/bp-vision/plugin/withBpVisionModels.js) from the
+# committed copies in client/assets/models/. Never commit these ~12MB
+# regenerated duplicates.
+app/src/main/assets/models/

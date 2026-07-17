@@ -79,7 +79,8 @@
         }
       ],
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "./modules/bp-vision/plugin/withBpVisionModels"
     ],
     "experiments": {
       "typedRoutes": true,

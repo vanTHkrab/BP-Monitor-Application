@@ -104,7 +104,8 @@ Key boundaries and design choices a senior should respect:
   sha256 lives in `server/app/ai-service/models/EXPECTED_HASHES.json`** —
   the binary itself is no longer tracked in git on the backend side. SHA256
   equality between the bundled mobile copy and the backend manifest entry
-  is enforced on every `pnpm start` by `client/scripts/verify-yolo-model.mjs`
+  is enforced on every `pnpm start` by `client/scripts/verify-models.mjs`
+  (which now verifies the bundled CRNN OCR model too — see the Note below)
   regardless of whether the UI calls the detector; if you retrain the
   detector, regenerate `EXPECTED_HASHES.json`, upload the new bytes to R2,
   and on the mobile side `cd client && pnpm sync-yolo-model` to refresh the
@@ -115,13 +116,17 @@ Key boundaries and design choices a senior should respect:
   they remain a wire contract even with the pre-flight UI unwired, since a
   future revert must not silently drift from the backend.
 
-  > Note: as of this change the backend stopped tracking the binary and
-  > switched to R2 + manifest. The mobile-side `verify-yolo-model.mjs`
-  > and `sync-yolo-model` scripts are being updated in a follow-up task
-  > by `expo-dev` to read the hash from the manifest (or the companion
-  > `client/assets/models/yolo11n.sha256` file) instead of `sha256sum`ing
-  > the backend copy directly. Treat the docs above as the target
-  > behavior; the client scripts catch up next.
+  > Note: the backend stopped tracking the binaries and switched to R2 +
+  > manifest. The mobile-side scripts now read the expected SHA256 straight
+  > from `EXPECTED_HASHES.json` (no longer `sha256sum`ing a backend copy):
+  > `client/scripts/verify-models.mjs` (renamed from `verify-yolo-model.mjs`)
+  > verifies **both** bundled on-device models — `yolo11n.onnx` and the
+  > `crnn_int8.onnx` CRNN OCR model — against the manifest on every
+  > `pnpm start` / `pnpm android` / `pnpm ios`, and `pnpm sync-yolo-model`
+  > refreshes both from `server/app/ai-service/models/`. The CRNN runs the
+  > on-device OCR pipeline in the `client/modules/bp-vision` native module
+  > (Android); like YOLO it is a shared-verbatim wire contract with the
+  > backend (`analyzer/ocr/crnn.py`) — retrain one side, refresh the other.
 
 ## Cross-cutting rules
 
@@ -307,9 +312,9 @@ misbehave subtly when changed without context:
   drift you get on-device pre-flight approving an image the backend can't
   read (or vice-versa). The canonical sha256 lives in
   `server/app/ai-service/models/EXPECTED_HASHES.json`; the
-  `pnpm verify-yolo-model` hook on `pnpm start` guards SHA256 equality
-  against it — if you bypass it, expect silent disagreement between phone
-  and server.
+  `pnpm verify-models` hook on `pnpm start` guards SHA256 equality
+  against it (for both the YOLO detector and the CRNN OCR model) — if you
+  bypass it, expect silent disagreement between phone and server.
 - **Image upload paths.** Two paths exist (multipart for BP images, presign
   for avatars) and they have different runtime traps — notably the RN
   `new Blob([Uint8Array])` trap on native. Don't assume "I'll just upload
