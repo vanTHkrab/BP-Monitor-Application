@@ -7,6 +7,7 @@ import {
   ExportDataType,
   ExportFormat,
 } from "@/utils/export-data";
+import { resolveExportSubjectName } from "@/utils/export-report";
 import { fontPresetClass, getFontNumber } from "@/utils/font-scale";
 import {
   DEFAULT_REMINDER_SETTINGS,
@@ -75,6 +76,11 @@ export default function SettingsScreen() {
   const readings = useAppStore((s) => s.readings);
   const posts = useAppStore((s) => s.posts);
   const user = useAppStore((s) => s.user);
+  const activePatientId = useAppStore((s) => s.activePatientId);
+  const myPatients = useAppStore((s) => s.myPatients);
+  // Readings in the store belong to the active patient when a caregiver is
+  // viewing one — the export must be titled with the patient's name.
+  const exportSubjectName = resolveExportSubjectName(user, activePatientId, myPatients);
   const deleteAllMyData = useAppStore((s) => s.deleteAllMyData);
   const toggleDevMode = useAppStore((s) => s.toggleDevMode);
 
@@ -283,9 +289,7 @@ export default function SettingsScreen() {
           format,
           readings: readingsForExport,
           posts,
-          userName: user
-            ? `${user.firstname} ${user.lastname}`.trim()
-            : undefined,
+          userName: exportSubjectName,
         },
         maxExportAttempts,
       );

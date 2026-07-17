@@ -4,6 +4,7 @@ import { formatShortDate } from '@/data/mockData';
 import { useResolvedImageUri } from '@/hooks/use-resolved-image-uri';
 import { useAppStore } from '@/store/use-app-store';
 import { BloodPressureReading } from '@/types';
+import { formatThaiDateTime } from '@/utils/date-format';
 import { fontPresetClass, getFontClass } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,14 +25,9 @@ const statusLabel: Record<BPStatus, string> = {
   critical: 'สูงมาก',
 };
 
-const formatFullDateTime = (date?: Date) => {
-  if (!date) return '-';
-
-  return new Intl.DateTimeFormat('th-TH', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-};
+// Shared with the CSV/PDF export path so both surfaces render the same
+// "10 ก.ค. 2569 21:52" style (Buddhist-era year, abbreviated Thai month).
+const formatFullDateTime = (date?: Date) => (date ? formatThaiDateTime(date) : '-');
 
 export function ReadingDetailModal({
   reading,
@@ -40,6 +36,7 @@ export function ReadingDetailModal({
 }: ReadingDetailModalProps) {
   const themePreference = useAppStore((s) => s.themePreference);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
+  const currentUserId = useAppStore((s) => s.user?.id);
   const isDark = themePreference === 'dark';
   const resolvedImageUri = useResolvedImageUri(
     reading?.imageUri ? toDisplayImageUri(reading.imageUri) : undefined,
@@ -155,6 +152,19 @@ export function ReadingDetailModal({
             <View className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-700 p-4 mb-4">
               <InfoRow label="วัดเมื่อ" value={formatFullDateTime(measuredAt)} />
               <InfoRow label="บันทึกเข้าแอป" value={formatFullDateTime(createdAt ?? measuredAt)} />
+              {reading.recordedBy ? (
+                // Same rule as the list cards: owner-entered rows carry no
+                // attribution row; the viewer's own caregiver entries read
+                // "คุณบันทึกให้", anyone else is named.
+                <InfoRow
+                  label="บันทึกโดย"
+                  value={
+                    reading.recordedBy.id === currentUserId
+                      ? 'คุณบันทึกให้'
+                      : reading.recordedBy.name
+                  }
+                />
+              ) : null}
               <InfoRow label="รหัสรายการ" value={reading.clientId ?? reading.id} last />
             </View>
 

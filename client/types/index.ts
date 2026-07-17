@@ -28,6 +28,15 @@ export type ReadingSyncStatus =
   // GraphQL create are pending.
   | "pending-image";
 
+// Who entered the reading, when it wasn't the patient themselves.
+// `name` is the pre-composed display name ("firstname lastname") used by
+// the attribution captions; `id` lets the UI detect "the viewer recorded
+// this" (caregiver looking at a row they saved for the patient).
+export interface ReadingRecordedBy {
+  id: string;
+  name: string;
+}
+
 export interface BloodPressureReading {
   id: string;
   userId: string;
@@ -43,6 +52,8 @@ export interface BloodPressureReading {
   clientId?: string;
   createdAt?: Date;
   syncStatus?: ReadingSyncStatus;
+  // Undefined ⇒ the patient entered it themselves (default, no label).
+  recordedBy?: ReadingRecordedBy;
 }
 
 export type BPStatus = "low" | "normal" | "elevated" | "high" | "critical";
@@ -65,6 +76,11 @@ export interface CommunityPost {
   createdAt: Date;
   isLiked?: boolean;
   syncStatus?: "local" | "pending-update";
+  // Runtime-only (never persisted, never from GraphQL): set when the offline
+  // queue tried to push this local post and the upload threw, so the card can
+  // show a tappable "sync failed, retry" affordance instead of a silent
+  // "saved on device" badge that never clears.
+  syncError?: boolean;
   clientId?: string;
 }
 

@@ -1271,6 +1271,7 @@ export const BloodPressureReadingScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   clientId: 'clientId',
+  recordedById: 'recordedById',
   systolic: 'systolic',
   diastolic: 'diastolic',
   pulse: 'pulse',

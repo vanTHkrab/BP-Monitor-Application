@@ -2,12 +2,13 @@ import { CustomButton } from "@/components/custom-button";
 import { CustomInput } from "@/components/custom-input";
 import { GradientBackground } from "@/components/gradient-background";
 import { Colors } from "@/constants/colors";
+import { useFocusFetch } from "@/hooks/use-focus-fetch";
 import { useAppStore } from "@/store/use-app-store";
 import { CaregiverLink, PatientSummary } from "@/types";
 import { fontPresetClass } from "@/utils/font-scale";
 import { Ionicons } from "@expo/vector-icons";
 import { Href, router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 export default function CaregiversScreen() {
@@ -38,11 +39,16 @@ export default function CaregiversScreen() {
   const [relationship, setRelationship] = useState("family");
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    void fetchCaregiverLinks();
-    if (isCaregiver) void fetchMyPatients();
-    else void fetchPendingInvites();
-  }, [fetchCaregiverLinks, fetchMyPatients, fetchPendingInvites, isCaregiver]);
+  // Refetch on every focus (not just mount) so returning from a screen
+  // pushed on top — or re-opening this one — reflects invite/link changes
+  // made elsewhere without a manual refresh.
+  useFocusFetch(
+    useCallback(() => {
+      void fetchCaregiverLinks();
+      if (isCaregiver) void fetchMyPatients();
+      else void fetchPendingInvites();
+    }, [fetchCaregiverLinks, fetchMyPatients, fetchPendingInvites, isCaregiver]),
+  );
 
   // Caregiver-side: คำเชิญที่ส่งไปแล้วยังรอตอบ
   const sentPending = useMemo(

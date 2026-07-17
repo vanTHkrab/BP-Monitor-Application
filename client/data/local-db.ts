@@ -30,6 +30,13 @@ export interface PendingReadingRow {
   status: string;
   createdAt: string;
   updatedAt: string | null;
+  // Attribution for caregiver-recorded readings (GraphQL ``recordedBy``).
+  // NULL on both ⇒ the patient entered the reading themselves. Persisted
+  // in the mirror so the "บันทึกโดย ..." caption survives offline
+  // launches; written together (id + display name) by every path that
+  // mirrors a server row.
+  recordedById: string | null;
+  recordedByName: string | null;
 }
 
 export interface LocalPostRow {
@@ -99,7 +106,9 @@ export const initLocalDb = async (): Promise<void> => {
       notes TEXT,
       status TEXT NOT NULL,
       createdAt TEXT NOT NULL,
-      updatedAt TEXT
+      updatedAt TEXT,
+      recordedById TEXT,
+      recordedByName TEXT
     );
 
     CREATE TABLE IF NOT EXISTS local_posts (
@@ -166,6 +175,9 @@ export const initLocalDb = async (): Promise<void> => {
   // been confirmed by confirmImageUpload but the reading hasn't been
   // submitted yet. See PendingReadingRow.imageId.
   await ensureColumn("pending_readings", "imageId", "INTEGER");
+  // Caregiver attribution mirror columns. See PendingReadingRow.recordedById.
+  await ensureColumn("pending_readings", "recordedById", "TEXT");
+  await ensureColumn("pending_readings", "recordedByName", "TEXT");
   await ensureColumn("local_posts", "clientId", "TEXT");
 
   await db.execAsync(
@@ -205,8 +217,8 @@ export const insertPendingReading = async (
   const db = await getDb();
   if (!db) return null;
   const result = await db.runAsync(
-    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, imageId, notes, status, createdAt, updatedAt)
-     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, imageId, notes, status, createdAt, updatedAt, recordedById, recordedByName)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       row.userId,
       row.clientId,
@@ -221,6 +233,8 @@ export const insertPendingReading = async (
       row.status,
       row.createdAt,
       row.createdAt,
+      row.recordedById,
+      row.recordedByName,
     ],
   );
   return typeof result.lastInsertRowId === "number"
@@ -260,6 +274,22 @@ export const listLocalReadings = async (
   return rows ?? [];
 };
 
+// ClientIds of rows still in the offline queue (any user, not yet synced).
+// Used by the pending-image GC sweep (utils/pending-image-store.ts) to
+// decide which durable photo copies are still referenced — deliberately
+// not filtered by userId so another account's queued photos on the same
+// device are never swept.
+export const listUnsyncedReadingClientIds = async (): Promise<string[]> => {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.getAllAsync<{ clientId: string | null }>(
+    `SELECT clientId FROM pending_readings WHERE syncStatus != 'synced';`,
+  );
+  return (rows ?? [])
+    .map((r) => r.clientId)
+    .filter((c): c is string => Boolean(c));
+};
+
 export const deletePendingReading = async (id: number): Promise<void> => {
   const db = await getDb();
   if (!db) return;
@@ -289,7 +319,7 @@ export const upsertSyncedReading = async (
            SET userId = ?, remoteId = ?, syncStatus = 'synced',
                systolic = ?, diastolic = ?, pulse = ?,
                measuredAt = ?, imageUri = ?, imageId = ?, notes = ?, status = ?,
-               updatedAt = ?
+               updatedAt = ?, recordedById = ?, recordedByName = ?
          WHERE id = ?;`,
         [
           row.userId,
@@ -303,6 +333,8 @@ export const upsertSyncedReading = async (
           row.notes,
           row.status,
           updatedAt,
+          row.recordedById,
+          row.recordedByName,
           existing.id,
         ],
       );
@@ -319,7 +351,7 @@ export const upsertSyncedReading = async (
          SET userId = ?, clientId = ?, syncStatus = 'synced',
              systolic = ?, diastolic = ?, pulse = ?,
              measuredAt = ?, imageUri = ?, imageId = ?, notes = ?, status = ?,
-             updatedAt = ?
+             updatedAt = ?, recordedById = ?, recordedByName = ?
        WHERE id = ?;`,
       [
         row.userId,
@@ -333,6 +365,8 @@ export const upsertSyncedReading = async (
         row.notes,
         row.status,
         updatedAt,
+        row.recordedById,
+        row.recordedByName,
         existingByRemote.id,
       ],
     );
@@ -347,8 +381,8 @@ export const upsertSyncedReading = async (
   // the values this INSERT attempted; clientId is preserved via COALESCE so
   // an existing local clientId is never clobbered by a null from the server.
   await db.runAsync(
-    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, imageId, notes, status, createdAt, updatedAt)
-     VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO pending_readings (userId, clientId, remoteId, syncStatus, systolic, diastolic, pulse, measuredAt, imageUri, imageId, notes, status, createdAt, updatedAt, recordedById, recordedByName)
+     VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(remoteId) WHERE remoteId IS NOT NULL DO UPDATE SET
        userId = excluded.userId,
        clientId = COALESCE(excluded.clientId, pending_readings.clientId),
@@ -361,7 +395,9 @@ export const upsertSyncedReading = async (
        imageId = excluded.imageId,
        notes = excluded.notes,
        status = excluded.status,
-       updatedAt = excluded.updatedAt;`,
+       updatedAt = excluded.updatedAt,
+       recordedById = excluded.recordedById,
+       recordedByName = excluded.recordedByName;`,
     [
       row.userId,
       row.clientId,
@@ -376,6 +412,8 @@ export const upsertSyncedReading = async (
       row.status,
       row.createdAt,
       updatedAt,
+      row.recordedById,
+      row.recordedByName,
     ],
   );
 };

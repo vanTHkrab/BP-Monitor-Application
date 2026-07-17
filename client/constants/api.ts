@@ -460,10 +460,14 @@ export const GQL_CONFIRM_IMAGE_UPLOAD = `
 
 // ── Reading Queries/Mutations ──
 
+// ``recordedBy`` is null when the patient entered the reading themselves;
+// set when a linked caregiver saved it on the patient's behalf. Drives the
+// attribution captions in history / history-list / reading-detail.
 export const GQL_READINGS = `
   query Readings($limit: Int, $offset: Int, $patientId: ID) {
     readings(limit: $limit, offset: $offset, patientId: $patientId) {
       id userId clientId systolic diastolic pulse status measuredAt s3Key notes createdAt
+      recordedBy { id firstname lastname }
     }
   }
 `;
@@ -472,6 +476,7 @@ export const GQL_CREATE_READING = `
   mutation CreateReading($input: CreateReadingInput!) {
     createReading(input: $input) {
       id userId clientId systolic diastolic pulse status measuredAt s3Key notes createdAt
+      recordedBy { id firstname lastname }
     }
   }
 `;

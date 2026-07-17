@@ -15,7 +15,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -63,11 +63,26 @@ export default function CameraScreen() {
   // over a stale value and updating it on layout never triggers a re-render.
   const viewportAspect = useRef<number | null>(null);
 
+  // ─── Capture timestamp (Item: measuredAt = capture time) ───────────────────────
+  // Stamped when a capture lands in `capturedImage` (camera shot or gallery
+  // pick) and passed to `save()` as `measuredAt`, so an offline
+  // capture-then-late-save records the moment the photo was taken instead of
+  // the moment the save button was pressed. Ref (not state) — it never
+  // drives a render and reading it inside async handlers must never see a
+  // stale closure value.
+  const capturedAtRef = useRef<Date | null>(null);
+
   // ─── Modal / form state ───────────────────────────────────────────────────────
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
   const [pulse, setPulse] = useState('');
+  // Offline capture notice — informative (not error) banner in the entry
+  // sheet telling the user the AI read was skipped because the device is
+  // offline and manual entry + background sync is the path. Set by the
+  // offline branch in startCaptureFlow, cleared on retake / reset / new
+  // capture.
+  const [offlineCapture, setOfflineCapture] = useState(false);
 
   // ─── Inline validation / banner state (P2) ─────────────────────────────────────
   // Per-field validation messages surfaced under each CustomInput via its
@@ -89,6 +104,18 @@ export default function CameraScreen() {
   const isDark = themePreference === 'dark';
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const fontSizePreference = useAppStore((s) => s.fontSizePreference);
+  // Caregiver mode: a caregiver records readings on behalf of the active
+  // patient (attribution happens in readings.slice → createReading, which
+  // sends `patientId` with the mutation). The gate below blocks the camera
+  // until a patient is selected; `activePatient` also feeds the "saving for"
+  // chip in the entry sheet so the attribution is visible before saving.
+  const user = useAppStore((s) => s.user);
+  const activePatientId = useAppStore((s) => s.activePatientId);
+  const myPatients = useAppStore((s) => s.myPatients);
+  const isCaregiver = user?.role === 'caregiver';
+  const activePatient = isCaregiver
+    ? (myPatients.find((p) => p.id === activePatientId) ?? null)
+    : null;
   // Dev-only OCR engine override. ``devMode`` gates the UI surfaces;
   // the hook receives ``selectedOcrEngine`` only when devMode is on so
   // production traffic preserves the gateway → ai-service default.
@@ -104,6 +131,7 @@ export default function CameraScreen() {
     lowConfidence,
     isSaving,
     analyze,
+    readOnDevice,
     save,
     reset: resetAnalysis,
     confirmLowConfidence,
@@ -220,11 +248,29 @@ export default function CameraScreen() {
     setPulse('');
     setFieldErrors({});
     setSaveError(null);
+    setOfflineCapture(false);
     // prepareImageForAnalysis may resize (long-edge cap 1600px) and returns
     // the *post-resize* dimensions. We send the post-resize image to the
     // backend — uncropped — and let backend YOLO locate the monitor.
     const prepared = await prepareImageForAnalysis(uri, width, height);
+    // Measurement time = capture time (see capturedAtRef). Stamped for both
+    // camera shots and gallery picks, right where capturedImage is set.
+    capturedAtRef.current = new Date();
     setCapturedImage(prepared.uri);
+
+    // Offline: the backend analyze() is doomed without a network — skip it
+    // instead of burning the request and surfacing a red "วิเคราะห์ไม่สำเร็จ".
+    // Try the on-device OCR first (stub today — always unavailable, so this
+    // is where the trained model activates with zero re-plumbing), then open
+    // the manual entry sheet with an informative offline notice. The photo is
+    // kept; save() queues it and syncPendingReadings uploads it later.
+    if (!useAppStore.getState().isOnline) {
+      await readOnDevice(prepared.uri);
+      setOfflineCapture(true);
+      setShowEntryModal(true);
+      return;
+    }
+
     void analyze(prepared.uri, { ocrEngine: ocrEngineOverride });
   };
 
@@ -327,6 +373,14 @@ export default function CameraScreen() {
       return;
     }
 
+    // Caregiver saves are online-only (no offline queue — see the caregiver
+    // branch in readings.slice.createReading). Surface the reason inline
+    // instead of a generic failure after the slice declines.
+    if (isCaregiver && !useAppStore.getState().isOnline) {
+      setSaveError('การบันทึกแทนผู้ป่วยต้องเชื่อมต่ออินเทอร์เน็ต กรุณาลองใหม่เมื่อออนไลน์');
+      return;
+    }
+
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -344,10 +398,23 @@ export default function CameraScreen() {
     const hr = Number(pulse);
 
     try {
-      const ok = await save({ imageUri: capturedImage, systolic: sys, diastolic: dia, pulse: hr });
+      const ok = await save({
+        imageUri: capturedImage,
+        systolic: sys,
+        diastolic: dia,
+        pulse: hr,
+        // Capture time, not save time — offline capture-then-late-save must
+        // not shift the measurement timestamp. Undefined (no capture stamp)
+        // falls back to now inside the hook.
+        measuredAt: capturedAtRef.current ?? undefined,
+      });
 
       if (!ok) {
-        setSaveError('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง');
+        setSaveError(
+          isCaregiver
+            ? 'บันทึกแทนผู้ป่วยไม่สำเร็จ กรุณาลองอีกครั้ง'
+            : 'บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง',
+        );
         return;
       }
 
@@ -377,6 +444,65 @@ export default function CameraScreen() {
       setSaveError('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง');
     }
   };
+
+  // ─── Caregiver gate ───────────────────────────────────────────────────────────
+  // A caregiver must pick the patient they are recording for before the
+  // camera opens — otherwise the reading would have no attribution target
+  // (readings.slice.createReading declines caregiver saves without an
+  // active patient). Rendered before the permission gate so we never ask
+  // for camera access we can't use yet. The root-level ActivePatientBanner
+  // stays visible above this screen, so picking a patient from the top
+  // banner dismisses the gate in place.
+  if (isCaregiver && !activePatientId) {
+    return (
+      <GradientBackground>
+        <FadeInView delay={150} className="flex-1">
+          <View className="flex-1 items-center justify-center px-8">
+            <View
+              className={
+                (isDark ? 'bg-[#0F172A] border border-[#1F2937]' : 'bg-[#EDE7F6]') +
+                ' w-[120px] h-[120px] rounded-full items-center justify-center mb-6'
+              }
+            >
+              <Ionicons name="people" size={56} color="#7E57C2" />
+            </View>
+            <Text
+              className={
+                (isDark ? 'text-[#E8E4F5]' : 'text-[#2C3E50]') +
+                ' font-bold mb-3 text-center ' +
+                titleClassName
+              }
+            >
+              เลือกผู้ป่วยก่อนถ่ายภาพ
+            </Text>
+            <Text
+              className={
+                (isDark ? 'text-slate-400' : 'text-[#7F8C8D]') +
+                ' text-center leading-6 mb-8 ' +
+                fontPresetClass.body(fontSizePreference)
+              }
+            >
+              คุณกำลังใช้โหมดผู้ดูแล กรุณาเลือกผู้ป่วยจากแถบด้านบน
+              หรือหน้าจัดการผู้ป่วย ก่อนบันทึกค่าความดันแทนผู้ป่วย
+            </Text>
+            <AnimatedPressable onPress={() => router.push('/caregivers' as Href)}>
+              <LinearGradient
+                colors={['#A879E8', '#7E57C2', '#5E35B1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="px-6 py-3.5 rounded-2xl flex-row items-center"
+              >
+                <Ionicons name="people-outline" size={18} color="white" />
+                <Text className={'text-white font-bold ml-2 ' + fontPresetClass.body(fontSizePreference)}>
+                  จัดการผู้ป่วย
+                </Text>
+              </LinearGradient>
+            </AnimatedPressable>
+          </View>
+        </FadeInView>
+      </GradientBackground>
+    );
+  }
 
   // ─── Loading state ────────────────────────────────────────────────────────────
   if (!permission) {
@@ -481,6 +607,8 @@ export default function CameraScreen() {
     setShowEntryModal(false);
     setFieldErrors({});
     setSaveError(null);
+    setOfflineCapture(false);
+    capturedAtRef.current = null;
     resetAnalysis();
   };
 
@@ -492,6 +620,8 @@ export default function CameraScreen() {
     setPulse('');
     setFieldErrors({});
     setSaveError(null);
+    setOfflineCapture(false);
+    capturedAtRef.current = null;
     resetAnalysis();
   };
 
@@ -1025,6 +1155,23 @@ export default function CameraScreen() {
                 </View>
 
                 <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                  {/* Caregiver attribution chip — makes it explicit whose
+                      record this save writes to before the button is hit. */}
+                  {activePatient && (
+                    <View
+                      className="mb-2 flex-row items-center rounded-xl px-3 py-2"
+                      style={{ backgroundColor: 'rgba(126,87,194,0.12)' }}
+                    >
+                      <Ionicons name="people" size={16} color="#7E57C2" style={{ marginRight: 6 }} />
+                      <Text
+                        className={'flex-1 font-semibold ' + captionClassName}
+                        style={{ color: '#7E57C2' }}
+                        numberOfLines={1}
+                      >
+                        บันทึกให้ คุณ {activePatient.firstname} {activePatient.lastname}
+                      </Text>
+                    </View>
+                  )}
                   <Text
                     className={
                       'mb-3 ' +
@@ -1035,6 +1182,40 @@ export default function CameraScreen() {
                   >
                     {capturedImage ? 'ตรวจสอบรูปแล้วกรอกค่า SYS / DIA / ชีพจร' : 'ยังไม่มีรูป (ถ่ายรูปหรือเลือกรูปก่อน แล้วค่อยบันทึก)'}
                   </Text>
+
+                  {/* Offline capture notice — informative, not an error, so it
+                      uses the brand cyan (Colors.primary.blue family), never
+                      red. Tells the user the AI read was skipped and manual
+                      entry + background sync is the normal path. Caregivers
+                      get different copy: their saves are online-only (no
+                      offline queue), so promising a background sync would be
+                      a lie — the save gate below still blocks them. */}
+                  {offlineCapture && (
+                    <View
+                      accessibilityLiveRegion="polite"
+                      className="mb-3 rounded-xl px-3.5 py-3 flex-row items-start"
+                      style={{
+                        backgroundColor: 'rgba(53,184,232,0.12)',
+                        borderWidth: 1,
+                        borderColor: '#35B8E8',
+                      }}
+                    >
+                      <Ionicons
+                        name="cloud-offline-outline"
+                        size={18}
+                        color={isDark ? '#9BEAF7' : '#1898D4'}
+                        style={{ marginRight: 8, marginTop: 1 }}
+                      />
+                      <Text
+                        className={'flex-1 font-semibold ' + captionClassName}
+                        style={{ color: isDark ? '#9BEAF7' : '#0E6E9E' }}
+                      >
+                        {isCaregiver
+                          ? 'ตอนนี้ออฟไลน์อยู่ การบันทึกแทนผู้ป่วยต้องเชื่อมต่ออินเทอร์เน็ต กรุณาลองใหม่เมื่อกลับมาออนไลน์'
+                          : 'ตอนนี้ออฟไลน์อยู่ กรอกค่าจากหน้าจอเครื่องวัดได้เลย ระบบจะซิงก์ข้อมูลและรูปให้อัตโนมัติเมื่อกลับมาออนไลน์'}
+                      </Text>
+                    </View>
+                  )}
 
                   {/* Save-flow error banner (P2) — not-logged-in / save failure.
                       Colors.status.high (#E74C3C). Replaces the Alert.alert

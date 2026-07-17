@@ -10,14 +10,28 @@ import {
   Query,
   Resolver,
 } from '@nestjs/graphql';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { GqlAuthGuard } from '../auth/auth.guard';
 import {
   getOptionalCurrentUser,
   type GraphQLContextLike,
 } from '../auth/helpers/optional-current-user';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { PostCategory } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { PostService } from './post.service';
+
+// Post.content is @db.Text (no hard DB limit) and there is no client-side cap,
+// so this is an application-level abuse ceiling. 5000 gives long-form
+// experience/QA posts headroom (~2.5x the reading.notes convention of 2000).
+const POST_CONTENT_MAX = 5000;
 
 @ObjectType()
 export class PostType {
@@ -37,16 +51,44 @@ export class PostType {
 
 @InputType()
 export class CreatePostInput {
-  @Field() content: string;
-  @Field() category: string;
-  @Field({ nullable: true }) clientId?: string;
+  // Every field needs a class-validator decorator alongside @Field — the
+  // global ValidationPipe runs with `whitelist: true` + `forbidNonWhitelisted:
+  // true`, so any property without a validator decorator is treated as
+  // non-whitelisted and 400s the request before it reaches the resolver.
+  @Field()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(POST_CONTENT_MAX)
+  content: string;
+
+  @Field()
+  @IsEnum(PostCategory)
+  category: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  clientId?: string;
 }
 
 @InputType()
 export class UpdatePostInput {
-  @Field(() => Int) id: number;
-  @Field({ nullable: true }) content?: string;
-  @Field({ nullable: true }) category?: string;
+  @Field(() => Int)
+  @IsInt()
+  id: number;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(POST_CONTENT_MAX)
+  content?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsEnum(PostCategory)
+  category?: string;
 }
 
 @Resolver()

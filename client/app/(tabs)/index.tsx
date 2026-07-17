@@ -3,8 +3,10 @@ import { GradientBackground } from '@/components/gradient-background';
 import { Avatar } from '@/components/ui/avatar';
 import { Colors, getStatusText, type BPStatus } from '@/constants/colors';
 import { formatThaiDate } from '@/data/mockData';
+import { useFocusFetch } from '@/hooks/use-focus-fetch';
 import { useAppStore } from '@/store/use-app-store';
 import { shareReadingsExport } from '@/utils/export-data';
+import { resolveExportSubjectName } from '@/utils/export-report';
 import { fontPresetClass, getFontClass, getFontNumber } from '@/utils/font-scale';
 import { toDisplayImageUri } from '@/utils/storage-image';
 import {
@@ -17,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Linking, Modal, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -29,12 +31,17 @@ export default function HomeScreen() {
     readings,
     fontSizePreference,
     alerts,
+    fetchReadings,
     fetchAlerts,
     markAlertRead,
     markAllAlertsRead,
   } = useAppStore();
   const activePatientId = useAppStore((s) => s.activePatientId);
+  const myPatients = useAppStore((s) => s.myPatients);
   const isCaregiverWithoutPatient = user?.role === 'caregiver' && !activePatientId;
+  // Readings in the store belong to the active patient when a caregiver is
+  // viewing one — the export must be titled with the patient's name.
+  const exportSubjectName = resolveExportSubjectName(user, activePatientId, myPatients);
   const themePreference = useAppStore((s) => s.themePreference);
   const isDark = themePreference === 'dark';
   const insets = useSafeAreaInsets();
@@ -128,14 +135,22 @@ export default function HomeScreen() {
     };
 
     void hydrateNotifications();
-    if (user?.id) {
-      void fetchAlerts();
-    }
 
     return () => {
       active = false;
     };
-  }, [fetchAlerts, readings, user?.id]);
+  }, [readings, user?.id]);
+
+  // Silent refetch on every focus (deferred past the tab transition by the
+  // hook). fetchAlerts moved here from the readings-keyed effect above so a
+  // focus doesn't double-fetch it via the readings update it triggers.
+  useFocusFetch(
+    useCallback(() => {
+      if (!user?.id) return;
+      void fetchReadings();
+      void fetchAlerts();
+    }, [fetchAlerts, fetchReadings, user?.id]),
+  );
 
   const statusUi: Record<BPStatus, { pill: string; dot: string; text: string }> = {
     low: { pill: 'bg-[#3498DB]/20', dot: 'bg-[#3498DB]', text: 'text-[#3498DB]' },
@@ -205,7 +220,7 @@ export default function HomeScreen() {
         format: 'pdf',
         readings,
         posts: [],
-        userName: user ? `${user.firstname} ${user.lastname}`.trim() : undefined,
+        userName: exportSubjectName,
       });
 
       if (result === 'unsupported-platform') {
@@ -412,8 +427,11 @@ export default function HomeScreen() {
         </ScaleOnMount>
         )}
 
-        {/* Camera Button — ซ่อนสำหรับ caregiver ที่ยังไม่เลือก patient (Phase C จะเปิดให้บันทึกแทน) */}
-        {user?.role !== 'caregiver' && (
+        {/* Camera button — hidden only while a caregiver has not selected a
+            patient yet; once one is active the caregiver captures and saves
+            readings on the patient's behalf (camera screen shows the
+            attribution chip + gate). */}
+        {!isCaregiverWithoutPatient && (
         <FadeInView delay={300}>
           <AnimatedPressable 
             onPress={() => router.push('/(tabs)/camera' as Href)}
