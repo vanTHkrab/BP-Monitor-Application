@@ -7,13 +7,12 @@
     "icon": "./assets/images/icon.png",
     "scheme": "bpmobile",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
         "NSFaceIDUsageDescription": "ใช้ Face ID เพื่อปลดล็อกข้อมูลส่วนตัวและยืนยันการเข้าถึง"
       },
-      "bundleIdentifier": "com.ok999p.bpmonitor"
+      "bundleIdentifier": "com.project.bpmonitor"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,9 +21,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.ok999p.bpmonitor",
+      "package": "com.project.bpmonitor",
       "permissions": [
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
