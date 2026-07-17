@@ -1,0 +1,129 @@
+# nginx reverse-proxy config for the BP Monitor prod stack.
+#
+# This file is a template, not a static config: the official `nginx` image's
+# entrypoint (`/docker-entrypoint.d/20-envsubst-on-templates.sh`) runs
+# `envsubst` over every `/etc/nginx/templates/*.template` file and writes the
+# result to `/etc/nginx/conf.d/<name>` before nginx starts, substituting only
+# variables that are actually set in the container's environment (see the
+# `nginx` service's `environment:` block in docker-compose.prod.yml). nginx's
+# own runtime variables (`$host`, `$remote_addr`, `$http_upgrade`, ...) are
+# NOT environment variables, so they are left untouched by envsubst and work
+# normally. Only `${DOMAIN_NAME}` below gets replaced.
+#
+# Topology (single domain, path-based routing — see infra/README.md for the
+# subdomain-based alternative and why this was picked instead):
+#   - https://${DOMAIN_NAME}/graphql   -> api-gateway:3000 (GraphQL + subscriptions)
+#   - https://${DOMAIN_NAME}/graphiql  -> api-gateway:3000 (Mercurius GraphiQL UI)
+#   - https://${DOMAIN_NAME}/          -> web:3000         (Next.js dashboard, catch-all)
+#   - ai-service is never proxied here — it is reached by api-gateway only
+#     over Redis pub/sub (analyze_bp_image / analyze_bp_image.reply) and by
+#     web's server actions over the internal bp-net network directly
+#     (http://ai-service:8000), neither of which needs a public route.
+
+server_tokens off;
+
+# Standard WebSocket-upgrade helper: Mercurius has `subscription: true`
+# (server/app/api-gateway/src/app.module.ts), so /graphql must be able to
+# upgrade to a WebSocket connection for graphql-ws, not just proxy plain
+# HTTP request/response GraphQL operations.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# Plain HTTP: always serve the ACME HTTP-01 challenge (needed for both
+# initial issuance and every renewal), redirect everything else to HTTPS.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN_NAME};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# HTTPS: sole public ingress for the dashboard and the GraphQL API.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${DOMAIN_NAME};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:le_ssl:10m;
+    ssl_session_timeout 1d;
+    add_header Strict-Transport-Security "max-age=63072000" always;
+
+    # api-gateway's Fastify bodyLimit is 16 MiB (server/app/api-gateway/src/main.ts);
+    # give a little headroom so nginx never clips a request the app would
+    # otherwise accept.
+    client_max_body_size 20m;
+
+    # certbot renewal keeps hitting this path over plain HTTP (see the `80`
+    # server block above); this copy only matters if something reaches the
+    # HTTPS host directly, but costs nothing to keep in sync.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # GraphQL API — hit directly by the mobile client (client/constants/api.ts)
+    # and by the web dashboard's server actions (web/src/lib/gateway.ts).
+    # Kept on the same server block / domain as the dashboard rather than a
+    # separate api.${DOMAIN_NAME} host: this is a greenfield deploy with one
+    # DOMAIN_NAME and no DNS split yet, so one host + one cert is the simpler
+    # bootstrap. Revisit if gateway and dashboard ever need independent
+    # scaling / rate limiting / WAF policy.
+    location /graphql {
+        proxy_pass http://api-gateway:3000/graphql;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        # Long-lived subscription connections shouldn't be cut by nginx's
+        # default read/send timeouts.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    # Mercurius GraphiQL UI (server/app/api-gateway/src/app.module.ts sets
+    # `graphiql: true` unconditionally, i.e. it is not gated behind
+    # NODE_ENV). Proxied here for parity with the pre-nginx setup, where the
+    # gateway's port was published directly and GraphiQL was already
+    # internet-reachable at :3000/graphiql — this does not newly expose it,
+    # it just moves it behind TLS. Gating GraphiQL off in production is an
+    # api-gateway app-code change (nest-dev's territory), not an nginx one;
+    # flagged, not fixed, here.
+    location /graphiql {
+        proxy_pass http://api-gateway:3000/graphiql;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    # Next.js dashboard — catch-all.
+    location / {
+        proxy_pass http://web:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+}
