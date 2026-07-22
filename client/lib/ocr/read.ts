@@ -5,7 +5,7 @@
  * (`modules/bp-vision` → `readBpOnDevice`), which runs the full on-device
  * pipeline (YOLO pass 1 → Stage-2 rotation → YOLO pass 2 → per-field CRNN →
  * validate → aggregate) and returns the `OnDeviceOcrResult` union shape
- * directly. The engine and the SHA256-gated `crnn_int8.onnx` / `yolo11n.onnx`
+ * directly. The engine and the SHA256-gated `crnn.onnx` / `yolo11n.onnx`
  * assets live natively; this module only adapts errors into the
  * never-throwing contract callers rely on.
  *

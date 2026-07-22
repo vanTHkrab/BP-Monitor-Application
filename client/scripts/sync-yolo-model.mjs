@@ -5,8 +5,8 @@
  * so the bundled on-device copies stay byte-identical to backend inference.
  *
  * Syncs both shared models:
- *   - yolo11n.onnx    (YOLOv11n detector)
- *   - crnn_int8.onnx  (7-seg CRNN digit recognizer)
+ *   - yolo11n.onnx  (YOLOv11n detector)
+ *   - crnn.onnx     (7-seg CRNN digit recognizer)
  *
  * The backend fetches these from R2 on first start (they are not tracked in
  * git there), so run `uv run python -m ai_service.scripts.fetch_models` in
@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-const MODELS = ['yolo11n.onnx', 'crnn_int8.onnx'];
+const MODELS = ['yolo11n.onnx', 'crnn.onnx'];
 
 const bundledDir = resolve(here, '..', 'assets', 'models');
 const canonicalDir = resolve(

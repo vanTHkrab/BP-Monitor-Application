@@ -1,7 +1,7 @@
 """CRNN 7-segment digit recognizer — ONNX Runtime backend.
 
 Drop-in `OCRReader` Protocol implementation. The bundled model
-(`models/crnn_int8.onnx`, 1.20 MB int8) was trained by a teammate on
+(`models/crnn.onnx`, ~4.5 MB) was trained by a teammate on
 crop-SDP TRAIN-split 80% (deterministic MD5 hash) — TEST split shows
 sys 91.08 / dia 93.95 / pul 90.52 % accuracy at ~30 ms/image on CPU.
 

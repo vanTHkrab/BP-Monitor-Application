@@ -85,6 +85,17 @@ services:
       dockerfile: Dockerfile
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      # Server Actions (web/src/lib/gateway.ts, web/src/lib/ai-service.ts)
+      # read these at request time and default to `http://localhost:*` if
+      # unset — which inside this container resolves to the `web` container
+      # itself, not api-gateway/ai-service. Point them at the compose
+      # service names so the dashboard's server-side calls actually reach
+      # their targets over bp-net. This closes a pre-existing gap: these
+      # were never wired here before, so the ai-service health check on the
+      # dashboard was silently broken in every dockerized environment,
+      # nginx or not.
+      GATEWAY_URL: http://api-gateway:3000
+      AI_SERVICE_URL: http://ai-service:8000
     depends_on:
       - api-gateway
     networks:

@@ -1,4 +1,5 @@
 import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animated-components';
+import { BpCameraView, type BpCameraViewRef } from '@/components/bp-camera-view';
 import { CustomButton } from '@/components/custom-button';
 import { CustomInput } from '@/components/custom-input';
 import { DevMetricsChip, OcrEngineSelector } from '@/components/dev-ocr-controls';
@@ -8,10 +9,11 @@ import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
 import { useAppStore } from '@/store/use-app-store';
 import { cropToViewport } from '@/utils/crop-to-viewport';
+import { debug, debug_condition } from '@/utils/debug';
 import { fontPresetClass, getFontClass } from '@/utils/font-scale';
 import { prepareImageForAnalysis } from '@/utils/image-prepare';
 import { Ionicons } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,7 +24,6 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platfor
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 cssInterop(LinearGradient, { className: 'style' });
-cssInterop(CameraView, { className: 'style' });
 
 export default function CameraScreen() {
   // ─── Safe area ────────────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ export default function CameraScreen() {
   const [cameraKey, setCameraKey] = useState(0);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<BpCameraViewRef>(null);
 
   // ─── Camera viewport geometry (WYSIWYG capture crop) ────────────────────────────
   // The full-screen CameraView renders in `cover` fit: the sensor feed is scaled
@@ -260,17 +261,21 @@ export default function CameraScreen() {
 
     // Offline: the backend analyze() is doomed without a network — skip it
     // instead of burning the request and surfacing a red "วิเคราะห์ไม่สำเร็จ".
-    // Try the on-device OCR first (stub today — always unavailable, so this
-    // is where the trained model activates with zero re-plumbing), then open
-    // the manual entry sheet with an informative offline notice. The photo is
-    // kept; save() queues it and syncPendingReadings uploads it later.
+    // Android runs the bp-vision Kotlin OCR pipeline on-device (same ONNX
+    // models + validation as the server) to prefill the form; iOS / web /
+    // Expo Go report unavailable and land on plain manual entry. Either way
+    // the manual sheet opens with an informative offline notice, the photo
+    // is kept, and save() queues it so syncPendingReadings uploads image +
+    // values later without loss.
     if (!useAppStore.getState().isOnline) {
+      debug.log('Starting offline capture flow');
       await readOnDevice(prepared.uri);
       setOfflineCapture(true);
       setShowEntryModal(true);
       return;
     }
 
+    // Online (both platforms): hand the image to the backend AI pipeline.
     void analyze(prepared.uri, { ocrEngine: ocrEngineOverride });
   };
 
@@ -281,7 +286,7 @@ export default function CameraScreen() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsCapturing(true);
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+      const photo = await cameraRef.current.capture();
       if (!photo) return;
       // WYSIWYG: the live preview cover-fit the sensor feed into the full-screen
       // viewport, cropping the overflow off-screen, but `takePictureAsync`
@@ -504,6 +509,17 @@ export default function CameraScreen() {
     );
   }
 
+  // Defined above the permission-gate early returns below: the
+  // permission-denied screen's "retry" link calls retryCamera() in an
+  // onPress closure. A `const` declared after those early returns would sit
+  // in the temporal dead zone on that render path, so pressing retry threw
+  // "Cannot access 'retryCamera' before initialization".
+  const retryCamera = () => {
+    setCameraMountError(null);
+    setCameraKey((k) => k + 1);
+    setIsCameraReady(false);
+  };
+
   // ─── Loading state ────────────────────────────────────────────────────────────
   if (!permission) {
     return (
@@ -623,12 +639,6 @@ export default function CameraScreen() {
     setOfflineCapture(false);
     capturedAtRef.current = null;
     resetAnalysis();
-  };
-
-  const retryCamera = () => {
-    setCameraMountError(null);
-    setCameraKey((k) => k + 1);
-    setIsCameraReady(false);
   };
 
   const openEntry = () => setShowEntryModal(true);
@@ -795,11 +805,10 @@ export default function CameraScreen() {
               </View>
             ) : (
               <>
-                <CameraView
+                <BpCameraView
                   key={cameraKey}
                   ref={cameraRef}
                   className="absolute inset-0"
-                  facing="back"
                   onMountError={(e) =>
                     setCameraMountError(e.message || 'ไม่สามารถเปิดกล้องได้')
                   }

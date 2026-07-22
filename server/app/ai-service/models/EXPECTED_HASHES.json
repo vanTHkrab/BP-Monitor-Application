@@ -3,7 +3,7 @@
   "cnn_2ch_distilled_global_int8.onnx": "93fec3e5c27031136a72ed6d1d19e74ff798339929e359be5ef8f972f1301425",
   "cnn_2ch_distilled_pul_int8.onnx": "58b194176fab16d8df81c69a17952ea18e791da203723885e6da9b3ae356ca18",
   "cnn_2ch_distilled_sys_int8.onnx": "523ee856a96bcebf1af634f56120e0812a751f707e9f14178145f999e31def24",
-  "crnn_int8.onnx": "2dd091bd33cebbc667f20a49c0ecf5e0c54491e893e76b1cb18ef37b8035e033",
+  "crnn.onnx": "b400f6824dfa55e6d85eb2c7e76fc8f4c844c6790006f1d295c1669f8a8c54fc",
   "templates.npz": "d3ab332519fb249912844477dd3f2a8d3b90612df670d0689d2a1c909637dd25",
   "yolo11n.onnx": "d4654d0295de6d222c64e138fd077c73c83ec6caec62782c51722cb65b10670b"
 }

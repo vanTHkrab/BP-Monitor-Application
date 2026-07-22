@@ -2,12 +2,12 @@ package expo.modules.bpvision
 
 import android.graphics.BitmapFactory
 import android.util.Log
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
-import java.net.URL
 
 /** Thrown when a bundled ONNX model asset can't be read from the APK. */
 class ModelAssetException(name: String, cause: Throwable? = null) :
@@ -39,7 +39,7 @@ private const val TAG = "BPVisionModule"
 // client/assets/models/ into android/app/src/main/assets/models/ at prebuild).
 // Keep these names in sync with that plugin's MODELS list and verify-models.mjs.
 private const val YOLO_ASSET = "yolo11n.onnx"
-private const val CRNN_ASSET = "crnn_int8.onnx"
+private const val CRNN_ASSET = "crnn.onnx"
 
 private fun stripFileScheme(path: String): String = path.removePrefix("file://")
 
@@ -100,13 +100,20 @@ class BPVisionModule : Module() {
       runReadBp(imageUri)
     }
 
-    // Native view — CameraX capture/preview lands here in a later checkpoint.
-    // Left as the scaffold's WebView demo on purpose (out of scope for now).
-    View(BPVisionView::class) {
-      Prop("url") { view: BPVisionView, url: URL ->
-        view.webView.loadUrl(url.toString())
+    // Full-screen CameraX preview view for the BP capture screen (Android
+    // only; iOS / web keep expo-camera). `capture()` is a view function
+    // reachable via the JS ref and resolves with { uri, width, height },
+    // matching expo-camera's takePictureAsync contract.
+    View(BPVisionCameraView::class) {
+      Events("onCameraReady", "onMountError")
+
+      AsyncFunction("capture") { view: BPVisionCameraView, promise: Promise ->
+        view.capture(promise)
       }
-      Events("onLoad")
+
+      OnViewDestroys { view: BPVisionCameraView ->
+        view.destroyView()
+      }
     }
   }
 
