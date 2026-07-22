@@ -116,17 +116,19 @@ export function useCameraAnalysis() {
   );
 
   /**
-   * Run the on-device OCR engine (offline counterpart of `analyze`).
-   * Currently a stub — `readBpFromImage` always reports unavailable until
-   * the model is bundled — so this returns `false` and touches no state,
-   * indistinguishable from "no OCR" for the user. When the engine lands,
-   * a successful read feeds the SAME prefill + low-confidence confirm flow
-   * the backend result uses, so no re-plumbing is needed.
+   * Run the on-device OCR engine (offline counterpart of `analyze` — the
+   * bp-vision native pipeline on Android; `readBpFromImage` reports
+   * unavailable on iOS / web / Expo Go and on any ordinary read failure,
+   * never throwing). The camera screen calls this only when offline; a
+   * successful read feeds the SAME prefill + low-confidence confirm flow
+   * the backend result uses.
    *
    * Returns `true` when values were produced (state updated), `false` when
    * the caller should fall through to plain manual entry.
    */
   const readOnDevice = useCallback(async (imageUri: string): Promise<boolean> => {
+    console.log('[readOnDevice] starting OCR for', imageUri);
+    setState((prev) => ({ ...prev, phase: 'processing', error: null }));
     try {
       const ocr = await readBpFromImage({ imageUri });
       if (isOcrUnavailable(ocr)) {

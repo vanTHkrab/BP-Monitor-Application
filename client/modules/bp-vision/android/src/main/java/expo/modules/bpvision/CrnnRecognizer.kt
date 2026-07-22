@@ -16,7 +16,7 @@ import kotlin.math.min
  * On-device 7-segment digit recognizer — Kotlin port of the backend CRNN
  * engine `server/app/ai_service/analyzer/ocr/crnn.py`.
  *
- * Runs the same int8 `crnn_int8.onnx` the backend uses (bundled verbatim in
+ * Runs the same `crnn.onnx` the backend uses (bundled verbatim in
  * `client/assets/models/`, SHA256-gated by `scripts/verify-models.mjs`). The
  * preprocessing recipe is **version-pinned** on the backend
  * (`v1.bgr-gray-resize96x32-area-div255`); any divergence silently feeds the

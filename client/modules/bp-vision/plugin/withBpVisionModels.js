@@ -24,7 +24,7 @@ const path = require('path');
 
 // Keep in sync with scripts/verify-models.mjs MODELS and the loader in
 // android/.../BPVisionModule.kt (ASSET_MODEL_DIR + model file names).
-const MODELS = ['yolo11n.onnx', 'crnn_int8.onnx'];
+const MODELS = ['yolo11n.onnx', 'crnn.onnx'];
 const ASSET_SUBDIR = 'models';
 
 /** @type {import('expo/config-plugins').ConfigPlugin} */

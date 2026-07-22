@@ -121,7 +121,7 @@ Key boundaries and design choices a senior should respect:
   > from `EXPECTED_HASHES.json` (no longer `sha256sum`ing a backend copy):
   > `client/scripts/verify-models.mjs` (renamed from `verify-yolo-model.mjs`)
   > verifies **both** bundled on-device models — `yolo11n.onnx` and the
-  > `crnn_int8.onnx` CRNN OCR model — against the manifest on every
+  > `crnn.onnx` CRNN OCR model — against the manifest on every
   > `pnpm start` / `pnpm android` / `pnpm ios`, and `pnpm sync-yolo-model`
   > refreshes both from `server/app/ai-service/models/`. The CRNN runs the
   > on-device OCR pipeline in the `client/modules/bp-vision` native module

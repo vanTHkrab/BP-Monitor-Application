@@ -8,8 +8,8 @@
  * model can never silently disagree with backend inference.
  *
  * Two models are bundled and shared with the backend verbatim:
- *   - yolo11n.onnx    (YOLOv11n detector — on-device pre-flight / ROI)
- *   - crnn_int8.onnx  (7-seg CRNN digit recognizer — offline OCR prefill)
+ *   - yolo11n.onnx  (YOLOv11n detector — on-device pre-flight / ROI)
+ *   - crnn.onnx     (7-seg CRNN digit recognizer — offline OCR prefill)
  *
  * The backend no longer tracks the binaries in git (they are fetched from
  * R2 against the same manifest); only EXPECTED_HASHES.json is tracked. So
@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 
 // Models bundled in the mobile app + verified against the backend manifest.
-const MODELS = ['yolo11n.onnx', 'crnn_int8.onnx'];
+const MODELS = ['yolo11n.onnx', 'crnn.onnx'];
 
 const modelsDir = resolve(here, '..', 'assets', 'models');
 const manifestPath = resolve(
