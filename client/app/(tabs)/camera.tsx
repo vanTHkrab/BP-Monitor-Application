@@ -9,7 +9,7 @@ import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
 import { useAppStore } from '@/store/use-app-store';
 import { cropToViewport } from '@/utils/crop-to-viewport';
-import { debug, debug_condition } from '@/utils/debug';
+import { debug } from '@/utils/debug';
 import { fontPresetClass, getFontClass } from '@/utils/font-scale';
 import { prepareImageForAnalysis } from '@/utils/image-prepare';
 import { Ionicons } from '@expo/vector-icons';

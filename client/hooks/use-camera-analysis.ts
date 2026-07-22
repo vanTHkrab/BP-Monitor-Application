@@ -127,7 +127,7 @@ export function useCameraAnalysis() {
    * the caller should fall through to plain manual entry.
    */
   const readOnDevice = useCallback(async (imageUri: string): Promise<boolean> => {
-    console.log('[readOnDevice] starting OCR for', imageUri);
+    if (__DEV__) console.log('[readOnDevice] starting OCR for', imageUri);
     setState((prev) => ({ ...prev, phase: 'processing', error: null }));
     try {
       const ocr = await readBpFromImage({ imageUri });

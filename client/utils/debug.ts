@@ -1,5 +1,5 @@
 export const DebugSettings = {
-    DEBUG_MODE: true
+    DEBUG_MODE: __DEV__
 };
 
 export const debug = {
