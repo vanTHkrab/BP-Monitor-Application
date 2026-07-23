@@ -21,12 +21,20 @@ import { cssInterop } from 'nativewind';
 import * as React from 'react';
 import { Platform } from 'react-native';
 
+import { isBpVisionAvailable } from '@/modules/bp-vision';
+
 // NativeWind className → style for both underlying camera surfaces (the camera
 // screen positions the preview with `className="absolute inset-0"`).
 cssInterop(CameraView, { className: 'style' });
 cssInterop(BPVisionCameraView, { className: 'style' });
 
-const IS_ANDROID = Platform.OS === 'android';
+// Use the native CameraX view only when the bp-vision module is actually
+// linked — i.e. an Android dev/prod build. On iOS / web, and on Android *Expo
+// Go* (which ships no custom native modules), the native view isn't
+// registered, so fall back to expo-camera's <CameraView> (which IS bundled in
+// Expo Go) instead of rendering a view that doesn't exist. Native-module
+// presence is fixed for the app's lifetime, so this is evaluated once.
+const USE_NATIVE_CAMERA = Platform.OS === 'android' && isBpVisionAvailable();
 
 export type BpCameraCapture = BpVisionCameraCapture;
 
@@ -50,7 +58,7 @@ export const BpCameraView = React.forwardRef<BpCameraViewRef, BpCameraViewProps>
       ref,
       () => ({
         capture: async () => {
-          if (IS_ANDROID) {
+          if (USE_NATIVE_CAMERA) {
             if (!nativeRef.current) throw new Error('Camera not ready');
             return nativeRef.current.capture();
           }
@@ -65,7 +73,7 @@ export const BpCameraView = React.forwardRef<BpCameraViewRef, BpCameraViewProps>
       [],
     );
 
-    if (IS_ANDROID) {
+    if (USE_NATIVE_CAMERA) {
       return (
         <BPVisionCameraView
           ref={nativeRef}

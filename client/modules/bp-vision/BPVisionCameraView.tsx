@@ -7,8 +7,10 @@
  * `takePictureAsync` contract so `utils/crop-to-viewport.ts` needs no changes.
  *
  * Consumers should go through `components/bp-camera-view.tsx`, which picks this
- * on Android and falls back to `expo-camera` elsewhere — don't render this
- * directly on iOS / web (the native view isn't registered there).
+ * only when the bp-vision native module is linked (an Android dev/prod build)
+ * and falls back to `expo-camera` otherwise — including Android Expo Go, where
+ * no custom native modules exist. Don't render this directly on iOS / web /
+ * Expo Go (the native view isn't registered there).
  */
 import { requireNativeView } from 'expo';
 import * as React from 'react';
@@ -30,17 +32,36 @@ export interface BpVisionCameraViewProps extends ViewProps {
   onMountError?: (event: { nativeEvent: { message?: string } }) => void;
 }
 
-// `requireNativeView` doesn't express ref forwarding in its type, but the
-// native view does attach its `capture` AsyncFunction onto the ref at runtime.
-const NativeView = requireNativeView<BpVisionCameraViewProps>(
-  'BPVision',
-) as unknown as React.ForwardRefExoticComponent<
+type NativeViewComponent = React.ForwardRefExoticComponent<
   BpVisionCameraViewProps & React.RefAttributes<BpVisionCameraNativeRef>
 >;
+
+// Resolve the native view lazily (on first render) instead of at import time.
+// `requireNativeView('BPVision')` logs "Unable to get the view config for
+// BPVision" on any runtime where the view isn't registered — that's iOS / web
+// AND Android *Expo Go* (no custom native modules). `BpCameraView` only renders
+// this component when `isBpVisionAvailable()` is true (a real dev/prod build),
+// so deferring the lookup to render keeps that warning from firing on runtimes
+// that never actually use the native camera. Cached after the first resolve.
+// `requireNativeView` doesn't express ref forwarding in its type, but the
+// native view does attach its `capture` AsyncFunction onto the ref at runtime.
+let nativeViewCache: NativeViewComponent | null = null;
+
+function getNativeView(): NativeViewComponent {
+  if (!nativeViewCache) {
+    nativeViewCache = requireNativeView<BpVisionCameraViewProps>(
+      'BPVision',
+    ) as unknown as NativeViewComponent;
+  }
+  return nativeViewCache;
+}
 
 export const BPVisionCameraView = React.forwardRef<
   BpVisionCameraNativeRef,
   BpVisionCameraViewProps
->((props, ref) => <NativeView {...props} ref={ref} />);
+>((props, ref) => {
+  const NativeView = getNativeView();
+  return <NativeView {...props} ref={ref} />;
+});
 
 BPVisionCameraView.displayName = 'BPVisionCameraView';
