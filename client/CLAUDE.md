@@ -41,11 +41,10 @@ backend inference — if either SHA256 drifts from the ai-service manifest
 | `constants/colors.ts` | BP-status thresholds + Tailwind color tokens. |
 | `data/local-db.ts` | SQLite schema + helpers. `pending_readings` is both the offline queue **and** the mirror of synced readings (rows carry a `syncStatus` of `pending` / `pending-image` / `synced` and a `remoteId` once confirmed); `cached_images` tracks 7-day-cached image files keyed by extracted S3 path. |
 | `components/bp-camera-view.tsx` | Uniform camera surface for the BP capture screen — exposes one ref API (`capture(): Promise<{ uri, width, height }>` plus `onCameraReady` / `onMountError`) and internally renders the native CameraX view (`modules/bp-vision/BPVisionCameraView.tsx`) on Android, falling back to `expo-camera`'s `<CameraView>` on iOS/web. This is the only place that knows the platform split, so `app/(tabs)/camera.tsx` stays camera-implementation-agnostic. |
-| `assets/models/` | Bundled on-device ONNX models — verbatim copies of the ai-service's: `yolo11n.onnx` (YOLOv11n detector, 10.7 MB) and `crnn.onnx` (7-seg CRNN digit recognizer, ~4.5 MB). `scripts/verify-models.mjs` (wired as `prestart` / `preandroid` / `preios`) fails the dev start if either SHA256 drifts from the ai-service manifest `EXPECTED_HASHES.json`; run `pnpm sync-yolo-model` to refresh both. The config plugin `modules/bp-vision/plugin/withBpVisionModels.js` copies both into `android/app/src/main/assets/models/` at every `expo prebuild` so the native `bp-vision` module loads them from the APK. YOLO is loaded by `lib/yolo/session.ts` (JS pre-flight, currently unwired) and by the native module; CRNN by the native module for on-device OCR. |
+| `assets/models/` | Bundled on-device ONNX models — verbatim copies of the ai-service's: `yolo11n.onnx` (YOLOv11n detector, 10.7 MB) and `crnn.onnx` (7-seg CRNN digit recognizer, ~4.5 MB). `scripts/verify-models.mjs` (wired as `prestart` / `preandroid` / `preios`) fails the dev start if either SHA256 drifts from the ai-service manifest `EXPECTED_HASHES.json`; run `pnpm sync-yolo-model` to refresh both. The config plugin `modules/bp-vision/plugin/withBpVisionModels.js` copies both into `android/app/src/main/assets/models/` at every `expo prebuild` so the native `bp-vision` module loads them from the APK. Both models are loaded by the native module only — the older JS-side loader (`lib/yolo/session.ts`, via `onnxruntime-react-native`) has been removed (see `lib/yolo/` below). |
 | `modules/bp-vision/BPVisionCameraView.tsx` | Thin RN wrapper around the native CameraX preview view (Android-only) via `requireNativeView`, backed by `android/.../BPVisionCameraView.kt` + `CameraController.kt`. Exposes the same `capture()` ref contract as `expo-camera`'s `takePictureAsync` (upright JPEG `{ uri, width, height }`) so `utils/crop-to-viewport.ts` needs no changes. Consumed only through `components/bp-camera-view.tsx` — don't render it directly, it isn't registered on iOS/web. |
-| `lib/yolo/` | On-device YOLO inference. `types.ts` mirrors backend class layout (`0 BP_Monitor` / `1 BP_Screen_Monitor` / `2 dia` / `3 pulse` / `4 sys`); `preprocess.ts` does letterbox + JPEG-decode → `[1,3,512,512]` float32 RGB; `postprocess.ts` decodes Ultralytics-style `[1, 4+C, anchors]` + per-class NMS; `session.ts` lazy-loads the InferenceSession; `detect.ts` orchestrates the four. The backend equivalent is `server/app/ai-service/src/ai_service/analyzer/yolo.py` — keep them in sync, the model file is shared verbatim. |
-| `services/preflight-detection.service.ts` | `preflightCheckImage` — runs the on-device detector, classifies the result as `ok` / `no-monitor` / `missing-fields`, and (on `ok`) auto-crops the source image around the monitor bbox + padding. **Currently unwired from `app/(tabs)/camera.tsx`** — the camera screen no longer calls it, so captures are not gated or auto-cropped on-device before upload. Kept in place (with `lib/yolo/`, the bundled model, and `components/live-preflight-overlay.tsx` + `hooks/use-live-preflight.ts`) so re-wiring it is a small revert rather than a rebuild. |
-| `hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. `runPreflight()` still exists and can run the on-device YOLO check via `state.preflight`, but `app/(tabs)/camera.tsx` no longer calls it (see `services/preflight-detection.service.ts` above). The camera screen calls `analyze()` directly after capture **when online** (both platforms send the image to the backend); **when offline** it calls `readOnDevice()` instead (on-device OCR via `lib/ocr/` — backed by the `bp-vision` native module on Android; unavailable on iOS / web / Expo Go, which land on plain manual entry) and opens manual entry with an informative offline banner, skipping the doomed backend request. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry; it accepts an optional `measuredAt` — the camera screen passes the capture timestamp so an offline capture-then-late-save keeps the real measurement time. |
+| `lib/yolo/` | **Mostly dead JS-side YOLO scaffolding, kept as inert reference code, not a working pre-flight path.** `types.ts` is the one live file — it mirrors the backend class layout (`0 BP_Monitor` / `1 BP_Screen_Monitor` / `2 dia` / `3 pulse` / `4 sys`) and is imported by the native module's TS wrapper (`modules/bp-vision/index.ts`); keep it in sync with `server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES`. `preprocess.ts` (letterbox + JPEG-decode → `[1,3,512,512]` float32 RGB) and `postprocess.ts` (Ultralytics-style `[1, 4+C, anchors]` decode + per-class NMS) are orphaned — imported by nothing. `detect.ts`, the orchestrator that once tied preprocess/session/postprocess together, is entirely commented out. `session.ts` (the `onnxruntime-react-native` `InferenceSession` loader) was deleted outright, not just unwired — that package was dropped as a dependency in an earlier commit on this line of work, so the file's import was permanently broken, not a working revert target. On-device YOLO inference now runs exclusively through the native Kotlin `bp-vision` module. |
+| `hooks/use-camera-analysis.ts` | State machine for BP image capture → AI analysis → save. The old on-device YOLO pre-flight (`runPreflight()`, backed by the now-deleted `services/preflight-detection.service.ts`) has been removed along with its `state.preflight` field and the `'preflight'` phase — it depended on the same broken `lib/yolo/session.ts` import. The camera screen calls `analyze()` directly after capture **when online** (both platforms send the image to the backend); **when offline** it calls `readOnDevice()` instead (on-device OCR via `lib/ocr/` — backed by the `bp-vision` native module on Android; unavailable on iOS / web / Expo Go, which land on plain manual entry) and opens manual entry with an informative offline banner, skipping the doomed backend request. `save()` delegates to `readings.slice.createReading` so the camera flow inherits the offline queue and optimistic UI used by manual entry; it accepts an optional `measuredAt` — the camera screen passes the capture timestamp so an offline capture-then-late-save keeps the real measurement time. |
 | `lib/ocr/` | On-device BP-display OCR. `types.ts` defines the engine contract (`OnDeviceOcrResult` = `{ sys, dia, pulse, confidence }` \| `{ unavailable: true, reason }`); `read.ts → readBpFromImage` is a thin pass-through over the `bp-vision` native module's `readBp` (`modules/bp-vision → readBpOnDevice`), which runs the full on-device pipeline (YOLO pass 1 → Stage-2 field-layout rotation → YOLO pass 2 → per-field CRNN → validate → aggregate) natively on Android. Returns `unavailable` on iOS / web / Expo Go and on any ordinary failure (no monitor, unreadable fields, out-of-range, sys≤dia) — never throws. A successful read feeds the same prefill + low-confidence confirm flow as backend results via `use-camera-analysis.ts → readOnDevice()`. The on-device engine deliberately skips perspective rectification (Stage 1) and the backend's 0.60 success floor; see `modules/bp-vision/android/.../BpOcrPipeline.kt`. |
 | `utils/pending-image-store.ts` | Durable storage for photos attached to queued readings. Capture/manipulator output lives in OS *cache* storage which can be evicted before an offline queue drains; `persistPendingImage` copies the file into `Paths.document/pending-images/` keyed by the reading's clientId (called by `createReading` when queueing with a still-local image; falls back to the cache URI on failure — never blocks the save). `deletePendingImageForClientId` releases the copy once the row is confirmed (`markReadingSynced` call sites, local deletes); `cleanupOrphanedPendingImages` is the app-launch GC sweep in `app/_layout.tsx` that removes files whose clientId no longer matches an unsynced `pending_readings` row. |
 | `lib/graphql-client.ts` | Multipart-aware GraphQL client used by the AI image-upload path. |
@@ -122,30 +121,36 @@ backend inference — if either SHA256 drifts from the ai-service manifest
   On native, stream the file with `FileSystem.uploadAsync` from
   `expo-file-system/legacy` (`uploadType: BINARY_CONTENT`); the
   fetch+Blob path is web-only.
-- **On-device pre-flight (currently bypassed in the UI)**: BP image
-  captures used to run through
+- **JS-side on-device pre-flight has been removed (not just bypassed)**: BP
+  image captures used to run through
   `services/preflight-detection.service.ts → preflightCheckImage` before
   the backend upload, gating on a `no-monitor` / `missing-fields` verdict
-  with a warning banner. As of the full-screen camera redesign,
-  `app/(tabs)/camera.tsx` calls `analyze()` directly after capture when
-  online (offline captures skip it — see the offline-capture bullet below)
-  and does not call `preflightCheckImage` / `runPreflight` — there is no
-  on-device gate, crop, or warning banner in the current UI; the backend
-  YOLO pass still does its own ROI detection server-side. The service,
-  `lib/yolo/`, the bundled model, and the live-preview overlay
-  (`components/live-preflight-overlay.tsx` + `hooks/use-live-preflight.ts`)
-  are all left in place, unwired but ready, so this can be reverted with a
-  small diff rather than a rebuild. The bundled YOLO
-  (`assets/models/yolo11n.onnx`) is still the **same model file** as
-  `server/app/ai-service/models/yolo11n.onnx` — SHA256 is still enforced
-  by `scripts/verify-models.mjs` at every `pnpm start` / `pnpm android`
-  / `pnpm ios` regardless of whether the UI calls the detector. If the
-  backend retrains the detector, run `pnpm sync-yolo-model` and commit
-  both copies in the same change. Class IDs and thresholds (conf 0.25 /
-  IoU 0.45) in `lib/yolo/types.ts` mirror `analyzer/yolo.py::CLASS_NAMES` /
-  `_conf_threshold` — change one side, change the other; this contract
-  still matters even with pre-flight unwired, since a revert must not
-  silently drift from the backend.
+  with a warning banner, backed by a JS/`onnxruntime-react-native` YOLO
+  loader (`lib/yolo/session.ts`). As of the full-screen camera redesign
+  `app/(tabs)/camera.tsx` stopped calling it, and once
+  `onnxruntime-react-native` was dropped as a dependency later on this line
+  of work, `session.ts`'s import became permanently broken — so
+  `preflight-detection.service.ts`, `hooks/use-live-preflight.ts`, and
+  `lib/yolo/session.ts` were deleted outright rather than left as a "small
+  revert." `lib/yolo/detect.ts` (now fully commented out),
+  `preprocess.ts`/`postprocess.ts`, and
+  `components/live-preflight-overlay.tsx` are orphaned reference code —
+  imported by nothing, kept only as documentation of the old approach's
+  shape. There is no on-device gate, crop, or warning banner in the
+  current UI; the backend YOLO pass still does its own ROI detection
+  server-side, and **on-device YOLO now runs exclusively through the
+  native Kotlin `bp-vision` module** (see the "Shared YOLO detector"
+  section in the root `CLAUDE.md`). A future on-device pre-flight gate
+  would be built against that native module, not by reviving this JS path.
+  The bundled YOLO (`assets/models/yolo11n.onnx`) is still the **same
+  model file** as `server/app/ai-service/models/yolo11n.onnx` — SHA256 is
+  still enforced by `scripts/verify-models.mjs` at every `pnpm start` /
+  `pnpm android` / `pnpm ios`. If the backend retrains the detector, run
+  `pnpm sync-yolo-model` and commit both copies in the same change. Class
+  IDs and thresholds (conf 0.25 / IoU 0.45) in `lib/yolo/types.ts` (still
+  live — consumed by the native module's TS wrapper) mirror
+  `analyzer/yolo.py::CLASS_NAMES` / `_conf_threshold` — change one side,
+  change the other.
 - **Offline capture flow**: `startCaptureFlow` in `app/(tabs)/camera.tsx`
   branches on the store's `isOnline` before calling `analyze()`. Online
   (both platforms) it sends the image to the backend AI pipeline. Offline

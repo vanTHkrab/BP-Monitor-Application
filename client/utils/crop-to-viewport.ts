@@ -108,8 +108,7 @@ export const cropToViewport = async (
   }
 
   try {
-    // v14 contextual API — `manipulateAsync` is deprecated. Matches the crop
-    // pattern in services/preflight-detection.service.ts.
+    // v14 contextual API — `manipulateAsync` is deprecated.
     const ref = await ImageManipulator.manipulate(uri)
       .crop({ originX, originY, width: cropW, height: cropH })
       .renderAsync();
