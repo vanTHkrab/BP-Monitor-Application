@@ -74,7 +74,7 @@ class AnalyzerConfig(BaseSettings):
                     "the ai-service root, not cwd.",
     )
     crnn_path: Path = Field(
-        default_factory=lambda: AI_SERVICE_ROOT / "models" / "crnn_int8.onnx",
+        default_factory=lambda: AI_SERVICE_ROOT / "models" / "crnn.onnx",
         description="Path to the CRNN ONNX int8 model. Loaded once at lifespan "
                     "and shared across labels.",
     )

@@ -12,10 +12,10 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "sync-yolo-model": "node ./scripts/sync-yolo-model.mjs",
-    "verify-yolo-model": "node ./scripts/verify-yolo-model.mjs",
-    "prestart": "node ./scripts/verify-yolo-model.mjs",
-    "preandroid": "node ./scripts/verify-yolo-model.mjs",
-    "preios": "node ./scripts/verify-yolo-model.mjs"
+    "verify-models": "node ./scripts/verify-models.mjs",
+    "prestart": "node ./scripts/verify-models.mjs",
+    "preandroid": "node ./scripts/verify-models.mjs",
+    "preios": "node ./scripts/verify-models.mjs"
   },
   "jest": {
     "preset": "jest-expo",
@@ -36,7 +36,7 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
-    "expo": "~54.0.35",
+    "expo": "~54.0.36",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.21",
@@ -62,7 +62,6 @@
     "expo-web-browser": "~15.0.11",
     "moti": "^0.30.0",
     "nativewind": "^4.2.1",
-    "onnxruntime-react-native": "^1.24.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
@@ -96,8 +95,7 @@
     "doctor": {
       "reactNativeDirectoryCheck": {
         "exclude": [
-          "react-native-webrtc",
-          "onnxruntime-react-native"
+          "react-native-webrtc"
         ]
       }
     }

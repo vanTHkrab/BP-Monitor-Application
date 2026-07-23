@@ -1,30 +1,35 @@
 /**
  * On-device BP-display OCR — entry point.
  *
- * STUB: the OCR model is not bundled yet (it is being trained). This
- * function is the single hook point the real engine drops into; until then
- * it always returns `{ unavailable: true }` so callers fall through to
- * manual entry exactly as if no OCR existed. Do NOT add UI or progress
- * states around this path while it is a stub.
+ * Thin pass-through over the `bp-vision` native module's `readBp`
+ * (`modules/bp-vision` → `readBpOnDevice`), which runs the full on-device
+ * pipeline (YOLO pass 1 → Stage-2 rotation → YOLO pass 2 → per-field CRNN →
+ * validate → aggregate) and returns the `OnDeviceOcrResult` union shape
+ * directly. The engine and the SHA256-gated `crnn.onnx` / `yolo11n.onnx`
+ * assets live natively; this module only adapts errors into the
+ * never-throwing contract callers rely on.
  *
- * Implementation template when the model lands:
- *   - Mirror `lib/yolo/session.ts` — lazy module-level singleton
- *     InferenceSession, expo-asset materialization of the bundled model,
- *     Expo Go short-circuit (onnxruntime-react-native has no native module
- *     there), and promise reset on load failure so transient errors don't
- *     poison the session.
- *   - Asset bundling + SHA256 verification must mirror the
- *     `verify-yolo-model` mechanism (`scripts/verify-yolo-model.mjs`,
- *     wired as a pre* hook) so the bundled OCR model can never silently
- *     drift from the backend's copy.
- *   - Pre/post-processing split into siblings (`preprocess.ts` /
- *     `postprocess.ts`) like `lib/yolo/`, keeping this file a thin
- *     orchestrator.
+ * `readBpOnDevice` already reports `{ unavailable: true }` when the native
+ * module isn't linked (iOS / web / Expo Go). Native-side ordinary failures
+ * (model load, undecodable image, no monitor, unreadable fields,
+ * out-of-range, sys≤dia) also come back as `unavailable` rather than throwing.
+ * The try/catch here is the last-resort guard so a genuinely unexpected native
+ * error still degrades to manual entry — `use-camera-analysis.ts →
+ * readOnDevice()` treats every `unavailable` as "fall through", never an error
+ * to surface.
  */
-import type { OnDeviceOcrInput, OnDeviceOcrResult } from "./types";
+import { readBpOnDevice } from '@/modules/bp-vision';
+import { logWarn } from '@/store/shared/log';
+
+import type { OnDeviceOcrInput, OnDeviceOcrResult } from './types';
 
 export async function readBpFromImage(
-  _input: OnDeviceOcrInput,
+  input: OnDeviceOcrInput,
 ): Promise<OnDeviceOcrResult> {
-  return { unavailable: true, reason: "model-not-bundled" };
+  try {
+    return await readBpOnDevice(input.imageUri);
+  } catch (err) {
+    logWarn('ocr', 'on-device readBp threw; treating as unavailable', err);
+    return { unavailable: true, reason: 'native-error' };
+  }
 }

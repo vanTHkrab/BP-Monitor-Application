@@ -1,0 +1,22 @@
+# OSX
+#
+.DS_Store
+
+# Android/IntelliJ
+#
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+
+# Bundle artifacts
+*.jsbundle
+
+# On-device ONNX models — generated at every `expo prebuild` by the bp-vision
+# config plugin (modules/bp-vision/plugin/withBpVisionModels.js) from the
+# committed copies in client/assets/models/. Never commit these ~12MB
+# regenerated duplicates.
+app/src/main/assets/models/

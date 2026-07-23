@@ -44,7 +44,7 @@ curl -s http://localhost:8000/health
 | `REDIS_URL` | – | `redis://localhost:6379` | Redis connection string |
 | `LOG_LEVEL` | – | `INFO` | Python logging level |
 | `AI_DETECTOR_PATH` | – | `models/yolo11n.onnx` | Path to YOLO ONNX weights (resolved from ai-service root) |
-| `AI_CRNN_PATH` | – | `models/crnn_int8.onnx` | Path to CRNN ONNX int8 weights |
+| `AI_CRNN_PATH` | – | `models/crnn.onnx` | Path to CRNN ONNX weights |
 | `AI_DEFAULT_ENGINE` | – | `crnn` | Default OCR engine: `crnn` / `ssocr_cnn` / `ssocr` |
 | `AI_CONFIDENCE_THRESHOLD` | – | `0.25` | YOLO detection confidence floor. **Mirrors `client/lib/yolo/types.ts` `DEFAULT_CONF_THRESHOLD`** — cross-process wire contract; change both sides together. |
 | `AI_IOU_THRESHOLD` | – | `0.45` | YOLO per-class NMS IoU threshold. **Mirrors `client/lib/yolo/types.ts` `DEFAULT_IOU_THRESHOLD`** — same wire-contract rule. |
@@ -108,7 +108,7 @@ ai-service/
 ├── models/
 │   ├── EXPECTED_HASHES.json           # sha256 manifest (tracked) — single source of truth
 │   ├── yolo11n.onnx                   # YOLOv11n, 5 BP classes, 10.7 MB — fetched from R2
-│   ├── crnn_int8.onnx                 # CRNN int8, 1.2 MB — fetched from R2
+│   ├── crnn.onnx                      # CRNN, ~4.5 MB — fetched from R2
 │   ├── cnn_2ch_distilled_*_int8.onnx  # 4 distilled CNN files, ~0.6 MB each — fetched from R2
 │   └── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB) — fetched from R2
 ├── docker-entrypoint.sh               # downloads + sha256-verifies model artifacts on container start

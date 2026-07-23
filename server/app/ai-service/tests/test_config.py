@@ -41,7 +41,7 @@ class TestDefaults:
         assert AnalyzerConfig().models_dir == AI_SERVICE_ROOT / "models"
 
     def test_crnn_path_anchors_to_models_dir(self):
-        assert AnalyzerConfig().crnn_path == AI_SERVICE_ROOT / "models" / "crnn_int8.onnx"
+        assert AnalyzerConfig().crnn_path == AI_SERVICE_ROOT / "models" / "crnn.onnx"
 
     def test_default_device_mode(self):
         assert AnalyzerConfig().device_mode == DeviceMode.CPU

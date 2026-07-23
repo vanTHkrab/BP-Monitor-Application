@@ -11,15 +11,28 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-    ports:
-      - "3000:3000"
+    # No `ports:` — nginx is the sole public ingress in prod (see the
+    # `nginx` service below). Still reachable from other bp-net containers
+    # by service name on 3000 without a published port.
+    expose:
+      - "3000"
 
+  # ai-service is intentionally NOT proxied by nginx and NOT given a
+  # published host port. In production it is reached only in two ways:
+  #   1. api-gateway <-> ai-service over Redis pub/sub
+  #      (analyze_bp_image / analyze_bp_image.reply) — no HTTP involved.
+  #   2. web's server actions (web/src/lib/ai-service.ts, AI_SERVICE_URL)
+  #      calling http://ai-service:8000 directly over the internal bp-net
+  #      network — this does not need, and must not get, a host-published
+  #      port. Previously this service published "8000:8000" to the host;
+  #      that was a real internet-facing exposure of an internal-only
+  #      service with no auth in front of it. Removed as a security
+  #      tightening in the same change that introduces nginx, not merely a
+  #      refactor side-effect.
   ai-service:
     restart: unless-stopped
     environment:
       ENV: production
-    ports:
-      - "8000:8000"
 
   web:
     build:
@@ -27,5 +40,66 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+    # No `ports:` — nginx is the sole public ingress in prod; see api-gateway.
+    expose:
+      - "3000"
+
+  # Reverse proxy / TLS termination. Config is envsubst'd from
+  # infra/nginx/templates/default.conf.template at container start (the
+  # official nginx image's built-in templating entrypoint — see the
+  # comment at the top of that file for how envsubst scoping works).
+  #
+  # Auto-reloads its config/certs on a fixed interval (infra/nginx/reload-loop.sh)
+  # instead of being signaled by the certbot container on renewal: signaling
+  # would require mounting the host's docker.sock into this container so it
+  # could `docker compose exec` itself, handing this container control over
+  # the whole Docker daemon just to reload a config file. A periodic reload
+  # is a graceful, connection-preserving no-op when nothing changed, and is
+  # the trade-off made here instead of that blast-radius increase.
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api-gateway
+      - web
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME}
+    volumes:
+      - ../nginx/templates:/etc/nginx/templates:ro
+      - ../nginx/reload-loop.sh:/usr/local/bin/reload-loop.sh:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
     ports:
-      - "3001:3000"
+      - "80:80"
+      - "443:443"
+    networks:
+      - bp-net
+    command: ["/bin/sh", "/usr/local/bin/reload-loop.sh"]
+
+  # Let's Encrypt client. Long-running: on `up -d` it just loops `certbot
+  # renew` (infra/certbot/renew-loop.sh), since a live cert already needs to
+  # exist on the shared `certbot_certs` volume by then (see
+  # infra/scripts/init-letsencrypt.sh for the one-time first-issuance
+  # bootstrap on a fresh host — certbot can't issue the very first cert this
+  # way because nginx can't start without a cert file to point
+  # `ssl_certificate` at yet).
+  #
+  # Deliberately NOT pinned to a specific tag the way this project pins its
+  # own Dockerfiles: certbot needs to track Let's Encrypt's ACME protocol
+  # over however many years this host stays up, and a stale pin is a known
+  # way for renewals to start silently failing. Bump it by hand
+  # (`docker compose pull certbot`) as routine maintenance instead.
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+      - ../certbot/renew-loop.sh:/usr/local/bin/renew-loop.sh:ro
+    networks:
+      - bp-net
+    entrypoint: ["/bin/sh", "/usr/local/bin/renew-loop.sh"]
+
+volumes:
+  certbot_certs:
+  certbot_www:

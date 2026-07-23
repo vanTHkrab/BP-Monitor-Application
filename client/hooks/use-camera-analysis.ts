@@ -1,9 +1,5 @@
 import { isOcrUnavailable, readBpFromImage } from '@/lib/ocr';
 import { analyzeImage } from '@/services/camera.service';
-import {
-  preflightCheckImage,
-  type PreflightResult,
-} from '@/services/preflight-detection.service';
 import { useAppStore } from '@/store/use-app-store';
 import { logWarn } from '@/store/shared/log';
 import type { AnalysisJob, AnalysisResult, BPReading, OcrEngine } from '@/types';
@@ -11,7 +7,6 @@ import { useCallback, useRef, useState } from 'react';
 
 export type AnalysisPhase =
   | 'idle'
-  | 'preflight'
   | 'uploading'
   | 'queued'
   | 'processing'
@@ -27,7 +22,6 @@ const PHASE_MAP: Record<AnalysisJob['status'], AnalysisPhase> = {
 
 export const PHASE_LABEL: Record<AnalysisPhase, string> = {
   idle: '',
-  preflight: 'กำลังตรวจสอบภาพ...',
   uploading: 'กำลังอัปโหลด...',
   queued: 'รอ AI วิเคราะห์...',
   processing: 'AI กำลังอ่านค่า...',
@@ -40,10 +34,6 @@ interface AnalysisState {
   job: AnalysisJob | null;
   result: AnalysisResult | null;
   prefill: Partial<BPReading>;
-  /** Latest pre-flight result. The camera screen reads `.status` to decide
-   *  whether to auto-continue with the cropped variant or show the warning
-   *  banner. `null` before the first runPreflight call or when it threw. */
-  preflight: PreflightResult | null;  
   /** Public URL of the uploaded image once analyze succeeds. Passed to
    *  `createReading` on save so the store doesn't re-upload — it sees the
    *  `https://` prefix and goes straight to the GraphQL submit. */
@@ -66,7 +56,6 @@ const INITIAL_STATE: AnalysisState = {
   job: null,
   result: null,
   prefill: {},
-  preflight: null,
   uploadedUrl: null,
   uploadedImageId: null,
   lowConfidence: false,
@@ -86,47 +75,19 @@ export function useCameraAnalysis() {
   }, []);
 
   /**
-   * Run the on-device YOLO pre-flight check. Doesn't kick off the backend
-   * analysis — the camera screen inspects `state.preflight.status` and
-   * decides whether to auto-call `analyze(croppedUri)` or surface a warning
-   * with a "send anyway" button that calls `analyze(originalUri)`.
-   *
-   * On failure (model load error, JPEG decode error, …) we return `null` and
-   * leave `preflight === null` so the UI falls back to the legacy "just
-   * upload" path — pre-flight is an optimisation, not a gate.
-   */
-  const runPreflight = useCallback(
-    async (params: {
-      imageUri: string;
-      sourceWidth: number;
-      sourceHeight: number;
-    }): Promise<PreflightResult | null> => {
-      setState((prev) => ({ ...prev, phase: 'preflight', error: null }));
-      try {
-        const result = await preflightCheckImage(params);
-        setState((prev) => ({ ...prev, phase: 'idle', preflight: result }));
-        return result;
-      } catch (err) {
-        logWarn('preflight', 'on-device YOLO failed; skipping pre-flight', err);
-        setState((prev) => ({ ...prev, phase: 'idle', preflight: null }));
-        return null;
-      }
-    },
-    [],
-  );
-
-  /**
-   * Run the on-device OCR engine (offline counterpart of `analyze`).
-   * Currently a stub — `readBpFromImage` always reports unavailable until
-   * the model is bundled — so this returns `false` and touches no state,
-   * indistinguishable from "no OCR" for the user. When the engine lands,
-   * a successful read feeds the SAME prefill + low-confidence confirm flow
-   * the backend result uses, so no re-plumbing is needed.
+   * Run the on-device OCR engine (offline counterpart of `analyze` — the
+   * bp-vision native pipeline on Android; `readBpFromImage` reports
+   * unavailable on iOS / web / Expo Go and on any ordinary read failure,
+   * never throwing). The camera screen calls this only when offline; a
+   * successful read feeds the SAME prefill + low-confidence confirm flow
+   * the backend result uses.
    *
    * Returns `true` when values were produced (state updated), `false` when
    * the caller should fall through to plain manual entry.
    */
   const readOnDevice = useCallback(async (imageUri: string): Promise<boolean> => {
+    if (__DEV__) console.log('[readOnDevice] starting OCR for', imageUri);
+    setState((prev) => ({ ...prev, phase: 'processing', error: null }));
     try {
       const ocr = await readBpFromImage({ imageUri });
       if (isOcrUnavailable(ocr)) {
@@ -296,7 +257,6 @@ export function useCameraAnalysis() {
   return {
     ...state,
     isSaving,
-    runPreflight,
     readOnDevice,
     analyze,
     save,
