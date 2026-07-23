@@ -46,8 +46,6 @@ export const BpCameraView = React.forwardRef<BpCameraViewRef, BpCameraViewProps>
     const nativeRef = React.useRef<BpVisionCameraNativeRef>(null);
     const cameraViewRef = React.useRef<CameraView>(null);
 
-    console.log('BpCameraView render', { IS_ANDROID, className, onCameraReady, onMountError });
-
     React.useImperativeHandle(
       ref,
       () => ({
