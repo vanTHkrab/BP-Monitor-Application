@@ -825,14 +825,28 @@ export default function CameraScreen() {
               </>
             )}
 
-            {/* Dev-only OCR engine picker — floats top-left below the safe
-                area. Hidden via the component's own ``devMode`` gate when
-                off, so production users see no overlay. */}
+            {/* Top-left close (X) — the bottom tab bar is hidden on this
+                route, so this is the user's on-screen way out (see
+                closeCamera). Shares this safe-area row with the dev-only
+                OCR engine picker (hidden via the component's own
+                ``devMode`` gate, so production users see no picker) rather
+                than floating separately, to avoid the two overlapping. */}
             <View
-              className="absolute left-3 right-3 pointer-events-box-none"
+              className="absolute left-3 right-3 flex-row items-center"
               style={{ top: insets.top + 8 }}
             >
-              <OcrEngineSelector />
+              <AnimatedPressable
+                onPress={closeCamera}
+                accessibilityRole="button"
+                accessibilityLabel="ปิดหน้ากล้อง"
+              >
+                <View className="w-11 h-11 rounded-full bg-white/[0.12] border border-white/15 items-center justify-center">
+                  <Ionicons name="close" size={22} color="white" />
+                </View>
+              </AnimatedPressable>
+              <View className="flex-1 ml-2 pointer-events-box-none">
+                <OcrEngineSelector />
+              </View>
             </View>
 
             {/* Guide frame — floats centered over the full-screen preview
