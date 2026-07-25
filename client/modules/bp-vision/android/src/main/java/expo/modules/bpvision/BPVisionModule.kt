@@ -1,5 +1,6 @@
 package expo.modules.bpvision
 
+import ai.onnxruntime.OrtEnvironment
 import android.graphics.BitmapFactory
 import android.util.Log
 import expo.modules.kotlin.Promise
@@ -62,6 +63,13 @@ class BPVisionModule : Module() {
   private var crnn: CrnnRecognizer? = null
   private val loadLock = Any()
 
+  // ONNX backend the *next* detector session is built with. Which backend is
+  // fastest varies by device and has to be measured there (see the
+  // ExecutionProvider docs) — `setDetectorProvider` below lets the dev
+  // benchmark swap it on a running app instead of costing a rebuild per
+  // candidate. Production never calls that, so this stays at the default.
+  private var detectorProvider = YoloDetector.ExecutionProvider.DEFAULT
+
   override fun definition() = ModuleDefinition {
     // Accessible from `requireNativeModule('BPVision')` in JavaScript.
     Name("BPVision")
@@ -77,12 +85,25 @@ class BPVisionModule : Module() {
     // against a decoded image and returns detections in source-image pixel
     // coordinates. The YOLO model is loaded from the bundled APK asset on the
     // first call (no pushed file / adb push needed).
-    AsyncFunction("detect") { imageUri: String, sourceWidth: Int, sourceHeight: Int ->
+    // `inputSize` lets the dev benchmark trade small-object recall for
+    // latency when measuring a live framing gate; it defaults to the model's
+    // native 512 so every production caller (and the OCR pipeline, which must
+    // agree with backend inference) is unaffected. See YoloDetector.INPUT_SIZE.
+    AsyncFunction("detect") { imageUri: String, sourceWidth: Int, sourceHeight: Int, inputSize: Int? ->
       val activeDetector = ensureDetector()
       val path = stripFileScheme(imageUri)
       val bitmap = BitmapFactory.decodeFile(path) ?: throw ImageDecodeException(path)
       try {
-        activeDetector.detect(bitmap, sourceWidth, sourceHeight).map { it.toRecord() }
+        activeDetector
+          .detect(
+            bitmap,
+            sourceWidth,
+            sourceHeight,
+            YoloDetector.DEFAULT_CONF_THRESHOLD,
+            YoloDetector.DEFAULT_IOU_THRESHOLD,
+            inputSize ?: YoloDetector.INPUT_SIZE,
+          )
+          .map { it.toRecord() }
       } finally {
         bitmap.recycle()
       }
@@ -100,12 +121,45 @@ class BPVisionModule : Module() {
       runReadBp(imageUri)
     }
 
+    // Dev-only: rebuild the detector session on a different ONNX backend.
+    // Closes the current session so the next `detect` call lazily builds a
+    // fresh one — the benchmark can then compare CPU / XNNPACK / NNAPI on
+    // real hardware without a rebuild per candidate. Returns the name that
+    // actually took effect (unknown names fall back to the default rather
+    // than throwing, so a typo degrades to a valid measurement).
+    //
+    // Safe to expose: it only swaps an inference backend and cannot change
+    // what the pipeline reports beyond the numeric differences we are here
+    // to measure. The JS wrapper gates it behind __DEV__ regardless.
+    AsyncFunction("setDetectorProvider") { name: String ->
+      val next = YoloDetector.ExecutionProvider.fromName(name)
+      synchronized(loadLock) {
+        detector?.close()
+        detector = null
+        detectorProvider = next
+      }
+      next.name
+    }
+
     // Full-screen CameraX preview view for the BP capture screen (Android
     // only; iOS / web keep expo-camera). `capture()` is a view function
     // reachable via the JS ref and resolves with { uri, width, height },
     // matching expo-camera's takePictureAsync contract.
     View(BPVisionCameraView::class) {
-      Events("onCameraReady", "onMountError")
+      Events("onCameraReady", "onMountError", "onDetections")
+
+      // Live framing gate. Off by default so a screen that only takes photos
+      // pays nothing — no analysis stream, no inference, no model load.
+      //
+      // The detector is handed over as a supplier, not an instance: the first
+      // call builds the ONNX session (hundreds of ms) and this prop handler
+      // runs on the main thread, so the view invokes it on its analysis
+      // thread instead. `ensureDetector` is already synchronized, so the
+      // shared session is built exactly once no matter who asks first.
+      Prop("liveDetection") { view: BPVisionCameraView, enabled: Boolean? ->
+        val on = enabled ?: false
+        view.setLiveDetection(on, if (on) ({ ensureDetector() }) else null)
+      }
 
       AsyncFunction("capture") { view: BPVisionCameraView, promise: Promise ->
         view.capture(promise)
@@ -130,7 +184,13 @@ class BPVisionModule : Module() {
   }
 
   private fun ensureDetector(): YoloDetector = synchronized(loadLock) {
-    detector ?: YoloDetector.fromModelBytes(readModelAsset(YOLO_ASSET)).also { detector = it }
+    detector ?: YoloDetector
+      .fromModelBytes(
+        readModelAsset(YOLO_ASSET),
+        OrtEnvironment.getEnvironment(),
+        detectorProvider,
+      )
+      .also { detector = it }
   }
 
   private fun ensureCrnn(): CrnnRecognizer = synchronized(loadLock) {

@@ -106,9 +106,12 @@ Key boundaries and design choices a senior should respect:
   TS wrapper (`client/modules/bp-vision/index.ts`) — but
   `client/lib/yolo/detect.ts`/`preprocess.ts`/`postprocess.ts` and
   `client/components/live-preflight-overlay.tsx` are now fully orphaned
-  (kept as inert reference code, imported by nothing). A future on-device
-  pre-flight gate would mean building against the native module's
-  `detectInImage`-equivalent, not reviving this JS path. The **canonical
+  (kept as inert reference code, imported by nothing). **The on-device
+  pre-flight gate has since been rebuilt against the native module** — a
+  CameraX `ImageAnalysis` stream in `bp-vision` feeding a live framing
+  gate + auto-capture on the camera screen (see "Live framing gate" in
+  [client/CLAUDE.md](./client/CLAUDE.md)). Extend that, don't revive the
+  JS path. The **canonical
   sha256 lives in `server/app/ai-service/models/EXPECTED_HASHES.json`** —
   the binary itself is no longer tracked in git on the backend side. SHA256
   equality between the bundled mobile copy and the backend manifest entry

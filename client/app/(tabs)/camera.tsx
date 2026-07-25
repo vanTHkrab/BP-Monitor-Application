@@ -1,12 +1,18 @@
 import { AnimatedPressable, FadeInView, ScaleOnMount } from '@/components/animated-components';
-import { BpCameraView, type BpCameraViewRef } from '@/components/bp-camera-view';
+import {
+  BpCameraView,
+  isLiveDetectionSupported,
+  type BpCameraViewRef,
+} from '@/components/bp-camera-view';
 import { CustomButton } from '@/components/custom-button';
 import { CustomInput } from '@/components/custom-input';
-import { DevMetricsChip, OcrEngineSelector } from '@/components/dev-ocr-controls';
+import { DetectBenchmarkChip, DevMetricsChip, OcrEngineSelector } from '@/components/dev-ocr-controls';
 import { GradientBackground } from '@/components/gradient-background';
 import { UIImage } from '@/components/ui/image';
 import { BPStatus, Colors, getBPStatus, getStatusText } from '@/constants/colors';
 import { PHASE_LABEL, useCameraAnalysis } from '@/hooks/use-camera-analysis';
+import { useLiveFraming } from '@/hooks/use-live-framing';
+import type { FramingState } from '@/utils/framing-state';
 import { useAppStore } from '@/store/use-app-store';
 import { cropToViewport } from '@/utils/crop-to-viewport';
 import { debug } from '@/utils/debug';
@@ -20,10 +26,35 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Href, router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 
 cssInterop(LinearGradient, { className: 'style' });
+
+/**
+ * How each framing verdict looks and reads on screen.
+ *
+ * Colour is never the only signal — every state carries its own sentence, so
+ * the guidance still works for a colour-blind user and for a screen reader
+ * (the pill is a live region). The palette is the app's existing status
+ * language: mint while searching (the neutral guide colour this screen always
+ * used), amber for "adjust something", green for go.
+ *
+ * Copy is second person, imperative, and names the fix rather than the fault —
+ * "เข้าใกล้อีกนิด" tells the user what to do; "ไกลเกินไป" only tells them they
+ * were wrong.
+ */
+const FRAMING_PRESENTATION: Record<
+  FramingState,
+  { color: string; icon: keyof typeof Ionicons.glyphMap; label: string }
+> = {
+  searching: { color: '#34D399', icon: 'scan-outline', label: 'วางหน้าจอเครื่องวัดให้ตรงกรอบ' },
+  'too-far': { color: '#F39C12', icon: 'add-circle-outline', label: 'เข้าใกล้อีกนิด' },
+  'too-close': { color: '#F39C12', icon: 'remove-circle-outline', label: 'ถอยออกนิดหนึ่ง' },
+  'off-center': { color: '#F39C12', icon: 'move-outline', label: 'จัดหน้าจอให้อยู่กลางกรอบ' },
+  ready: { color: '#27AE60', icon: 'checkmark-circle-outline', label: 'พร้อมถ่ายแล้ว' },
+};
 
 export default function CameraScreen() {
   // ─── Safe area ────────────────────────────────────────────────────────────────
@@ -46,6 +77,10 @@ export default function CameraScreen() {
   const [cameraKey, setCameraKey] = useState(0);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  // Synchronous mirror of `isCapturing` used as the re-entrancy guard in
+  // `takePicture` — see the comment there for why the state flag alone is
+  // not enough. `isCapturing` remains the render-driving source of truth.
+  const capturingRef = useRef(false);
   const cameraRef = useRef<BpCameraViewRef>(null);
 
   // ─── Camera viewport geometry (WYSIWYG capture crop) ────────────────────────────
@@ -72,6 +107,15 @@ export default function CameraScreen() {
   // drives a render and reading it inside async handlers must never see a
   // stale closure value.
   const capturedAtRef = useRef<Date | null>(null);
+
+  // ─── Captured image dimensions (dev benchmark only) ───────────────────────────
+  // Post-resize dimensions of whatever is in `capturedImage`. `detectInImage`
+  // needs the source dims to map detections back into image pixel space, and
+  // the dev-only detector benchmark (see DetectBenchmarkChip) is the only
+  // consumer today. Ref, not state — it's written immediately before
+  // `setCapturedImage`, so the render that reveals the chip already sees it,
+  // and it must never trigger a render of its own.
+  const capturedSizeRef = useRef<{ width: number; height: number } | null>(null);
 
   // ─── Modal / form state ───────────────────────────────────────────────────────
   const [showEntryModal, setShowEntryModal] = useState(false);
@@ -138,6 +182,91 @@ export default function CameraScreen() {
     confirmLowConfidence,
     dismissLowConfidence,
   } = useCameraAnalysis();
+
+  // ─── Live framing gate ────────────────────────────────────────────────────────
+  // Android + real build only; elsewhere `onDetections` never fires and the
+  // state stays 'searching', which renders exactly the static guide frame the
+  // screen had before this existed. That is the intended degraded mode — the
+  // camera must stay fully usable without any of this.
+  //
+  // `takePicture` is declared further down and would be in the temporal dead
+  // zone if the hook closed over it directly, so the auto-capture callback
+  // goes through a ref that is populated on every render.
+  const takePictureRef = useRef<() => void>(() => {});
+  const [screenReaderEnabled, setScreenReaderEnabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void AccessibilityInfo.isScreenReaderEnabled().then((on) => {
+      if (!cancelled) setScreenReaderEnabled(on);
+    });
+    const sub = AccessibilityInfo.addEventListener(
+      'screenReaderChanged',
+      setScreenReaderEnabled,
+    );
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, []);
+
+  const autoCaptureEnabled = useAppStore((s) => s.autoCaptureEnabled);
+  const setAutoCaptureEnabled = useAppStore((s) => s.setAutoCaptureEnabled);
+
+  const {
+    state: framingState,
+    isCountingDown,
+    countdownProgress,
+    onFrame: onFramingFrame,
+    cancelAutoCapture,
+    reset: resetFraming,
+  } = useLiveFraming({
+    // Analysis stops the moment there is a photo on screen — the gate has
+    // nothing left to guide, and leaving it running would keep burning the
+    // CPU behind a still image.
+    enabled: !capturedImage && !cameraMountError,
+    autoCaptureEnabled,
+    screenReaderEnabled,
+    onAutoCapture: () => takePictureRef.current(),
+  });
+
+  // Announce the countdown once, when it starts. Screen readers get no benefit
+  // from the ring, and re-announcing every progress tick would talk over the
+  // user while they decide whether to cancel.
+  useEffect(() => {
+    if (!isCountingDown) return;
+    AccessibilityInfo.announceForAccessibility(
+      'พร้อมถ่ายแล้ว กำลังจะถ่ายอัตโนมัติ แตะเพื่อยกเลิก',
+    );
+  }, [isCountingDown]);
+
+  // ─── Analysis progress bar ────────────────────────────────────────────────────
+  // Rough determinate progress per phase (not a real byte/percent count — the
+  // backend poll only reports pending/processing/done, not sub-progress) so the
+  // status pill's dot-color alone doesn't feel like the only proof of work.
+  // useRef (not state) — Animated.Value drives its own native-ish updates and
+  // must not be recreated on re-render.
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const targetForPhase: Partial<Record<typeof phase, number>> = {
+      reading: 0.4,
+      uploading: 0.3,
+      queued: 0.55,
+      processing: 0.85,
+      done: 1,
+    };
+    const target = targetForPhase[phase];
+    if (target === undefined) {
+      // idle / failed: snap back to empty so the next capture's bar starts
+      // from zero instead of resuming mid-way from a stale value.
+      progressAnim.setValue(0);
+      return;
+    }
+    Animated.timing(progressAnim, {
+      toValue: target,
+      duration: 350,
+      useNativeDriver: false,
+    }).start();
+  }, [phase, progressAnim]);
 
   // Auto-fill form when AI returns confident readings.
   // Functional setState reads the *current* value at update time, so a slow
@@ -257,6 +386,7 @@ export default function CameraScreen() {
     // Measurement time = capture time (see capturedAtRef). Stamped for both
     // camera shots and gallery picks, right where capturedImage is set.
     capturedAtRef.current = new Date();
+    capturedSizeRef.current = { width: prepared.width, height: prepared.height };
     setCapturedImage(prepared.uri);
 
     // Offline: the backend analyze() is doomed without a network — skip it
@@ -280,7 +410,16 @@ export default function CameraScreen() {
   };
 
   const takePicture = async () => {
-    if (!cameraRef.current || isCapturing) return;
+    if (!cameraRef.current) return;
+    // Re-entrancy guard on a ref, not on `isCapturing`. React state is only
+    // visible to the *next* render, so two calls landing in the same tick
+    // both read `isCapturing === false` and both fire the shutter. A tap on
+    // the (deliberately large) capture button is easy to double-register on
+    // slower Android panels, and a future auto-capture trigger would race
+    // the user's own tap the same way. The state is still set below because
+    // the button's spinner / disabled styling needs to re-render.
+    if (capturingRef.current) return;
+    capturingRef.current = true;
     // Tactile confirmation that the shutter actually fired — the visual
     // press feedback alone is easy to miss on cheaper Android panels.
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -312,9 +451,16 @@ export default function CameraScreen() {
     } catch {
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
     } finally {
+      capturingRef.current = false;
       setIsCapturing(false);
     }
   };
+
+  // Auto-capture calls the exact same path as the on-screen button — same
+  // guard, same crop, same downstream flow. Keeping one shutter implementation
+  // is what stops the automatic path from quietly diverging from the manual
+  // one (the manual path is the fallback users are told to reach for).
+  takePictureRef.current = () => void takePicture();
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -625,6 +771,11 @@ export default function CameraScreen() {
     setSaveError(null);
     setOfflineCapture(false);
     capturedAtRef.current = null;
+    capturedSizeRef.current = null;
+    // Clear the framing gate too, otherwise a retake resumes with the old
+    // committed state and the auto-capture one-shot still spent — the user
+    // would be back at the camera with a gate that can never arm again.
+    resetFraming();
     resetAnalysis();
   };
 
@@ -638,6 +789,11 @@ export default function CameraScreen() {
     setSaveError(null);
     setOfflineCapture(false);
     capturedAtRef.current = null;
+    capturedSizeRef.current = null;
+    // Clear the framing gate too, otherwise a retake resumes with the old
+    // committed state and the auto-capture one-shot still spent — the user
+    // would be back at the camera with a gate that can never arm again.
+    resetFraming();
     resetAnalysis();
   };
 
@@ -809,6 +965,12 @@ export default function CameraScreen() {
                   key={cameraKey}
                   ref={cameraRef}
                   className="absolute inset-0"
+                  // Drives the framing gate below. Turned off while a photo is
+                  // on screen so the detector isn't running behind a still
+                  // image. No-op on iOS / web / Expo Go, where the gate simply
+                  // never leaves 'searching'.
+                  liveDetection={!capturedImage && !cameraMountError}
+                  onDetections={onFramingFrame}
                   onMountError={(e) =>
                     setCameraMountError(e.message || 'ไม่สามารถเปิดกล้องได้')
                   }
@@ -847,6 +1009,38 @@ export default function CameraScreen() {
               <View className="flex-1 ml-2 pointer-events-box-none">
                 <OcrEngineSelector />
               </View>
+              {/* Auto-capture toggle. On this screen rather than buried in
+                  settings because it is where the behaviour happens — a user
+                  surprised by the countdown can turn it off from the place
+                  they noticed it, without losing their framing. Hidden where
+                  there is no on-device detector, since it would toggle
+                  something that can never fire. */}
+              {isLiveDetectionSupported() && (
+                <AnimatedPressable
+                  onPress={() => void setAutoCaptureEnabled(!autoCaptureEnabled)}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: autoCaptureEnabled }}
+                  accessibilityLabel="ถ่ายอัตโนมัติเมื่อจับภาพได้"
+                >
+                  <View
+                    className={
+                      'flex-row items-center px-3 h-11 rounded-full border ' +
+                      (autoCaptureEnabled
+                        ? 'bg-[#27AE60]/25 border-[#27AE60]'
+                        : 'bg-white/[0.12] border-white/15')
+                    }
+                  >
+                    <Ionicons
+                      name={autoCaptureEnabled ? 'flash' : 'flash-off'}
+                      size={16}
+                      color={autoCaptureEnabled ? '#27AE60' : 'white'}
+                    />
+                    <Text className={'text-white font-medium ml-1.5 ' + captionClassName}>
+                      อัตโนมัติ
+                    </Text>
+                  </View>
+                </AnimatedPressable>
+              )}
             </View>
 
             {/* Guide frame — floats centered over the full-screen preview
@@ -859,31 +1053,74 @@ export default function CameraScreen() {
                 not the full screen — otherwise the visible tab bar pulls the
                 perceived center downward. Bottom inset = tabBarTotalHeight so
                 `justify-center` centers between the top edge and the tab bar. */}
-            <View
-              className="absolute top-0 left-0 right-0 items-center justify-center pointer-events-none"
+            {/* Tap-anywhere cancel. The largest possible target, which is what
+                a user with an unsteady hand needs when the countdown is
+                running and they are not ready. Only interactive while counting
+                down — otherwise it would swallow taps meant for the controls
+                underneath. */}
+            <Pressable
+              className="absolute top-0 left-0 right-0"
               style={{ bottom: tabBarTotalHeight }}
+              pointerEvents={isCountingDown ? 'auto' : 'none'}
+              onPress={cancelAutoCapture}
+              accessibilityRole="button"
+              accessibilityLabel="ยกเลิกการถ่ายอัตโนมัติ"
             >
-              <ScaleOnMount delay={300}>
-                <View className="flex-row items-center bg-black/60 px-4 py-2.5 rounded-2xl mb-5">
-                  <Ionicons name="scan-outline" size={18} color="white" />
-                  <Text className={"text-white font-medium ml-2 " + bodyClassName}>
-                    วางหน้าจอเครื่องวัดให้ตรงกรอบ
-                  </Text>
+              <View className="flex-1 items-center justify-center">
+                <ScaleOnMount delay={300}>
+                  <View
+                    className="flex-row items-center bg-black/60 px-4 py-2.5 rounded-2xl mb-5"
+                    // Announce coaching changes, not every frame — the state is
+                    // already smoothed by the dwell window, so each change here
+                    // is a real one worth speaking.
+                    accessibilityLiveRegion="polite"
+                    accessibilityLabel={
+                      isCountingDown
+                        ? 'พร้อมถ่ายแล้ว กำลังจะถ่ายอัตโนมัติ แตะเพื่อยกเลิก'
+                        : FRAMING_PRESENTATION[framingState].label
+                    }
+                  >
+                    <Ionicons
+                      name={FRAMING_PRESENTATION[framingState].icon}
+                      size={18}
+                      color={FRAMING_PRESENTATION[framingState].color}
+                    />
+                    <Text className={'text-white font-medium ml-2 ' + bodyClassName}>
+                      {isCountingDown
+                        ? 'พร้อมแล้ว · แตะเพื่อยกเลิก'
+                        : FRAMING_PRESENTATION[framingState].label}
+                    </Text>
+                  </View>
+                </ScaleOnMount>
+                {/* Corner brackets take the state colour. Colour alone never
+                    carries the message — the pill above always says it in
+                    words — but it is what makes the answer readable at a
+                    glance while the user is looking at the monitor, not the
+                    text. */}
+                <View className="w-[75%] aspect-square relative">
+                  {(
+                    [
+                      'absolute top-0 left-0 border-t-[3px] border-l-[3px] rounded-tl-xl',
+                      'absolute top-0 right-0 border-t-[3px] border-r-[3px] rounded-tr-xl',
+                      'absolute bottom-0 left-0 border-b-[3px] border-l-[3px] rounded-bl-xl',
+                      'absolute bottom-0 right-0 border-b-[3px] border-r-[3px] rounded-br-xl',
+                    ] as const
+                  ).map((corner) => (
+                    <View
+                      key={corner}
+                      className={'w-10 h-10 ' + corner}
+                      style={{ borderColor: FRAMING_PRESENTATION[framingState].color }}
+                    />
+                  ))}
+                  {/* Center crosshair — faint white lines crossing at the middle
+                      of the frame to help center the monitor. Thin, low-opacity,
+                      short, and non-interactive so it guides without obscuring
+                      the live feed. */}
+                  <View className="absolute top-1/2 left-1/2 w-8 h-px -ml-4 -mt-px bg-white/40" />
+                  <View className="absolute top-1/2 left-1/2 w-px h-8 -ml-px -mt-4 bg-white/40" />
                 </View>
-              </ScaleOnMount>
-              <View className="w-[75%] aspect-square relative">
-                <View className="absolute top-0 left-0 w-10 h-10 border-[#34D399] border-t-[3px] border-l-[3px] rounded-tl-xl" />
-                <View className="absolute top-0 right-0 w-10 h-10 border-[#34D399] border-t-[3px] border-r-[3px] rounded-tr-xl" />
-                <View className="absolute bottom-0 left-0 w-10 h-10 border-[#34D399] border-b-[3px] border-l-[3px] rounded-bl-xl" />
-                <View className="absolute bottom-0 right-0 w-10 h-10 border-[#34D399] border-b-[3px] border-r-[3px] rounded-br-xl" />
-                {/* Center crosshair — faint white lines crossing at the middle
-                    of the frame to help center the monitor. Thin, low-opacity,
-                    short, and non-interactive so it guides without obscuring
-                    the live feed. */}
-                <View className="absolute top-1/2 left-1/2 w-8 h-px -ml-4 -mt-px bg-white/40" />
-                <View className="absolute top-1/2 left-1/2 w-px h-8 -ml-px -mt-4 bg-white/40" />
               </View>
-            </View>
+            </Pressable>
 
             {/* Camera controls — float over the bottom of the full-screen
                 preview. A bottom-up scrim keeps the white glyphs legible
@@ -917,11 +1154,20 @@ export default function CameraScreen() {
                     and the capturing state swaps the icon for an
                     ActivityIndicator so the user gets immediate
                     visual feedback even before the shutter resolves. */}
+                {/* While the countdown runs this button becomes the cancel —
+                    a named target, which is what a screen reader can find. The
+                    shutter itself is never blocked by the framing gate (soft
+                    nudge, not a hard gate): a false negative from the detector
+                    must never be able to stop someone recording their reading. */}
                 <Pressable
-                  onPress={takePicture}
+                  onPress={isCountingDown ? cancelAutoCapture : takePicture}
                   disabled={isCapturing}
                   accessibilityRole="button"
-                  accessibilityLabel="ถ่ายภาพเครื่องวัดความดัน"
+                  accessibilityLabel={
+                    isCountingDown
+                      ? 'ยกเลิกการถ่ายอัตโนมัติ'
+                      : 'ถ่ายภาพเครื่องวัดความดัน'
+                  }
                   accessibilityState={{ disabled: isCapturing, busy: isCapturing }}
                   style={({ pressed }) => ({
                     transform: [{ scale: pressed && !isCapturing ? 0.95 : 1 }],
@@ -929,6 +1175,32 @@ export default function CameraScreen() {
                   })}
                 >
                   <View className="w-[88px] h-[88px] rounded-full border-[3px] border-white/40 items-center justify-center">
+                    {/* Countdown ring. Drawn as an overlay arc rather than by
+                        animating the button itself, so the shutter's size and
+                        position never shift under the user's finger while it
+                        fills. */}
+                    {isCountingDown && (
+                      <Svg
+                        width={88}
+                        height={88}
+                        style={{ position: 'absolute', top: -3, left: -3 }}
+                      >
+                        <Circle
+                          cx={44}
+                          cy={44}
+                          r={41}
+                          stroke="#27AE60"
+                          strokeWidth={4}
+                          fill="none"
+                          strokeLinecap="round"
+                          // Start at 12 o'clock and sweep clockwise — the
+                          // direction people read a timer.
+                          transform="rotate(-90 44 44)"
+                          strokeDasharray={2 * Math.PI * 41}
+                          strokeDashoffset={2 * Math.PI * 41 * (1 - countdownProgress)}
+                        />
+                      </Svg>
+                    )}
                     <View
                       className={
                         'w-[72px] h-[72px] rounded-full items-center justify-center ' +
@@ -938,12 +1210,20 @@ export default function CameraScreen() {
                       {isCapturing ? (
                         <ActivityIndicator size="small" color="#5E35B1" />
                       ) : (
-                        <Ionicons name="camera" size={32} color="#5E35B1" />
+                        <Ionicons
+                          name={isCountingDown ? 'close' : 'camera'}
+                          size={32}
+                          color="#5E35B1"
+                        />
                       )}
                     </View>
                   </View>
                   <Text className={'text-white mt-1.5 font-medium text-center ' + captionClassName}>
-                    {isCapturing ? 'กำลังถ่าย...' : 'ถ่ายภาพ'}
+                    {isCapturing
+                      ? 'กำลังถ่าย...'
+                      : isCountingDown
+                        ? 'ยกเลิก'
+                        : 'ถ่ายภาพ'}
                   </Text>
                 </Pressable>
 
@@ -1020,6 +1300,32 @@ export default function CameraScreen() {
                     {PHASE_LABEL[phase]}
                   </Text>
                 </View>
+                {/* Determinate-ish progress bar — visible proof that the
+                    in-flight phases (reading / uploading / queued /
+                    processing) are actually advancing, not just a static
+                    dot. Skipped on `failed`: the recovery button below
+                    already communicates that state, and a bar frozen
+                    mid-way would read as "still working" rather than
+                    "stopped". Track/fill reuse the same phase → color
+                    mapping as the dot above so the two never disagree. */}
+                {phase !== 'failed' && (
+                  <View
+                    className="mt-2 w-40 h-1.5 rounded-full overflow-hidden"
+                    style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }}
+                  >
+                    <Animated.View
+                      style={{
+                        height: '100%',
+                        borderRadius: 999,
+                        backgroundColor: phase === 'done' ? '#27AE60' : phase === 'queued' ? '#F39C12' : '#35B8E8',
+                        width: progressAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0%', '100%'],
+                        }),
+                      }}
+                    />
+                  </View>
+                )}
                 {/* Dev-only telemetry chip — hidden in production. */}
                 <DevMetricsChip
                   engine={result?.engine}
@@ -1039,6 +1345,17 @@ export default function CameraScreen() {
               // reachable. Same budget as the live state above.
               style={{ paddingBottom: bottomOverlayPadding }}
             >
+              {/* Dev-only detector benchmark — measures on-device YOLO
+                  latency against the photo just captured. This is the
+                  go / no-go gate for a realtime framing gate: it answers
+                  "how many fps can this device sustain?" without writing
+                  any Kotlin. Hidden behind devMode like the controls above. */}
+              <DetectBenchmarkChip
+                imageUri={capturedImage}
+                sourceWidth={capturedSizeRef.current?.width ?? null}
+                sourceHeight={capturedSizeRef.current?.height ?? null}
+              />
+
               {/* AI analysis failed recovery — gives the user an explicit
                   way back to the camera AND a hard remount of the native
                   CameraView (bumped via `cameraKey`) so a stuck preview
@@ -1178,6 +1495,18 @@ export default function CameraScreen() {
                 </View>
 
                 <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                  {/* Dev-only detector benchmark, second render site. The
+                      offline branch of startCaptureFlow opens this sheet
+                      immediately after capture, covering the preview overlay
+                      where the other one lives — without this the control is
+                      unreachable on exactly the offline path we most want to
+                      measure. Both sites are devMode-gated and share one
+                      component, so production users see neither. */}
+                  <DetectBenchmarkChip
+                    imageUri={capturedImage}
+                    sourceWidth={capturedSizeRef.current?.width ?? null}
+                    sourceHeight={capturedSizeRef.current?.height ?? null}
+                  />
                   {/* Caregiver attribution chip — makes it explicit whose
                       record this save writes to before the button is hit. */}
                   {activePatient && (

@@ -4,6 +4,7 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.graphics.Bitmap
+import android.util.Log
 import java.io.Closeable
 import java.nio.FloatBuffer
 import kotlin.math.min
@@ -32,8 +33,57 @@ class YoloDetector private constructor(
   private val session: OrtSession,
 ) : Closeable {
 
+  /**
+   * ONNX Runtime backend for the detector session.
+   *
+   * Which one is fastest is a per-device, per-model empirical fact, not
+   * something to reason about from first principles — measured on the first
+   * physical test device, XNNPACK was ~30% *slower* than the plain CPU
+   * provider (238 ms vs 183 ms per frame) even though it loaded fine. So the
+   * backend is selectable at runtime rather than baked in, letting the dev
+   * benchmark compare candidates on real hardware without paying a rebuild
+   * for each one.
+   *
+   * [DEFAULT] is what ships: CPU with graph fusion and an explicit thread
+   * budget, i.e. the configuration that measured fastest. Revisit only with
+   * numbers from the device in question.
+   */
+  enum class ExecutionProvider {
+    CPU,
+    XNNPACK,
+    NNAPI,
+    ;
+
+    companion object {
+      val DEFAULT = CPU
+
+      /** Parse a JS-supplied name; unknown values fall back to [DEFAULT]. */
+      @JvmStatic
+      fun fromName(name: String?): ExecutionProvider =
+        entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: DEFAULT
+    }
+  }
+
   companion object {
-    /** Model was trained at 512x512 — mirrors DEFAULT_INPUT_SIZE in types.ts. */
+    /**
+     * Model was trained at 512x512 — mirrors DEFAULT_INPUT_SIZE in types.ts.
+     *
+     * This is the default and the only size the OCR read path uses, because
+     * that path has to agree with the backend's own 512x512 inference.
+     *
+     * `detect` accepts a smaller [inputSize] because the ONNX graph was
+     * exported with dynamic spatial axes (`dynamic: True` in the Ultralytics
+     * export args — the shape is symbolic in `height`/`width`, not baked to
+     * 512), so the same file runs at 384 or 320 without re-exporting. That is
+     * for a live camera framing gate, where the question is only "is a monitor
+     * roughly in frame?" and the latency budget is per-frame rather than
+     * per-capture. It does NOT relax root CLAUDE.md rule 5: the model file is
+     * byte-identical, its SHA256 still matches the ai-service manifest, and
+     * anything whose reading must match the backend still runs at 512.
+     * Smaller inputs cost small-object recall first, which here means the
+     * `sys`/`dia`/`pulse` field boxes before the `BP_Monitor` box — measure
+     * detection counts, not just latency, before lowering it.
+     */
     const val INPUT_SIZE = 512
     const val DEFAULT_CONF_THRESHOLD = 0.25f
     const val DEFAULT_IOU_THRESHOLD = 0.45f
@@ -44,14 +94,85 @@ class YoloDetector private constructor(
      */
     val CLASS_NAMES = arrayOf("BP_Monitor", "BP_Screen_Monitor", "dia", "pulse", "sys")
 
+    private const val TAG = "YoloDetector"
+
+    /**
+     * Threads for the CPU / XNNPACK compute. Four is the usual sweet spot on
+     * phone-class big.LITTLE silicon: it saturates the big cluster without
+     * spilling onto little cores, where the extra scheduling and memory
+     * traffic cost more than the parallelism buys.
+     */
+    private const val COMPUTE_THREADS = 4
+
+    /**
+     * Session options for the detector.
+     *
+     * The previous `env.createSession(modelBytes)` used ORT's defaults, which
+     * means plain CPU, no graph fusion, and no explicit thread budget. A
+     * measured baseline on a physical device was ~183 ms/frame (5.5 fps),
+     * which is right at the floor for a live camera framing gate — the
+     * headroom has to come from the runtime, because the surrounding Kotlin
+     * is not where the time goes (p90/median was 1.05, i.e. no GC stalls to
+     * reclaim).
+     *
+     * Execution providers are tried strongest-first and each falls back
+     * silently, because provider availability is a per-device, per-ROM fact
+     * we cannot check at build time:
+     *
+     *  - XNNPACK: consistently good for float32 conv nets on ARM and, unlike
+     *    NNAPI, it either loads or it doesn't — it will not silently produce
+     *    different numbers. Tried first for that reason.
+     *  - NNAPI: can be much faster where a vendor NPU/DSP backend exists, but
+     *    it may also quantize or reorder ops, and on many ROMs it is slower
+     *    than CPU for a model this small. Tried only if XNNPACK is absent.
+     *  - CPU: always works. Still gets fusion + the thread budget below.
+     *
+     * Whichever provider wins is logged, because a benchmark number is not
+     * interpretable without knowing which backend produced it.
+     */
+    private fun buildSessionOptions(provider: ExecutionProvider): OrtSession.SessionOptions {
+      val options = OrtSession.SessionOptions()
+      options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+
+      if (provider == ExecutionProvider.XNNPACK) {
+        try {
+          // ORT's guidance for XNNPACK: leave one intra-op thread on the
+          // session and hand the thread budget to the provider instead, or
+          // the two thread pools oversubscribe the cores and fight.
+          options.addXnnpack(mapOf("intra_op_num_threads" to COMPUTE_THREADS.toString()))
+          options.setIntraOpNumThreads(1)
+          Log.i(TAG, "ONNX execution provider: XNNPACK (threads=$COMPUTE_THREADS)")
+          return options
+        } catch (e: Throwable) {
+          Log.i(TAG, "XNNPACK unavailable, falling back to CPU: ${e.message}")
+        }
+      }
+
+      if (provider == ExecutionProvider.NNAPI) {
+        try {
+          options.addNnapi()
+          options.setIntraOpNumThreads(COMPUTE_THREADS)
+          Log.i(TAG, "ONNX execution provider: NNAPI (threads=$COMPUTE_THREADS)")
+          return options
+        } catch (e: Throwable) {
+          Log.i(TAG, "NNAPI unavailable, falling back to CPU: ${e.message}")
+        }
+      }
+
+      options.setIntraOpNumThreads(COMPUTE_THREADS)
+      Log.i(TAG, "ONNX execution provider: CPU (threads=$COMPUTE_THREADS)")
+      return options
+    }
+
     /** Build a detector from raw model bytes — the common case. */
     @JvmStatic
     @JvmOverloads
     fun fromModelBytes(
       modelBytes: ByteArray,
       env: OrtEnvironment = OrtEnvironment.getEnvironment(),
+      provider: ExecutionProvider = ExecutionProvider.DEFAULT,
     ): YoloDetector {
-      val session = env.createSession(modelBytes)
+      val session = env.createSession(modelBytes, buildSessionOptions(provider))
       return YoloDetector(env, session)
     }
 
@@ -113,11 +234,12 @@ class YoloDetector private constructor(
     sourceHeight: Int = bitmap.height,
     confThreshold: Float = DEFAULT_CONF_THRESHOLD,
     iouThreshold: Float = DEFAULT_IOU_THRESHOLD,
+    inputSize: Int = INPUT_SIZE,
   ): List<Detection> {
-    val (tensorBuffer, pad) = letterbox(bitmap, sourceWidth, sourceHeight)
+    val (tensorBuffer, pad) = letterbox(bitmap, sourceWidth, sourceHeight, inputSize)
 
     val inputName = session.inputNames.first()
-    val shape = longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
+    val shape = longArrayOf(1, 3, inputSize.toLong(), inputSize.toLong())
 
     val inputTensor = OnnxTensor.createTensor(env, tensorBuffer, shape)
     try {
@@ -154,31 +276,32 @@ class YoloDetector private constructor(
     bitmap: Bitmap,
     sourceWidth: Int,
     sourceHeight: Int,
+    inputSize: Int = INPUT_SIZE,
   ): Pair<FloatBuffer, LetterboxPad> {
-    val scale = min(INPUT_SIZE.toFloat() / sourceWidth, INPUT_SIZE.toFloat() / sourceHeight)
+    val scale = min(inputSize.toFloat() / sourceWidth, inputSize.toFloat() / sourceHeight)
     val newW = round(sourceWidth * scale).toInt()
     val newH = round(sourceHeight * scale).toInt()
 
-    // Non-negative by construction (scale is picked so newW,newH <= INPUT_SIZE),
+    // Non-negative by construction (scale is picked so newW,newH <= inputSize),
     // so Int division truncation == floor here — matches
     // `Math.floor((inputSize - newH) / 2)` in preprocess.ts exactly.
-    val padTop = (INPUT_SIZE - newH) / 2
-    val padLeft = (INPUT_SIZE - newW) / 2
-    val padBottom = INPUT_SIZE - newH - padTop
-    val padRight = INPUT_SIZE - newW - padLeft
+    val padTop = (inputSize - newH) / 2
+    val padLeft = (inputSize - newW) / 2
+    val padBottom = inputSize - newH - padTop
+    val padRight = inputSize - newW - padLeft
 
     val resized = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
     val pixels = IntArray(newW * newH)
     resized.getPixels(pixels, 0, newW, 0, 0, newW, newH)
     if (resized !== bitmap) resized.recycle()
 
-    val plane = INPUT_SIZE * INPUT_SIZE
+    val plane = inputSize * inputSize
     // FloatArray is zero-initialized by the JVM — black padding is free,
     // same as the `new Float32Array(3 * plane)` zero-init in preprocess.ts.
     val tensor = FloatArray(3 * plane)
 
     for (y in 0 until newH) {
-      val dstRowBase = (padTop + y) * INPUT_SIZE + padLeft
+      val dstRowBase = (padTop + y) * inputSize + padLeft
       val srcRowBase = y * newW
       for (x in 0 until newW) {
         val pixel = pixels[srcRowBase + x]

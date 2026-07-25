@@ -14,6 +14,7 @@ const HIDE_SENSITIVE_DATA_KEY = "bp:hide-sensitive-data";
 // app restarts so a researcher doesn't have to re-trigger the gesture
 // every session — a reinstall wipes the value, which is fine for the
 // "hide-from-end-users" goal.
+const AUTO_CAPTURE_KEY = "bp:auto-capture";
 const DEV_MODE_KEY = "bp:dev-mode";
 const SELECTED_OCR_ENGINE_KEY = "bp:selected-ocr-engine";
 
@@ -29,6 +30,15 @@ export interface PreferencesSlice {
   // active pick when ``devMode`` is true.
   devMode: boolean;
   selectedOcrEngine: OcrEngine;
+  /**
+   * Fire the shutter automatically once the live framing gate has held
+   * "ready" through its countdown. On by default: the countdown makes it
+   * predictable rather than startling, and holding a phone steady at a
+   * monitor while reaching for a button is exactly the part elderly users
+   * struggle with. Android-only in effect — other platforms have no
+   * on-device detector, so the gate never reaches ready and this is inert.
+   */
+  autoCaptureEnabled: boolean;
 
   hydrateTheme: () => Promise<void>;
   setThemePreference: (pref: "light" | "dark") => Promise<void>;
@@ -41,6 +51,7 @@ export interface PreferencesSlice {
   hydrateDevPreferences: () => Promise<void>;
   toggleDevMode: () => Promise<boolean>;
   setSelectedOcrEngine: (engine: OcrEngine) => Promise<void>;
+  setAutoCaptureEnabled: (enabled: boolean) => Promise<void>;
 }
 
 export const createPreferencesSlice: StateCreator<
@@ -56,6 +67,7 @@ export const createPreferencesSlice: StateCreator<
   sensitiveDataUnlocked: false,
   devMode: false,
   selectedOcrEngine: "crnn",
+  autoCaptureEnabled: true,
 
   hydrateTheme: async () => {
     try {
@@ -164,15 +176,22 @@ export const createPreferencesSlice: StateCreator<
 
   hydrateDevPreferences: async () => {
     try {
-      const [rawDev, rawEngine] = await Promise.all([
+      const [rawDev, rawEngine, rawAutoCapture] = await Promise.all([
         AsyncStorage.getItem(DEV_MODE_KEY),
         AsyncStorage.getItem(SELECTED_OCR_ENGINE_KEY),
+        AsyncStorage.getItem(AUTO_CAPTURE_KEY),
       ]);
       const engine =
         rawEngine && (OCR_ENGINES as readonly string[]).includes(rawEngine)
           ? (rawEngine as OcrEngine)
           : "crnn";
-      set({ devMode: rawDev === "true", selectedOcrEngine: engine });
+      set({
+        devMode: rawDev === "true",
+        selectedOcrEngine: engine,
+        // Absent key means "never chosen", which must resolve to the ON
+        // default rather than to false — only an explicit "false" opts out.
+        autoCaptureEnabled: rawAutoCapture !== "false",
+      });
     } catch {
       // AsyncStorage failures are non-fatal — fall back to defaults
       // (production behaviour) rather than blocking app boot.
@@ -188,6 +207,15 @@ export const createPreferencesSlice: StateCreator<
       // ignore — toggle still works in-memory until restart
     }
     return next;
+  },
+
+  setAutoCaptureEnabled: async (enabled) => {
+    set({ autoCaptureEnabled: enabled });
+    try {
+      await AsyncStorage.setItem(AUTO_CAPTURE_KEY, enabled ? "true" : "false");
+    } catch {
+      // ignore — the toggle still applies for this session
+    }
   },
 
   setSelectedOcrEngine: async (engine) => {

@@ -21,10 +21,17 @@ interface BPVisionNativeModule {
     imageUri: string,
     sourceWidth: number,
     sourceHeight: number,
+    inputSize?: number,
   ): Promise<Detection[]>;
   /** Full on-device OCR pipeline; returns the `OnDeviceOcrResult` union shape. */
   readBp(imageUri: string): Promise<OnDeviceOcrResult>;
+  /** Dev-only: rebuild the detector session on another ONNX backend. */
+  setDetectorProvider(name: string): Promise<string>;
 }
+
+/** ONNX backends the detector session can be built on (mirrors `YoloDetector.ExecutionProvider`). */
+export const DETECTOR_PROVIDERS = ['CPU', 'XNNPACK', 'NNAPI'] as const;
+export type DetectorProvider = (typeof DETECTOR_PROVIDERS)[number];
 
 const BPVision = requireOptionalNativeModule<BPVisionNativeModule>('BPVision');
 
@@ -39,9 +46,10 @@ export async function detectInImage(
   imageUri: string,
   sourceWidth: number,
   sourceHeight: number,
+  inputSize?: number,
 ): Promise<Detection[]> {
   if (!BPVision) return [];
-  return BPVision.detect(imageUri, sourceWidth, sourceHeight);
+  return BPVision.detect(imageUri, sourceWidth, sourceHeight, inputSize);
 }
 
 /**
@@ -49,6 +57,26 @@ export async function detectInImage(
  * verbatim from native; when the module is unavailable, reports
  * `{ unavailable: true }` so `lib/ocr/read.ts` stays a thin pass-through.
  */
+/**
+ * Rebuild the YOLO session on a different ONNX backend and report which one
+ * took effect. Which backend is fastest is a per-device fact that has to be
+ * measured on the hardware in question, so this exists to let the dev
+ * benchmark compare them without a native rebuild per candidate.
+ *
+ * `__DEV__`-gated: production builds never switch backends, they use the
+ * default the measurements settled on. Returns `null` when the switch isn't
+ * available (production bundle, or module not linked) so callers can show
+ * that plainly instead of implying a change that never happened.
+ */
+export async function setDetectorProvider(
+  provider: DetectorProvider,
+): Promise<string | null> {
+  if (!__DEV__ || !BPVision || typeof BPVision.setDetectorProvider !== 'function') {
+    return null;
+  }
+  return BPVision.setDetectorProvider(provider);
+}
+
 export async function readBpOnDevice(
   imageUri: string,
 ): Promise<OnDeviceOcrResult> {

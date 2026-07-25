@@ -15,6 +15,7 @@ import {
   BPVisionCameraView,
   type BpVisionCameraCapture,
   type BpVisionCameraNativeRef,
+  type BpVisionDetectionFrame,
 } from '@/modules/bp-vision/BPVisionCameraView';
 import { CameraView } from 'expo-camera';
 import { cssInterop } from 'nativewind';
@@ -43,14 +44,34 @@ export interface BpCameraViewRef {
   capture(): Promise<BpCameraCapture>;
 }
 
+export type BpCameraDetectionFrame = BpVisionDetectionFrame;
+
 export interface BpCameraViewProps {
   className?: string;
   onCameraReady?: () => void;
   onMountError?: (event: { message?: string }) => void;
+  /**
+   * Run the on-device detector on the preview stream and report each frame's
+   * boxes through `onDetections`.
+   *
+   * Android + a real dev/prod build only. On iOS, web, and Expo Go there is no
+   * on-device detector, so this is silently inert and `onDetections` never
+   * fires — callers must treat "no detections ever" as a supported state and
+   * keep the screen fully usable without it, rather than waiting for a signal
+   * that will not arrive.
+   */
+  liveDetection?: boolean;
+  onDetections?: (frame: BpCameraDetectionFrame) => void;
 }
 
+/** True when `liveDetection` can actually do anything on this runtime. */
+export const isLiveDetectionSupported = (): boolean => USE_NATIVE_CAMERA;
+
 export const BpCameraView = React.forwardRef<BpCameraViewRef, BpCameraViewProps>(
-  ({ className, onCameraReady, onMountError }, ref) => {
+  (
+    { className, onCameraReady, onMountError, liveDetection, onDetections },
+    ref,
+  ) => {
     const nativeRef = React.useRef<BpVisionCameraNativeRef>(null);
     const cameraViewRef = React.useRef<CameraView>(null);
 
@@ -78,12 +99,17 @@ export const BpCameraView = React.forwardRef<BpCameraViewRef, BpCameraViewProps>
         <BPVisionCameraView
           ref={nativeRef}
           className={className}
+          liveDetection={liveDetection}
+          onDetections={(e) => onDetections?.(e.nativeEvent)}
           onCameraReady={() => onCameraReady?.()}
           onMountError={(e) => onMountError?.({ message: e.nativeEvent?.message })}
         />
       );
     }
 
+    // expo-camera has no analysis stream — `liveDetection` / `onDetections`
+    // are dropped here rather than faked, so the caller's "no signal" branch
+    // is the same one it uses before the first frame arrives on Android.
     return (
       <CameraView
         ref={cameraViewRef}
