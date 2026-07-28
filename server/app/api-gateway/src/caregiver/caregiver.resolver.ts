@@ -52,7 +52,9 @@ export class CaregiverResolver {
     return this.caregiverService.add(user.id, patientPhone, relationship);
   }
 
-  @Mutation(() => CaregiverLinkType, { description: 'ผู้ป่วยตอบรับ/ปฏิเสธคำเชิญจาก caregiver' })
+  @Mutation(() => CaregiverLinkType, {
+    description: 'ผู้ป่วยตอบรับ/ปฏิเสธคำเชิญจาก caregiver',
+  })
   @UseGuards(GqlAuthGuard)
   async respondToCaregiverInvite(
     @CurrentUser() user: { id: string },

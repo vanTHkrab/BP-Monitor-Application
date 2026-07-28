@@ -104,9 +104,13 @@ Key boundaries and design choices a senior should respect:
   existed) rather than a working "small revert." `client/lib/yolo/types.ts`
   survives — it's still a live shared type consumed by the native module's
   TS wrapper (`client/modules/bp-vision/index.ts`) — but
-  `client/lib/yolo/detect.ts`/`preprocess.ts`/`postprocess.ts` and
+  `client/lib/yolo/detect.ts`/`postprocess.ts` and
   `client/components/live-preflight-overlay.tsx` are now fully orphaned
-  (kept as inert reference code, imported by nothing). **The on-device
+  (kept as inert reference code, imported by nothing), and
+  `client/lib/yolo/preprocess.ts` has since been deleted outright — it
+  was the letterbox + JPEG-decode step and the only consumer of
+  `jpeg-js`, so keeping it meant carrying a dependency for dead code.
+  **The on-device
   pre-flight gate has since been rebuilt against the native module** — a
   CameraX `ImageAnalysis` stream in `bp-vision` feeding a live framing
   gate + auto-capture on the camera screen (see "Live framing gate" in
