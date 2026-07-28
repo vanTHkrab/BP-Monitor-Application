@@ -11,6 +11,12 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      # Mercurius GraphiQL UI. Defaults to OFF in production (see
+      # src/app.module.ts) — a schema explorer with mutation access to a
+      # live database is not something a public host should serve. Set to
+      # `1` in .env only for a demo; even then nginx keeps it behind the
+      # Basic Auth gate.
+      GRAPHIQL_ENABLED: ${GRAPHIQL_ENABLED:-0}
     # No `ports:` — nginx is the sole public ingress in prod (see the
     # `nginx` service below). Still reachable from other bp-net containers
     # by service name on 3000 without a published port.
@@ -66,6 +72,15 @@ services:
       DOMAIN_NAME: ${DOMAIN_NAME}
     volumes:
       - ../nginx/templates:/etc/nginx/templates:ro
+      # The Basic Auth credential file for /graphiql and / (see
+      # "Public demo access" in infra/README.md). The *directory* is mounted
+      # rather than ../nginx/auth/.htpasswd directly: a bind mount whose
+      # source path doesn't exist makes Docker create a directory there, and
+      # nginx then fails on a directory where it expects a password file.
+      # The directory is tracked (via .gitkeep), the .htpasswd inside it is
+      # gitignored. If it's missing, nginx still starts and /graphql keeps
+      # working — only the two gated routes 500.
+      - ../nginx/auth:/etc/nginx/auth:ro
       - ../nginx/reload-loop.sh:/usr/local/bin/reload-loop.sh:ro
       - certbot_certs:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro

@@ -19,6 +19,13 @@
 #     over Redis pub/sub (analyze_bp_image / analyze_bp_image.reply) and by
 #     web's server actions over the internal bp-net network directly
 #     (http://ai-service:8000), neither of which needs a public route.
+#
+# Access model when this host is exposed to the public internet (see
+# "Public demo access" in infra/README.md):
+#   - /graphiql and / require HTTP Basic Auth (the shared demo key).
+#   - /graphql does NOT, and must not — see the comment on that location.
+#   - /.well-known/acme-challenge/ does NOT, and must not — gating it would
+#     break Let's Encrypt renewal.
 
 server_tokens off;
 
@@ -30,6 +37,19 @@ map $http_upgrade $connection_upgrade {
     default upgrade;
     ''      close;
 }
+
+# Per-IP rate limit for the public GraphQL endpoint. /graphql cannot be put
+# behind the Basic Auth gate (the mobile client has no way to send a second
+# credential — see the location block below), so it is the one surface an
+# anonymous caller can reach. The app's own login throttle
+# (server/app/api-gateway/src/auth/login-throttle.guard.ts, 5 attempts /
+# 15 min) is keyed by *phone number*, so it does not slow an attacker who
+# rotates phones, and it degrades open when Redis isn't ready. This is the
+# net-layer backstop for both cases.
+#
+# 10r/s with burst=40 is deliberately generous: a screen that fires several
+# queries on focus must never trip it. It is a flood guard, not a quota.
+limit_req_zone $binary_remote_addr zone=gql:10m rate=10r/s;
 
 # Plain HTTP: always serve the ACME HTTP-01 challenge (needed for both
 # initial issuance and every renewal), redirect everything else to HTTPS.
@@ -82,7 +102,20 @@ server {
     # DOMAIN_NAME and no DNS split yet, so one host + one cert is the simpler
     # bootstrap. Revisit if gateway and dashboard ever need independent
     # scaling / rate limiting / WAF policy.
+    #
+    # Deliberately NOT behind `auth_basic`, unlike /graphiql and / below.
+    # The mobile client's transport (client/constants/api.ts) sends exactly
+    # two headers — Content-Type and `Authorization: Bearer <jwt>` — with no
+    # hook for a second static credential, and `Authorization` is already
+    # taken by the JWT. Adding Basic Auth here would break every installed
+    # app, not just anonymous callers. Access control for this route is the
+    # gateway's own JWT auth + login throttle; `limit_req` below is the
+    # net-layer flood guard. Do not "fix" the inconsistency with the two
+    # gated locations by adding auth_basic here.
     location /graphql {
+        limit_req zone=gql burst=40 nodelay;
+        limit_req_status 429;
+
         proxy_pass http://api-gateway:3000/graphql;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -98,15 +131,19 @@ server {
         proxy_send_timeout 3600s;
     }
 
-    # Mercurius GraphiQL UI (server/app/api-gateway/src/app.module.ts sets
-    # `graphiql: true` unconditionally, i.e. it is not gated behind
-    # NODE_ENV). Proxied here for parity with the pre-nginx setup, where the
-    # gateway's port was published directly and GraphiQL was already
-    # internet-reachable at :3000/graphiql — this does not newly expose it,
-    # it just moves it behind TLS. Gating GraphiQL off in production is an
-    # api-gateway app-code change (nest-dev's territory), not an nginx one;
-    # flagged, not fixed, here.
+    # Mercurius GraphiQL UI. Two independent gates, because either one alone
+    # is insufficient:
+    #   1. App-side: server/app/api-gateway/src/app.module.ts now resolves
+    #      `graphiql` from GRAPHIQL_ENABLED, defaulting OFF when
+    #      NODE_ENV=production. With it off the gateway 404s this path, so
+    #      the UI is not merely hidden behind a proxy — it isn't served.
+    #   2. Here: auth_basic, so that turning GRAPHIQL_ENABLED=1 for a demo
+    #      doesn't hand an anonymous visitor a schema explorer with mutation
+    #      access to a live database.
     location /graphiql {
+        auth_basic           "BP Monitor demo";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+
         proxy_pass http://api-gateway:3000/graphiql;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -117,7 +154,17 @@ server {
     }
 
     # Next.js dashboard — catch-all.
+    #
+    # Behind auth_basic because the dashboard is team-internal and its login
+    # form is credential-less by design (web/CLAUDE.md), while its server
+    # actions connect *directly* to Postgres, Redis and S3 (web/src/lib/
+    # db.ts, redis.ts, s3.ts). Un-gated on a public host, this route is a
+    # read-anything database inspector. The Basic Auth key is the only thing
+    # standing in front of it until the dashboard grows real auth.
     location / {
+        auth_basic           "BP Monitor demo";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+
         proxy_pass http://web:3000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

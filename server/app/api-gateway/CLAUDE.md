@@ -47,6 +47,13 @@ pnpm prisma migrate dev       # apply pending migrations
 - **Schema-first via decorators.** Adding a query/mutation = update the
   resolver + types file. Do **not** hand-edit `src/schema.gql` — it's
   regenerated on boot by `autoSchemaFile`.
+- **GraphiQL is env-gated.** `graphiql` in `app.module.ts` resolves from
+  `GRAPHIQL_ENABLED` (`1` = on), defaulting to on everywhere except
+  `NODE_ENV=production`. Dev is unaffected; a prod deploy does not serve a
+  mutation-capable schema explorer unless someone opts in. The prod nginx
+  config additionally puts `/graphiql` behind HTTP Basic Auth
+  (`infra/nginx/templates/default.conf.template`) — don't treat either gate
+  as redundant, they fail differently.
 - **Module shape.** Feature modules expose `XxxResolver` (GraphQL surface),
   `XxxService` (business logic), and `xxx.types.ts` (GraphQL `@ObjectType` /
   `@InputType` + class-validator decorators). The service injects
