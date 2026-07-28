@@ -30,6 +30,22 @@ on-device model (YOLO detector or CRNN OCR) can never silently disagree with
 backend inference — if either SHA256 drifts from the ai-service manifest
 (`EXPECTED_HASHES.json`), the dev start fails until you run `pnpm sync-yolo-model`.
 
+**`android/` is committed; `ios/` is not.** The Android native project is
+tracked in git (it is prebuild output, but pinned so a checkout builds without
+a prebuild step); `ios/` is gitignored and regenerated on demand. Because a
+committed native project exists, EAS Build will **not** sync the native-config
+fields in `app.json` (`orientation`, `icon`, `scheme`, `userInterfaceStyle`,
+`ios`, `android`, `plugins`, `androidStatusBar`) — for Android those fields are
+effectively documentation, and the committed `android/` is the source of truth.
+`expo-doctor`'s `appConfigFieldsNotSyncedCheck` is therefore disabled in
+`package.json` (`expo.doctor.appConfigFieldsNotSyncedCheck.enabled: false`);
+it was reporting a deliberate setup as a defect. **The trap this leaves:**
+editing an `app.json` native field alone changes nothing on Android — run
+`expo prebuild` and commit the regenerated `android/` in the same change, or
+edit the native file directly. Config plugins (including
+`modules/bp-vision/plugin/withBpVisionModels.js`) only take effect at prebuild
+time for the same reason.
+
 ## Important Paths
 
 | Path | Responsibility |

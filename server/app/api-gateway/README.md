@@ -57,7 +57,8 @@ pnpm build              # tsc → dist/
 pnpm start:prod         # node dist/main
 pnpm test               # Jest unit tests
 pnpm test:e2e           # Jest e2e (requires running DB)
-pnpm lint
+pnpm lint               # check only — never writes
+pnpm lint:fix           # same rules, applies autofixes
 pnpm prisma generate    # regen client after schema change
 pnpm prisma migrate dev # create + apply migration
 ```
