@@ -1,3 +1,10 @@
+# Security pin: handlebars < 4.7.9 carries a prototype-pollution advisory.
+# It reaches us transitively through ts-jest (devDependency), so this only
+# guards the test toolchain, never a shipped artifact — but an unpinned
+# resolution could still drift below the fixed version.
+overrides:
+  handlebars@<4.7.9: '>=4.7.9'
+
 allowBuilds:
   '@nestjs/core': true
   '@prisma/engines': true
