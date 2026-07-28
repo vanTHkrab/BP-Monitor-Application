@@ -30,6 +30,22 @@ on-device model (YOLO detector or CRNN OCR) can never silently disagree with
 backend inference — if either SHA256 drifts from the ai-service manifest
 (`EXPECTED_HASHES.json`), the dev start fails until you run `pnpm sync-yolo-model`.
 
+**`android/` is committed; `ios/` is not.** The Android native project is
+tracked in git (it is prebuild output, but pinned so a checkout builds without
+a prebuild step); `ios/` is gitignored and regenerated on demand. Because a
+committed native project exists, EAS Build will **not** sync the native-config
+fields in `app.json` (`orientation`, `icon`, `scheme`, `userInterfaceStyle`,
+`ios`, `android`, `plugins`, `androidStatusBar`) — for Android those fields are
+effectively documentation, and the committed `android/` is the source of truth.
+`expo-doctor`'s `appConfigFieldsNotSyncedCheck` is therefore disabled in
+`package.json` (`expo.doctor.appConfigFieldsNotSyncedCheck.enabled: false`);
+it was reporting a deliberate setup as a defect. **The trap this leaves:**
+editing an `app.json` native field alone changes nothing on Android — run
+`expo prebuild` and commit the regenerated `android/` in the same change, or
+edit the native file directly. Config plugins (including
+`modules/bp-vision/plugin/withBpVisionModels.js`) only take effect at prebuild
+time for the same reason.
+
 ## Important Paths
 
 | Path | Responsibility |
@@ -59,7 +75,7 @@ backend inference — if either SHA256 drifts from the ai-service manifest
 | `store/shared/` | Cross-slice helpers: `log` (`logWarn`, `communityDebug`), `client-id` (local-id helpers + `createClientId`), `error-format` (`formatAuthError` for login/register UX + legacy `authErrorToThai`), `mappers` (`xxxFromGql` + sorters). |
 | `types/` | Shared TypeScript types. Add domain types here, not inline. |
 | `utils/` | `export-data` (CSV/PDF file I/O + share sheet), `export-report` (pure export builders — CSV bodies with UTF-8 BOM, report-style PDF HTML with the embedded logo, `BP-Report_{name}_{period}` filenames, `resolveExportSubjectName` for caregiver-viewing exports), `date-format` (shared Thai date helpers — `formatThaiDateTime` "10 ก.ค. 2569 21:52" style used by both UI and exports), `reminders`, `font-scale`, `upload-image`, `phone-format` (Thai phone formatter + `stripPhoneDigits`), `image-prepare` (resize + recompress images before they hit the AI / S3 path), `image-cache` (`resolveImageUri` / `cleanupExpiredImages` — downloads signed S3 images into `Paths.cache` keyed by extracted S3 path, 7-day TTL). |
-| `utils/debug.ts` | `debug.log`/`.info`/`.warn`/`.error` — gated by `DebugSettings.DEBUG_MODE`, currently hardcoded `true` rather than tied to `__DEV__` (flagged as a follow-up, not yet fixed — would log in production builds if left as-is). Also exports a `debug_condition` method decorator for forcing a method/getter's return value during debugging. |
+| `utils/debug.ts` | `debug.log`/`.info`/`.warn`/`.error` — gated by `DebugSettings.DEBUG_MODE`, which is tied to `__DEV__`, so these calls are inert in production builds. Also exports a `debug_condition` method decorator for forcing a method/getter's return value during debugging. |
 | `utils/storage-image.ts` | Thin pass-through for signed S3 image URLs — the gateway now returns short-lived signed GET URLs for all stored images (avatars, BP photos). Kept as a stub so existing callsites compile without churn; contains no active transformation logic. |
 | `utils/app-notifications.ts` | In-app notification queue — `InAppNotificationItem` type + `AsyncStorage`-backed store for non-push alerts surfaced inside the app (e.g. readings alerts). Separate from `utils/reminders.ts` (scheduled local notifications). |
 | `hooks/use-resolved-image-uri.ts` | React hook over `image-cache` — feeds remote URI on mount, swaps to the `file://` once `resolveImageUri` returns. Used by `reading-detail-modal` so signed-URL rotation is transparent and history images render offline. |
