@@ -85,7 +85,76 @@ in the PR body per CLAUDE.md rule 1).
 
 ---
 
-## Step 3 — Write the PR body
+## Step 3 — Pick the form
+
+Two forms. Read the answer off the commit type you just chose in Step 2 — this
+is a lookup, not a judgement call:
+
+| Commit type | Form |
+|---|---|
+| `feat` · `fix` · `perf` · `refactor` | **Full** |
+| `chore` · `docs` · `test` · `ci` | **Short** |
+
+**Escalate Short → Full** if *any* of these holds, whatever the type:
+
+- a wire contract moves (GraphQL schema, Redis payload shape, S3 key layout)
+- auth, PII handling, or a Prisma migration is touched
+- the diff spans ≥ 2 apps (scope `shared`)
+
+Escalation is one-way. Nothing downgrades a `feat` / `fix` / `perf` /
+`refactor` to Short.
+
+### Length discipline (both forms)
+
+The reader is a colleague with the diff open in the next tab. Write what the
+diff cannot tell them — the reason, the rejected alternative, the trap left
+behind — and stop.
+
+- No section restates another. If **How** would repeat **What**, drop it.
+- No paragraph exists to look thorough. A one-line **Why** that is true beats
+  three that are padding.
+- Never invent a trade-off to fill the space. "No alternatives were seriously
+  considered" is a legitimate thing to leave unwritten.
+- Prose over tables when there are fewer than three rows to compare.
+
+---
+
+## Step 4a — Short form
+
+```markdown
+## Summary
+
+<!-- One paragraph: what changed, then why. A second only if the why
+     genuinely needs it. -->
+
+## Verification
+
+| Check | Command | Result |
+|-------|---------|--------|
+| tester verdict | `tester` skill against current branch | ✅ PASSED — <n> suites |
+```
+
+Only include rows that actually ran — do not carry template rows through as
+`⏭ skipped`.
+
+**If the tester verdict was `SKIPPED (docs/infra only)`**, drop the
+`## Verification` heading and table entirely and end with a single line:
+
+```
+tester: SKIPPED (docs/infra only) — no code paths changed.
+```
+
+A table with one row that says nothing ran is worse than a sentence.
+
+**Deviations still get stated.** The Full form's Checklist is omitted here, but
+the rules behind it are not suspended. If this change deviates from any of
+them — a drive-by refactor, a ghost package added or abandoned, a doc left
+stale, a second app touched — say so in **Summary**, plainly, as a deviation.
+Silence in the Short form means "no deviations", so it must be true.
+
+---
+
+## Step 4b — Full form
 
 Fill **every** row and section. Use `N/A` only when a section genuinely does
 not apply.
@@ -122,6 +191,8 @@ not apply.
 Copy the per-suite results from the tester verdict you were handed — do not
 re-run the commands yourself and do not invent results. If a suite was not
 required (sub-project unchanged), mark it `⏭ skipped (sub-project unchanged)`.
+Drop rows for suites this repo has no equivalent of rather than padding the
+table with placeholders.
 
 ## Checklist
 
@@ -149,6 +220,16 @@ Emit **exactly these two fenced blocks** — no prose before or after:
 ```
 ````
 
-Then state:
+Then state, on one line, which form you used and why — `pr-review` grades
+against the matching rule set, so leaving this out forces it to guess:
 
-> **pr-write complete.** Passing artifact to `pr-review` for approval.
+> **pr-write complete** (Short form — `chore`, no escalation trigger).
+> Passing artifact to `pr-review` for approval.
+
+or
+
+> **pr-write complete** (Full form — `feat`). Passing artifact to `pr-review`
+> for approval.
+
+Name the escalation trigger explicitly when one fired, e.g.
+`Full form — escalated from chore: touches Prisma migration`.

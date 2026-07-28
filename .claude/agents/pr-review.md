@@ -48,7 +48,37 @@ Check every rule:
 
 ## Step 3 — Review the PR body
 
-Check every section and rule:
+`pr-write` emits either a **Short** or a **Full** form and names which on its
+completion line. Grade against the matching rule set — **a Short form is not a
+Full form with sections missing.**
+
+First, verify the form choice itself was correct. `pr-write` picks by commit
+type (`feat` · `fix` · `perf` · `refactor` → Full; `chore` · `docs` · `test` ·
+`ci` → Short), escalating Short → Full when the diff moves a wire contract,
+touches auth / PII / a Prisma migration, or spans ≥ 2 apps.
+
+| # | Rule | Fail condition |
+|---|------|----------------|
+| P0 | **Form is correct for the diff** | Short form used for a `feat`/`fix`/`perf`/`refactor`, or for a diff that met an escalation trigger. **Under-forming is a real failure; over-forming is not** — a Full form on a small `chore` is verbose, note it and move on |
+
+### Short form — P1s, P7, P9 only
+
+| # | Rule | Fail condition |
+|---|------|----------------|
+| P1s | **Summary** — concrete; says what changed and why | Vague ("various fixes"), or restates the diff without a reason |
+| P7 | **Verification** — present with real results, or a single `tester: SKIPPED (docs/infra only)` line | Placeholder cells, or padded rows for suites that never ran |
+| P9 | **tester verdict** — a real `PASSED` / `SKIPPED (docs/infra only)` from the attached run | Absent, `FAILED`, or `PASSED` with no attached tester output |
+
+Do **not** raise a finding because a Short form lacks How / Scope /
+Cross-cutting impact / Breaking change / Checklist. Their absence is the
+format, not an omission.
+
+One thing still binds: Short-form silence asserts there were no rule
+deviations. If the diff shows a drive-by refactor, a ghost package, a stale
+doc, or a second app touched, and **Summary** does not name it, that is a
+P1s failure — the artifact is claiming something untrue by omission.
+
+### Full form — P1 through P9
 
 | # | Rule | Fail condition |
 |---|------|----------------|
@@ -61,6 +91,12 @@ Check every section and rule:
 | P7 | **Verification table** — every row completed, no blank Result cells | Any cell left as template placeholder |
 | P8 | **Checklist** — all boxes ticked or explicitly noted as N/A | Unticked boxes without explanation |
 | P9 | **tester verdict row** — first row of the verification table is a `tester` verdict (`PASSED` or `SKIPPED (docs/infra only)`) referencing the run attached to the artifact | Row absent, marked `FAILED`, or claims `PASSED` without an attached tester output block |
+
+### Padding is a finding, not a virtue
+
+In either form, flag prose that exists to look thorough: a **How** that
+restates **What**, an invented trade-off, a table with one row. Report these as
+non-blocking observations unless they crowd out something load-bearing.
 
 ---
 
