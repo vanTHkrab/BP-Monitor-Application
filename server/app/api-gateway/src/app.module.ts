@@ -44,7 +44,15 @@ import { DebugModule } from './debug/debug.module';
     GraphQLModule.forRoot<MercuriusDriverConfig>({
       driver: MercuriusDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-      graphiql: true,
+      // GraphiQL is a schema explorer with full mutation access to whatever
+      // database the process is pointed at, so it must not be served by
+      // default on an internet-facing deploy. Off in production unless
+      // GRAPHIQL_ENABLED=1 is set explicitly; unchanged (on) everywhere else.
+      // In the prod stack nginx additionally puts /graphiql behind Basic Auth
+      // — see infra/nginx/templates/default.conf.template.
+      graphiql: process.env.GRAPHIQL_ENABLED
+        ? process.env.GRAPHIQL_ENABLED === '1'
+        : process.env.NODE_ENV !== 'production',
       subscription: true,
       errorFormatter: (execution) => {
         const errors = execution.errors?.map((err): GraphQLFormattedError => {

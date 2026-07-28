@@ -425,7 +425,9 @@ pnpm --dir server/app/api-gateway start:dev
 
 - The gateway listens on `:3000` (override with `PORT`).
 - GraphiQL: `http://localhost:3000/graphiql` — interactive explorer +
-  request runner.
+  request runner. On by default outside production; in production it is
+  served only when `GRAPHIQL_ENABLED=1`, and the prod reverse proxy keeps
+  the route behind HTTP Basic Auth either way (see `infra/README.md`).
 - Schema SDL is served at `http://localhost:3000/graphql` (introspection
   is enabled in dev).
 - For the mobile client, run `pnpm start` in `client/` and point it at

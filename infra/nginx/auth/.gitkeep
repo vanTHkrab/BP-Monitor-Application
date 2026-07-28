@@ -1,0 +1,12 @@
+# This directory holds the nginx Basic Auth credential file (.htpasswd) that
+# gates /graphiql and / on a public deploy. It is tracked only so the bind
+# mount in docker-compose.prod.yml has an existing source directory — a
+# missing bind-mount source would be created by Docker as a directory, which
+# nginx cannot read as a password file.
+#
+# The .htpasswd itself is gitignored. Generate it with:
+#
+#   docker run --rm httpd:2.4-alpine htpasswd -nbB demo 'YOUR_KEY' \
+#     > infra/nginx/auth/.htpasswd
+#
+# See "Public demo access" in infra/README.md.

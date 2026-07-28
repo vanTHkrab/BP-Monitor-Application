@@ -1,3 +1,8 @@
 docker-compose/.env
 docker-compose/.env.*
 !docker-compose/.env.example
+
+# nginx Basic Auth credentials for the public demo gate. The directory is
+# tracked (nginx/auth/.gitkeep) because docker bind-mounts it; the hashes
+# inside it are a real credential and never get committed.
+nginx/auth/.htpasswd
