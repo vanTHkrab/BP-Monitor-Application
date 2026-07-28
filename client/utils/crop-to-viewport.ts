@@ -11,6 +11,75 @@ export interface CroppedImage {
   height: number;
 }
 
+/** Centered crop box in source-photo pixels, shaped for `ImageManipulator.crop`. */
+export interface CoverCropBox {
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Pure reverse-cover geometry — the WYSIWYG contract both camera paths
+ * (`expo-camera`'s `takePictureAsync` and the native CameraX `capture()`) feed
+ * into. Given the captured photo dimensions and the on-screen viewport aspect,
+ * returns the largest centered crop box whose aspect equals `viewportAspect`,
+ * or `null` when the input is degenerate or the photo already matches the
+ * viewport (no crop needed).
+ *
+ * Extracted from `cropToViewport` so this math is unit-testable without the
+ * `ImageManipulator` I/O — if the two capture paths ever drift on the
+ * width/height convention they report, the assertion that the returned box's
+ * aspect matches `viewportAspect` is what catches it.
+ */
+export const computeCoverCropBox = (
+  photoWidth: number,
+  photoHeight: number,
+  viewportAspect: number,
+): CoverCropBox | null => {
+  // Degenerate input — a zero/NaN dimension or aspect would produce a nonsense
+  // crop box (or divide-by-zero). Signal "no crop" so the caller keeps the
+  // original image.
+  if (
+    !Number.isFinite(photoWidth) ||
+    !Number.isFinite(photoHeight) ||
+    !Number.isFinite(viewportAspect) ||
+    photoWidth <= 0 ||
+    photoHeight <= 0 ||
+    viewportAspect <= 0
+  ) {
+    return null;
+  }
+
+  const photoAspect = photoWidth / photoHeight;
+
+  // Largest centered rectangle of the photo whose aspect matches the viewport.
+  // One axis stays full; the other shrinks.
+  let visibleW: number;
+  let visibleH: number;
+  if (photoAspect > viewportAspect) {
+    // Photo wider than viewport → crop left/right, keep full height.
+    visibleH = photoHeight;
+    visibleW = photoHeight * viewportAspect;
+  } else {
+    // Photo taller than viewport → crop top/bottom, keep full width.
+    visibleW = photoWidth;
+    visibleH = photoWidth / viewportAspect;
+  }
+
+  const cropW = Math.max(1, Math.min(photoWidth, Math.round(visibleW)));
+  const cropH = Math.max(1, Math.min(photoHeight, Math.round(visibleH)));
+  const originX = Math.max(0, Math.floor((photoWidth - cropW) / 2));
+  const originY = Math.max(0, Math.floor((photoHeight - cropH) / 2));
+
+  // Aspects already match (within rounding) → nothing to crop.
+  if (cropW >= photoWidth && cropH >= photoHeight) {
+    return null;
+  }
+
+  return { originX, originY, width: cropW, height: cropH };
+};
+
 /**
  * Center-crop a captured photo so its aspect ratio matches the on-screen
  * camera viewport — making "what was captured" equal "what was framed"
@@ -67,50 +136,18 @@ export const cropToViewport = async (
   photoHeight: number,
   viewportAspect: number,
 ): Promise<CroppedImage> => {
-  // Guard against degenerate inputs — a zero/NaN dimension or aspect would
-  // produce a nonsense crop box (or divide-by-zero), so bail to the original.
-  if (
-    !Number.isFinite(photoWidth) ||
-    !Number.isFinite(photoHeight) ||
-    !Number.isFinite(viewportAspect) ||
-    photoWidth <= 0 ||
-    photoHeight <= 0 ||
-    viewportAspect <= 0
-  ) {
-    return { uri, width: photoWidth, height: photoHeight };
-  }
-
-  const photoAspect = photoWidth / photoHeight;
-
-  // Compute the largest centered rectangle of the photo whose aspect matches
-  // the viewport. One axis stays full; the other shrinks.
-  let visibleW: number;
-  let visibleH: number;
-  if (photoAspect > viewportAspect) {
-    // Photo wider than viewport → crop left/right, keep full height.
-    visibleH = photoHeight;
-    visibleW = photoHeight * viewportAspect;
-  } else {
-    // Photo taller than viewport → crop top/bottom, keep full width.
-    visibleW = photoWidth;
-    visibleH = photoWidth / viewportAspect;
-  }
-
-  const cropW = Math.max(1, Math.min(photoWidth, Math.round(visibleW)));
-  const cropH = Math.max(1, Math.min(photoHeight, Math.round(visibleH)));
-  const originX = Math.max(0, Math.floor((photoWidth - cropW) / 2));
-  const originY = Math.max(0, Math.floor((photoHeight - cropH) / 2));
-
-  // Aspects already match (within rounding) → nothing to crop, skip the
-  // re-encode pass entirely.
-  if (cropW >= photoWidth && cropH >= photoHeight) {
+  // Degenerate inputs or aspect-already-matches → keep the original image,
+  // skipping the re-encode pass entirely. (Geometry lives in the pure,
+  // unit-tested helper above.)
+  const box = computeCoverCropBox(photoWidth, photoHeight, viewportAspect);
+  if (!box) {
     return { uri, width: photoWidth, height: photoHeight };
   }
 
   try {
     // v14 contextual API — `manipulateAsync` is deprecated.
     const ref = await ImageManipulator.manipulate(uri)
-      .crop({ originX, originY, width: cropW, height: cropH })
+      .crop(box)
       .renderAsync();
     const result = await ref.saveAsync({
       compress: COMPRESS_QUALITY,
@@ -118,8 +155,8 @@ export const cropToViewport = async (
     });
     return {
       uri: result.uri,
-      width: result.width || cropW,
-      height: result.height || cropH,
+      width: result.width || box.width,
+      height: result.height || box.height,
     };
   } catch (error) {
     if (__DEV__) {

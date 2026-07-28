@@ -245,7 +245,10 @@ export class CaregiverService {
    * ตรวจว่า actor มีสิทธิ์ดู/บันทึกข้อมูลของ patient หรือไม่
    * ผ่านถ้า actor === patient เอง หรือมี link `accepted`
    */
-  async assertCanActOnBehalfOf(actorId: string, patientId: string): Promise<void> {
+  async assertCanActOnBehalfOf(
+    actorId: string,
+    patientId: string,
+  ): Promise<void> {
     if (actorId === patientId) return;
 
     const link = await this.prisma.caregiverPatient.findUnique({

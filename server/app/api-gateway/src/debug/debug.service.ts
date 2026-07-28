@@ -123,7 +123,9 @@ export class DebugService {
       };
     } catch (error) {
       const name = error instanceof Error ? error.name : 'UnknownError';
-      this.logger.warn(`HEAD failed source=${input.source} key=${key} error=${name}`);
+      this.logger.warn(
+        `HEAD failed source=${input.source} key=${key} error=${name}`,
+      );
       return {
         source: input.source,
         refId: input.refId,

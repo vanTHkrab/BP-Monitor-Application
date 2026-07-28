@@ -6,7 +6,11 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    // `src/prisma/generated/` is emitted by `prisma generate`; linting it is
+    // pointless (every fix is overwritten on the next generate) and it made
+    // `pnpm lint` non-idempotent, since the baked-in `--fix` rewrote 18
+    // generated files on every run.
+    ignores: ['eslint.config.mjs', 'src/prisma/generated/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

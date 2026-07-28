@@ -29,11 +29,35 @@ class BPVisionCameraView(context: Context, appContext: AppContext) :
 
   companion object {
     private const val TAG = "BPVisionCamera"
+
+    /** Floor between `onDetections` emissions. See [lastEmitMs]. */
+    private const val MIN_EMIT_INTERVAL_MS = 150L
   }
 
   // Event names must match the module's `Events(...)` declaration.
   private val onCameraReady by EventDispatcher()
   private val onMountError by EventDispatcher()
+  private val onDetections by EventDispatcher()
+
+  /**
+   * Supplies the shared detector, lazily and off the main thread.
+   *
+   * The module owns detector lifetime (one ONNX session per process); the view
+   * only borrows it. It is a supplier rather than an instance because the first
+   * call builds the session — a few hundred milliseconds — and that must happen
+   * on the analysis thread, not during the prop update on main.
+   */
+  private var detectorSupplier: (() -> YoloDetector)? = null
+
+  /**
+   * Wall-clock of the last `onDetections` emission, for throttling.
+   *
+   * Inference already paces emissions to ~5/s on the measured device, so this
+   * is a ceiling for faster hardware rather than the primary rate control: it
+   * keeps a fast phone from flooding the JS thread with more state updates
+   * than a human-visible framing hint could ever use.
+   */
+  private var lastEmitMs = 0L
 
   private val previewView = PreviewView(context).also {
     it.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
@@ -131,6 +155,59 @@ class BPVisionCameraView(context: Context, appContext: AppContext) :
     }
   }
 
+  /**
+   * Hand the view the shared detector supplier and start/stop live analysis.
+   *
+   * Called from the module's prop handler, which owns the detector. Attaching
+   * the frame listener here (rather than at bind time) keeps the whole
+   * detection path inert until JS actually asks for it — a screen that never
+   * enables the framing gate pays nothing beyond the preview it already had.
+   */
+  fun setLiveDetection(enabled: Boolean, supplier: (() -> YoloDetector)?) {
+    detectorSupplier = supplier
+    controller.setFrameListener(if (enabled) ::onAnalysisFrame else null)
+    controller.setAnalysisEnabled(enabled)
+  }
+
+  /**
+   * Per-frame detection. Runs on the CameraController's analysis thread.
+   *
+   * Owns [bitmap] and must recycle it — these are full-resolution ARGB
+   * allocations arriving several times a second, so leaking them here would
+   * exhaust the heap in seconds rather than leaking slowly.
+   */
+  private fun onAnalysisFrame(bitmap: android.graphics.Bitmap, width: Int, height: Int) {
+    try {
+      val detector = detectorSupplier?.invoke() ?: return
+      val detections = detector.detect(bitmap, width, height)
+
+      val now = System.currentTimeMillis()
+      if (now - lastEmitMs < MIN_EMIT_INTERVAL_MS) return
+      lastEmitMs = now
+
+      val payload = mapOf(
+        "frameWidth" to width,
+        "frameHeight" to height,
+        "detections" to detections.map {
+          mapOf(
+            "x1" to it.x1,
+            "y1" to it.y1,
+            "x2" to it.x2,
+            "y2" to it.y2,
+            "cls" to it.cls,
+            "className" to it.className,
+            "confidence" to it.confidence,
+          )
+        },
+      )
+      // Marshal to main before dispatching: this runs on the analysis
+      // executor, and RN event emission is main-thread work.
+      post { onDetections(payload) }
+    } finally {
+      bitmap.recycle()
+    }
+  }
+
   /** Take a picture; resolves the JS ref promise with `{ uri, width, height }`. */
   fun capture(promise: Promise) {
     controller.capture(
@@ -151,6 +228,9 @@ class BPVisionCameraView(context: Context, appContext: AppContext) :
       previewView.previewStreamState.removeObserver(obs)
     }
     streamObserver = null
+    // Drop the detector reference before unbinding so no in-flight frame can
+    // reach a detector the module may be about to close.
+    detectorSupplier = null
     controller.unbind()
     owner = null
   }

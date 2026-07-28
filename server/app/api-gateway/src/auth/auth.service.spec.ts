@@ -79,8 +79,13 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     prisma = buildPrismaMock();
-    const storage: Pick<StorageService, 'signImageKey' | 'normalizeStorageValue'> = {
-      signImageKey: jest.fn(async (v: string | null | undefined) => v ?? null),
+    const storage: Pick<
+      StorageService,
+      'signImageKey' | 'normalizeStorageValue'
+    > = {
+      signImageKey: jest.fn((v: string | null | undefined) =>
+        Promise.resolve(v ?? null),
+      ),
       normalizeStorageValue: jest.fn(
         (v: string | null | undefined) => v ?? null,
       ),

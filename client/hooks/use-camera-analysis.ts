@@ -7,6 +7,7 @@ import { useCallback, useRef, useState } from 'react';
 
 export type AnalysisPhase =
   | 'idle'
+  | 'reading'
   | 'uploading'
   | 'queued'
   | 'processing'
@@ -22,6 +23,9 @@ const PHASE_MAP: Record<AnalysisJob['status'], AnalysisPhase> = {
 
 export const PHASE_LABEL: Record<AnalysisPhase, string> = {
   idle: '',
+  // On-device (offline) OCR — distinct from the backend 'processing' label so
+  // the user isn't told "AI" when inference is running locally on the phone.
+  reading: 'กำลังอ่านค่าในเครื่อง...',
   uploading: 'กำลังอัปโหลด...',
   queued: 'รอ AI วิเคราะห์...',
   processing: 'AI กำลังอ่านค่า...',
@@ -87,13 +91,15 @@ export function useCameraAnalysis() {
    */
   const readOnDevice = useCallback(async (imageUri: string): Promise<boolean> => {
     if (__DEV__) console.log('[readOnDevice] starting OCR for', imageUri);
-    setState((prev) => ({ ...prev, phase: 'processing', error: null }));
+    setState((prev) => ({ ...prev, phase: 'reading', error: null }));
     try {
       const ocr = await readBpFromImage({ imageUri });
       if (isOcrUnavailable(ocr)) {
-        // Expected while the model is a stub; log-only so the offline flow
-        // proceeds straight to manual entry with zero UI churn.
+        // No monitor / unreadable fields / iOS / web / Expo Go — fall through
+        // to plain manual entry. Clear the 'reading' phase so the preview chip
+        // doesn't stick on "กำลังอ่านค่าในเครื่อง..." after we've given up.
         if (__DEV__) console.log('[readOnDevice] unavailable:', ocr.reason);
+        setState((prev) => ({ ...prev, phase: 'idle' }));
         return false;
       }
       const readings = { systolic: ocr.sys, diastolic: ocr.dia, pulse: ocr.pulse };
@@ -123,6 +129,7 @@ export function useCameraAnalysis() {
       return true;
     } catch (err) {
       logWarn('ocr', 'on-device OCR failed; falling back to manual entry', err);
+      setState((prev) => ({ ...prev, phase: 'idle' }));
       return false;
     }
   }, []);
