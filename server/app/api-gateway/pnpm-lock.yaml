@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  handlebars@<4.7.9: '>=4.7.9'
+
 importers:
 
   .:
