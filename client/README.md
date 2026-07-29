@@ -1,169 +1,56 @@
-# BP Monitor — Mobile App (Expo + React Native)
+# Welcome to your Expo app 👋
 
-The patient-facing mobile app for the BP Monitor platform. Patients use it to log
-blood-pressure readings (manually or via the device camera with AI-assisted OCR),
-review their history, set reminders, talk to other patients in a community feed,
-and link with caregivers.
+This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-This is the `client/` workspace of the [BP Monitor monorepo](../README.md).
-For repo-wide guidance, see the root `CLAUDE.md`.
+## Get started
 
----
+1. Install dependencies
 
-## Tech Stack
+   ```bash
+   npm install
+   ```
 
-| Area | Library |
-|---|---|
-| Runtime | Expo SDK 54, React Native 0.81, React 19 |
-| Routing | Expo Router 6 (file-based, `app/`) |
-| Styling | NativeWind 4 (Tailwind for RN), `expo-linear-gradient` |
-| State | Zustand 5 (single store in `store/use-app-store.ts`) |
-| Persistence | `expo-sqlite` (offline queue), `expo-secure-store` (auth token), `@react-native-async-storage/async-storage` (preferences) |
-| Network | GraphQL over `fetch` (custom client in `constants/api.ts` and `lib/graphql-client.ts`), `socket.io-client` for real-time chat |
-| Camera / Media | `expo-camera`, `expo-image-picker`, `expo-image` |
-| Notifications | `expo-notifications` (local reminders) |
-| Charts | `react-native-gifted-charts` |
-| Auth (device) | `expo-local-authentication` (biometrics), `expo-secure-store` |
-| Misc | `expo-print` + `expo-sharing` (PDF/CSV export), `@react-native-community/netinfo` |
+2. Start the app
 
----
+   ```bash
+   npx expo start
+   ```
 
-## Prerequisites
+In the output, you'll find options to open the app in a
 
-- Node.js 20+
-- pnpm 11+ (matches the `packageManager` field in `package.json` — `corepack enable` is the easiest way)
-- Expo CLI is bundled — no global install needed
-- For native builds: Xcode (iOS) or Android Studio (Android)
-- A reachable instance of the API gateway (`server/app/api-gateway`) on the
-  same LAN as your phone, or accessible via tunnel
+- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
-## Setup
+You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+
+## Get a fresh project
+
+When you're ready, run:
 
 ```bash
-# from repo root
-pnpm --dir client install
-
-# point the app at your API gateway (LAN IP, not localhost — the phone needs to reach it)
-echo "EXPO_PUBLIC_API_URL=http://192.168.x.x:3000/graphql" > client/.env
+npm run reset-project
 ```
 
-> Without `EXPO_PUBLIC_API_URL`, the app falls back to an Expo-hostUri guess
-> and then to a hardcoded LAN IP that only works inside the original
-> development network. Always set this for your own machine.
+This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
-## Run
+### Other setup steps
 
-```bash
-# from repo root
-pnpm --dir client start          # Expo dev server with QR code
-pnpm --dir client android        # build + install on a connected Android device
-pnpm --dir client ios            # build + run on iOS simulator
-pnpm --dir client web            # web preview (uses AsyncStorage instead of SecureStore)
-pnpm --dir client lint
-```
+- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
+- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
+- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
 
-## Project Structure
+## Learn more
 
-```
-client/
-├── app/                       # Expo Router routes (file-based)
-│   ├── _layout.tsx            # Root layout: theme + network + notifications bootstrap
-│   ├── index.tsx              # Auth gate → tabs or /login
-│   ├── (auth)/                # Auth screens (route group, no URL prefix)
-│   │   ├── _layout.tsx        # Stack layout for auth group
-│   │   ├── login.tsx          # Login form
-│   │   └── register.tsx       # Register form + avatar picker
-│   ├── (tabs)/                # Main bottom-tab navigator
-│   │   ├── _layout.tsx        # Tab bar config
-│   │   ├── index.tsx          # Home dashboard + readings chart
-│   │   ├── camera.tsx         # BP image capture + AI OCR + manual entry
-│   │   ├── history.tsx        # Reading history with filters + CSV/PDF export
-│   │   ├── chat.tsx           # Community feed (posts + comments)
-│   │   ├── explore.tsx        # Explore / discovery tab
-│   │   └── menu.tsx           # Settings shortcuts
-│   ├── profile.tsx            # Profile editor (modal)
-│   ├── settings.tsx           # App settings (modal)
-│   ├── security.tsx           # Sensitive-data lock / biometrics (modal)
-│   ├── caregivers.tsx         # Caregiver-patient links (modal)
-│   ├── help.tsx               # Help & FAQ (modal)
-│   ├── about.tsx              # App version / legal information (modal)
-│   ├── health-tips.tsx        # Health tips content screen (modal)
-│   ├── history-list.tsx       # Full reading history list view (modal)
-│   ├── modal.tsx              # Generic modal shell
-│   └── debug/                 # Dev/debug tooling screens — not included in production builds
-├── components/                # Shared UI primitives (buttons, inputs, gradients, animations)
-├── constants/                 # api.ts (GraphQL client + queries), colors.ts (BP status), tabs.ts
-├── data/                      # local-db.ts (SQLite schema + offline queues), mockData.ts
-├── hooks/                     # use-camera-analysis, use-color-scheme, use-theme-color, use-live-preflight, use-resolved-image-uri
-├── lib/                       # graphql-client.ts (multipart-aware GraphQL client), yolo/ (on-device detector), ocr/ (on-device OCR — bp-vision native engine)
-├── services/                  # camera.service.ts (BP image upload + analysis polling)
-├── store/                     # Single Zustand store composed from slices
-│   ├── use-app-store.ts         # Composer — merges every slice
-│   ├── slices/                # auth, readings, community, caregivers, preferences, network
-│   └── shared/                # log, client-id, error-format, mappers
-├── types/                     # Shared TypeScript types
-├── utils/                     # export-data.ts, export-report.ts, date-format.ts, reminders.ts, font-scale.ts, upload-image.ts, pending-image-store.ts
-├── assets/                    # Fonts, images, sounds
-├── android/, ios/             # Native projects (rebuilt by `expo prebuild`)
-├── app.json                   # Expo config
-├── tailwind.config.js         # NativeWind config
-└── tsconfig.json
-```
+To learn more about developing your project with Expo, look at the following resources:
 
-## Key Behaviors
+- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
+- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
 
-- **Offline-first**: every BP reading and community post is written to SQLite
-  first, then synced to the API. The Zustand store keeps optimistic UI state
-  and reconciles on `fetchReadings` / `fetchPosts`.
-- **Sync mutex**: `syncPendingReadings` and `syncPendingPosts` use a
-  promise-based mutex — concurrent callers share the in-flight promise rather
-  than racing past a boolean flag.
-- **Auth token**: stored in `expo-secure-store` on iOS/Android, falls back to
-  AsyncStorage on web. A one-time migration moves any legacy token from
-  AsyncStorage into SecureStore on first read.
-- **Theme + accessibility**: `themePreference` (light/dark) and
-  `fontSizePreference` (small/medium/large/xlarge) are hydrated from
-  AsyncStorage at boot and applied via NativeWind classes + `getFontClass`.
-- **Sensitive-data gate**: when `hideSensitiveData` is enabled, BP values and
-  PII are masked until the user re-enters their password
-  (`unlockSensitiveData`). Biometric unlock is opt-in via
-  `expo-local-authentication`.
-- **Dev-only logging**: errors caught in store actions are reported via a
-  `__DEV__`-guarded `logWarn` helper. Production builds stay quiet.
+## Join the community
 
-## Environment
+Join our community of developers creating universal apps.
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `EXPO_PUBLIC_API_URL` | Yes (in practice) | Full GraphQL endpoint, e.g. `http://192.168.1.10:3000/graphql`. Without it, the app falls back to an Expo-hostUri guess and then to a hardcoded LAN IP. |
-
-## Talking to the Backend
-
-- All API calls go through `graphqlRequest` in `constants/api.ts`. It attaches
-  the bearer token, sets a 30-second timeout, and normalizes errors.
-- File uploads (avatars, BP images) go through the presigned-URL flow
-  (`requestImageUpload` → PUT to S3 → `confirmImageUpload`) — see
-  `utils/upload-image.ts → uploadImageViaPresign` (avatars + sync of
-  reading-attached photos) and `services/camera.service.ts → analyzeImage`
-  (camera capture + AI analysis). On native both paths stream the file
-  via `FileSystem.uploadAsync` from `expo-file-system/legacy`; on web they
-  fall back to `fetch + Blob` (RN's Blob can't take ArrayBuffer).
-- The AI image-analysis pipeline is in `services/camera.service.ts`:
-  `analyzeImage` uploads the photo, then polls `analysisJob(jobId)` until the
-  AI service returns `done` or `failed`.
-
-## Testing
-
-There's no automated test suite in `client/` yet. Manual smoke checklist:
-
-1. Register a new account → expect token in SecureStore and home dashboard.
-2. Log a manual reading → expect optimistic insert + remote sync (or pending if offline).
-3. Capture a BP photo → expect AI status badge and prefilled SYS/DIA/pulse.
-4. Toggle airplane mode → make a reading → re-enable network → expect sync.
-5. Log out → token is cleared from SecureStore.
-
-## See Also
-
-- [`CLAUDE.md`](./CLAUDE.md) — guidance for AI-assisted development
-- [`PLAN.md`](./PLAN.md) — feature backlog + roadmap
-- Root [`CLAUDE.md`](../CLAUDE.md) — monorepo-wide context
+- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
+- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
