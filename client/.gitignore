@@ -21,6 +21,9 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+# Tamagui compiler cache
+.tamagui/
+
 # debug
 npm-debug.*
 yarn-debug.*

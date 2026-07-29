@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "BP Mobile Application",
-    "slug": "bp-mobile-application",
+    "name": "BP Mobile",
+    "slug": "bp-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "bpmobileapplication",
+    "scheme": "bp-mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
@@ -18,7 +18,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.vanthkrab.bpmobileapplication"
+      "package": "com.bpproject.bpmobile",
+      "versionCode": 1
     },
     "web": {
       "output": "static",
@@ -33,7 +34,22 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": false,
+          "useSQLCipher": false,
+          "ios": {
+            "customBuildFlags": [
+              "-DSQLITE_ENABLE_DBSTAT_VTAB=1 -DSQLITE_ENABLE_SNAPSHOT=1"
+            ]
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-secure-store",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,
