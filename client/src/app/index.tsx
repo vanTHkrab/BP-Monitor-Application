@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Button } from 'tamagui';
 
 function getDevMenuHint() {
   if (Platform.OS === 'web') {
@@ -39,11 +40,17 @@ export default function HomeScreen() {
           </ThemedText>
         </ThemedView>
 
+        <ThemedView className="bg-amber-100">
+          <ThemedText>
+            Hello World
+          </ThemedText>
+        </ThemedView>
+
         <ThemedText type="code" style={styles.code}>
           get started
         </ThemedText>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
+        <ThemedView type="surface-muted" style={styles.stepContainer}>
           <HintRow
             title="Try editing"
             hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
