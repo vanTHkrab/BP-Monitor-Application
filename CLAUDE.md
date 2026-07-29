@@ -365,7 +365,3 @@ The sections below are imported from each app's own `CLAUDE.md`. Read this
 root file first for orientation and cross-cutting rules, then drop into the
 relevant per-project context for commands, conventions, and area-specific
 detail.
-
-@client/CLAUDE.md
-@web/CLAUDE.md
-@server/CLAUDE.md
