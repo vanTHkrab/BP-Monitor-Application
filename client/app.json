@@ -1,14 +1,15 @@
 {
   "expo": {
     "name": "BP Mobile",
-    "slug": "bp-mobile",
+    "slug": "bp-mobile-application",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "bp-mobile",
+    "scheme": "bpmobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.project.bpmonitor"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.bpproject.bpmobile",
+      "package": "com.project.bpmonitor",
       "versionCode": 1
     },
     "web": {
@@ -54,6 +55,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b5572b71-c303-4b8e-b89e-14007c46ca3c"
+      }
+    },
+    "owner": "bp-monitor-education-project"
   }
 }
