@@ -66,8 +66,9 @@ Docker daemon — see *Docker access* below.
     `packageManager` field if pinned).
   - `pnpm install` in `client/`, `web/`, and `server/app/api-gateway/`.
   - `uv sync` in `server/app/ai-service/`.
-  - `pnpm verify-yolo-model` to confirm `client/assets/models/yolo11n.onnx`
-    SHA256 matches `server/app/ai-service/models/yolo11n.onnx`.
+  - `pnpm verify-models` to confirm the bundled `client/assets/models/`
+    binaries (`yolo11n.onnx`, `crnn.onnx`) match the SHA256 recorded in
+    `server/app/ai-service/models/EXPECTED_HASHES.json`.
 
 ---
 
@@ -136,7 +137,8 @@ fork the config:
 | `uv: command not found` | uv Feature install failed mid-build | Rebuild container: F1 → **Dev Containers: Rebuild Container** |
 | Metro can't be reached from phone | Phone not on same network / `adb reverse` not run | Run `adb reverse tcp:8081 tcp:8081` from the host |
 | `docker compose` says "permission denied" | Host socket group mismatch | The `docker-outside-of-docker` Feature handles this; on the rare miss, `sudo chmod 666 /var/run/docker.sock` (host) |
-| YOLO drift warning at bootstrap | `client/assets/models/yolo11n.onnx` differs from `server/app/ai-service/models/yolo11n.onnx` | `pnpm --dir client sync-yolo-model` then commit both copies in the same change (paired change with `expo-dev` + `ocr-dev`) |
+| Model drift warning at bootstrap | A bundled `client/assets/models/` binary differs from its `server/app/ai-service/models/EXPECTED_HASHES.json` entry | `pnpm --dir client sync-yolo-model` then commit the refreshed bytes in the same change (paired change with `expo-dev` + `ocr-dev`) |
+| `$'\r': command not found` on container create | Repo cloned on Windows with `core.autocrlf=true` **before** the root `.gitattributes` existed | `git rm --cached -r . && git reset --hard` from the host to re-checkout with LF, then rebuild the container |
 
 ---
 

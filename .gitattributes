@@ -1,0 +1,27 @@
+# Line-ending normalization — required for Windows hosts.
+#
+# Without this, a Windows checkout with the default `core.autocrlf=true`
+# rewrites shell scripts to CRLF. The dev container then fails on the very
+# first line of .devcontainer/post-create.sh with `$'\r': command not found`,
+# because bash treats the trailing CR as part of the command. Forcing LF in
+# the working tree keeps the same bytes on every platform.
+
+# Normalize on commit; check out LF everywhere (including Windows).
+* text=auto eol=lf
+
+# Scripts executed by a POSIX shell — LF is not optional.
+*.sh text eol=lf
+client/android/gradlew text eol=lf
+
+# Windows batch files are the one exception: cmd.exe requires CRLF.
+*.bat text eol=crlf
+
+# Binaries — never normalize. Corrupting these is silent and total: an ONNX
+# model rewritten with CRLF fails its SHA256 gate in client/scripts/verify-models.mjs.
+*.onnx binary
+*.jar binary
+*.keystore binary
+*.wav binary
+*.png binary
+*.webp binary
+*.ico binary

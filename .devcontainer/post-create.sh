@@ -14,25 +14,25 @@ cd "${WORKSPACE}"
 
 log() { printf '\n\033[1;36m[post-create]\033[0m %s\n' "$*"; }
 
-# --- 1. pnpm via corepack ---------------------------------------------------
+# --- 1. Fix mount ownership FIRST -------------------------------------------
+# Named volumes mounted by devcontainer engine are owned by root initially.
+# Fix ownership of .cache and node_modules BEFORE corepack touches them.
+log "Reclaiming ownership of cache + node_modules volumes"
+sudo chown -R "$(id -u):$(id -g)" \
+  "${HOME}/.cache" \
+  "${HOME}/.local/share/pnpm" \
+  "${WORKSPACE}/client/node_modules" \
+  "${WORKSPACE}/web/node_modules" \
+  "${WORKSPACE}/server/app/api-gateway/node_modules" \
+  "${WORKSPACE}/server/app/ai-service/.venv" 2>/dev/null || true
+
+# --- 2. pnpm via corepack ---------------------------------------------------
 # Corepack is bundled with Node 22. We let it activate the latest pnpm so each
 # package.json can pin its own `packageManager` field independently.
 log "Enabling corepack + activating pnpm"
 sudo corepack enable
 corepack prepare pnpm@latest --activate
 pnpm config set store-dir "${HOME}/.local/share/pnpm/store"
-
-# --- 2. Fix mount ownership -------------------------------------------------
-# Named volumes mounted by the devcontainer engine are owned by root before
-# the `node` user touches them. Chown them once so pnpm/uv can write.
-log "Reclaiming ownership of cache + node_modules volumes"
-sudo chown -R "$(id -u):$(id -g)" \
-  "${HOME}/.local/share/pnpm/store" \
-  "${HOME}/.cache/uv" \
-  "${WORKSPACE}/client/node_modules" \
-  "${WORKSPACE}/web/node_modules" \
-  "${WORKSPACE}/server/app/api-gateway/node_modules" \
-  "${WORKSPACE}/server/app/ai-service/.venv" 2>/dev/null || true
 
 # --- 3. Install Node sub-projects ------------------------------------------
 # Each app has its own pnpm-lock.yaml (no workspaces) — install per-app from
@@ -49,15 +49,16 @@ done
 log "uv sync in server/app/ai-service"
 (cd "${WORKSPACE}/server/app/ai-service" && uv sync)
 
-# --- 5. YOLO model integrity check -----------------------------------------
-# The bundled YOLO must match SHA256 with the server copy. The check is
-# normally `pnpm start`'s prestart hook on mobile; running it explicitly here
-# surfaces drift on container open instead of at first `pnpm start`.
-log "Verifying YOLO model SHA256 (client ↔ ai-service)"
-pnpm --dir client verify-yolo-model || {
-  printf '\n\033[1;33m[post-create]\033[0m YOLO model SHA256 drift detected.\n'
+# --- 5. On-device model integrity check ------------------------------------
+# The bundled yolo11n.onnx + crnn.onnx must match the SHA256 recorded in the
+# ai-service manifest (models/EXPECTED_HASHES.json). The check is normally
+# `pnpm start`'s prestart hook on mobile; running it explicitly here surfaces
+# drift on container open instead of at first `pnpm start`.
+log "Verifying on-device model SHA256 (client ↔ ai-service manifest)"
+pnpm --dir client verify-models || {
+  printf '\n\033[1;33m[post-create]\033[0m On-device model SHA256 drift detected.\n'
   printf '  Run: pnpm --dir client sync-yolo-model\n'
-  printf '  Then commit both copies in the same change.\n\n'
+  printf '  Then commit the refreshed client/assets/models/ bytes in the same change.\n\n'
 }
 
 # --- 6. Hint about secrets --------------------------------------------------
