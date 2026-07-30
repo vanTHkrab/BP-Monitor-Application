@@ -298,25 +298,61 @@ Three changes need care:
 
 ## What this changes for the client
 
-Better Auth serves REST under `/api/auth/*`, while the rest of the
-gateway is GraphQL-only — `app.module.ts` registers Mercurius and no
-controllers. The client speaks REST for auth and GraphQL for everything
-else.
+**The ten GraphQL auth operations stay.** Better Auth's endpoints are
+also callable server-side (`auth.api.signInPhoneNumber({ ... })`), so the
+existing resolvers become thin wrappers over it rather than being
+deleted. Better Auth owns the logic; the resolvers keep owning the
+contract.
 
-Scope of the mobile change is narrower than that sounds. Because of the
-bearer bridge, `src/services/api.ts` is untouched: same header, same
-endpoint, same error contract. What changes is
-`src/services/auth-token.ts` and `src/services/session.ts`, which are
-replaced by `@better-auth/expo` — it owns secure storage and the OAuth
-deep-link round trip, and additionally supplies focus and online
-managers.
+That keeps three things the REST-only alternative would have cost:
+
+- The mobile client's auth calls do not change at all — only OAuth is
+  new, and that has to be REST regardless because of the deep-link
+  callback.
+- `extensions.code` keeps coming from the existing `errorFormatter`
+  rather than needing a second mapping for REST responses.
+- [`docs/01-api/API.md`](../../../../docs/01-api/API.md) needs edits, not
+  a rewritten auth section.
+
+The cost is ten wrappers to maintain, and a rule that has to hold: a
+wrapper may translate shapes and errors, never re-implement a check.
+Anything that reads or writes credentials, sessions, or accounts goes
+through `auth.api.*`.
+
+`/api/auth/*` is still mounted, for the OAuth round trip and for
+Better Auth's own callbacks.
+
+On the mobile side, `src/services/api.ts` is untouched thanks to the
+bearer bridge — same header, same endpoint, same error contract. What
+changes is `src/services/auth-token.ts` and `src/services/session.ts`,
+replaced by `@better-auth/expo`, which owns secure storage and the OAuth
+deep-link round trip and additionally supplies focus and online managers.
+
+## Email delivery
+
+Not chosen yet. The gateway has no mail provider — no `nodemailer`, no
+`resend`, no SES, and no SMTP settings in `.env.example`.
+
+Until one is picked, `sendVerificationEmail` and `sendResetPassword` log
+the message in development instead of sending it. That unblocks
+implementation, and the code path is exercised, but **neither email
+verification nor password reset can be tested end to end**, and neither
+can ship, until a provider is wired in.
+
+This is a deliberate stub, not an oversight: swapping the log for a real
+send is a one-function change, and choosing a provider needs a domain and
+DNS access that the code does not.
 
 ## Open items
 
+- **A mail provider.** Blocks shipping email verification and password
+  reset; see above.
+- **Google OAuth credentials.** A Cloud project, a client id and secret,
+  and redirect URIs covering the app's `bpmobile` scheme. Configuration
+  work that lives outside this repository.
 - Copy for the "verify your email before linking Google" refusal. A
   generic error here produces a user who cannot tell what went wrong.
 - Whether `/api/auth/*` sits behind the same nginx rules as `/graphql`,
   including the GraphiQL basic-auth block, once deployed.
-- [`docs/01-api/API.md`](../../../../docs/01-api/API.md) documents the
-  GraphQL auth contract for client developers and will need rewriting in
-  the same change that removes those resolvers.
+- Dropping `users.password_hash` once the credential accounts have been
+  confirmed against real sign-ins.
