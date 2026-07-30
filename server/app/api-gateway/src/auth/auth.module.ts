@@ -3,11 +3,13 @@ import { StorageModule } from '../storage/storage.module';
 import { AuthService } from './auth.service';
 import { AuthResolver } from './auth.resolver';
 import { GqlAuthGuard } from './auth.guard';
-import { LoginThrottleGuard } from './login-throttle.guard';
+import { BetterAuthController } from './better-auth.controller';
+import { BETTER_AUTH, betterAuthProvider } from './better-auth.provider';
 
 @Module({
   imports: [StorageModule],
-  providers: [AuthService, AuthResolver, GqlAuthGuard, LoginThrottleGuard],
-  exports: [AuthService, GqlAuthGuard, LoginThrottleGuard],
+  controllers: [BetterAuthController],
+  providers: [betterAuthProvider, AuthService, AuthResolver, GqlAuthGuard],
+  exports: [BETTER_AUTH, AuthService, GqlAuthGuard],
 })
 export class AuthModule {}

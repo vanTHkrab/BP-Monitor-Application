@@ -6,16 +6,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
+import type { BetterAuthInstance } from './better-auth';
+import { InjectBetterAuth } from './better-auth.token';
 import { StorageService } from '../storage/storage.service';
-import {
-  BCRYPT_SALT_ROUNDS,
-  JWT_EXPIRES_IN,
-  SESSION_TTL_MS,
-  getJwtSecret,
-} from './auth.config';
+import { JWT_EXPIRES_IN, SESSION_TTL_MS, getJwtSecret } from './auth.config';
 import { AuthPayloadObject } from './dto/auth-payload.object';
 import { LoginInput } from './dto/login.input';
 import { RegisterInput } from './dto/register.input';
@@ -34,15 +30,39 @@ interface VerifyAttempt {
   windowStart: number;
 }
 
+/** Better Auth's APIError carries its HTTP status; anything else is a 500. */
+function readStatus(error: unknown): number {
+  const status = (error as { statusCode?: unknown })?.statusCode;
+  return typeof status === 'number' ? status : HttpStatus.INTERNAL_SERVER_ERROR;
+}
+
+function readMessage(error: unknown): string | undefined {
+  const body = (error as { body?: { message?: unknown } })?.body;
+  if (typeof body?.message === 'string') return body.message;
+  const message = (error as { message?: unknown })?.message;
+  return typeof message === 'string' ? message : undefined;
+}
+
 @Injectable()
 export class AuthService {
   private readonly verifyAttempts = new Map<string, VerifyAttempt>();
 
   constructor(
+    @InjectBetterAuth() private readonly auth: BetterAuthInstance,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
   ) {}
 
+  /**
+   * Wraps Better Auth's sign-up. The resolver keeps owning the GraphQL
+   * contract; Better Auth owns credential creation, so the password is
+   * hashed, stored on the credential account, and checked against known
+   * breaches by the same code path a REST caller would take.
+   *
+   * The uniqueness pre-checks stay because they produce the Thai
+   * ConflictException messages the client renders inline; Better Auth's own
+   * error would surface as a generic failure.
+   */
   async register(
     input: RegisterInput,
     userAgent?: string,
@@ -55,79 +75,85 @@ export class AuthService {
       throw new ConflictException('เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว');
     }
 
-    if (input.email) {
-      const existingEmail = await this.prisma.user.findUnique({
-        where: { email: input.email },
-      });
+    const existingEmail = await this.prisma.user.findUnique({
+      where: { email: input.email },
+    });
 
-      if (existingEmail) {
-        throw new ConflictException('อีเมลนี้ถูกใช้งานแล้ว');
-      }
+    if (existingEmail) {
+      throw new ConflictException('อีเมลนี้ถูกใช้งานแล้ว');
     }
 
-    const passwordHash = await bcrypt.hash(input.password, BCRYPT_SALT_ROUNDS);
+    const result = await this.callAuth(() =>
+      this.auth.api.signUpEmail({
+        headers: this.headersFor(userAgent),
+        body: {
+          email: input.email,
+          password: input.password,
+          // Better Auth's required display name, derived so it cannot drift
+          // from the two domain columns.
+          name: `${input.firstname} ${input.lastname}`.trim(),
+          firstname: input.firstname,
+          lastname: input.lastname,
+          phoneNumber: input.phone,
+          dob: input.dob ?? null,
+          gender: (input.gender as Gender | undefined) ?? null,
+          weight: input.weight ?? null,
+          height: input.height ?? null,
+          congenitalDisease: input.congenitalDisease ?? null,
+        },
+      }),
+    );
 
-    const user = await this.prisma.user.create({
-      data: {
-        firstname: input.firstname,
-        lastname: input.lastname,
-        // Better Auth requires a single display name; keep it derived so the
-        // two never disagree. Mirrors the migration's backfill expression.
-        name: `${input.firstname} ${input.lastname}`.trim(),
-        phone: input.phone,
-        email: input.email,
-        passwordHash,
-        avatar: this.storage.normalizeStorageValue(input.avatar),
-        role: input.role ?? 'patient',
-        dob: input.dob ?? null,
-        gender: (input.gender as Gender | undefined) ?? null,
-        weight: input.weight ?? null,
-        height: input.height ?? null,
-        congenitalDisease: input.congenitalDisease ?? null,
-      },
-    });
+    // Avatar is ours, not Better Auth's: it is normalised to a storage key
+    // before writing so the database never holds a signed URL.
+    const avatar = this.storage.normalizeStorageValue(input.avatar);
+    if (avatar) {
+      await this.prisma.user.update({
+        where: { id: result.user.id },
+        data: { avatar },
+      });
+    }
 
-    const session = await this.prisma.userSession.create({
-      data: {
-        userId: user.id,
-        deviceLabel: input.deviceLabel || 'Mobile App',
-        userAgent: userAgent || null,
-        ...this.newSessionColumns(),
-      },
-    });
+    await this.labelSession(result.token, input.deviceLabel);
 
-    const token = this.signToken(user.id, session.id);
-    return { token, user: await this.toUserType(user) };
+    return {
+      token: this.requireToken(result.token),
+      user: await this.me(result.user.id),
+    };
   }
 
+  /**
+   * Wraps Better Auth's phone sign-in.
+   *
+   * Rate limiting is no longer this method's problem: Better Auth throttles
+   * `/sign-in/phone-number` by configuration, which also covers the email
+   * route that login-throttle.guard.ts never knew about.
+   */
   async login(
     input: LoginInput,
     userAgent?: string,
   ): Promise<AuthPayloadObject> {
-    const user = await this.prisma.user.findUnique({
-      where: { phone: input.phone },
-    });
+    const result = await this.callAuth(
+      () =>
+        this.auth.api.signInPhoneNumber({
+          headers: this.headersFor(userAgent),
+          body: { phoneNumber: input.phone, password: input.password },
+        }),
+      // Better Auth distinguishes "no such phone" from "wrong password"; the
+      // client must not, or the endpoint becomes a phone-number oracle.
+      () => new UnauthorizedException('เบอร์โทรศัพท์หรือรหัสผ่านไม่ถูกต้อง'),
+    );
 
-    if (!user) {
+    if (!result.user) {
       throw new UnauthorizedException('เบอร์โทรศัพท์หรือรหัสผ่านไม่ถูกต้อง');
     }
 
-    const valid = await bcrypt.compare(input.password, user.passwordHash);
-    if (!valid) {
-      throw new UnauthorizedException('เบอร์โทรศัพท์หรือรหัสผ่านไม่ถูกต้อง');
-    }
+    await this.labelSession(result.token, input.deviceLabel);
 
-    const session = await this.prisma.userSession.create({
-      data: {
-        userId: user.id,
-        deviceLabel: input.deviceLabel || 'Mobile App',
-        userAgent: userAgent || null,
-        ...this.newSessionColumns(),
-      },
-    });
-
-    const token = this.signToken(user.id, session.id);
-    return { token, user: await this.toUserType(user) };
+    return {
+      token: this.requireToken(result.token),
+      user: await this.me(result.user.id),
+    };
   }
 
   async me(userId: string): Promise<UserObject> {
@@ -227,36 +253,29 @@ export class AuthService {
     return this.toUserType(user);
   }
 
+  /**
+   * Wraps Better Auth's change-password.
+   *
+   * `revokeOtherSessions` is what used to be a manual logoutAllDevices call:
+   * a leaked token elsewhere stops working the moment the password changes,
+   * while this device stays signed in.
+   */
   async changePassword(
     userId: string,
     currentSessionId: string,
     currentPassword: string,
     newPassword: string,
   ): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const headers = await this.headersForSession(currentSessionId, userId);
 
-    if (!user) {
-      throw new UnauthorizedException('ไม่พบผู้ใช้');
-    }
-
-    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!valid) {
-      throw new UnauthorizedException('รหัสผ่านปัจจุบันไม่ถูกต้อง');
-    }
-
-    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash },
-    });
-
-    // Revoke every other active session so a leaked token elsewhere stops
-    // working as soon as the user changes their password. The current
-    // session is intentionally kept — the user is still using this device.
-    await this.logoutAllDevices(userId, currentSessionId);
+    await this.callAuth(
+      () =>
+        this.auth.api.changePassword({
+          headers,
+          body: { currentPassword, newPassword, revokeOtherSessions: true },
+        }),
+      () => new UnauthorizedException('รหัสผ่านปัจจุบันไม่ถูกต้อง'),
+    );
 
     return true;
   }
@@ -284,15 +303,19 @@ export class AuthService {
       }
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (!user) {
-      throw new UnauthorizedException('ไม่พบผู้ใช้');
-    }
+    // Delegated: the credential lives on the account row now, and comparing
+    // against users.password_hash here would keep working right up until that
+    // column is dropped, then fail silently for everyone.
+    const valid = await this.auth.api
+      .verifyPassword({
+        headers: await this.headersForUser(userId),
+        body: { password },
+      })
+      .then((result) => Boolean(result?.status))
+      .catch(() => false);
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
+      const entry = this.verifyAttempts.get(userId);
       if (entry && now - entry.windowStart <= VERIFY_PASSWORD_WINDOW_MS) {
         entry.count += 1;
       } else {
@@ -378,6 +401,111 @@ export class AuthService {
   }
 
   // ── Helpers ──
+
+  /**
+   * Runs a Better Auth call and translates its failure into the exception the
+   * client already understands.
+   *
+   * Better Auth throws `APIError` with its own status and body. Letting that
+   * escape would bypass `errorFormatter`, so `extensions.code` would go
+   * missing and the mobile client's 401 fan-out would stop firing.
+   */
+  private async callAuth<T>(
+    call: () => Promise<T>,
+    onFailure?: (error: unknown) => HttpException,
+  ): Promise<T> {
+    try {
+      return await call();
+    } catch (error) {
+      if (onFailure) throw onFailure(error);
+
+      const status = readStatus(error);
+      const message = readMessage(error) ?? 'ไม่สามารถดำเนินการได้';
+      throw new HttpException({ message }, status);
+    }
+  }
+
+  /**
+   * Better Auth reads the caller's user agent and IP from request headers to
+   * populate the session row. Only the user agent is available here — the
+   * resolver receives it from the GraphQL context.
+   */
+  private headersFor(userAgent?: string): Headers {
+    const headers = new Headers();
+    if (userAgent) headers.set('user-agent', userAgent);
+    return headers;
+  }
+
+  /**
+   * Builds headers that authenticate as an existing session, so a call made
+   * on the user's behalf is authorised as that user rather than trusting an
+   * id passed in from the resolver.
+   */
+  private async headersForSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<Headers> {
+    const session = await this.prisma.userSession.findFirst({
+      where: { id: sessionId, userId, isActive: true },
+      select: { token: true },
+    });
+
+    if (!session) {
+      throw new UnauthorizedException('Session is no longer active');
+    }
+
+    const headers = new Headers();
+    headers.set('authorization', `Bearer ${session.token}`);
+    return headers;
+  }
+
+  /** As above, for callers that only know the user id. Picks the newest live session. */
+  private async headersForUser(userId: string): Promise<Headers> {
+    const session = await this.prisma.userSession.findFirst({
+      where: { userId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+      select: { token: true },
+    });
+
+    if (!session) {
+      throw new UnauthorizedException('Session is no longer active');
+    }
+
+    const headers = new Headers();
+    headers.set('authorization', `Bearer ${session.token}`);
+    return headers;
+  }
+
+  /**
+   * `deviceLabel` is ours, not Better Auth's, and the sign-in endpoints have
+   * no slot for it. Written straight after the session is created.
+   */
+  private async labelSession(
+    token: string | null | undefined,
+    deviceLabel?: string,
+  ): Promise<void> {
+    if (!token) return;
+
+    await this.prisma.userSession.updateMany({
+      where: { token },
+      data: { deviceLabel: deviceLabel || 'Mobile App' },
+    });
+  }
+
+  /**
+   * Better Auth types the session token as optional because some flows return
+   * none. Every flow that reaches here must have one — an empty token would
+   * hand the client a session it can never use.
+   */
+  private requireToken(token: string | null | undefined): string {
+    if (!token) {
+      throw new HttpException(
+        { message: 'ไม่สามารถสร้างเซสชันได้' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    return token;
+  }
 
   /**
    * Columns the Better Auth identity migration added to `user_sessions`.

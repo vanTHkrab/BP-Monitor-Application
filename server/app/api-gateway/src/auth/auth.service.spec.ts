@@ -8,6 +8,7 @@ import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { AuthService } from './auth.service';
+import { BETTER_AUTH } from './better-auth.token';
 
 jest.mock('bcrypt');
 jest.mock('jsonwebtoken');
@@ -23,6 +24,7 @@ type PrismaMock = {
   };
   userSession: {
     create: jest.Mock;
+    findFirst: jest.Mock;
     findMany: jest.Mock;
     updateMany: jest.Mock;
   };
@@ -30,6 +32,29 @@ type PrismaMock = {
   bloodPressureReading: { deleteMany: jest.Mock };
   post: { deleteMany: jest.Mock };
 };
+
+/**
+ * Stands in for the Better Auth instance. Only the endpoints the service
+ * wraps are mocked — anything else it reaches for is a bug in the wrapper,
+ * and an undefined property fails loudly rather than silently passing.
+ */
+type AuthMock = {
+  api: {
+    signUpEmail: jest.Mock;
+    signInPhoneNumber: jest.Mock;
+    changePassword: jest.Mock;
+    verifyPassword: jest.Mock;
+  };
+};
+
+const buildAuthMock = (): AuthMock => ({
+  api: {
+    signUpEmail: jest.fn(),
+    signInPhoneNumber: jest.fn(),
+    changePassword: jest.fn(),
+    verifyPassword: jest.fn(),
+  },
+});
 
 const buildPrismaMock = (): PrismaMock => ({
   user: {
@@ -39,6 +64,7 @@ const buildPrismaMock = (): PrismaMock => ({
   },
   userSession: {
     create: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     updateMany: jest.fn(),
   },
@@ -67,6 +93,7 @@ const baseUser = {
 describe('AuthService', () => {
   let service: AuthService;
   let prisma: PrismaMock;
+  let auth: AuthMock;
   const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
   beforeAll(() => {
@@ -79,6 +106,7 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     prisma = buildPrismaMock();
+    auth = buildAuthMock();
     const storage: Pick<
       StorageService,
       'signImageKey' | 'normalizeStorageValue'
@@ -93,6 +121,7 @@ describe('AuthService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         AuthService,
+        { provide: BETTER_AUTH, useValue: auth },
         { provide: PrismaService, useValue: prisma },
         { provide: StorageService, useValue: storage },
       ],
@@ -112,104 +141,127 @@ describe('AuthService', () => {
       phone: '0812345678',
       email: 'a.b@example.com',
       password: 'password1234',
-    };
+    } as never;
 
-    it('creates user + session and returns signed token', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(null);
-      prisma.user.create.mockResolvedValueOnce(baseUser);
-      prisma.userSession.create.mockResolvedValueOnce({ id: 'sess-1' });
-      bcryptMock.hash.mockResolvedValueOnce('hashed' as never);
-
-      const result = await service.register(input, 'ua/1');
-
-      expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            phone: input.phone,
-            passwordHash: 'hashed',
-            role: 'patient',
-          }),
-        }),
-      );
-      expect(prisma.userSession.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          userId: 'user-1',
-          deviceLabel: 'Mobile App',
-          userAgent: 'ua/1',
-          // Added by the Better Auth identity migration: both are NOT NULL,
-          // and `token` is unique.
-          token: expect.any(String),
-          expiresAt: expect.any(Date),
-        }),
-      });
-      expect(jwtMock.sign).toHaveBeenCalledWith(
-        { sub: 'user-1', sid: 'sess-1' },
-        expect.any(String),
-        expect.any(Object),
-      );
-      expect(result.token).toBe('signed-token');
-      expect(result.user.id).toBe('user-1');
-    });
-
-    it('throws ConflictException when phone is taken', async () => {
+    it('rejects a duplicate phone before calling Better Auth', async () => {
       prisma.user.findUnique.mockResolvedValueOnce(baseUser);
+
       await expect(service.register(input)).rejects.toBeInstanceOf(
         ConflictException,
       );
-      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(auth.api.signUpEmail).not.toHaveBeenCalled();
     });
 
-    it('throws ConflictException when email is taken', async () => {
+    it('rejects a duplicate email before calling Better Auth', async () => {
       prisma.user.findUnique
-        .mockResolvedValueOnce(null) // phone unique
-        .mockResolvedValueOnce(baseUser); // email taken
-      await expect(
-        service.register({ ...input, email: 'a@b.co' }),
-      ).rejects.toBeInstanceOf(ConflictException);
-      expect(prisma.user.create).not.toHaveBeenCalled();
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(baseUser);
+
+      await expect(service.register(input)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(auth.api.signUpEmail).not.toHaveBeenCalled();
+    });
+
+    it('delegates credential creation and derives the display name', async () => {
+      prisma.user.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(baseUser);
+      auth.api.signUpEmail.mockResolvedValueOnce({
+        token: 'session-token',
+        user: { id: 'user-1' },
+      });
+
+      const result = await service.register(input, 'ua/1');
+
+      // The password must never be hashed here: the credential lives on the
+      // account row, and a second hashing path would drift from Better Auth's.
+      expect(auth.api.signUpEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            email: 'a.b@example.com',
+            password: 'password1234',
+            name: 'A B',
+            phoneNumber: '0812345678',
+          }),
+        }),
+      );
+      expect(bcryptMock.hash).not.toHaveBeenCalled();
+      expect(result.token).toBe('session-token');
+    });
+
+    it('refuses to return a payload without a session token', async () => {
+      // An empty token would hand the client a session it can never use.
+      prisma.user.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+      auth.api.signUpEmail.mockResolvedValueOnce({
+        token: null,
+        user: { id: 'user-1' },
+      });
+
+      await expect(service.register(input)).rejects.toMatchObject({
+        status: 500,
+      });
     });
   });
 
   describe('login', () => {
-    const input = { phone: baseUser.phone, password: 'pw' };
+    const input = { phone: '0812345678', password: 'pw' } as never;
 
-    it('returns token on valid credentials', async () => {
+    it('delegates to Better Auth and returns its session token', async () => {
+      auth.api.signInPhoneNumber.mockResolvedValueOnce({
+        token: 'session-token',
+        user: { id: 'user-1' },
+      });
       prisma.user.findUnique.mockResolvedValueOnce(baseUser);
-      bcryptMock.compare.mockResolvedValueOnce(true as never);
-      prisma.userSession.create.mockResolvedValueOnce({ id: 'sess-2' });
 
       const result = await service.login(input, 'ua/2');
 
-      expect(bcryptMock.compare).toHaveBeenCalledWith('pw', 'hashed');
-      expect(prisma.userSession.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          userId: 'user-1',
-          deviceLabel: 'Mobile App',
-          userAgent: 'ua/2',
-          // Added by the Better Auth identity migration: both are NOT NULL,
-          // and `token` is unique.
-          token: expect.any(String),
-          expiresAt: expect.any(Date),
+      expect(auth.api.signInPhoneNumber).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: { phoneNumber: '0812345678', password: 'pw' },
         }),
+      );
+      expect(result.token).toBe('session-token');
+    });
+
+    it('gives the same error for an unknown phone and a wrong password', async () => {
+      // Distinguishing them turns this endpoint into a phone-number oracle.
+      auth.api.signInPhoneNumber.mockRejectedValueOnce(
+        Object.assign(new Error('nope'), { statusCode: 401 }),
+      );
+      const unknownPhone = await service.login(input).catch((e: Error) => e);
+
+      auth.api.signInPhoneNumber.mockRejectedValueOnce(
+        Object.assign(new Error('different'), { statusCode: 401 }),
+      );
+      const wrongPassword = await service.login(input).catch((e: Error) => e);
+
+      expect(unknownPhone).toBeInstanceOf(UnauthorizedException);
+      expect(wrongPassword).toBeInstanceOf(UnauthorizedException);
+      expect((unknownPhone as Error).message).toBe(
+        (wrongPassword as Error).message,
+      );
+    });
+
+    it('labels the session with the requesting device', async () => {
+      auth.api.signInPhoneNumber.mockResolvedValueOnce({
+        token: 'session-token',
+        user: { id: 'user-1' },
       });
-      expect(result.token).toBe('signed-token');
-    });
-
-    it('rejects unknown phone', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(null);
-      await expect(service.login(input)).rejects.toBeInstanceOf(
-        UnauthorizedException,
-      );
-      expect(bcryptMock.compare).not.toHaveBeenCalled();
-    });
-
-    it('rejects wrong password', async () => {
       prisma.user.findUnique.mockResolvedValueOnce(baseUser);
-      bcryptMock.compare.mockResolvedValueOnce(false as never);
-      await expect(service.login(input)).rejects.toBeInstanceOf(
-        UnauthorizedException,
-      );
-      expect(prisma.userSession.create).not.toHaveBeenCalled();
+
+      await service.login({
+        ...(input as object),
+        deviceLabel: 'Pixel 8',
+      } as never);
+
+      expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: { token: 'session-token' },
+        data: { deviceLabel: 'Pixel 8' },
+      });
     });
   });
 
@@ -303,113 +355,72 @@ describe('AuthService', () => {
   });
 
   describe('changePassword', () => {
-    it('updates hash when current password is valid', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(baseUser);
-      bcryptMock.compare.mockResolvedValueOnce(true as never);
-      bcryptMock.hash.mockResolvedValueOnce('new-hash' as never);
-      prisma.user.update.mockResolvedValueOnce(baseUser);
-      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 2 });
+    it('delegates to Better Auth and revokes other sessions', async () => {
+      prisma.userSession.findFirst.mockResolvedValueOnce({ token: 'tok' });
+      auth.api.changePassword.mockResolvedValueOnce({});
 
-      const ok = await service.changePassword(
-        'user-1',
-        'sess-current',
-        'old',
-        'new-password',
-      );
-
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
-        data: { passwordHash: 'new-hash' },
-      });
-      expect(ok).toBe(true);
-    });
-
-    it('revokes other active sessions but keeps the current one', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(baseUser);
-      bcryptMock.compare.mockResolvedValueOnce(true as never);
-      bcryptMock.hash.mockResolvedValueOnce('new-hash' as never);
-      prisma.user.update.mockResolvedValueOnce(baseUser);
-      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 2 });
-
-      await service.changePassword(
-        'user-1',
-        'sess-current',
-        'old',
-        'new-password',
-      );
-
-      expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
-        where: {
-          userId: 'user-1',
-          isActive: true,
-          NOT: { id: 'sess-current' },
-        },
-        data: { isActive: false, revokedAt: expect.any(Date) },
-      });
-    });
-
-    it('rejects wrong current password', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(baseUser);
-      bcryptMock.compare.mockResolvedValueOnce(false as never);
       await expect(
-        service.changePassword(
-          'user-1',
-          'sess-current',
-          'wrong',
-          'new-password',
-        ),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(prisma.user.update).not.toHaveBeenCalled();
-      expect(prisma.userSession.updateMany).not.toHaveBeenCalled();
+        service.changePassword('user-1', 'sess-1', 'old-pw', 'new-pw'),
+      ).resolves.toBe(true);
+
+      expect(auth.api.changePassword).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: {
+            currentPassword: 'old-pw',
+            newPassword: 'new-pw',
+            // A leaked token elsewhere must stop working the moment the
+            // password changes.
+            revokeOtherSessions: true,
+          },
+        }),
+      );
     });
 
-    it('rejects when user is missing', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(null);
+    it('rejects when the current password is wrong', async () => {
+      prisma.userSession.findFirst.mockResolvedValueOnce({ token: 'tok' });
+      auth.api.changePassword.mockRejectedValueOnce(new Error('bad'));
+
       await expect(
-        service.changePassword('user-x', 'sess-current', 'old', 'new'),
+        service.changePassword('user-1', 'sess-1', 'wrong', 'new-pw'),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('refuses to act on a session that is no longer active', async () => {
+      // Otherwise a revoked session could still change the password.
+      prisma.userSession.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        service.changePassword('user-1', 'sess-1', 'old-pw', 'new-pw'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(auth.api.changePassword).not.toHaveBeenCalled();
     });
   });
 
   describe('verifyPassword', () => {
-    it('returns true when the password matches', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(baseUser);
-      bcryptMock.compare.mockResolvedValueOnce(true as never);
-
-      const ok = await service.verifyPassword('user-1', 'correct');
-
-      expect(ok).toBe(true);
+    beforeEach(() => {
+      prisma.userSession.findFirst.mockResolvedValue({ token: 'tok' });
     });
 
-    it('rejects when the password does not match', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(baseUser);
-      bcryptMock.compare.mockResolvedValueOnce(false as never);
-      await expect(
-        service.verifyPassword('user-1', 'wrong'),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    });
+    it('returns true when Better Auth accepts the password', async () => {
+      auth.api.verifyPassword.mockResolvedValueOnce({ status: true });
 
-    it('rejects when the user no longer exists', async () => {
-      prisma.user.findUnique.mockResolvedValueOnce(null);
-      await expect(
-        service.verifyPassword('user-x', 'whatever'),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.verifyPassword('user-1', 'pw')).resolves.toBe(true);
+      // Comparing against users.password_hash here would keep working until
+      // that column is dropped, then fail silently for everyone.
+      expect(bcryptMock.compare).not.toHaveBeenCalled();
     });
 
     it('throws 429 after 3 failed attempts within the window', async () => {
-      prisma.user.findUnique.mockResolvedValue(baseUser);
-      bcryptMock.compare.mockResolvedValue(false as never);
+      auth.api.verifyPassword.mockResolvedValue({ status: false });
 
-      for (let i = 0; i < 3; i++) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
         await expect(
-          service.verifyPassword('user-throttle', 'wrong'),
+          service.verifyPassword('user-1', 'wrong'),
         ).rejects.toBeInstanceOf(UnauthorizedException);
       }
 
-      // 4th attempt should trip the throttle (HTTP 429), regardless of
-      // whether the password is correct this time.
       await expect(
-        service.verifyPassword('user-throttle', 'wrong'),
+        service.verifyPassword('user-1', 'wrong'),
       ).rejects.toMatchObject({ status: 429 });
     });
   });

@@ -5,10 +5,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
-import * as jwt from 'jsonwebtoken';
+
 import { PrismaService } from '../prisma/prisma.service';
-import { getJwtSecret } from './auth.config';
-import { CurrentUserContext, JwtPayload } from './types/auth.types';
+import type { BetterAuthInstance } from './better-auth';
+import { InjectBetterAuth } from './better-auth.token';
+import { CurrentUserContext } from './types/auth.types';
 
 interface RequestLike {
   headers?: Record<string, string | string[] | undefined>;
@@ -20,60 +21,98 @@ interface MutableGqlContext {
   user?: CurrentUserContext;
 }
 
-const readAuthHeader = (req: RequestLike | undefined): string | undefined => {
-  const value = req?.headers?.authorization ?? req?.raw?.headers?.authorization;
-  return typeof value === 'string' ? value : undefined;
-};
-
-// Throttle DB writes for `lastActiveAt` so every authenticated request doesn't
-// turn into a write — only refresh if the stored value is older than this.
+// Throttle `lastActiveAt` writes so an authenticated request does not become a
+// write. Better Auth refreshes its own session record; this column is ours,
+// and it only feeds the login-sessions screen.
 const LAST_ACTIVE_REFRESH_MS = 5 * 60 * 1000;
 
+/**
+ * Authenticates GraphQL operations against Better Auth.
+ *
+ * The externally visible contract is deliberately unchanged: a failure is an
+ * `UnauthorizedException`, which `errorFormatter` stamps as
+ * `extensions.code === 'UNAUTHENTICATED'`. The mobile client keys its global
+ * logout on exactly that value, so widening or renaming it logs every user out
+ * — or worse, stops logging them out when it should.
+ *
+ * The `bearer` plugin turns the client's `Authorization: Bearer` header into
+ * the session cookie Better Auth expects, so the header the client already
+ * sends keeps working untouched.
+ */
 @Injectable()
 export class GqlAuthGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectBetterAuth() private readonly auth: BetterAuthInstance,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const ctx = GqlExecutionContext.create(context);
     const gqlContext = ctx.getContext<MutableGqlContext>();
-    const authHeader = readAuthHeader(gqlContext.req);
+    const headers = toHeaders(gqlContext.req);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!headers.has('authorization') && !headers.has('cookie')) {
       throw new UnauthorizedException(
         'Missing or invalid Authorization header',
       );
     }
 
-    const token = authHeader.slice(7);
+    const session = await this.auth.api.getSession({ headers });
 
-    try {
-      const payload = jwt.verify(token, getJwtSecret()) as JwtPayload;
-      const session = await this.prisma.userSession.findUnique({
-        where: { id: payload.sid },
-      });
-
-      if (!session || !session.isActive || session.userId !== payload.sub) {
-        throw new UnauthorizedException('Session is no longer active');
-      }
-
-      // Throttle lastActiveAt writes: only persist if it's been long enough
-      // since the last refresh. Saves a write per authenticated request.
-      const lastActiveAge = Date.now() - session.lastActiveAt.getTime();
-      if (lastActiveAge > LAST_ACTIVE_REFRESH_MS) {
-        await this.prisma.userSession.update({
-          where: { id: session.id },
-          data: { lastActiveAt: new Date() },
-        });
-      }
-
-      // Attach to context so @CurrentUser() can read it
-      gqlContext.user = {
-        id: payload.sub,
-        sessionId: payload.sid,
-      };
-      return true;
-    } catch {
+    if (!session?.session || !session.user) {
       throw new UnauthorizedException('Invalid or expired token');
     }
+
+    // Sign-out flips `isActive` rather than deleting the row, so a revoked
+    // session can still be found. Better Auth does not know about that column.
+    if (session.session.isActive === false) {
+      throw new UnauthorizedException('Session is no longer active');
+    }
+
+    await this.touchLastActive(
+      session.session.id,
+      session.session.lastActiveAt,
+    );
+
+    gqlContext.user = {
+      id: session.user.id,
+      sessionId: session.session.id,
+    };
+    return true;
   }
+
+  private async touchLastActive(
+    sessionId: string,
+    lastActiveAt: Date | null | undefined,
+  ): Promise<void> {
+    const age = lastActiveAt ? Date.now() - lastActiveAt.getTime() : Infinity;
+    if (age <= LAST_ACTIVE_REFRESH_MS) return;
+
+    try {
+      await this.prisma.userSession.update({
+        where: { id: sessionId },
+        data: { lastActiveAt: new Date() },
+      });
+    } catch {
+      // Cosmetic bookkeeping for one screen. Failing the request over it
+      // would turn a display glitch into a logout.
+    }
+  }
+}
+
+/**
+ * Better Auth reads credentials from a Fetch `Headers`, not from Fastify's
+ * plain object.
+ */
+function toHeaders(req: RequestLike | undefined): Headers {
+  const headers = new Headers();
+  const source = req?.headers ?? req?.raw?.headers ?? {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
+    else headers.append(key, value);
+  }
+
+  return headers;
 }

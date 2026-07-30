@@ -10,7 +10,6 @@ import { RegisterInput } from './dto/register.input';
 import { SessionObject } from './dto/session.object';
 import { UpdateProfileInput } from './dto/update-profile.input';
 import { UserObject } from './dto/user.object';
-import { LoginThrottleGuard } from './login-throttle.guard';
 
 interface GraphQLContextWithRequest {
   req?: { headers?: Record<string, string | string[] | undefined> };
@@ -34,10 +33,7 @@ const readUserAgent = (
 
 @Resolver()
 export class AuthResolver {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly loginThrottle: LoginThrottleGuard,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Mutation(() => AuthPayloadObject, { description: 'ลงทะเบียนผู้ใช้ใหม่' })
   async register(
@@ -47,19 +43,15 @@ export class AuthResolver {
     return this.authService.register(input, readUserAgent(context));
   }
 
+  // Throttling is Better Auth's now — `rateLimit.customRules` covers
+  // /sign-in/phone-number and /sign-in/email alike, so adding a credential
+  // route no longer means remembering to guard it.
   @Mutation(() => AuthPayloadObject, { description: 'เข้าสู่ระบบ' })
-  @UseGuards(LoginThrottleGuard)
   async login(
     @Args('input') input: LoginInput,
     @Context() context: GraphQLContextWithRequest,
   ): Promise<AuthPayloadObject> {
-    const result = await this.authService.login(input, readUserAgent(context));
-    // Successful login → reset the per-phone counter so legitimate retries
-    // after a typo don't accumulate against the user. Fire-and-forget: a
-    // failed Redis DEL shouldn't block returning a successful login, and the
-    // counter has a TTL so it self-heals.
-    void this.loginThrottle.reset(input.phone);
-    return result;
+    return this.authService.login(input, readUserAgent(context));
   }
 
   @Query(() => UserObject, { description: 'ดึงข้อมูลผู้ใช้ปัจจุบัน' })
