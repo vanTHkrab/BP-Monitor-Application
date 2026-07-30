@@ -53,6 +53,8 @@ export const AnyNull = runtime.AnyNull
 export const ModelName = {
   User: 'User',
   UserSession: 'UserSession',
+  Account: 'Account',
+  Verification: 'Verification',
   CaregiverPatient: 'CaregiverPatient',
   Image: 'Image',
   Alert: 'Alert',
@@ -82,11 +84,17 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
+  emailVerified: 'emailVerified',
+  name: 'name',
   firstname: 'firstname',
   lastname: 'lastname',
   phone: 'phone',
+  phoneNumberVerified: 'phoneNumberVerified',
   passwordHash: 'passwordHash',
   role: 'role',
+  banned: 'banned',
+  banReason: 'banReason',
+  banExpires: 'banExpires',
   dob: 'dob',
   gender: 'gender',
   weight: 'weight',
@@ -103,15 +111,51 @@ export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof User
 export const UserSessionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
-  deviceLabel: 'deviceLabel',
+  token: 'token',
+  expiresAt: 'expiresAt',
+  ipAddress: 'ipAddress',
   userAgent: 'userAgent',
+  impersonatedBy: 'impersonatedBy',
+  deviceLabel: 'deviceLabel',
   isActive: 'isActive',
   revokedAt: 'revokedAt',
   lastActiveAt: 'lastActiveAt',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 } as const
 
 export type UserSessionScalarFieldEnum = (typeof UserSessionScalarFieldEnum)[keyof typeof UserSessionScalarFieldEnum]
+
+
+export const AccountScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  providerId: 'providerId',
+  userId: 'userId',
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  idToken: 'idToken',
+  accessTokenExpiresAt: 'accessTokenExpiresAt',
+  refreshTokenExpiresAt: 'refreshTokenExpiresAt',
+  scope: 'scope',
+  password: 'password',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AccountScalarFieldEnum = (typeof AccountScalarFieldEnum)[keyof typeof AccountScalarFieldEnum]
+
+
+export const VerificationScalarFieldEnum = {
+  id: 'id',
+  identifier: 'identifier',
+  value: 'value',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type VerificationScalarFieldEnum = (typeof VerificationScalarFieldEnum)[keyof typeof VerificationScalarFieldEnum]
 
 
 export const CaregiverPatientScalarFieldEnum = {

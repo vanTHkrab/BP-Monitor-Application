@@ -50,10 +50,13 @@ export class RegisterInput {
   @MaxLength(PASSWORD_MAX)
   password: string;
 
-  @Field({ nullable: true })
-  @IsOptional()
+  // Required as of the Better Auth identity migration. The address is the
+  // ownership proof account linking depends on, and a synthetic placeholder
+  // could never be told apart from a real one later.
+  // See docs/AUTH-better-auth-identity.md.
+  @Field()
   @IsEmail()
-  email?: string;
+  email: string;
 
   @Field({ nullable: true })
   @IsOptional()

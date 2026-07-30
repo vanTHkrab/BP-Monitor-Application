@@ -5,6 +5,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +13,7 @@ import { StorageService } from '../storage/storage.service';
 import {
   BCRYPT_SALT_ROUNDS,
   JWT_EXPIRES_IN,
+  SESSION_TTL_MS,
   getJwtSecret,
 } from './auth.config';
 import { AuthPayloadObject } from './dto/auth-payload.object';
@@ -69,8 +71,11 @@ export class AuthService {
       data: {
         firstname: input.firstname,
         lastname: input.lastname,
+        // Better Auth requires a single display name; keep it derived so the
+        // two never disagree. Mirrors the migration's backfill expression.
+        name: `${input.firstname} ${input.lastname}`.trim(),
         phone: input.phone,
-        email: input.email ?? null,
+        email: input.email,
         passwordHash,
         avatar: this.storage.normalizeStorageValue(input.avatar),
         role: input.role ?? 'patient',
@@ -87,6 +92,7 @@ export class AuthService {
         userId: user.id,
         deviceLabel: input.deviceLabel || 'Mobile App',
         userAgent: userAgent || null,
+        ...this.newSessionColumns(),
       },
     });
 
@@ -116,6 +122,7 @@ export class AuthService {
         userId: user.id,
         deviceLabel: input.deviceLabel || 'Mobile App',
         userAgent: userAgent || null,
+        ...this.newSessionColumns(),
       },
     });
 
@@ -174,7 +181,10 @@ export class AuthService {
     if (data.firstname) patch.firstname = data.firstname;
     if (data.lastname) patch.lastname = data.lastname;
     if (data.phone) patch.phone = data.phone;
-    if (data.email !== undefined) patch.email = data.email || null;
+    // Email can no longer be cleared: it is the ownership proof account
+    // linking depends on, and the column is NOT NULL as of the Better Auth
+    // identity migration. An empty string is ignored rather than written.
+    if (data.email) patch.email = data.email;
     if (data.dob !== undefined) patch.dob = data.dob || null;
     if (data.gender !== undefined) patch.gender = data.gender || null;
     if (data.weight !== undefined) patch.weight = data.weight ?? null;
@@ -186,6 +196,27 @@ export class AuthService {
       // Strip any signed-URL query strings (or accept a bare key) so the DB
       // only ever holds a stable storage key. Reads sign on the fly.
       patch.avatar = this.storage.normalizeStorageValue(data.avatar);
+    }
+
+    // `name` is Better Auth's display field and is derived from the two
+    // domain columns. Renaming without recomputing it lets the two drift,
+    // and nothing downstream would notice until a Better Auth response
+    // showed the stale name.
+    if (patch.firstname !== undefined || patch.lastname !== undefined) {
+      const current = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstname: true, lastname: true },
+      });
+
+      if (!current) {
+        throw new UnauthorizedException('ไม่พบผู้ใช้');
+      }
+
+      const firstname =
+        (patch.firstname as string | undefined) ?? current.firstname;
+      const lastname =
+        (patch.lastname as string | undefined) ?? current.lastname;
+      patch.name = `${firstname} ${lastname}`.trim();
     }
 
     const user = await this.prisma.user.update({
@@ -347,6 +378,22 @@ export class AuthService {
   }
 
   // ── Helpers ──
+
+  /**
+   * Columns the Better Auth identity migration added to `user_sessions`.
+   *
+   * This path still authenticates with a JWT that carries the session id, so
+   * the token here is never presented by a client — it exists to satisfy the
+   * NOT NULL + unique constraints that Better Auth will rely on once it owns
+   * session creation. Random rather than derived from the id so the two
+   * schemes cannot collide during the cutover.
+   */
+  private newSessionColumns(): { token: string; expiresAt: Date } {
+    return {
+      token: randomUUID(),
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+    };
+  }
 
   private signToken(userId: string, sessionId: string): string {
     const payload: JwtPayload = { sub: userId, sid: sessionId };

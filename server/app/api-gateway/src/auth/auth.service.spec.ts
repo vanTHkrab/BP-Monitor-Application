@@ -110,6 +110,7 @@ describe('AuthService', () => {
       firstname: 'A',
       lastname: 'B',
       phone: '0812345678',
+      email: 'a.b@example.com',
       password: 'password1234',
     };
 
@@ -131,11 +132,15 @@ describe('AuthService', () => {
         }),
       );
       expect(prisma.userSession.create).toHaveBeenCalledWith({
-        data: {
+        data: expect.objectContaining({
           userId: 'user-1',
           deviceLabel: 'Mobile App',
           userAgent: 'ua/1',
-        },
+          // Added by the Better Auth identity migration: both are NOT NULL,
+          // and `token` is unique.
+          token: expect.any(String),
+          expiresAt: expect.any(Date),
+        }),
       });
       expect(jwtMock.sign).toHaveBeenCalledWith(
         { sub: 'user-1', sid: 'sess-1' },
@@ -177,11 +182,15 @@ describe('AuthService', () => {
 
       expect(bcryptMock.compare).toHaveBeenCalledWith('pw', 'hashed');
       expect(prisma.userSession.create).toHaveBeenCalledWith({
-        data: {
+        data: expect.objectContaining({
           userId: 'user-1',
           deviceLabel: 'Mobile App',
           userAgent: 'ua/2',
-        },
+          // Added by the Better Auth identity migration: both are NOT NULL,
+          // and `token` is unique.
+          token: expect.any(String),
+          expiresAt: expect.any(Date),
+        }),
       });
       expect(result.token).toBe('signed-token');
     });
@@ -221,7 +230,14 @@ describe('AuthService', () => {
   });
 
   describe('updateProfile', () => {
-    it('patches only provided fields', async () => {
+    it('patches only provided fields, recomputing the display name', async () => {
+      // Renaming has to recompute `name`: it is Better Auth's display field
+      // and is derived from firstname + lastname, so leaving it stale would
+      // surface a wrong name with nothing else to indicate why.
+      prisma.user.findUnique.mockResolvedValueOnce({
+        firstname: 'Some',
+        lastname: 'One',
+      });
       prisma.user.update.mockResolvedValueOnce({
         ...baseUser,
         firstname: 'New',
@@ -233,9 +249,23 @@ describe('AuthService', () => {
 
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        data: { firstname: 'New' },
+        data: { firstname: 'New', name: 'New One' },
       });
       expect(result.firstname).toBe('New');
+    });
+
+    it('never writes a null email', async () => {
+      // The column is NOT NULL as of the Better Auth identity migration, and
+      // email is the ownership proof account linking depends on. An empty
+      // string used to be written through as null.
+      prisma.user.update.mockResolvedValueOnce(baseUser);
+
+      await service.updateProfile('user-1', { email: '' });
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {},
+      });
     });
 
     it('allows same phone if it belongs to the same user', async () => {
