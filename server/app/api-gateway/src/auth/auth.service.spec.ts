@@ -44,6 +44,7 @@ type AuthMock = {
     signInPhoneNumber: jest.Mock;
     changePassword: jest.Mock;
     verifyPassword: jest.Mock;
+    signOut: jest.Mock;
   };
 };
 
@@ -53,6 +54,7 @@ const buildAuthMock = (): AuthMock => ({
     signInPhoneNumber: jest.fn(),
     changePassword: jest.fn(),
     verifyPassword: jest.fn(),
+    signOut: jest.fn(),
   },
 });
 
@@ -451,6 +453,10 @@ describe('AuthService', () => {
 
   describe('logout', () => {
     it('revokes only the session owned by user', async () => {
+      // logout delegates to Better Auth before flipping isActive, so it has
+      // to resolve the session token first.
+      prisma.userSession.findFirst.mockResolvedValueOnce({ token: 'tok' });
+      auth.api.signOut.mockResolvedValueOnce({ success: true });
       prisma.userSession.updateMany.mockResolvedValueOnce({ count: 1 });
       await service.logout('user-1', 'sess-1');
       expect(prisma.userSession.updateMany).toHaveBeenCalledWith({

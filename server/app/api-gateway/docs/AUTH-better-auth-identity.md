@@ -220,10 +220,16 @@ route later is configuration, not redesign.
 
 ## Rate limiting
 
-Better Auth's built-in `rateLimit` with
-`storage: 'secondary-storage'` replaces
-[`login-throttle.guard.ts`](../src/auth/login-throttle.guard.ts). The
-gateway already has `ioredis`, which backs both.
+Better Auth's built-in `rateLimit` replaces `login-throttle.guard.ts`,
+backed by the `ioredis` client the gateway already has.
+
+It is wired through `customStorage`, not `storage: 'secondary-storage'`.
+The latter only supplies get/set, and Better Auth warns that a limiter built
+on those is best-effort — two concurrent requests both read the old count and
+both pass. The custom storage does INCR and PEXPIRE in one Lua call, which is
+the approach the guard it replaces already used, and falls back to a
+per-process counter when Redis is unavailable rather than allowing everything
+through.
 
 This also resolves what would otherwise be a new hole. The current guard
 throttles the phone login mutation only; adding an email + password route
@@ -248,16 +254,23 @@ default regardless of what the request carried.
 
 Sessions stay database-backed and revocable, as they are today.
 
-**This is not a performance regression.** The current
-[`auth.guard.ts`](../src/auth/auth.guard.ts) already reads the database on
-every authenticated request — it verifies the JWT and then loads
-`userSession` to confirm the session is still active. The JWT is an
-envelope around a stateful lookup, not a stateless check.
+**This is not a performance regression, but it is not the win previously
+recorded here either.** The current
+[`auth.guard.ts`](../src/auth/auth.guard.ts) already read the database on
+every authenticated request — the JWT was an envelope around a stateful
+lookup, not a stateless check — so the cost is unchanged.
 
-Better Auth's `session.cookieCache` signs the session into the cookie for
-a configurable window (default five minutes), so most requests resolve
-with no database read at all, and `secondaryStorage` puts the rest in
-Redis. The migration should reduce per-request cost, not raise it.
+`session.cookieCache` was going to remove that lookup for most requests. It
+is **off**, and has to stay off while revocation works the way it does here:
+sign-out flips `isActive`, a column Better Auth does not know about, so a
+cached session stays valid until the cache expires. That turns logout into
+"logged out in about five minutes", which is not what someone pressing it on
+a shared or stolen device expects. An end-to-end test caught exactly this.
+
+Re-enabling it requires revocation to go through Better Auth's own API so it
+can invalidate its caches — which is also why `logout` now calls
+`auth.api.signOut` before touching `isActive`. Revoking with Prisma alone
+left the session live in Redis secondary storage and `me` kept succeeding.
 
 One behaviour has to be preserved deliberately: **logout currently flips
 `isActive = false` instead of deleting the row**, because the "login

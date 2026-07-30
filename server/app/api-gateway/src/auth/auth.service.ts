@@ -347,13 +347,35 @@ export class AuthService {
     }));
   }
 
+  /**
+   * Signs out through Better Auth, then flips `isActive` for the history the
+   * login-sessions screen shows.
+   *
+   * The order matters and the delegation is not optional. Revoking with Prisma
+   * alone leaves the session live in Better Auth's caches — Redis secondary
+   * storage, and the cookie cache if it is ever re-enabled — so `me` keeps
+   * succeeding with a token the user has just signed out. Only Better Auth can
+   * invalidate its own caches.
+   */
   async logout(userId: string, sessionId: string) {
-    // Only revoke if it actually belongs to this user. Prevents a forged or
-    // mismatched sid from poking other users' sessions.
+    const session = await this.prisma.userSession.findFirst({
+      where: { id: sessionId, userId, isActive: true },
+      select: { token: true },
+    });
+
+    if (!session) return true;
+
+    const headers = new Headers();
+    headers.set('authorization', `Bearer ${session.token}`);
+    await this.callAuth(() => this.auth.api.signOut({ headers }));
+
+    // `preserveSessionInDatabase` keeps the row; this is what marks it as
+    // revoked rather than merely expired.
     await this.prisma.userSession.updateMany({
       where: { id: sessionId, userId, isActive: true },
       data: { isActive: false, revokedAt: new Date() },
     });
+
     return true;
   }
 

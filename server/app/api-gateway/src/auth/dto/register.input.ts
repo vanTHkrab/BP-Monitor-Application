@@ -2,7 +2,6 @@ import { Field, Float, InputType, registerEnumType } from '@nestjs/graphql';
 import {
   IsDate,
   IsEmail,
-  IsEnum,
   IsIn,
   IsNumber,
   IsOptional,
@@ -98,9 +97,4 @@ export class RegisterInput {
   @IsString()
   @MaxLength(120)
   deviceLabel?: string;
-
-  @Field(() => UserRoleInput, { nullable: true })
-  @IsOptional()
-  @IsEnum(UserRoleInput)
-  role?: UserRoleInput;
 }

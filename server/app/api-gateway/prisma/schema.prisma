@@ -84,10 +84,13 @@ model User {
   phone               String  @unique @db.VarChar(30)
   phoneNumberVerified Boolean @default(false) @map("phone_number_verified")
 
-  /// Legacy bcrypt hash. Better Auth reads credentials from
-  /// `accounts.password` (providerId = 'credential'); this column is retained
-  /// only until the backfill is verified, then dropped in a follow-up.
-  passwordHash String   @map("password_hash") @db.VarChar(255)
+  /// Legacy bcrypt hash, retained only until the credential backfill is
+  /// verified against real sign-ins, then dropped.
+  ///
+  /// Nullable because Better Auth never writes it: credentials live on
+  /// `accounts.password` (providerId = 'credential'), so every account
+  /// created from now on has no legacy hash at all.
+  passwordHash String?  @map("password_hash") @db.VarChar(255)
   role         UserRole @default(patient)
 
   // ── Better Auth admin plugin ──

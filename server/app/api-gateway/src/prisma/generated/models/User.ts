@@ -288,7 +288,7 @@ export type UserGroupByOutputType = {
   lastname: string
   phone: string
   phoneNumberVerified: boolean
-  passwordHash: string
+  passwordHash: string | null
   role: $Enums.UserRole
   banned: boolean | null
   banReason: string | null
@@ -335,7 +335,7 @@ export type UserWhereInput = {
   lastname?: Prisma.StringFilter<"User"> | string
   phone?: Prisma.StringFilter<"User"> | string
   phoneNumberVerified?: Prisma.BoolFilter<"User"> | boolean
-  passwordHash?: Prisma.StringFilter<"User"> | string
+  passwordHash?: Prisma.StringNullableFilter<"User"> | string | null
   role?: Prisma.EnumUserRoleFilter<"User"> | $Enums.UserRole
   banned?: Prisma.BoolNullableFilter<"User"> | boolean | null
   banReason?: Prisma.StringNullableFilter<"User"> | string | null
@@ -371,7 +371,7 @@ export type UserOrderByWithRelationInput = {
   lastname?: Prisma.SortOrder
   phone?: Prisma.SortOrder
   phoneNumberVerified?: Prisma.SortOrder
-  passwordHash?: Prisma.SortOrder
+  passwordHash?: Prisma.SortOrderInput | Prisma.SortOrder
   role?: Prisma.SortOrder
   banned?: Prisma.SortOrderInput | Prisma.SortOrder
   banReason?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -410,7 +410,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   firstname?: Prisma.StringFilter<"User"> | string
   lastname?: Prisma.StringFilter<"User"> | string
   phoneNumberVerified?: Prisma.BoolFilter<"User"> | boolean
-  passwordHash?: Prisma.StringFilter<"User"> | string
+  passwordHash?: Prisma.StringNullableFilter<"User"> | string | null
   role?: Prisma.EnumUserRoleFilter<"User"> | $Enums.UserRole
   banned?: Prisma.BoolNullableFilter<"User"> | boolean | null
   banReason?: Prisma.StringNullableFilter<"User"> | string | null
@@ -446,7 +446,7 @@ export type UserOrderByWithAggregationInput = {
   lastname?: Prisma.SortOrder
   phone?: Prisma.SortOrder
   phoneNumberVerified?: Prisma.SortOrder
-  passwordHash?: Prisma.SortOrder
+  passwordHash?: Prisma.SortOrderInput | Prisma.SortOrder
   role?: Prisma.SortOrder
   banned?: Prisma.SortOrderInput | Prisma.SortOrder
   banReason?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -478,7 +478,7 @@ export type UserScalarWhereWithAggregatesInput = {
   lastname?: Prisma.StringWithAggregatesFilter<"User"> | string
   phone?: Prisma.StringWithAggregatesFilter<"User"> | string
   phoneNumberVerified?: Prisma.BoolWithAggregatesFilter<"User"> | boolean
-  passwordHash?: Prisma.StringWithAggregatesFilter<"User"> | string
+  passwordHash?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   role?: Prisma.EnumUserRoleWithAggregatesFilter<"User"> | $Enums.UserRole
   banned?: Prisma.BoolNullableWithAggregatesFilter<"User"> | boolean | null
   banReason?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
@@ -502,7 +502,7 @@ export type UserCreateInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -538,7 +538,7 @@ export type UserUncheckedCreateInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -574,7 +574,7 @@ export type UserUpdateInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -610,7 +610,7 @@ export type UserUncheckedUpdateInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -646,7 +646,7 @@ export type UserCreateManyInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -670,7 +670,7 @@ export type UserUpdateManyMutationInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -694,7 +694,7 @@ export type UserUncheckedUpdateManyInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -809,16 +809,16 @@ export type BoolFieldUpdateOperationsInput = {
   set?: boolean
 }
 
+export type NullableStringFieldUpdateOperationsInput = {
+  set?: string | null
+}
+
 export type EnumUserRoleFieldUpdateOperationsInput = {
   set?: $Enums.UserRole
 }
 
 export type NullableBoolFieldUpdateOperationsInput = {
   set?: boolean | null
-}
-
-export type NullableStringFieldUpdateOperationsInput = {
-  set?: string | null
 }
 
 export type NullableDateTimeFieldUpdateOperationsInput = {
@@ -1020,7 +1020,7 @@ export type UserCreateWithoutSessionsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1055,7 +1055,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1106,7 +1106,7 @@ export type UserUpdateWithoutSessionsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1141,7 +1141,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1176,7 +1176,7 @@ export type UserCreateWithoutAccountsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1211,7 +1211,7 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1262,7 +1262,7 @@ export type UserUpdateWithoutAccountsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1297,7 +1297,7 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1332,7 +1332,7 @@ export type UserCreateWithoutCaregiverLinksInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1367,7 +1367,7 @@ export type UserUncheckedCreateWithoutCaregiverLinksInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1407,7 +1407,7 @@ export type UserCreateWithoutPatientLinksInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1442,7 +1442,7 @@ export type UserUncheckedCreateWithoutPatientLinksInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1493,7 +1493,7 @@ export type UserUpdateWithoutCaregiverLinksInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1528,7 +1528,7 @@ export type UserUncheckedUpdateWithoutCaregiverLinksInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1574,7 +1574,7 @@ export type UserUpdateWithoutPatientLinksInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1609,7 +1609,7 @@ export type UserUncheckedUpdateWithoutPatientLinksInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1644,7 +1644,7 @@ export type UserCreateWithoutImagesInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1679,7 +1679,7 @@ export type UserUncheckedCreateWithoutImagesInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1730,7 +1730,7 @@ export type UserUpdateWithoutImagesInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1765,7 +1765,7 @@ export type UserUncheckedUpdateWithoutImagesInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1800,7 +1800,7 @@ export type UserCreateWithoutAlertsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1835,7 +1835,7 @@ export type UserUncheckedCreateWithoutAlertsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1886,7 +1886,7 @@ export type UserUpdateWithoutAlertsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1921,7 +1921,7 @@ export type UserUncheckedUpdateWithoutAlertsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1956,7 +1956,7 @@ export type UserCreateWithoutReadingsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -1991,7 +1991,7 @@ export type UserUncheckedCreateWithoutReadingsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2031,7 +2031,7 @@ export type UserCreateWithoutRecordedReadingsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2066,7 +2066,7 @@ export type UserUncheckedCreateWithoutRecordedReadingsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2117,7 +2117,7 @@ export type UserUpdateWithoutReadingsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2152,7 +2152,7 @@ export type UserUncheckedUpdateWithoutReadingsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2198,7 +2198,7 @@ export type UserUpdateWithoutRecordedReadingsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2233,7 +2233,7 @@ export type UserUncheckedUpdateWithoutRecordedReadingsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2268,7 +2268,7 @@ export type UserCreateWithoutPostsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2303,7 +2303,7 @@ export type UserUncheckedCreateWithoutPostsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2354,7 +2354,7 @@ export type UserUpdateWithoutPostsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2389,7 +2389,7 @@ export type UserUncheckedUpdateWithoutPostsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2424,7 +2424,7 @@ export type UserCreateWithoutPostCommentsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2459,7 +2459,7 @@ export type UserUncheckedCreateWithoutPostCommentsInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2510,7 +2510,7 @@ export type UserUpdateWithoutPostCommentsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2545,7 +2545,7 @@ export type UserUncheckedUpdateWithoutPostCommentsInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2580,7 +2580,7 @@ export type UserCreateWithoutPostCommentLikesInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2615,7 +2615,7 @@ export type UserUncheckedCreateWithoutPostCommentLikesInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2666,7 +2666,7 @@ export type UserUpdateWithoutPostCommentLikesInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2701,7 +2701,7 @@ export type UserUncheckedUpdateWithoutPostCommentLikesInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2736,7 +2736,7 @@ export type UserCreateWithoutPostLikesInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2771,7 +2771,7 @@ export type UserUncheckedCreateWithoutPostLikesInput = {
   lastname: string
   phone: string
   phoneNumberVerified?: boolean
-  passwordHash: string
+  passwordHash?: string | null
   role?: $Enums.UserRole
   banned?: boolean | null
   banReason?: string | null
@@ -2822,7 +2822,7 @@ export type UserUpdateWithoutPostLikesInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2857,7 +2857,7 @@ export type UserUncheckedUpdateWithoutPostLikesInput = {
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
   banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3167,11 +3167,14 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     phone: string
     phoneNumberVerified: boolean
     /**
-     * Legacy bcrypt hash. Better Auth reads credentials from
-     * `accounts.password` (providerId = 'credential'); this column is retained
-     * only until the backfill is verified, then dropped in a follow-up.
+     * Legacy bcrypt hash, retained only until the credential backfill is
+     * verified against real sign-ins, then dropped.
+     * 
+     * Nullable because Better Auth never writes it: credentials live on
+     * `accounts.password` (providerId = 'credential'), so every account
+     * created from now on has no legacy hash at all.
      */
-    passwordHash: string
+    passwordHash: string | null
     role: $Enums.UserRole
     banned: boolean | null
     banReason: string | null
