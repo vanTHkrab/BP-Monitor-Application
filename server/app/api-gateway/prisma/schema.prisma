@@ -65,22 +65,51 @@ enum RelationshipType {
 // ──────────────────────── Models ────────────────────────
 
 model User {
-  id                String    @id @default(uuid()) @db.Uuid
-  email             String?   @unique @db.VarChar(255)
-  firstname         String    @db.VarChar(100)
-  lastname          String    @db.VarChar(100)
-  phone             String    @unique @db.VarChar(30)
-  passwordHash      String    @map("password_hash") @db.VarChar(255)
-  role              UserRole  @default(patient)
+  id String @id @default(uuid()) @db.Uuid
+
+  // ── Better Auth core identity ──
+  // `email` is required by Better Auth and is the ownership proof account
+  // linking depends on, so it is no longer nullable. `name` exists because
+  // Better Auth requires a single display name and a field can only map to
+  // one column — firstname/lastname stay as the domain fields.
+  email         String  @unique @db.VarChar(255)
+  emailVerified Boolean @default(false) @map("email_verified")
+  name          String  @db.VarChar(201)
+
+  firstname String @db.VarChar(100)
+  lastname  String @db.VarChar(100)
+
+  // Mapped to Better Auth's `phoneNumber` field. Stays NOT NULL: caregivers
+  // find patients by phone, so an account without one is unreachable.
+  phone               String  @unique @db.VarChar(30)
+  phoneNumberVerified Boolean @default(false) @map("phone_number_verified")
+
+  /// Legacy bcrypt hash, retained only until the credential backfill is
+  /// verified against real sign-ins, then dropped.
+  ///
+  /// Nullable because Better Auth never writes it: credentials live on
+  /// `accounts.password` (providerId = 'credential'), so every account
+  /// created from now on has no legacy hash at all.
+  passwordHash String?  @map("password_hash") @db.VarChar(255)
+  role         UserRole @default(patient)
+
+  // ── Better Auth admin plugin ──
+  banned     Boolean?  @default(false)
+  banReason  String?   @map("ban_reason") @db.VarChar(255)
+  banExpires DateTime? @map("ban_expires")
+
+  // ── Domain fields (declared to Better Auth as `additionalFields`) ──
   dob               DateTime? @db.Date
   gender            Gender?
   weight            Float?
   height            Float?
   congenitalDisease String?   @map("congenital_disease") @db.VarChar(255)
+  /// Mapped to Better Auth's `image` field.
   avatar            String?   @db.VarChar(512)
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
 
+  accounts         Account[]
   images           Image[]
   alerts           Alert[]
   caregiverLinks   CaregiverPatient[]     @relation("CaregiverUser")
@@ -96,21 +125,86 @@ model User {
   @@map("users")
 }
 
+/// Better Auth's `session` model, mapped onto the existing table.
+///
+/// Better Auth deletes a session on sign-out; this app flips `isActive`
+/// instead so the login-sessions screen can show revoked devices as history.
+/// `preserveSessionInDatabase` keeps that behaviour — see
+/// docs/AUTH-better-auth-identity.md.
 model UserSession {
-  id           String    @id @default(uuid()) @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// Opaque session token. Better Auth looks sessions up by this, not by id.
+  token     String   @unique @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.VarChar(1024)
+
+  /// Set by the admin plugin while an admin is impersonating this user.
+  impersonatedBy String? @map("impersonated_by") @db.Uuid
+
+  // ── Retained beyond Better Auth's schema, for the sessions screen ──
   deviceLabel  String?   @map("device_label") @db.VarChar(255)
-  userAgent    String?   @map("user_agent") @db.VarChar(1024)
   isActive     Boolean   @default(true) @map("is_active")
   revokedAt    DateTime? @map("revoked_at")
   lastActiveAt DateTime  @default(now()) @map("last_active_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isActive])
   @@index([createdAt])
   @@map("user_sessions")
+}
+
+/// Better Auth's `account` model — one row per credential or social identity.
+///
+/// The password lives here under `providerId = 'credential'`, not on `users`.
+/// A Google sign-in adds a second row for the same user.
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  /// Provider-side identifier: the user id for credentials, the subject claim for OAuth.
+  accountId             String    @map("account_id") @db.VarChar(255)
+  providerId            String    @map("provider_id") @db.VarChar(64)
+  userId                String    @map("user_id") @db.Uuid
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?   @db.VarChar(512)
+  /// bcrypt hash for `providerId = 'credential'`; null for social accounts.
+  password              String?   @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// One account per provider per user — this is what stops a second Google
+  /// identity being linked into the same row.
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+/// Better Auth's `verification` model — email OTPs and password-reset tokens.
+/// Rows are short-lived; `expiresAt` is enforced by Better Auth, not the DB.
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// What is being verified: an email address, a phone number, a reset request.
+  identifier String   @db.VarChar(255)
+  value      String   @db.VarChar(255)
+  expiresAt  DateTime @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([identifier])
+  @@index([expiresAt])
+  @@map("verifications")
 }
 
 model CaregiverPatient {

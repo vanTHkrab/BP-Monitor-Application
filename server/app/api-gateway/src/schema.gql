@@ -362,7 +362,7 @@ input RegisterInput {
   lastname: String!
   phone: String!
   password: String!
-  email: String
+  email: String!
   avatar: String
   dob: DateTime
   gender: String
@@ -370,13 +370,6 @@ input RegisterInput {
   height: Float
   congenitalDisease: String
   deviceLabel: String
-  role: UserRoleInput
-}
-
-"""บทบาทที่ผู้ใช้เลือกได้ตอนสมัคร"""
-enum UserRoleInput {
-  patient
-  caregiver
 }
 
 input LoginInput {

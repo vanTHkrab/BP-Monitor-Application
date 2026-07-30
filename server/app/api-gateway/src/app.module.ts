@@ -19,6 +19,13 @@ const httpStatusToGqlCode = (status: number): string => {
       return 'FORBIDDEN';
     case 404:
       return 'NOT_FOUND';
+    // Both of these used to fall through to BAD_REQUEST, which the client
+    // renders as a generic validation failure: a duplicate phone showed the
+    // wrong message, and a throttled request showed no countdown.
+    case 409:
+      return 'CONFLICT';
+    case 429:
+      return 'TOO_MANY_REQUESTS';
     default:
       return status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST';
   }

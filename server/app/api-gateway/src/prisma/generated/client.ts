@@ -46,9 +46,28 @@ export { Prisma }
 export type User = Prisma.UserModel
 /**
  * Model UserSession
+ * Better Auth's `session` model, mapped onto the existing table.
  * 
+ * Better Auth deletes a session on sign-out; this app flips `isActive`
+ * instead so the login-sessions screen can show revoked devices as history.
+ * `preserveSessionInDatabase` keeps that behaviour — see
+ * docs/AUTH-better-auth-identity.md.
  */
 export type UserSession = Prisma.UserSessionModel
+/**
+ * Model Account
+ * Better Auth's `account` model — one row per credential or social identity.
+ * 
+ * The password lives here under `providerId = 'credential'`, not on `users`.
+ * A Google sign-in adds a second row for the same user.
+ */
+export type Account = Prisma.AccountModel
+/**
+ * Model Verification
+ * Better Auth's `verification` model — email OTPs and password-reset tokens.
+ * Rows are short-lived; `expiresAt` is enforced by Better Auth, not the DB.
+ */
+export type Verification = Prisma.VerificationModel
 /**
  * Model CaregiverPatient
  * 

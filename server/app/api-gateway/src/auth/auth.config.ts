@@ -33,3 +33,11 @@ export const getJwtSecret = (): string => {
 // drop further (target: 15m access + 7d refresh).
 export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '7d';
 export const BCRYPT_SALT_ROUNDS = 10;
+
+// `user_sessions.expires_at` is required as of the Better Auth identity
+// migration. Until Better Auth owns session creation it is derived here, kept
+// at the same 7 days as the JWT above so a row cannot outlive the token that
+// points at it. Deliberately a separate constant rather than parsing
+// JWT_EXPIRES_IN: this is transitional, and a parser for a duration string
+// would outlive its reason to exist.
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
