@@ -1,40 +1,46 @@
 /**
- * One row in a grouped settings/menu list — icon, title, optional subtitle,
- * chevron. Meant to sit inside `MenuSection`, not standalone: a native
- * grouped list (one rounded container, hairline dividers between rows)
- * reads calmer than N separately-bordered cards stacked with gaps, and
- * avoids repeating the same card shell for every row.
+ * One row on the menu screen — ported faithfully from
+ * client-old/components/menu-item.tsx: its own elevated card (not a shared
+ * grouped-list container), a gradient icon badge, a circular chevron badge.
+ * `MenuSection` is just the uppercase caption above a run of these, same as
+ * client-old's `FadeInView`-wrapped groups (that wrapper animates nothing —
+ * see the note in menu.tsx — so only the caption + spacing is ported).
  */
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { cssInterop } from 'nativewind';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
+import { palette } from '@/theme';
+import { useColorSchemePreference } from '@/theme/color-scheme';
+
+cssInterop(LinearGradient, { className: 'style' });
 
 export type MenuItemProps = {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
-  subtitle?: string;
   onPress: () => void;
-  /** Hides the divider below — set on the last row in a section. */
-  isLast?: boolean;
   destructive?: boolean;
   testID?: string;
 };
 
+/** Icon badge gradient — client-old's literal `['#7E57C2', '#5E35B1']`, now off the token file. */
+const ICON_BADGE_GRADIENT = [palette.purple, palette.purpleDark] as const;
+
 export function MenuItem({
   icon,
   title,
-  subtitle,
   onPress,
-  isLast = false,
   destructive = false,
   testID,
 }: MenuItemProps) {
   const colors = useTheme();
+  const { scheme } = useColorSchemePreference();
   const fontScale = useFontScale();
-  const titleColor = destructive ? colors.danger : colors['text-primary'];
+  const isDark = scheme === 'dark';
 
   return (
     <Pressable
@@ -42,52 +48,69 @@ export function MenuItem({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={title}
-      className="flex-row items-center px-4 py-3.5"
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? colors['surface-muted'] : 'transparent',
-        borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
-        borderBottomColor: colors.border,
-      })}
+      className="mb-2.5 flex-row items-center overflow-hidden rounded-2xl border p-3.5"
+      style={{
+        backgroundColor: destructive
+          ? isDark
+            ? '#2A0A0A'
+            : '#FFF2F2'
+          : colors.surface,
+        borderColor: destructive
+          ? isDark
+            ? '#7F1D1D'
+            : '#FECACA'
+          : colors.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0 : 0.06,
+        shadowRadius: 6,
+        elevation: isDark ? 0 : 2,
+      }}
     >
       <View
-        className="mr-3 h-9 w-9 items-center justify-center rounded-full"
-        style={{ backgroundColor: colors['surface-muted'] }}
+        className="h-[42px] w-[42px] items-center justify-center overflow-hidden rounded-xl"
+        style={{
+          backgroundColor: destructive
+            ? isDark
+              ? '#2A0A0A'
+              : '#FEE2E2'
+            : undefined,
+        }}
+      >
+        {destructive ? (
+          <Ionicons name={icon} size={22} color={colors.danger} />
+        ) : (
+          <LinearGradient
+            colors={ICON_BADGE_GRADIENT}
+            className="h-full w-full items-center justify-center rounded-xl"
+          >
+            <Ionicons name={icon} size={20} color="#FFFFFF" />
+          </LinearGradient>
+        )}
+      </View>
+
+      <Text
+        className="ml-3.5 flex-1 pr-2 font-semibold"
+        style={{
+          fontSize: Math.round(15 * fontScale),
+          color: destructive ? colors.danger : colors['text-primary'],
+        }}
+      >
+        {title}
+      </Text>
+
+      <View
+        className="h-7 w-7 items-center justify-center rounded-full"
+        style={{ backgroundColor: isDark ? '#1F2937' : '#F4F1F8' }}
       >
         <Ionicons
-          name={icon}
-          size={19}
-          color={destructive ? colors.danger : colors['text-secondary']}
-        />
-      </View>
-      <View className="flex-1">
-        <Text
-          style={{
-            fontSize: Math.round(15 * fontScale),
-            color: titleColor,
-            fontWeight: '500',
-          }}
-        >
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text
-            className="mt-0.5"
-            style={{
-              fontSize: Math.round(12 * fontScale),
-              color: colors['text-secondary'],
-            }}
-          >
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
-      {!destructive ? (
-        <Ionicons
           name="chevron-forward"
-          size={18}
-          color={colors['text-secondary']}
+          size={20}
+          color={
+            destructive ? colors.danger : isDark ? '#94A3B8' : palette.purple
+          }
         />
-      ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -103,25 +126,20 @@ export function MenuSection({
   const fontScale = useFontScale();
 
   return (
-    <View className="mb-6">
+    <View className="mb-2 mt-6">
       {title ? (
         <Text
-          className="mb-2 ml-1 font-semibold uppercase"
+          className="mb-3 ml-1 font-semibold uppercase"
           style={{
             fontSize: Math.round(12 * fontScale),
             color: colors['text-secondary'],
-            letterSpacing: 0.4,
+            letterSpacing: 0.5,
           }}
         >
           {title}
         </Text>
       ) : null}
-      <View
-        className="overflow-hidden rounded-2xl border"
-        style={{ backgroundColor: colors.surface, borderColor: colors.border }}
-      >
-        {children}
-      </View>
+      {children}
     </View>
   );
 }
