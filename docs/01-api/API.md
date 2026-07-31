@@ -204,8 +204,9 @@ ISO string directly.
 | `hello` | Query | ❌ | Health ping |
 | `me` | Query | ✅ | Current user's profile |
 | `loginSessions` | Query | ✅ | Every session on the account |
-| `register` | Mutation | ❌ | Creates the account → `AuthPayload` |
+| `register` | Mutation | ❌ | Creates the account → `AuthPayload`. Always `patient` |
 | `login` | Mutation | ❌ | → `AuthPayload`; throttled |
+| `selectRole` | Mutation | ✅ | Onboarding role choice → `UserType` |
 | `updateProfile` | Mutation | ✅ | Partial update (every field optional) |
 | `changePassword` | Mutation | ✅ | Requires `currentPassword`; throttled |
 | `verifyPassword` | Mutation | ✅ | Unlocks sensitive screens; throttled |
@@ -231,6 +232,60 @@ mutation Login($input: LoginInput!) {
 
 `deviceLabel` is persisted on `userSession.deviceLabel` and shown in
 `loginSessions`. Pass any human-readable string the client chooses.
+
+#### Example — `register`
+
+```graphql
+mutation Register($input: RegisterInput!) {
+  register(input: $input) {
+    token
+    user { id firstname lastname phone email role }
+  }
+}
+```
+
+Required: `firstname`, `lastname`, `phone`, `password`, `email`.
+Optional: `avatar`, `dob`, `gender`, `weight`, `height`,
+`congenitalDisease`, `deviceLabel`.
+
+Two things are easy to get wrong:
+
+- **`email` is required.** It was optional before the Better Auth
+  migration. It is the ownership proof account linking depends on, so a
+  registration without one is rejected before it reaches the resolver.
+- **`register` takes no `role`.** Sending one is a validation error. Every
+  account is created as `patient` with `roleSelectedAt` null; the role is
+  chosen afterwards via `selectRole`. See below.
+
+#### Onboarding — `selectRole`
+
+```graphql
+mutation SelectRole($input: SelectRoleInput!) {
+  selectRole(input: $input) { id role roleSelectedAt }
+}
+```
+
+```jsonc
+// variables
+{ "input": { "role": "caregiver" } }   // patient | caregiver
+```
+
+Authenticated. Call it once after registration, as the first step of
+onboarding — a Google sign-up reaches it the same way, which is the reason
+the choice does not live in the registration form.
+
+- `role` is `UserRoleInput` (`patient | caregiver`), **not** the full
+  `UserRole`. `developer` is not a member and cannot be self-assigned from
+  any surface, including a direct `POST /api/auth/sign-up/*`. Raising
+  someone to `developer` is an admin action.
+- `roleSelectedAt` on `UserType` is what a client should gate its
+  onboarding on — **not** `role`. `role` defaults to `patient`, so it
+  cannot tell "chose patient" from "never chose". The field is stamped on
+  every call, including a choice equal to the default.
+- The mutation is re-callable, so a settings screen can reuse it. `role`
+  selects a UI mode; it is not an access-control boundary — reading another
+  user's data requires an *accepted* caregiver link, which the patient
+  approves.
 
 ### 5.2 Readings (BP records)
 

@@ -7,6 +7,7 @@ import { AuthPayloadObject } from './dto/auth-payload.object';
 import { ChangePasswordInput } from './dto/change-password.input';
 import { LoginInput } from './dto/login.input';
 import { RegisterInput } from './dto/register.input';
+import { SelectRoleInput } from './dto/select-role.input';
 import { SessionObject } from './dto/session.object';
 import { UpdateProfileInput } from './dto/update-profile.input';
 import { UserObject } from './dto/user.object';
@@ -58,6 +59,17 @@ export class AuthResolver {
   @UseGuards(GqlAuthGuard)
   async me(@CurrentUser() user: { id: string }): Promise<UserObject> {
     return this.authService.me(user.id);
+  }
+
+  @Mutation(() => UserObject, {
+    description: 'เลือกบทบาทของตัวเอง (ขั้นตอนหลังสมัคร)',
+  })
+  @UseGuards(GqlAuthGuard)
+  async selectRole(
+    @CurrentUser() user: { id: string },
+    @Args('input') input: SelectRoleInput,
+  ): Promise<UserObject> {
+    return this.authService.selectRole(user.id, input.role);
   }
 
   @Mutation(() => UserObject, { description: 'แก้ไขโปรไฟล์' })

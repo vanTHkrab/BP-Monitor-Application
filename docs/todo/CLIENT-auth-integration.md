@@ -27,8 +27,19 @@ Auth expects, so the header the transport already sends keeps working, and
 
 - **`register` now requires `email`.** It was optional. A registration
   without one is rejected before it reaches the resolver.
-- **`register` no longer accepts `role`.** The field is gone from
-  `RegisterInput`; sending it is a GraphQL validation error.
+- **`register` no longer accepts `role`, and the choice moved after
+  sign-up.** Every account is created as `patient` with `roleSelectedAt`
+  null. A new authenticated mutation, `selectRole(input: { role })`, takes
+  `patient | caregiver` and stamps `roleSelectedAt`.
+
+  The intended flow is **สมัคร → เลือก role → ตั้งค่าแอปครั้งแรก → เข้าแอป**,
+  and a Google sign-up joins at the same second step — which is why the
+  choice is not in the registration form.
+
+  Gate the onboarding screen on `roleSelectedAt`, **not** on `role`: `role`
+  defaults to `patient`, so it cannot distinguish "chose patient" from
+  "never chose", and someone who quits mid-onboarding would be asked on
+  every launch or never again.
 - **Every pre-existing session was revoked** by the migration. Users
   signed in against the old JWT must sign in again — the client should
   treat this as an ordinary session expiry, which the 401 fan-out already

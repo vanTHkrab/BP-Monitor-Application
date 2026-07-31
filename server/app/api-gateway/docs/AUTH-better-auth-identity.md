@@ -244,11 +244,77 @@ supplies `/admin/set-role`, `/admin/has-permission`, `/admin/list-users`,
 `/admin/ban-user`, and an access-control definition, replacing scattered
 string comparisons.
 
-**`role` must not be assignable at sign-up.** Better Auth accepts
-additional fields on the sign-up path, so leaving `role` in
-`additionalFields` without an `input: false` guard lets a client make
-itself a developer. A `databaseHooks.user.create.before` hook forces the
-default regardless of what the request carried.
+**`developer` must not be assignable at sign-up.** Better Auth accepts
+additional fields on the sign-up path, so an unfiltered `role` in
+`additionalFields` lets a client make itself a developer.
+
+The first cut of this migration solved that with `input: false` plus a
+`databaseHooks.user.create.before` hook forcing `patient`. That was too
+blunt: it also removed the caregiver option the old client offered, so a
+caregiver could no longer register at all and had to be provisioned by an
+admin. The privileged role was the thing worth blocking, not the choice.
+
+**Current design — registration never carries a role; onboarding grants it.**
+
+The flow is `register → เลือก role → ตั้งค่าแอปครั้งแรก → เข้าแอป`. Every
+account is created as `patient` with `roleSelectedAt` null, and the
+`selectRole` mutation is the single place a role is ever granted.
+
+`RegisterInput` has no `role` field at all, so `forbidNonWhitelisted`
+rejects one. That is not just tidiness — a role cannot be set during
+Better Auth sign-up even if we wanted it to. The `admin` plugin declares
+`role` with `input: false` in its own schema, and a plugin's field
+declaration wins over `user.additionalFields`; passing `role` to
+`signUpEmail` fails the whole mutation with `role is not allowed to be
+set`. The plugin's `schema` option cannot undo it — `InferOptionSchema`
+only renames columns.
+
+`SELF_ASSIGNABLE_ROLES` in [`types/auth.types.ts`](../src/auth/types/auth.types.ts)
+is `['patient', 'caregiver']`, and `normalizeSelfAssignedRole` collapses
+anything else — `developer`, an unknown string, a non-string, or a missing
+value — to `patient`. `AuthService.selectRole` runs it on the write.
+
+| Path | Result |
+| --- | --- |
+| GraphQL `register` | always `patient`, `roleSelectedAt` null |
+| GraphQL `selectRole` | DTO 400s anything out-of-enum; the service normalises what is left |
+| `POST /api/auth/sign-up/*` | role rejected by the plugin — always `patient` |
+| Google OAuth callback | `patient`, then the same onboarding step |
+
+Putting the choice after sign-up rather than in the form is what lets a
+Google sign-up pick a role at all: it never sees `RegisterInput`, so a
+register-time field would have left OAuth users permanently patients.
+
+**Why `roleSelectedAt` exists.** `role` defaults to `patient`, so the column
+alone cannot distinguish "chose patient" from "never chose". Without the
+timestamp, someone who force-quits mid-onboarding is either asked on every
+launch or never asked again. It is set on every `selectRole` call — including
+a choice equal to the default, because choosing `patient` is still choosing.
+An admin using `/admin/set-role` does **not** set it: that is a grant, not
+the user's own choice, and it should not silently satisfy their step.
+
+The `databaseHooks.user.create.before` hook stays even though `input: false`
+already prevents a role arriving. It sets the default, and it keeps the
+whole thing failing closed if `role` is ever made writable at sign-up again.
+**Do not delete it as redundant.**
+
+`selectRole` is deliberately re-callable, so a settings screen can let
+someone fix a mis-tap. That is safe because **`role` is not an
+authorization boundary** — access to another user's data is gated on an
+*accepted* `CaregiverPatient` link, which the patient must approve. The only
+privileged role is `developer`, and it is unreachable from here.
+
+The GraphQL enum and the whitelist are two sources of truth that must
+agree; `select-role.input.spec.ts` asserts they do, so a role added to one
+and not the other fails the suite rather than becoming an unreachable
+option or a silently downgraded one.
+
+> This section has been rewritten twice, and the first rewrite is worth
+> recording. It removed `input: false` and let the create hook whitelist an
+> incoming role. It type-checked and passed all 112 unit tests, and broke
+> every registration — the unit tests stub Better Auth, so nothing exercised
+> the plugin's schema merge. The e2e suite caught it. Same lesson as the six
+> defects above: this configuration is not observable from unit tests.
 
 ## Session model
 

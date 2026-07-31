@@ -181,7 +181,7 @@ Expected result: ~200 lines across `store/auth.store.ts` + `modules/auth/service
 | `constants/api.ts` (`GQL_*` auth) | `modules/auth/operations.ts` | the other `GQL_*` go to their own modules |
 | `app/(auth)/_layout.tsx` (15) | `app/(auth)/_layout.tsx` | + redirect gate |
 | `app/(auth)/login.tsx` (321) | `app/(auth)/login.tsx` | |
-| `app/(auth)/register.tsx` (782) | `app/(auth)/register.tsx` + step components | email now required, `role` removed |
+| `app/(auth)/register.tsx` (782) | `app/(auth)/register.tsx` + step components | email now required; `role` narrowed to `patient \| caregiver` |
 | — | `app/(auth)/verify-email.tsx` | new |
 | — | `app/(auth)/onboarding-phone.tsx` | new |
 
@@ -205,11 +205,46 @@ Shared UI added along the way, in `src/components/`: `gradient-background`,
 `modules/auth/components/`: `auth-shell`, `auth-tabs`, `auth-error-banner`,
 `option-row`.
 
-Two things the old register screen had that were deliberately **not** ported:
-the avatar picker (it depended on the profile module's queue-backed
-`uploadMyAvatar`, which does not exist here — a photo can be added from the
-profile screen once that lands) and the role picker (`role` was removed from
-`RegisterInput`; sending it is now a validation error).
+The avatar picker **is** ported, but uploads after the account exists rather
+than through `RegisterInput.avatar` — presign needs a session, and a failed
+photo upload must never look like a failed registration. Unlike the old
+client there is no SQLite retry queue behind it yet, so a failed upload is
+dropped and the user keeps a working account with no photo.
+
+The role picker is **still to do, and it does not go back in the form.**
+The gateway now grants roles only through `selectRole`, an authenticated
+mutation, as the first step of a post-signup onboarding flow:
+
+```text
+สมัคร → เลือก role → ตั้งค่าแอปครั้งแรก → เข้าแอป
+```
+
+A Google sign-up joins at step 2, which is the reason the choice is not in
+the registration form — it never sees `RegisterInput`.
+
+Two completion signals, because the two steps hold different kinds of state:
+
+| Step | State lives | Skip when | Survives reinstall |
+| --- | --- | --- | --- |
+| เลือก role | server (`User.roleSelectedAt`) | `roleSelectedAt` is non-null | yes — do not re-ask |
+| ตั้งค่าแอป | local (AsyncStorage) | the local flag is set | no — re-asking is correct |
+
+`resolveGate` gains a case for this. Sketch:
+
+```ts
+resolveGate(status, { roleSelected, appConfigured })
+  unknown                        -> wait
+  unauthenticated                -> /login
+  authenticated & !roleSelected  -> /onboarding/role
+  authenticated & !appConfigured -> /onboarding/setup
+  authenticated                  -> /(tabs)
+```
+
+Port the two-card selector from `client-old/app/(auth)/register.tsx` into
+the role screen. The app-setup step should cover at least theme and font
+size — the old client's `fontSizePreference` matters here, the audience is
+elderly-first and the readability floor is documented in
+`client-old/CLAUDE.md`.
 
 The font-size preference the old components read is also not wired up — every
 ported component uses the old `medium` rung as a literal, so nothing shifts

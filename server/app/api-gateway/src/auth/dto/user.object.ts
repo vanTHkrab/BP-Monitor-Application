@@ -23,6 +23,17 @@ export class UserObject {
   @Field()
   role: string;
 
+  /**
+   * Null until the user picks a role in onboarding.
+   *
+   * The client's gate reads this, not `role`: `role` defaults to `patient`,
+   * so on its own it cannot distinguish "chose patient" from "never chose",
+   * and someone who quit mid-onboarding would either be asked forever or
+   * never asked again.
+   */
+  @Field({ nullable: true })
+  roleSelectedAt?: Date;
+
   @Field()
   createdAt: Date;
 

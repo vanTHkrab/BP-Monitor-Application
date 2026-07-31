@@ -45,6 +45,7 @@ type UserType {
   phone: String!
   avatar: String
   role: String!
+  roleSelectedAt: DateTime
   createdAt: DateTime!
   dob: DateTime
   gender: String
@@ -281,6 +282,9 @@ type Mutation {
   """เข้าสู่ระบบ"""
   login(input: LoginInput!): AuthPayload!
 
+  """เลือกบทบาทของตัวเอง (ขั้นตอนหลังสมัคร)"""
+  selectRole(input: SelectRoleInput!): UserType!
+
   """แก้ไขโปรไฟล์"""
   updateProfile(input: UpdateProfileInput!): UserType!
 
@@ -376,6 +380,16 @@ input LoginInput {
   phone: String!
   password: String!
   deviceLabel: String
+}
+
+input SelectRoleInput {
+  role: UserRoleInput!
+}
+
+"""บทบาทที่ผู้ใช้เลือกได้"""
+enum UserRoleInput {
+  patient
+  caregiver
 }
 
 input UpdateProfileInput {
