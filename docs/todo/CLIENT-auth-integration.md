@@ -11,6 +11,9 @@ Then read [CLIENT-auth-structure.md](./CLIENT-auth-structure.md) — the file
 layout the port targets, the old-to-new mapping, and the phase order. It also
 corrects three claims below that do not match the current code.
 
+For what happens *after* sign-up — role selection and first-run setup — see
+[CLIENT-onboarding.md](./CLIENT-onboarding.md).
+
 ## What already works, unchanged
 
 The ten GraphQL auth operations are still there. Better Auth sits behind
@@ -28,13 +31,17 @@ Auth expects, so the header the transport already sends keeps working, and
 - **`register` now requires `email`.** It was optional. A registration
   without one is rejected before it reaches the resolver.
 - **`register` no longer accepts `role`, and the choice moved after
-  sign-up.** Every account is created as `patient` with `roleSelectedAt`
-  null. A new authenticated mutation, `selectRole(input: { role })`, takes
-  `patient | caregiver` and stamps `roleSelectedAt`.
+  sign-up.** The field is gone from `RegisterInput`; sending it is a
+  GraphQL validation error. Every account is created as `patient` with
+  `roleSelectedAt` null. A new authenticated mutation,
+  `selectRole(input: { role })`, takes `patient | caregiver` and stamps
+  `roleSelectedAt`.
 
   The intended flow is **สมัคร → เลือก role → ตั้งค่าแอปครั้งแรก → เข้าแอป**,
   and a Google sign-up joins at the same second step — which is why the
-  choice is not in the registration form.
+  choice is not in the registration form. This is implemented; see
+  [CLIENT-onboarding.md](./CLIENT-onboarding.md) for the route gate, the two
+  completion signals, and how to add a step.
 
   Gate the onboarding screen on `roleSelectedAt`, **not** on `role`: `role`
   defaults to `patient`, so it cannot distinguish "chose patient" from

@@ -8,3 +8,14 @@
  */
 export { useAuthStore, resetAuthStore } from './auth.store';
 export type { AuthStatus, AuthState, AuthActions } from './auth.store';
+
+export {
+  usePreferencesStore,
+  resetPreferencesStore,
+  FONT_SIZES,
+} from './preferences.store';
+export type {
+  FontSizePreference,
+  PreferencesState,
+  PreferencesActions,
+} from './preferences.store';

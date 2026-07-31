@@ -4,9 +4,13 @@ Companion to [CLIENT-auth-integration.md](./CLIENT-auth-integration.md), which
 carries *what* the gateway migration changed. This file carries *where the code
 goes* on the mobile side and *in what order* to move it.
 
+The post-signup flow has its own document:
+[CLIENT-onboarding.md](./CLIENT-onboarding.md) — the route gate, the two
+completion signals, and how to add a step.
+
 Source of the port is the sibling `client-old/` tree (SDK 54). The target is
-`client/src/` (SDK 57), where `src/modules/` and `src/store/` are both still
-empty — this is a greenfield layout, not a refactor of existing files.
+`client/src/` (SDK 57), where `src/modules/` and `src/stores/` were both
+still empty — this is a greenfield layout, not a refactor of existing files.
 
 ## Decisions taken
 
@@ -31,7 +35,7 @@ OAuth (deep-link round trip), email OTP, and password reset.
 
 **2. `modules/` are feature modules; `store/` holds global state.** Domain
 logic lives in `src/modules/<feature>/`. State that is genuinely cross-cutting
-— the session identity — lives in `src/store/`, because every other feature
+— the session identity — lives in `src/stores/`, because every other feature
 reads it and none of them should have to import the auth module's GraphQL
 operations to do so.
 
@@ -55,8 +59,9 @@ rendered somewhere else. `useSession()` composes the two.
 ## Layout
 
 ```text
-src/store/
+src/stores/
 ├── index.ts              # re-exports the global stores
+├── preferences.store.ts  # device-local: fontSize, first-run setup flag
 └── auth.store.ts         # GLOBAL: session identity only — status, userId,
                           # token. State and setters; no network, no GraphQL,
                           # no imports from modules/.
@@ -95,12 +100,12 @@ them too.
 One way, always:
 
 ```text
-app/(auth)/*  ->  modules/auth/*  ->  store/auth.store.ts
+app/(auth)/*  ->  modules/auth/*  ->  stores/auth.store.ts
                         |
                         +->  services/api.ts
 ```
 
-`store/auth.store.ts` imports nothing from `modules/`. That is what keeps a
+`stores/auth.store.ts` imports nothing from `modules/`. That is what keeps a
 module that only needs `user.id` from pulling the auth module's GraphQL
 operations into its import graph, and it removes the cycle that would otherwise
 exist between the store and the transport.
@@ -211,40 +216,11 @@ photo upload must never look like a failed registration. Unlike the old
 client there is no SQLite retry queue behind it yet, so a failed upload is
 dropped and the user keeps a working account with no photo.
 
-The role picker is **still to do, and it does not go back in the form.**
-The gateway now grants roles only through `selectRole`, an authenticated
-mutation, as the first step of a post-signup onboarding flow:
-
-```text
-สมัคร → เลือก role → ตั้งค่าแอปครั้งแรก → เข้าแอป
-```
-
-A Google sign-up joins at step 2, which is the reason the choice is not in
-the registration form — it never sees `RegisterInput`.
-
-Two completion signals, because the two steps hold different kinds of state:
-
-| Step | State lives | Skip when | Survives reinstall |
-| --- | --- | --- | --- |
-| เลือก role | server (`User.roleSelectedAt`) | `roleSelectedAt` is non-null | yes — do not re-ask |
-| ตั้งค่าแอป | local (AsyncStorage) | the local flag is set | no — re-asking is correct |
-
-`resolveGate` gains a case for this. Sketch:
-
-```ts
-resolveGate(status, { roleSelected, appConfigured })
-  unknown                        -> wait
-  unauthenticated                -> /login
-  authenticated & !roleSelected  -> /onboarding/role
-  authenticated & !appConfigured -> /onboarding/setup
-  authenticated                  -> /(tabs)
-```
-
-Port the two-card selector from `client-old/app/(auth)/register.tsx` into
-the role screen. The app-setup step should cover at least theme and font
-size — the old client's `fontSizePreference` matters here, the audience is
-elderly-first and the readability floor is documented in
-`client-old/CLAUDE.md`.
+The role picker is **not** in the register form and never was — it lives in
+the post-signup onboarding flow, now built. See
+[CLIENT-onboarding.md](./CLIENT-onboarding.md) for the full route-gate rule,
+the two completion signals (server `roleSelectedAt` vs. local
+`appConfigured`), and how to add a further onboarding step.
 
 The font-size preference the old components read is also not wired up — every
 ported component uses the old `medium` rung as a literal, so nothing shifts

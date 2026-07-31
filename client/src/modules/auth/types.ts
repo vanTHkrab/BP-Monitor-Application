@@ -24,6 +24,13 @@ export type User = {
   email?: string;
   avatar?: string;
   role: UserRole;
+  /**
+   * When the user picked their own role in onboarding; absent if they never
+   * have. The onboarding gate reads this, **not** `role` — `role` defaults
+   * to `patient`, so it cannot distinguish "chose patient" from "never
+   * chose".
+   */
+  roleSelectedAt?: Date;
   createdAt: Date;
   dob?: Date;
   gender?: Gender;

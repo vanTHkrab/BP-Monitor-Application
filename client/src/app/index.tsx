@@ -6,20 +6,28 @@
  * reliably visible as a frame of the wrong screen. The rule itself lives in
  * `modules/auth/route-gate.ts` so it can be unit-tested.
  */
-import { Redirect } from "expo-router";
-import { ActivityIndicator, StyleSheet } from "react-native";
+import { Redirect } from 'expo-router';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 
-import { ThemedView } from "@/components/themed-view";
-import { useTheme } from "@/hooks/use-theme";
-import { resolveGate } from "@/modules/auth/route-gate";
-import { useAuthStore } from "@/stores";
+import { ThemedView } from '@/components/themed-view';
+import { useTheme } from '@/hooks/use-theme';
+import { resolveGate } from '@/modules/auth/route-gate';
+import { useOnboardingState } from '@/modules/onboarding';
+import { useAuthStore } from '@/stores';
 
 export default function IndexRoute() {
   const status = useAuthStore((state) => state.status);
+  const { roleSelected, appConfigured, preferencesHydrated } = useOnboardingState();
   const colors = useTheme();
-  const destination = resolveGate(status);
 
-  if (destination.kind === "redirect") {
+  const destination = resolveGate({
+    status,
+    roleSelected,
+    appConfigured,
+    preferencesHydrated,
+  });
+
+  if (destination.kind === 'redirect') {
     return <Redirect href={destination.href} />;
   }
 
@@ -33,7 +41,7 @@ export default function IndexRoute() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

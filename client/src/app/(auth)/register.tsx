@@ -15,9 +15,7 @@
  * keeps a working account with no photo.
  */
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, {
-  type DateTimePickerEvent,
-} from '@react-native-community/datetimepicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
@@ -86,12 +84,18 @@ export default function RegisterScreen() {
     clearError();
   };
 
-  const handleDobChange = (event: DateTimePickerEvent, selected?: Date) => {
+  // `onChange` (discriminating on `event.type === 'dismissed'`) is deprecated
+  // in favour of these two separate callbacks — `onValueChange` only fires
+  // for a real selection, so there is no dismissed case to filter out here.
+  const handleDobChange = (_event: unknown, selected: Date) => {
     // Android's picker is a modal the OS dismisses on any action; iOS renders
     // an inline spinner that stays until the user closes it.
     if (Platform.OS !== 'ios') setShowDobPicker(false);
-    if (event.type === 'dismissed') return;
-    if (selected) setDob(formatIsoDate(selected));
+    setDob(formatIsoDate(selected));
+  };
+
+  const handleDobDismiss = () => {
+    if (Platform.OS !== 'ios') setShowDobPicker(false);
   };
 
   const handleSubmit = async () => {
@@ -213,7 +217,8 @@ export default function RegisterScreen() {
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           maximumDate={new Date()}
-          onChange={handleDobChange}
+          onValueChange={handleDobChange}
+          onDismiss={handleDobDismiss}
         />
       ) : null}
 

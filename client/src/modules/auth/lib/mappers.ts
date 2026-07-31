@@ -16,6 +16,7 @@ export type UserPayload = {
   email?: string | null;
   avatar?: string | null;
   role: string;
+  roleSelectedAt?: string | null;
   createdAt: string;
   dob?: string | null;
   gender?: string | null;
@@ -62,6 +63,7 @@ export const userFromGql = (payload: UserPayload): User => ({
   email: payload.email ?? undefined,
   avatar: payload.avatar ?? undefined,
   role: parseRole(payload.role),
+  roleSelectedAt: optionalDate(payload.roleSelectedAt),
   createdAt: new Date(payload.createdAt),
   dob: optionalDate(payload.dob),
   gender: parseGender(payload.gender),

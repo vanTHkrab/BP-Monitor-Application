@@ -1,5 +1,6 @@
 import '../global.css';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { SplashScreen, ThemeProvider } from 'expo-router';
 import { Stack } from 'expo-router/stack';
@@ -13,6 +14,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useDatabaseMigrations } from '@/database/migrator';
 import { initAuth, registerSessionExpiryHandler } from '@/modules/auth';
 import { createQueryClient } from '@/services/query-client';
+import { usePreferencesStore } from '@/stores';
 import { navigationThemeFor } from '@/theme';
 import { ColorSchemeProvider, useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -33,6 +35,20 @@ function useAuthBootstrap() {
 }
 
 /**
+ * Reads device-local preferences back before the gate runs.
+ *
+ * The gate waits on `hydrated`: `setupCompleted` defaults to false, so
+ * routing on it too early would send every returning user back through
+ * first-run setup for a frame.
+ */
+function usePreferencesBootstrap() {
+  const hydrate = usePreferencesStore((state) => state.hydrate);
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
+}
+
+/**
  * Split from the provider so it can read the resolved scheme back out.
  * NativeWind owns the light/dark/system resolution; Tamagui and React
  * Navigation follow it. See src/theme/color-scheme.tsx.
@@ -43,6 +59,7 @@ function ThemedApp() {
   // SQLite on mount, and a missing table is a crash, not an empty list.
   const migrations = useDatabaseMigrations();
   useAuthBootstrap();
+  usePreferencesBootstrap();
 
   if (migrations.error) throw migrations.error;
 
@@ -66,6 +83,10 @@ function RootStack() {
     <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
+      {/* Not a `(group)`: the section belongs in the URL, so these are
+          /onboarding/role and /onboarding/setup rather than /role and
+          /setup, which would read as unrelated top-level screens. */}
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="(tabs)" />
     </Stack>
   );
@@ -80,7 +101,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <QueryClientProvider client={queryClient}>
-          <ColorSchemeProvider>
+          <ColorSchemeProvider storage={AsyncStorage}>
             <ThemedApp />
           </ColorSchemeProvider>
         </QueryClientProvider>

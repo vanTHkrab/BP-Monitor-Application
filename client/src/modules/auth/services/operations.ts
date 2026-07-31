@@ -16,6 +16,7 @@ const USER_FIELDS = `
   email
   avatar
   role
+  roleSelectedAt
   createdAt
   dob
   gender
