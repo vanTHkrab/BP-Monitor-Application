@@ -493,7 +493,9 @@ export function createBetterAuth(prisma: PrismaService, redis: Redis) {
         roles: APP_ROLES,
       }),
       // Rejects passwords found in known breaches. No endpoints; a hook.
-      haveIBeenPwned(),
+      haveIBeenPwned({
+        enabled: process.env.HAVE_I_BEEN_PWNED_ENABLED === 'true',
+      }),
     ],
   });
 }
