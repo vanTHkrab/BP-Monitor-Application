@@ -32,7 +32,19 @@ type Unsubscribe = () => void;
 
 let teardown: Unsubscribe | null = null;
 
-/** Where a tapped reminder lands. Capture, not the dashboard. */
+/**
+ * Where a tapped reminder lands.
+ *
+ * Capture rather than the dashboard: the only reason to open a "measure your
+ * blood pressure" notification is to measure it.
+ *
+ * `(tabs)/camera` is still a `ScreenPlaceholder` in this tree, so today the
+ * tap lands on "not built yet". That is deliberate over the alternatives —
+ * routing somewhere that exists but is wrong would be a worse lie, and not
+ * routing at all would leave the tap doing nothing. When the capture screen
+ * lands, this needs no change; when a dedicated manual-entry route appears,
+ * this constant is the one thing to repoint.
+ */
 const RECORD_ROUTE = '/(tabs)/camera' as const;
 
 export async function initReminderNotifications(): Promise<void> {

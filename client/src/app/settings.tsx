@@ -12,16 +12,16 @@
  * email verification, which is a credential concern rather than a setting
  * and would otherwise have prompted from two places at once.
  *
- * Phase 1 of the port of client-old/app/settings.tsx (990 lines). The layout
- * is that screen's: back bar, bold section headings, individually-carded
- * rows with a tinted icon badge. Two sections are still to come and are
- * tracked as their own phases, because each drags in a subsystem that does
- * not exist in this tree yet:
+ * Port of client-old/app/settings.tsx (990 lines). The layout is that
+ * screen's: back bar, bold section headings, individually-carded rows with a
+ * tinted icon badge.
  *
- *   - Notifications — client-old/utils/reminders.ts (650 lines): scheduling,
- *     Android channels, notification actions, snooze, diagnostics.
- *   - Export + delete-all-data — client-old/utils/export-{data,report}.ts
- *     (731 lines): CSV/PDF generation and the share sheet.
+ * One section from the original is still missing, and it is blocked rather
+ * than deferred: **CSV/PDF export**. It exports blood-pressure readings, and
+ * this tree has none — `(tabs)/history`, `(tabs)/camera`, and `(tabs)/index`
+ * are all `ScreenPlaceholder`, and nothing reads or writes the `readings`
+ * table that database/schema.ts defines. An export button here would produce
+ * an empty file. It lands with the readings feature, not before.
  *
  * Two things from client-old are deliberately *not* ported:
  *
@@ -37,7 +37,8 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 import { GradientBackground } from '@/components/gradient-background';
 import { FontSizePicker } from '@/components/ui/font-size-picker';
@@ -46,7 +47,7 @@ import { SettingItem, SettingSection } from '@/components/ui/setting-item';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
-import { useLogout } from '@/modules/auth';
+import { useDeleteMyData, useLogout } from '@/modules/auth';
 import { useReminderSettings } from '@/modules/notifications';
 import { palette } from '@/theme';
 
@@ -54,7 +55,9 @@ export default function SettingsScreen() {
   const colors = useTheme();
   const fontScale = useFontScale();
   const { logout, isPending: isLoggingOut } = useLogout();
+  const { deleteMyData, isPending: isDeleting } = useDeleteMyData();
   const { settings: reminders, isLoading: isLoadingReminders } = useReminderSettings();
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
   // The row states the schedule rather than just naming the screen: "ปิดอยู่"
   // vs "ทุก 4 ชั่วโมง" is the answer most visits to this row are looking for,
@@ -68,6 +71,37 @@ export default function SettingsScreen() {
   const handleLogout = async () => {
     await logout();
     router.replace('/login');
+  };
+
+  /**
+   * Two gates, and the second one names what survives.
+   *
+   * "ลบข้อมูลทั้งหมด" sitting under a sign-out button reads as account closure
+   * to most people. It is not — the account, profile, and caregiver links stay
+   * — and someone who deletes a year of readings believing they can re-register
+   * to get them back has been misled by the copy, not by the button.
+   */
+  const confirmDeleteData = () => {
+    Alert.alert(
+      'ลบข้อมูลสุขภาพทั้งหมด?',
+      'ค่าความดัน โพสต์ และการกดถูกใจของคุณจะถูกลบถาวร กู้คืนไม่ได้\n\nบัญชี โปรไฟล์ และผู้ดูแลที่เชื่อมไว้จะยังอยู่ตามเดิม',
+      [
+        { text: 'ยกเลิก', style: 'cancel' },
+        {
+          text: 'ลบถาวร',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleteNotice(null);
+            try {
+              await deleteMyData();
+              setDeleteNotice('ลบข้อมูลสุขภาพทั้งหมดเรียบร้อยแล้ว');
+            } catch {
+              setDeleteNotice('ลบข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -197,6 +231,35 @@ export default function SettingsScreen() {
               loading={isLoggingOut}
             />
           </View>
+
+          {/* Last, and visually quieter than the sign-out button above it. A
+              destructive action wants to be findable, not reachable by
+              accident — and this one is two taps from a confirm dialog that
+              says exactly what goes and what stays. */}
+          <SettingSection title="ลบข้อมูล" />
+
+          <SettingItem
+            testID="settings-delete-data"
+            icon="trash-outline"
+            title="ลบข้อมูลสุขภาพทั้งหมด"
+            subtitle="ลบค่าความดัน โพสต์ และการกดถูกใจ — บัญชีของคุณยังอยู่"
+            onPress={confirmDeleteData}
+            disabled={isDeleting}
+          />
+
+          {deleteNotice ? (
+            <Text
+              className="mb-2 px-2"
+              accessibilityLiveRegion="polite"
+              style={{
+                fontSize: Math.round(14 * fontScale),
+                lineHeight: Math.round(21 * fontScale),
+                color: colors['text-secondary'],
+              }}
+            >
+              {deleteNotice}
+            </Text>
+          ) : null}
 
           <View className="h-10" />
         </ScrollView>

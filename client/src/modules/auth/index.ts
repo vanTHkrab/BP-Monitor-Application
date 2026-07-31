@@ -12,6 +12,7 @@ export { initAuth, registerSessionExpiryHandler } from './bootstrap';
 export { resolveGate, type GateDestination } from './route-gate';
 
 export { useChangePassword } from './hooks/use-change-password';
+export { useDeleteMyData } from './hooks/use-delete-my-data';
 export {
   isGoogleSignInConfigured,
   useGoogleSignIn,
