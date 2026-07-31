@@ -10,13 +10,13 @@
  * animation being ported, so this file skips the wrapper entirely rather
  * than carrying dead indirection.
  *
- * Every row is reachable today. Five of them (`โปรไฟล์`, `ผู้ดูแล`,
- * `ความปลอดภัย`, `ช่วยเหลือ`, `เกี่ยวกับ`, plus the dev-only `Debug`) land on
- * a `ScreenPlaceholder` rather than a real screen — porting each of those is
- * its own subsystem (profile editing, caregiver linking, password/session
- * management, a help center, a whole debug-tool shell) and out of scope for
- * this pass. `ตั้งค่าแอปพลิเคชั่น` is the one row with a real destination —
- * see app/settings.tsx.
+ * Every row is reachable today. `ตั้งค่าแอปพลิเคชั่น` (app/settings.tsx),
+ * `ช่วยเหลือและคำแนะนำ` (app/help.tsx), and `เกี่ยวกับ` (app/about.tsx) are
+ * real, ported screens. `โปรไฟล์`, `ผู้ดูแล`, `ความปลอดภัย`, and the
+ * dev-only `Debug` still land on a `ScreenPlaceholder` — profile editing,
+ * caregiver linking, and security (password/sessions/delete-account) each
+ * carry real state and server calls, not just static content, so they're
+ * their own subsystem rather than a port on this screen's scope.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
