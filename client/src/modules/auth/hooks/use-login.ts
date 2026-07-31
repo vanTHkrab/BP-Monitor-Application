@@ -23,16 +23,23 @@ export function useLogin() {
     mutationFn: (input: LoginInput) => authApi.login(input),
     onMutate: () => setError(null),
     onSuccess: async ({ token, user }) => {
-      // Token first: the store flipping to `authenticated` releases the
-      // route gate, and a request that beats the write would go out
-      // unauthenticated.
+      // Token first: `signedIn` below releases the route gate, and a
+      // request that beats the token write would go out unauthenticated.
       await setAuthToken(token);
-      signedIn({ userId: user.id, token });
+
       // The previous user's cached queries must not survive into this
-      // session. Nothing is fetched yet at this point, so clearing is
-      // cheaper and safer than invalidating key by key.
+      // session. This has to run *before* `signedIn`, not after: Zustand
+      // notifies subscribers synchronously, so a component reading the
+      // store can re-render the instant `signedIn` flips `status` — and if
+      // the `me` cache still held the previous user's `roleSelectedAt` at
+      // that moment, the onboarding gate would read *their* answer for
+      // *this* account. Repopulating the cache first closes that window:
+      // by the time the gate can observe `status === 'authenticated'`, `me`
+      // already reflects the account that just signed in.
       queryClient.clear();
       queryClient.setQueryData(["me"], user);
+
+      signedIn({ userId: user.id, token });
     },
     onError: (cause) =>
       setError(

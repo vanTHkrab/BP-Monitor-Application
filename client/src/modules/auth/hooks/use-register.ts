@@ -55,9 +55,13 @@ export function useRegister() {
     },
     onMutate: () => setError(null),
     onSuccess: ({ token, user }) => {
-      signedIn({ userId: user.id, token });
+      // Cache before store: see the note in use-login.ts's onSuccess — a
+      // synchronous re-render on `signedIn` must never be able to observe a
+      // previous account's `roleSelectedAt` still sitting in the `me` cache.
       queryClient.clear();
       queryClient.setQueryData(['me'], user);
+
+      signedIn({ userId: user.id, token });
     },
     onError: (cause) =>
       setError(
