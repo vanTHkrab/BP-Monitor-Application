@@ -33,6 +33,24 @@ export type FormatAuthErrorOptions = {
 
 const GENERIC = 'เกิดข้อผิดพลาด กรุณาลองใหม่';
 
+/**
+ * Copy for the refused-Google-sign-in case: `emailVerified: false` blocks
+ * linking a Google account, by design (`account.trustedProviders` +
+ * `allowDifferentEmails: false` in `server/app/api-gateway/src/auth/better-auth.ts`).
+ *
+ * A generic error here leaves a user with no idea what to do, so the message
+ * names the reason and points at the fix. Exported as a pure string builder
+ * rather than wired into a screen: there is no "Sign in with Google" button
+ * yet — Google OAuth has no credentials configured
+ * (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), and the exact shape of the
+ * error Better Auth returns on a refused OAuth callback is still an open
+ * item in the design doc. Wire this in once both exist; the copy itself does
+ * not need to wait.
+ */
+export function googleSignInRefusalMessage(): string {
+  return 'ต้องยืนยันอีเมลก่อนจึงจะเชื่อมบัญชี Google ได้ กรุณายืนยันอีเมลแล้วลองอีกครั้ง';
+}
+
 export function formatAuthError(
   error: unknown,
   options: FormatAuthErrorOptions = {},
@@ -76,6 +94,30 @@ export function formatAuthError(
     return {
       message: 'เบอร์โทรศัพท์หรือรหัสผ่านไม่ถูกต้อง',
       field: 'both',
+      retryAfterSec: null,
+    };
+  }
+
+  // Better Auth's email-otp plugin, reached via the raw REST endpoints in
+  // `services/email-otp-api.ts` rather than through the GraphQL gateway —
+  // its error bodies carry these codes verbatim, in English, so they need
+  // the same Thai translation `CONFLICT` and `TOO_MANY_REQUESTS` get below.
+  if (code === 'INVALID_OTP') {
+    return { message: 'รหัสยืนยันไม่ถูกต้อง กรุณาลองใหม่', field: null, retryAfterSec: null };
+  }
+
+  if (code === 'OTP_EXPIRED') {
+    return {
+      message: 'รหัสยืนยันหมดอายุแล้ว กรุณาขอรหัสใหม่',
+      field: null,
+      retryAfterSec: null,
+    };
+  }
+
+  if (code === 'TOO_MANY_ATTEMPTS') {
+    return {
+      message: 'กรอกรหัสผิดหลายครั้งเกินไป กรุณาขอรหัสใหม่',
+      field: null,
       retryAfterSec: null,
     };
   }

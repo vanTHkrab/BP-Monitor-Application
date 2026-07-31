@@ -11,6 +11,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 
+import { useFontScale } from '@/hooks/use-font-scale';
 import { status } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -24,6 +25,7 @@ export function AuthErrorBanner({ message, tone = 'error' }: AuthErrorBannerProp
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
   const isError = tone === 'error';
+  const fontScale = useFontScale();
 
   const accent = isError ? status.high : status.low;
 
@@ -46,7 +48,9 @@ export function AuthErrorBanner({ message, tone = 'error' }: AuthErrorBannerProp
         color={accent}
         style={{ marginTop: 1, marginRight: 8 }}
       />
-      <Text className="flex-1 font-semibold" style={{ fontSize: 13, color: accent }}>
+      <Text
+        className="flex-1 font-semibold"
+        style={{ fontSize: Math.round(13 * fontScale), color: accent }}>
         {message}
       </Text>
     </View>

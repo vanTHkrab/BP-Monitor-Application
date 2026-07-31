@@ -81,6 +81,7 @@ export async function fetchMe(): Promise<User> {
 export async function updateProfile(input: {
   firstname?: string;
   lastname?: string;
+  phone?: string;
   avatar?: string;
   dob?: string;
   gender?: string;

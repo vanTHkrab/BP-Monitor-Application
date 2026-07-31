@@ -14,6 +14,7 @@ const USER_FIELDS = `
   lastname
   phone
   email
+  emailVerified
   avatar
   role
   roleSelectedAt

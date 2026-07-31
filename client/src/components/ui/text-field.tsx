@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 
+import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { palette, status } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
@@ -49,6 +50,7 @@ export function TextField({
   const { scheme } = useColorSchemePreference();
   const colors = useTheme();
   const isDark = scheme === 'dark';
+  const fontScale = useFontScale();
 
   const [isPasswordVisible, setPasswordVisible] = useState(false);
   const [isFocused, setFocused] = useState(false);
@@ -103,7 +105,7 @@ export function TextField({
         <TextInput
           testID={testID}
           className="flex-1 py-3 font-semibold"
-          style={{ fontSize: 15, color: colors['text-primary'] }}
+          style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
           placeholder={placeholder}
           placeholderTextColor={colors['text-secondary']}
           value={value}
@@ -135,7 +137,7 @@ export function TextField({
       {showErrorText ? (
         <Text
           className="ml-1 mt-1.5 font-semibold"
-          style={{ fontSize: 13, color: status.high }}>
+          style={{ fontSize: Math.round(13 * fontScale), color: status.high }}>
           {error}
         </Text>
       ) : null}

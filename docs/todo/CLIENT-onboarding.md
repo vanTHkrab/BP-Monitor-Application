@@ -126,11 +126,17 @@ top-level screens.
   Google sign-up carries none, so that flow needs a step before `role`. It is
   blocked on Google credentials — see
   [CLIENT-auth-integration.md](./CLIENT-auth-integration.md).
-- **Font size is persisted but not yet consumed app-wide.** The setup screen
-  previews it honestly, and `usePreferencesStore().fontSize` is the source,
-  but the ported components still use the old `medium` rung as a literal.
-  Wiring it through is the remaining half — mind the elderly-first
-  readability floor (~11px body) documented in `client-old/CLAUDE.md`.
+- **Font size is persisted and now consumed by two components, not yet
+  app-wide.** `src/hooks/use-font-scale.ts` turns the preference into a
+  multiplier (`1.0` at `medium`) that a component applies to its own
+  literal sizes — a multiplier rather than a per-role scale table, because
+  the app still has no shared typography scale. `TextField` and
+  `AuthErrorBanner` read it; `auth-shell.tsx`, `gradient-button.tsx`, and
+  `option-row.tsx` still hardcode their `fontSize` literals and need the
+  same treatment — mechanical, but touches enough files to be its own
+  pass. Mind the elderly-first readability floor (~11px body) documented in
+  `client-old/CLAUDE.md`; `use-font-scale.ts`'s own comment ties the scale
+  back to it.
 - **No "change role later" screen.** `selectRole` is deliberately
   re-callable, so a settings row can reuse the same hook. Safe because `role`
   is a UI mode, not an access-control boundary — reading another user's data

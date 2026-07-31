@@ -1,5 +1,5 @@
 import { ApiError } from '@/services/api-error';
-import { formatAuthError } from './errors';
+import { formatAuthError, googleSignInRefusalMessage } from './errors';
 
 const apiError = (
   message: string,
@@ -119,6 +119,23 @@ describe('formatAuthError', () => {
     });
   });
 
+  describe('email OTP (Better Auth REST codes, English by default)', () => {
+    it('translates an invalid code', () => {
+      const view = formatAuthError(apiError('Invalid OTP', { code: 'INVALID_OTP' }));
+      expect(view.message).toBe('รหัสยืนยันไม่ถูกต้อง กรุณาลองใหม่');
+    });
+
+    it('translates an expired code', () => {
+      const view = formatAuthError(apiError('OTP expired', { code: 'OTP_EXPIRED' }));
+      expect(view.message).toBe('รหัสยืนยันหมดอายุแล้ว กรุณาขอรหัสใหม่');
+    });
+
+    it('translates too many attempts', () => {
+      const view = formatAuthError(apiError('Too many attempts', { code: 'TOO_MANY_ATTEMPTS' }));
+      expect(view.message).toBe('กรอกรหัสผิดหลายครั้งเกินไป กรุณาขอรหัสใหม่');
+    });
+  });
+
   describe('connectivity', () => {
     it('distinguishes a timeout from an unreachable server', () => {
       const timeout = formatAuthError(apiError('t', { code: 'NETWORK_TIMEOUT' }));
@@ -132,5 +149,13 @@ describe('formatAuthError', () => {
 
   it('falls back for a non-Error throw', () => {
     expect(formatAuthError(undefined).message).toBe('เกิดข้อผิดพลาด กรุณาลองใหม่');
+  });
+
+  describe('googleSignInRefusalMessage', () => {
+    it('names email verification as the reason, in Thai', () => {
+      const message = googleSignInRefusalMessage();
+      expect(message).toContain('ยืนยันอีเมล');
+      expect(message).toMatch(/[฀-๿]/);
+    });
   });
 });

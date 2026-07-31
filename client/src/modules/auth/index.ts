@@ -15,8 +15,14 @@ export { useLogin } from './hooks/use-login';
 export { useLogout } from './hooks/use-logout';
 export { useRegister } from './hooks/use-register';
 export { useSession } from './hooks/use-session';
+export { useSetPhone } from './hooks/use-set-phone';
+export { useVerifyEmail } from './hooks/use-verify-email';
 
-export { formatAuthError, type FormatAuthErrorOptions } from './lib/errors';
+export {
+  formatAuthError,
+  googleSignInRefusalMessage,
+  type FormatAuthErrorOptions,
+} from './lib/errors';
 
 export type {
   AuthErrorField,

@@ -287,6 +287,51 @@ the choice does not live in the registration form.
   user's data requires an *accepted* caregiver link, which the patient
   approves.
 
+#### `UserType.emailVerified`
+
+`Boolean!`, mirroring the `email_verified` column Better Auth owns. Gates
+one thing — linking a Google account — and nothing else; verification is
+never required to use the app. See email OTP below for how a client flips
+it.
+
+### Email verification — REST, not GraphQL
+
+Better Auth's `emailOTP` plugin mounts its own routes under
+`/api/auth/email-otp/*` via `BetterAuthController`
+([`better-auth.controller.ts`](../../server/app/api-gateway/src/auth/better-auth.controller.ts)).
+These are **not** behind the GraphQL `errorFormatter` — error bodies come
+back in Better Auth's own shape (`{ code, message }`), not
+`extensions.code`.
+
+```http
+POST /api/auth/email-otp/send-verification-otp
+Content-Type: application/json
+
+{ "email": "user@example.com", "type": "email-verification" }
+```
+
+```http
+POST /api/auth/email-otp/verify-email
+Content-Type: application/json
+
+{ "email": "user@example.com", "otp": "123456" }
+```
+
+Rate-limited server-side to 3 requests / 15 min on the send endpoint (see
+`customRules` in
+[`better-auth.ts`](../../server/app/api-gateway/src/auth/better-auth.ts)).
+Error codes worth mapping client-side: `INVALID_OTP`, `OTP_EXPIRED`,
+`TOO_MANY_ATTEMPTS`.
+
+The mobile client calls these directly with `fetch` — see
+[`client/src/modules/auth/services/email-otp-api.ts`](../../client/src/modules/auth/services/email-otp-api.ts) —
+rather than through `@better-auth/expo`'s client, which does not
+type-check against the installed `better-auth` version (still true as of
+`1.7.0-rc.2`; see
+[`docs/todo/CLIENT-auth-structure.md`](../todo/CLIENT-auth-structure.md),
+"P0"). Email OTP has no deep-link or cookie-jar requirement, so it does not
+need that client at all; Google OAuth does, and stays blocked on it.
+
 ### 5.2 Readings (BP records)
 
 | Op | Type | Auth |

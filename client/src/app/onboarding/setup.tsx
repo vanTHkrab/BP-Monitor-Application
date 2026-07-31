@@ -12,6 +12,7 @@
 import { router } from 'expo-router';
 import { Text, View } from 'react-native';
 
+import { FONT_SIZE_STEPS } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { ChoiceCard } from '@/modules/onboarding/components/choice-card';
 import { OnboardingShell } from '@/modules/onboarding/components/onboarding-shell';
@@ -44,13 +45,8 @@ const THEMES: {
   },
 ];
 
-/** Preview sizes only — see the note in the store about app-wide consumption. */
-const PREVIEW_SIZE: Record<FontSizePreference, number> = {
-  small: 14,
-  medium: 16,
-  large: 19,
-  xlarge: 22,
-};
+/** Shared with `useFontScale` so this preview is the same baseline every scaled component reads. */
+const PREVIEW_SIZE = FONT_SIZE_STEPS;
 
 const FONT_LABELS: Record<FontSizePreference, string> = {
   small: 'เล็ก',

@@ -70,28 +70,47 @@ and the OAuth deep-link round trip, replacing
 `client/src/services/auth-token.ts` and `client/src/services/session.ts`.
 Its `scheme` must match `app.json` (`bpmobile`).
 
-### 2. Email verification UI
+### 2. Email verification UI — done
 
 Verification uses a six-digit code, not a link — a link leaves the app for
-the system browser and has to deep-link back.
+the system browser and has to deep-link back. Built as
+`app/(auth)/verify-email.tsx` and `modules/auth/hooks/use-verify-email.ts`,
+calling `modules/auth/services/email-otp-api.ts` directly against Better Auth's
+REST endpoints (`/api/auth/email-otp/*`) rather than through
+`@better-auth/expo`'s client — see "P0" in
+[CLIENT-auth-structure.md](./CLIENT-auth-structure.md) for why that client
+is still not installable, and the API reference in
+[docs/01-api/API.md](../01-api/API.md) for the endpoint shapes. `UserType`
+gained `emailVerified: Boolean!` (gateway + client both) so the cache write
+on a successful verify has somewhere to land.
 
 Verification is **never required to use the app**. It gates one thing:
-linking a Google account. So the app needs a way to trigger and enter a
-code, and must not block anything else behind it.
+linking a Google account, so the screen is reachable from a settings row or
+the refusal below, never from the onboarding route gate.
 
-### 3. The refusal that has to explain itself
+### 3. The refusal that has to explain itself — copy done, wiring blocked
 
-Tapping "Sign in with Google" while `emailVerified` is false is refused by
-design. A generic error here leaves a user with no idea what to do — the
-message must name email verification as the reason and offer to resend.
-This is called out as an open item in the design doc.
+`googleSignInRefusalMessage()` in `modules/auth/lib/errors.ts` carries the
+Thai message naming email verification as the reason. Not wired into a
+screen yet: there is no "Sign in with Google" button in the UI at all, and
+the exact shape of the error Better Auth returns on a refused OAuth
+callback is still an open item in the design doc — wiring it up means
+guessing at a contract that does not exist yet. Attach it to the button's
+error handler once both exist.
 
-### 4. Phone collection after OAuth sign-up
+### 4. Phone collection after OAuth sign-up — screen done, unreachable
 
 A Google sign-up carries no phone number, and `phone` is `NOT NULL` and
-unique because caregivers find patients by it. A mandatory onboarding step
-has to collect it immediately after the OAuth callback, before the account
-is usable.
+unique because caregivers find patients by it. Built as
+`app/(auth)/onboarding-phone.tsx` + `modules/auth/hooks/use-set-phone.ts`,
+reusing the existing `updateProfile` mutation (it already validates
+`phone`) rather than a new one. On success it routes to `/onboarding/role`,
+continuing the normal onboarding flow.
+
+Not reachable yet: nothing calls it, because there is no OAuth callback
+handler to route here from — that is the credentials blocker below.
+Wiring the navigation is a one-line addition to the callback handler once
+Google OAuth is configured.
 
 ## Blocked until someone provides credentials
 

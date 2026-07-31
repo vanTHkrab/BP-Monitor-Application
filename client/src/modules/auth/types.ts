@@ -22,6 +22,8 @@ export type User = {
   lastname: string;
   phone: string;
   email?: string;
+  /** Gates linking a Google account, and nothing else — never required to use the app. */
+  emailVerified: boolean;
   avatar?: string;
   role: UserRole;
   /**

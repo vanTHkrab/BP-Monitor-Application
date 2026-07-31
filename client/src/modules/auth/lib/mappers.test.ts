@@ -5,6 +5,7 @@ const basePayload: UserPayload = {
   firstname: 'สมชาย',
   lastname: 'ใจดี',
   phone: '0812345678',
+  emailVerified: false,
   role: 'patient',
   createdAt: '2026-01-15T08:30:00.000Z',
 };
@@ -47,6 +48,11 @@ describe('userFromGql', () => {
   it('drops a gender outside the allowed set', () => {
     expect(userFromGql({ ...basePayload, gender: 'unspecified' }).gender).toBeUndefined();
     expect(userFromGql({ ...basePayload, gender: 'female' }).gender).toBe('female');
+  });
+
+  it('passes emailVerified through unchanged', () => {
+    expect(userFromGql({ ...basePayload, emailVerified: true }).emailVerified).toBe(true);
+    expect(userFromGql({ ...basePayload, emailVerified: false }).emailVerified).toBe(false);
   });
 });
 

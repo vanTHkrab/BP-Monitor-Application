@@ -187,8 +187,8 @@ Expected result: ~200 lines across `store/auth.store.ts` + `modules/auth/service
 | `app/(auth)/_layout.tsx` (15) | `app/(auth)/_layout.tsx` | + redirect gate |
 | `app/(auth)/login.tsx` (321) | `app/(auth)/login.tsx` | |
 | `app/(auth)/register.tsx` (782) | `app/(auth)/register.tsx` + step components | email now required; `role` narrowed to `patient \| caregiver` |
-| — | `app/(auth)/verify-email.tsx` | new |
-| — | `app/(auth)/onboarding-phone.tsx` | new |
+| — | `app/(auth)/verify-email.tsx` | new, built, reachable |
+| — | `app/(auth)/onboarding-phone.tsx` | new, built, unreachable until OAuth |
 
 `register.tsx` at 782 lines should be split while porting, not ported whole and
 split later — it is gaining a required email field and losing the role picker in
@@ -200,8 +200,23 @@ the same pass.
 
 Login and register are real screens; the five tab screens are still
 `ScreenPlaceholder`. Verified by `expo export --platform android` (the bundle
-builds, so every import resolves), a clean `tsc`, and 91 unit tests. **Not yet
-exercised on a device** — no sign-in has actually round-tripped to a gateway.
+builds, so every import resolves), a clean `tsc`, and 119 unit tests.
+
+**Now also verified against a live gateway (2026-07-31), at the HTTP level.**
+A throwaway Postgres + Redis (Docker, migrations applied via `psql` since
+the `prisma` CLI is not available in this environment) plus the built
+gateway (`node dist/src/main.js`) confirmed, by `curl` against the actual
+running server rather than a mock: `register` → `login` → `me` with the
+bearer token round-trip cleanly; an unauthenticated `me` returns
+`extensions.code: "UNAUTHENTICATED"` as the client's 401 fan-out expects;
+`emailVerified` starts `false` and flips to `true` after a real
+send-otp/verify-email round trip on `/api/auth/email-otp/*`; a wrong OTP
+returns exactly `{"message":"Invalid OTP","code":"INVALID_OTP"}` — the
+shape `email-otp-api.ts` and `formatAuthError`'s `INVALID_OTP` branch were
+written against by reading source, now confirmed live; `updateProfile`
+accepts `phone`, as the phone-onboarding screen needs. Not yet done: an
+actual on-device Expo run tapping through the screens — this was the
+gateway's HTTP contract only, not the client UI driving it.
 
 Note the store is `src/stores/` (plural), not `src/store/`.
 
@@ -247,6 +262,16 @@ Reinstate them at the **start of P4**, and check whether 1.7.x has fixed the
 signature before adding a workaround. Note this also removes the reason to
 touch `services/auth-token.ts` at all — see the corrected token bridge above.
 
+**Checked again on 2026-07-31, still broken.** Installed
+`@better-auth/expo@1.7.0-rc.2` against `better-auth@1.7.0-rc.2` (the newest
+tag published at the time, `better-auth` has no stable 1.7.0 yet) and
+type-checked `expoClient(...)` passed to `createAuthClient({ plugins: [...] })`
+— the identical `getActions` / `BetterFetch<CreateFetchOption, …>` vs.
+`BetterAuthClientPlugin` mismatch reproduces verbatim. The dependencies were
+removed again after the check; nothing in this diff depends on them. Re-check
+against whatever `better-auth` ships after `1.7.0-rc.2` graduates to stable,
+not against another beta/rc.
+
 **P1 — state and logic, no UI. Done.** Registration of the session-expired
 handler goes through `registerSessionExpiryHandler()` rather than a
 module-scope side effect, so a test importing the store does not install a
@@ -267,10 +292,20 @@ can already see. The login throttle countdown runs off a wall-clock deadline
 suspended while the app is backgrounded and a decrementing counter leaves the
 button disabled long after the server would accept a retry.
 
-**P4 — the OAuth-adjacent screens.** Email OTP verification, the phone
-onboarding step, and the "verify your email before linking Google" refusal
-copy. Partly blocked (below) but the OTP entry UI and the refusal copy can be
-built and unit-tested against a stubbed client.
+**P4 — the OAuth-adjacent screens. Partly done.** Email OTP verification
+(`app/(auth)/verify-email.tsx`) is fully wired and reachable — it needed
+no `@better-auth/expo` at all, since it went straight at Better Auth's REST
+endpoints via `modules/auth/services/email-otp-api.ts` (see
+[docs/01-api/API.md](../01-api/API.md)). The phone onboarding step
+(`app/(auth)/onboarding-phone.tsx`) is built and unit-verified but not yet
+reachable — nothing routes to it, because there is no OAuth callback
+handler to route from. The Google refusal copy
+(`googleSignInRefusalMessage()` in `modules/auth/lib/errors.ts`) exists and
+is tested but not attached to a button — there is no "Sign in with Google"
+UI yet. All three remain blocked on the same two things: Google OAuth
+credentials (for a callback to route from and a button to attach the
+refusal to) and the `@better-auth/expo` type mismatch (checked again
+against `1.7.0-rc.2`, still broken — see "P0" above).
 
 ## Blocked
 
