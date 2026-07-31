@@ -16,7 +16,10 @@ import { initAuth, registerSessionExpiryHandler } from '@/modules/auth';
 import { createQueryClient } from '@/services/query-client';
 import { usePreferencesStore } from '@/stores';
 import { navigationThemeFor } from '@/theme';
-import { ColorSchemeProvider, useColorSchemePreference } from '@/theme/color-scheme';
+import {
+  ColorSchemeProvider,
+  useColorSchemePreference,
+} from '@/theme/color-scheme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -91,7 +94,29 @@ function RootStack() {
       {/* Pushed modally from any tab, shared by both roles — see the note
           at the top of app/settings.tsx. A real navigation, not a gate
           redirect, so it gets an actual transition. */}
-      <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen
+        name="settings"
+        options={{ animation: 'slide_from_right' }}
+      />
+      {/* The rest of the menu's rows — see app/(tabs)/menu.tsx. Each is a
+          ScreenPlaceholder until its real screen is ported; registering
+          them now means every row navigates somewhere real instead of a
+          dead link. */}
+      <Stack.Screen
+        name="profile"
+        options={{ animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
+        name="caregivers"
+        options={{ animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
+        name="security"
+        options={{ animation: 'slide_from_right' }}
+      />
+      <Stack.Screen name="help" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="about" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="debug" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }
