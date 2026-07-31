@@ -55,6 +55,12 @@ Authorization: Bearer <jwt>
 - `Query.hello`
 - `Mutation.register`
 - `Mutation.login`
+- `Mutation.loginWithGoogle`
+- `Mutation.passkeyAuthOptions`
+- `Mutation.passkeyAuthVerify`
+
+The last three are public by necessity — they are how a caller with no
+session proves who they are.
 
 Every other operation requires a Bearer token; absence yields
 `UNAUTHENTICATED`.
@@ -213,6 +219,47 @@ ISO string directly.
 | `logout` | Mutation | ✅ | Flips `isActive=false` on the current session |
 | `logoutAllDevices` | Mutation | ✅ | Flips every session |
 | `deleteMyData` | Mutation | ✅ | Cascading account + data deletion |
+| `loginWithGoogle` | Mutation | ❌ | Exchanges a Google ID token from the device account picker → `AuthPayload`. The gateway verifies signature, issuer, and audience |
+
+`UserType.lastLoginMethod` is **not** exposed — read it from
+`securityOverview` instead. The login screen cannot use it anyway: it has no
+session, and answering "which method does this account use" to an
+unauthenticated caller would leak account existence. The client keeps its own
+device-local hint for that (`modules/auth/lib/last-login-method.ts`).
+
+### 5.1.1 Passkeys & security
+
+Passkey operations 404 into `NOT_IMPLEMENTED` (HTTP 501) when the deployment
+has no `PASSKEY_RP_ID`; `securityOverview.passkeySupported` is the flag a
+client should branch on rather than probing.
+
+| Op | Type | Auth | Description |
+| --- | --- | --- | --- |
+| `securityOverview` | Query | ✅ | One-shot summary for the security screen: `lastLoginMethod`, `passkeyCount`, `activeSessionCount`, `hasPassword`, `hasGoogleAccount`, `emailVerified`, `passkeySupported` |
+| `passkeys` | Query | ✅ | Registered authenticators. Never returns `publicKey` / `counter` / `credentialID` |
+| `passkeyRegisterOptions` | Mutation | ✅ | Step 1 of adding a passkey → `{ optionsJson, challengeToken }` |
+| `passkeyRegisterVerify` | Mutation | ✅ | Step 2 → `PasskeyType` |
+| `passkeyAuthOptions` | Mutation | ❌ | Step 1 of signing in → `{ optionsJson, challengeToken }` |
+| `passkeyAuthVerify` | Mutation | ❌ | Step 2 → `AuthPayload` |
+| `renamePasskey` | Mutation | ✅ | → `PasskeyType` |
+| `deletePasskey` | Mutation | ✅ | Refuses (`BAD_USER_INPUT`) when it is the account's last sign-in method and there is no password |
+
+**Why `challengeToken` exists.** Better Auth joins the two calls of a WebAuthn
+ceremony with a signed cookie. The mobile client authenticates with a bearer
+token and has no cookie jar, so the gateway lifts the cookie out of the
+response and returns it as an ordinary field; the client sends it back
+verbatim on the verify call. Treat it as opaque and short-lived — it carries a
+single-use challenge.
+
+**Why the options calls are mutations.** They mint that single-use challenge.
+A GraphQL client is entitled to cache a query, and a replayed challenge fails
+verification with an error that points at the authenticator rather than at the
+cache.
+
+`optionsJson` and `credentialJson` are JSON **strings**, not object graphs —
+the payload is a deep W3C-specified shape this service only passes through,
+and mirroring it in the schema would mean maintaining a copy of the spec that
+fails silently when it drifts.
 
 #### Example — `login`
 

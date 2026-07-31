@@ -24,6 +24,9 @@ GraphQL contract is **schema-first via decorators**: `*.types.ts` /
 | `src/auth/auth.config.ts` | `getJwtSecret()` (fail-fast on missing/short), `JWT_EXPIRES_IN` (default `7d`), `BCRYPT_SALT_ROUNDS` |
 | `src/auth/auth.guard.ts` | `GqlAuthGuard` — verifies JWT, checks session active, throttled `lastActiveAt` update |
 | `src/auth/login-throttle.guard.ts` | Redis-backed rate limiter for login mutation (5/15min/phone) — atomic INCR + PEXPIRE Lua script, falls back to per-process in-memory map if Redis isn't ready |
+| `src/auth/android-origin.ts` | Converts keytool SHA-256 fingerprints into the `android:apk-key-hash:` WebAuthn origins Android actually presents. Separate file so it is unit-testable — `better-auth.ts` imports ESM-only packages the CJS Jest setup cannot load |
+| `src/security/` | Passkey ceremonies (register + authenticate), passkey list/rename/delete, and `securityOverview` for the mobile security screen. Split from `auth/` on the line "getting in" vs "managing how you get in" |
+| `src/well-known.controller.ts` | Serves `/.well-known/assetlinks.json` from `ANDROID_APP_SHA256_FINGERPRINT` — Android will not accept a passkey without it. Must be reachable on the **RP domain**, not just on the gateway's host |
 | `src/reading/`, `src/post/`, `src/comment/`, `src/alert/`, `src/caregiver/` | feature modules — same shape: `*.module.ts`, `*.resolver.ts`, `*.service.ts`, `*.types.ts` |
 | `src/ai/` | bridges GraphQL to AI service over Redis transport |
 | `src/storage/` | S3 upload helpers (profile + BP image) + `StorageCleanupService` (`@Cron` daily orphan-image sweep) |
@@ -107,6 +110,40 @@ pnpm prisma migrate dev       # apply pending migrations
   editing the database in dev causes drift.
 - **No tests yet for `auth/`** — when adding behavior, add at least a unit
   test for the service path (see PLAN.md).
+
+## Passkeys and on-device Google sign-in
+
+Both are env-gated and absent rather than broken when unconfigured. The
+traps, in the order people hit them:
+
+- **`PASSKEY_RP_ID` must be a bare registered domain.** Not an IP, not a
+  port, not a scheme. Passkeys therefore cannot work against a LAN dev
+  address at all — the failure is at the authenticator, before any request
+  reaches this service. The plugin is simply not loaded when it is unset,
+  and `securityOverview.passkeySupported` reports that to the client.
+- **Android does not send `https://<domain>` as the WebAuthn origin.** It
+  sends `android:apk-key-hash:<base64url sha256 of the signing cert>`.
+  `android-origin.ts` derives that from `ANDROID_APP_SHA256_FINGERPRINT`
+  so the .env holds one value in keytool's format. Configuring only the
+  https origin fails every registration with a mismatched-origin error
+  that reads like a server bug.
+- **`/.well-known/assetlinks.json` has to be on the RP domain.** Serving it
+  from `api.example.com` while the RP is `example.com` means Android never
+  sees it. Google's servers fetch it, not the app, so it must be public
+  and real-HTTPS.
+- **Debug, release, and Play App Signing are three different keys.**
+  `ANDROID_APP_SHA256_FINGERPRINT` is comma-separated for that reason; a
+  passkey works only on builds whose key is listed.
+- **One Tap is not Better Auth's `oneTap` plugin.** That plugin drives
+  Google Identity Services in a browser. On Android the picker is
+  Credential Manager, which returns an ID token; `loginWithGoogle`
+  exchanges it through `signInSocial`. `GOOGLE_ANDROID_CLIENT_ID` is
+  added to the provider's `clientId` array as a second accepted
+  *audience* — the array's first entry stays the web client, because that
+  is what the browser redirect uses as `client_id`.
+- **The challenge is a cookie.** See the `challengeToken` note in
+  [docs/01-api/API.md](../../../docs/01-api/API.md#511-passkeys--security)
+  before changing anything in `src/security/`.
 
 ## Cross-cutting concerns
 

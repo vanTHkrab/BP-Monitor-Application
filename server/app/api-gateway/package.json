@@ -23,6 +23,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
     "@aws-sdk/s3-request-presigner": "^3.1045.0",
+    "@better-auth/passkey": "^1.6.25",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.20",
     "@nestjs/core": "^11.1.20",

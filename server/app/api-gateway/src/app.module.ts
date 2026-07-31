@@ -44,6 +44,8 @@ import { CommentModule } from './comment/comment.module';
 import { AlertModule } from './alert/alert.module';
 import { CaregiverModule } from './caregiver/caregiver.module';
 import { DebugModule } from './debug/debug.module';
+import { SecurityModule } from './security/security.module';
+import { WellKnownController } from './well-known.controller';
 
 @Module({
   imports: [
@@ -152,7 +154,9 @@ import { DebugModule } from './debug/debug.module';
     AlertModule,
     CaregiverModule,
     DebugModule,
+    SecurityModule,
   ],
   providers: [AppService, AppResolver],
+  controllers: [WellKnownController],
 })
 export class AppModule {}

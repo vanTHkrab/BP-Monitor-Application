@@ -165,6 +165,53 @@ export class AuthService {
     };
   }
 
+  /**
+   * Signs in with a Google ID token obtained on-device.
+   *
+   * This is the mobile half of "One Tap". Better Auth ships a `oneTap` plugin,
+   * but it is built around Google Identity Services in a browser — it expects
+   * the GIS script to run and a cookie to come back. Android has no such
+   * script: the account picker is Credential Manager, which hands the app an
+   * ID token directly. So the token is exchanged here instead, through the
+   * same `signInSocial` path the browser redirect ends at, which means account
+   * linking, the `patient` default role, and session creation all behave
+   * identically no matter which door the user came through.
+   *
+   * The token is *not* trusted because the client sent it: Better Auth
+   * verifies Google's signature, issuer, and audience. `GOOGLE_ANDROID_CLIENT_ID`
+   * has to be configured for the audience check to pass — see `googleProvider()`.
+   */
+  async loginWithGoogleIdToken(
+    idToken: string,
+    userAgent?: string,
+    deviceLabel?: string,
+  ): Promise<AuthPayloadObject> {
+    const result = await this.callAuth(
+      () =>
+        this.auth.api.signInSocial({
+          headers: this.headersFor(userAgent),
+          body: { provider: 'google', idToken: { token: idToken } },
+        }),
+      () => new UnauthorizedException('เข้าสู่ระบบด้วย Google ไม่สำเร็จ'),
+    );
+
+    // `signInSocial` is shared with the browser redirect flow, whose result is
+    // a URL to navigate to and no session at all. The ID-token exchange always
+    // takes the other branch, so reaching this one means the provider is
+    // misconfigured rather than that the user did something wrong — but it is
+    // a real union, and returning a URL as a token would be worse than a 401.
+    if (!('token' in result) || !result.token || !result.user) {
+      throw new UnauthorizedException('เข้าสู่ระบบด้วย Google ไม่สำเร็จ');
+    }
+
+    await this.labelSession(result.token, deviceLabel);
+
+    return {
+      token: this.requireToken(result.token),
+      user: await this.me(result.user.id),
+    };
+  }
+
   async me(userId: string): Promise<UserObject> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

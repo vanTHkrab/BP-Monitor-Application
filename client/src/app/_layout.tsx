@@ -13,6 +13,7 @@ import tamaguiConfig from '../../tamagui.config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useDatabaseMigrations } from '@/database/migrator';
 import { initAuth, registerSessionExpiryHandler } from '@/modules/auth';
+import { AppLockGate } from '@/modules/security';
 import { createQueryClient } from '@/services/query-client';
 import { usePreferencesStore } from '@/stores';
 import { navigationThemeFor } from '@/theme';
@@ -70,7 +71,16 @@ function ThemedApp() {
     <TamaguiProvider config={tamaguiConfig} defaultTheme={scheme}>
       <ThemeProvider value={navigationThemeFor(scheme)}>
         <AnimatedSplashOverlay />
-        {migrations.success ? <RootStack /> : null}
+        {/* Wraps the whole navigator, not a screen: the app lock has to hold
+            whatever route the user was on when they left, and a per-screen
+            version leaves whichever screen forgot it as an open door. It is
+            a no-op — rendering children straight through — for the majority
+            who never turn the lock on. */}
+        {migrations.success ? (
+          <AppLockGate>
+            <RootStack />
+          </AppLockGate>
+        ) : null}
       </ThemeProvider>
     </TamaguiProvider>
   );

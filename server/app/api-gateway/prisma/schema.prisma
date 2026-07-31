@@ -104,6 +104,15 @@ model User {
   /// choice, and it should not silently satisfy the user's own step.
   roleSelectedAt DateTime? @map("role_selected_at")
 
+  /// Which method the user last signed in with — 'email', 'phone-number',
+  /// 'google', or 'passkey'. Written by Better Auth's `lastLoginMethod`
+  /// plugin (`storeInDatabase: true`).
+  ///
+  /// Stored server-side rather than read from the plugin's cookie: the
+  /// mobile client authenticates with a bearer token and never sends
+  /// cookies, so the cookie the plugin sets by default is invisible to it.
+  lastLoginMethod String? @map("last_login_method") @db.VarChar(32)
+
   // ── Better Auth admin plugin ──
   banned     Boolean?  @default(false)
   banReason  String?   @map("ban_reason") @db.VarChar(255)
@@ -132,8 +141,65 @@ model User {
   postCommentLikes PostCommentLike[]
   postLikes        PostLike[]
   sessions         UserSession[]
+  passkeys         Passkey[]
 
   @@map("users")
+}
+
+/// Better Auth's `passkey` model (from `@better-auth/passkey`).
+///
+/// One row per registered authenticator, not per user: the same account can
+/// hold a phone's screen-lock credential and a hardware key, and revoking one
+/// must not touch the other.
+///
+/// Field names are Better Auth's — the plugin addresses them through the
+/// Prisma adapter, so renaming one here breaks the plugin even though
+/// `@map` keeps the column snake_case like the rest of this schema.
+model Passkey {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// User-facing label, e.g. "Pixel 8". Nullable because the plugin allows
+  /// registering without one; the client supplies a device name.
+  name String? @db.VarChar(255)
+
+  /// COSE public key, base64url. The only thing needed to verify an
+  /// assertion — the private key never leaves the authenticator.
+  publicKey String @map("public_key")
+
+  userId String @map("user_id") @db.Uuid
+
+  /// Authenticator-assigned credential id, base64url. Unique across all
+  /// users: a credential identifies exactly one authenticator, and allowing
+  /// a duplicate would let one device's assertion resolve to two accounts.
+  credentialID String @unique @map("credential_id") @db.VarChar(255)
+
+  /// Signature counter for clone detection. Some authenticators (Apple,
+  /// Android platform keys) always report 0 — a stuck counter is not by
+  /// itself proof of cloning.
+  counter Int @default(0)
+
+  /// 'singleDevice' | 'multiDevice' — whether the credential syncs across
+  /// the user's devices via their password manager.
+  deviceType String @map("device_type") @db.VarChar(32)
+
+  /// True when the credential is backed up (synced passkey). A false value
+  /// means losing the device loses the credential, which is why the UI
+  /// warns before it is the account's only sign-in method.
+  backedUp Boolean @default(false) @map("backed_up")
+
+  /// Comma-separated AuthenticatorTransport list ('internal', 'hybrid', …).
+  transports String? @db.VarChar(255)
+
+  /// Authenticator model identifier. Kept for support triage only — it is
+  /// not a trust signal here, since no attestation policy is enforced.
+  aaguid String? @db.VarChar(64)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkeys")
 }
 
 /// Better Auth's `session` model, mapped onto the existing table.

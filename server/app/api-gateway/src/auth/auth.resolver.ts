@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
 import { AuthPayloadObject } from './dto/auth-payload.object';
 import { ChangePasswordInput } from './dto/change-password.input';
+import { GoogleSignInInput } from './dto/google-sign-in.input';
 import { LoginInput } from './dto/login.input';
 import { RegisterInput } from './dto/register.input';
 import { SelectRoleInput } from './dto/select-role.input';
@@ -53,6 +54,20 @@ export class AuthResolver {
     @Context() context: GraphQLContextWithRequest,
   ): Promise<AuthPayloadObject> {
     return this.authService.login(input, readUserAgent(context));
+  }
+
+  @Mutation(() => AuthPayloadObject, {
+    description: 'เข้าสู่ระบบด้วยบัญชี Google บนอุปกรณ์ (One Tap)',
+  })
+  async loginWithGoogle(
+    @Args('input') input: GoogleSignInInput,
+    @Context() context: GraphQLContextWithRequest,
+  ): Promise<AuthPayloadObject> {
+    return this.authService.loginWithGoogleIdToken(
+      input.idToken,
+      readUserAgent(context),
+      input.deviceLabel,
+    );
   }
 
   @Query(() => UserObject, { description: 'ดึงข้อมูลผู้ใช้ปัจจุบัน' })

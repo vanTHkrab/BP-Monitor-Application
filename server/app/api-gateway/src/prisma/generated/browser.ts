@@ -23,6 +23,19 @@ export * from './enums.js';
  */
 export type User = Prisma.UserModel
 /**
+ * Model Passkey
+ * Better Auth's `passkey` model (from `@better-auth/passkey`).
+ * 
+ * One row per registered authenticator, not per user: the same account can
+ * hold a phone's screen-lock credential and a hardware key, and revoking one
+ * must not touch the other.
+ * 
+ * Field names are Better Auth's — the plugin addresses them through the
+ * Prisma adapter, so renaming one here breaks the plugin even though
+ * `@map` keeps the column snake_case like the rest of this schema.
+ */
+export type Passkey = Prisma.PasskeyModel
+/**
  * Model UserSession
  * Better Auth's `session` model, mapped onto the existing table.
  * 

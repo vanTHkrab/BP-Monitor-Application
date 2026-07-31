@@ -11,7 +11,13 @@
 export { initAuth, registerSessionExpiryHandler } from './bootstrap';
 export { resolveGate, type GateDestination } from './route-gate';
 
+export { useChangePassword } from './hooks/use-change-password';
+export {
+  isGoogleSignInConfigured,
+  useGoogleSignIn,
+} from './hooks/use-google-sign-in';
 export { useLogin } from './hooks/use-login';
+export { useLoginSessions, useLogoutAllDevices } from './hooks/use-login-sessions';
 export { useLogout } from './hooks/use-logout';
 export { useRegister } from './hooks/use-register';
 export { useSession } from './hooks/use-session';

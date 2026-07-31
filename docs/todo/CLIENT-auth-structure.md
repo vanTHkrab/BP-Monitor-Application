@@ -81,7 +81,20 @@ src/modules/auth/
 │   └── auth-client.ts    # better-auth expo client   (P4 — not yet present)
 └── lib/                  # pure
     ├── errors.ts         # formatAuthError (+ CONFLICT, TOO_MANY_REQUESTS)
+    ├── last-login-method.ts  # device-local hint for the login screen
     └── mappers.ts        # userFromGql, sessionFromGql
+
+src/modules/security/     # managing *how* you sign in, once you already are
+├── index.ts              # public surface — same rule as auth's
+├── types.ts              # Passkey, SecurityOverview, LoginMethod
+├── components/           # AppLockGate, SecurityRow/Group, posture banner
+├── hooks/                # use-passkeys, use-security-overview, use-app-lock,
+│                         # use-passkey-sign-in
+├── services/             # I/O only — operations.ts + security-api.ts,
+│                         # including the two WebAuthn ceremonies end to end
+└── lib/                  # pure
+    ├── app-lock.ts       # SecureStore preference + biometric capability
+    └── security-posture.ts   # the hub's one-sentence assessment
 
 src/app/(auth)/           # route group — unchanged in name and location
 ├── _layout.tsx

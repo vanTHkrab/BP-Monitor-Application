@@ -10,8 +10,10 @@ import { graphqlRequest } from '@/services/api';
 import type { LoginInput, LoginSession, RegisterInput, User } from '../types';
 import { sessionFromGql, userFromGql, type SessionPayload, type UserPayload } from '../lib/mappers';
 import {
+  GQL_CHANGE_PASSWORD,
   GQL_DELETE_MY_DATA,
   GQL_LOGIN,
+  GQL_LOGIN_WITH_GOOGLE,
   GQL_LOGIN_SESSIONS,
   GQL_LOGOUT,
   GQL_LOGOUT_ALL_DEVICES,
@@ -109,4 +111,30 @@ export async function logoutAllDevices(): Promise<void> {
 
 export async function deleteMyData(): Promise<void> {
   await graphqlRequest<{ deleteMyData: boolean }>(GQL_DELETE_MY_DATA);
+}
+
+/**
+ * Changes the password and revokes every *other* session server-side.
+ *
+ * The revocation is the gateway's, not a second call from here: a leaked
+ * token elsewhere has to stop working the moment the password changes, and
+ * doing that client-side would leave a window if the app is killed in
+ * between. This device stays signed in.
+ */
+export async function changePassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  await graphqlRequest<{ changePassword: boolean }>(GQL_CHANGE_PASSWORD, { input });
+}
+
+/** Signs in with a Google ID token from the on-device account picker. */
+export async function loginWithGoogle(idToken: string): Promise<AuthResult> {
+  const data = await graphqlRequest<{ loginWithGoogle: AuthPayload }>(GQL_LOGIN_WITH_GOOGLE, {
+    input: { idToken, deviceLabel: deviceLabel() },
+  });
+  return {
+    token: data.loginWithGoogle.token,
+    user: userFromGql(data.loginWithGoogle.user),
+  };
 }

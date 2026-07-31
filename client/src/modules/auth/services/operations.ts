@@ -44,6 +44,22 @@ export const GQL_REGISTER = `
   }
 `;
 
+/**
+ * Google sign-in from the on-device account picker (One Tap).
+ *
+ * The gateway verifies the ID token against Google before it means anything;
+ * the client never sees a session until that succeeds. Same payload shape as
+ * `login`, so the caller's session bootstrap needs no branch of its own.
+ */
+export const GQL_LOGIN_WITH_GOOGLE = `
+  mutation LoginWithGoogle($input: GoogleSignInInput!) {
+    loginWithGoogle(input: $input) {
+      token
+      user { ${USER_FIELDS} }
+    }
+  }
+`;
+
 export const GQL_ME = `
   query Me {
     me { ${USER_FIELDS} }

@@ -237,6 +237,55 @@ type DebugMyStorageType {
   items: [DebugStorageItemType!]!
 }
 
+type PasskeyChallengeType {
+  """PublicKeyCredential options ในรูปแบบ JSON string"""
+  optionsJson: String!
+
+  """ส่งค่านี้กลับมาในขั้นตอน verify โดยไม่ต้องแก้ไข"""
+  challengeToken: String!
+}
+
+type PasskeyType {
+  id: String!
+
+  """ชื่ออุปกรณ์ที่ผู้ใช้ตั้งไว้"""
+  name: String
+
+  """
+  true เมื่อ passkey ถูกสำรองไว้กับบัญชีผู้ใช้ (เช่น Google Password Manager) — false แปลว่าอยู่บนเครื่องนี้เครื่องเดียว
+  """
+  backedUp: Boolean!
+
+  """'singleDevice' หรือ 'multiDevice'"""
+  deviceType: String
+  createdAt: DateTime!
+}
+
+type SecurityOverviewType {
+  """
+  วิธีเข้าสู่ระบบล่าสุด — 'email' | 'phone-number' | 'google' | 'passkey'
+  """
+  lastLoginMethod: String
+
+  """จำนวน passkey ที่ลงทะเบียนไว้"""
+  passkeyCount: Int!
+
+  """จำนวนอุปกรณ์ที่ยังเข้าสู่ระบบอยู่"""
+  activeSessionCount: Int!
+
+  """บัญชีนี้ตั้งรหัสผ่านไว้หรือไม่"""
+  hasPassword: Boolean!
+
+  """เชื่อมบัญชี Google ไว้หรือไม่"""
+  hasGoogleAccount: Boolean!
+  emailVerified: Boolean!
+
+  """
+  เซิร์ฟเวอร์นี้เปิดใช้ passkey หรือไม่ — false เมื่อยังไม่ได้ตั้งค่าโดเมน
+  """
+  passkeySupported: Boolean!
+}
+
 type Query {
   hello: String!
 
@@ -274,6 +323,12 @@ type Query {
   Dev-only: cross-tier media diff (DB ↔ S3) for the current user. Disabled in production.
   """
   debugMyStorage: DebugMyStorageType!
+
+  """สรุปสถานะความปลอดภัยของบัญชี สำหรับหน้าความปลอดภัย"""
+  securityOverview: SecurityOverviewType!
+
+  """รายการ passkey ที่ลงทะเบียนไว้"""
+  passkeys: [PasskeyType!]!
 }
 
 type Mutation {
@@ -282,6 +337,9 @@ type Mutation {
 
   """เข้าสู่ระบบ"""
   login(input: LoginInput!): AuthPayload!
+
+  """เข้าสู่ระบบด้วยบัญชี Google บนอุปกรณ์ (One Tap)"""
+  loginWithGoogle(input: GoogleSignInInput!): AuthPayload!
 
   """เลือกบทบาทของตัวเอง (ขั้นตอนหลังสมัคร)"""
   selectRole(input: SelectRoleInput!): UserType!
@@ -360,6 +418,24 @@ type Mutation {
 
   """ทำเครื่องหมายว่าอ่านแจ้งเตือนทั้งหมดแล้ว"""
   markAllAlertsRead: Boolean!
+
+  """ขั้นตอนที่ 1 ของการเพิ่ม passkey ใหม่"""
+  passkeyRegisterOptions: PasskeyChallengeType!
+
+  """ขั้นตอนที่ 2 ของการเพิ่ม passkey ใหม่"""
+  passkeyRegisterVerify(input: PasskeyRegisterVerifyInput!): PasskeyType!
+
+  """ขั้นตอนที่ 1 ของการเข้าสู่ระบบด้วย passkey"""
+  passkeyAuthOptions: PasskeyChallengeType!
+
+  """ขั้นตอนที่ 2 ของการเข้าสู่ระบบด้วย passkey"""
+  passkeyAuthVerify(input: PasskeyAuthenticateVerifyInput!): AuthPayload!
+
+  """เปลี่ยนชื่อ passkey"""
+  renamePasskey(input: RenamePasskeyInput!): PasskeyType!
+
+  """ลบ passkey"""
+  deletePasskey(id: ID!): Boolean!
 }
 
 input RegisterInput {
@@ -380,6 +456,14 @@ input RegisterInput {
 input LoginInput {
   phone: String!
   password: String!
+  deviceLabel: String
+}
+
+input GoogleSignInInput {
+  """ID token จาก Google บนอุปกรณ์"""
+  idToken: String!
+
+  """ชื่ออุปกรณ์ สำหรับรายการเซสชัน"""
   deviceLabel: String
 }
 
@@ -487,4 +571,31 @@ input CreateCommentInput {
 input UpdateCommentInput {
   id: Int!
   content: String!
+}
+
+input PasskeyRegisterVerifyInput {
+  """ผลลัพธ์จาก authenticator ในรูปแบบ JSON string"""
+  credentialJson: String!
+
+  """ค่า challengeToken จากขั้นตอน passkeyRegisterOptions"""
+  challengeToken: String!
+
+  """ชื่ออุปกรณ์ที่จะแสดงในรายการ"""
+  name: String
+}
+
+input PasskeyAuthenticateVerifyInput {
+  """ผลลัพธ์จาก authenticator ในรูปแบบ JSON string"""
+  credentialJson: String!
+
+  """ค่า challengeToken จากขั้นตอน passkeyAuthOptions"""
+  challengeToken: String!
+
+  """ชื่ออุปกรณ์ สำหรับแสดงในรายการเซสชัน"""
+  deviceLabel: String
+}
+
+input RenamePasskeyInput {
+  id: ID!
+  name: String!
 }

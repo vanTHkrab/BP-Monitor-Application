@@ -11,6 +11,7 @@ import { useState } from "react";
 import { setAuthToken } from "@/services/auth-token";
 import { useAuthStore } from "@/stores";
 import { formatAuthError } from "../lib/errors";
+import { writeLastLoginMethod } from "../lib/last-login-method";
 import * as authApi from "../services/auth-api";
 import type { AuthErrorView, LoginInput } from "../types";
 
@@ -40,6 +41,11 @@ export function useLogin() {
       queryClient.setQueryData(["me"], user);
 
       signedIn({ userId: user.id, token });
+
+      // Device-local hint for the next visit to this screen. Fire-and-forget:
+      // a failed write costs one extra tap, and awaiting it would delay the
+      // navigation the user is waiting on.
+      void writeLastLoginMethod("password");
     },
     onError: (cause) =>
       setError(

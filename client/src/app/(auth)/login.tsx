@@ -11,12 +11,19 @@ import { View } from 'react-native';
 
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
-import { useLogin } from '@/modules/auth';
+import { useGoogleSignIn, useLogin } from '@/modules/auth';
+import { AlternateSignIn } from '@/modules/auth/components/alternate-sign-in';
 import { AuthErrorBanner } from '@/modules/auth/components/auth-error-banner';
 import { AuthShell } from '@/modules/auth/components/auth-shell';
 import { AuthTabs } from '@/modules/auth/components/auth-tabs';
+import { isGoogleSignInConfigured } from '@/modules/auth/hooks/use-google-sign-in';
 import { formatCountdown, useRetryCountdown } from '@/modules/auth/hooks/use-retry-countdown';
+import {
+  readLastLoginMethod,
+  type LastLoginMethod,
+} from '@/modules/auth/lib/last-login-method';
 import { validateLogin, type FieldErrors, type LoginField } from '@/modules/auth/lib/validation';
+import { isPasskeyAvailableOnDevice, usePasskeySignIn } from '@/modules/security';
 import { useAuthStore } from '@/stores';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
 
@@ -24,9 +31,17 @@ export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<LoginField>>({});
+  const [lastUsed, setLastUsed] = useState<LastLoginMethod | null>(null);
 
   const { login, isPending, error, clearError } = useLogin();
+  const passkey = usePasskeySignIn();
+  const google = useGoogleSignIn();
   const throttle = useRetryCountdown();
+
+  // Device-local, so it resolves without a request and never gates first paint.
+  useEffect(() => {
+    void readLastLoginMethod().then(setLastUsed);
+  }, []);
 
   // Set by the 401 fan-out when a session is revoked mid-use. Shown once and
   // cleared on leaving, so it does not reappear after an ordinary sign-out.
@@ -72,11 +87,13 @@ export default function LoginScreen() {
     return undefined;
   };
 
+  // Alternate methods surface their own failures in the same banner. The
+  // throttle outranks them: it is the only one the user must wait out.
   const bannerMessage = throttle.isThrottled
     ? `ลองเข้าระบบบ่อยเกินไป กรุณารออีก ${formatCountdown(throttle.remaining ?? 0)}`
     : error && error.field === null
       ? error.message
-      : null;
+      : (passkey.error?.message ?? google.error?.message ?? null);
 
   const submitTitle = throttle.isThrottled
     ? `รอ ${formatCountdown(throttle.remaining ?? 0)}`
@@ -130,6 +147,36 @@ export default function LoginScreen() {
           size="large"
         />
       </View>
+
+      <AlternateSignIn
+        lastUsed={lastUsed}
+        // Both are omitted rather than disabled when unavailable: a greyed-out
+        // "sign in with Passkey" on a phone with no screen lock is a dead end
+        // the user cannot resolve from this screen.
+        onPasskey={
+          isPasskeyAvailableOnDevice()
+            ? () => {
+                void passkey.signInWithPasskey().then(
+                  () => router.replace('/(tabs)'),
+                  // Already turned into a banner by the hook.
+                  () => {},
+                );
+              }
+            : undefined
+        }
+        onGoogle={
+          isGoogleSignInConfigured()
+            ? () => {
+                void google.signInWithGoogle().then(
+                  () => router.replace('/(tabs)'),
+                  () => {},
+                );
+              }
+            : undefined
+        }
+        isPasskeyPending={passkey.isPending}
+        isGooglePending={google.isPending}
+      />
     </AuthShell>
   );
 }

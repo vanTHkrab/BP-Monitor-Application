@@ -11,12 +11,12 @@
  * than carrying dead indirection.
  *
  * Every row is reachable today. `ตั้งค่าแอปพลิเคชั่น` (app/settings.tsx),
- * `ช่วยเหลือและคำแนะนำ` (app/help.tsx), and `เกี่ยวกับ` (app/about.tsx) are
- * real, ported screens. `โปรไฟล์`, `ผู้ดูแล`, `ความปลอดภัย`, and the
- * dev-only `Debug` still land on a `ScreenPlaceholder` — profile editing,
- * caregiver linking, and security (password/sessions/delete-account) each
- * carry real state and server calls, not just static content, so they're
- * their own subsystem rather than a port on this screen's scope.
+ * `ช่วยเหลือและคำแนะนำ` (app/help.tsx), `เกี่ยวกับ` (app/about.tsx), and
+ * `ความปลอดภัย` (app/security/) are real, ported screens. `โปรไฟล์`,
+ * `ผู้ดูแล`, and the dev-only `Debug` still land on a `ScreenPlaceholder` —
+ * profile editing and caregiver linking each carry real state and server
+ * calls, not just static content, so they're their own subsystem rather
+ * than a port on this screen's scope.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

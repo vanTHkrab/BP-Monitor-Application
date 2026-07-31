@@ -341,6 +341,15 @@ misbehave subtly when changed without context:
 - **Auth / session lifecycle.** Token storage straddles SecureStore (native)
   and AsyncStorage (web); session-expired handling is centralised in the
   transports. Re-implementing it per-slice is a recurring failure mode.
+- **Passkeys are a four-way configuration.** A working passkey needs the
+  gateway's `PASSKEY_RP_ID`, the signing-key fingerprint (which becomes both
+  `assetlinks.json` and the `android:apk-key-hash:` origin), a real HTTPS
+  domain, and the app's package name to agree. Three out of four fails at
+  the device with an error that reads like a server bug. The gateway hides
+  the feature entirely when unconfigured, and the mobile client branches on
+  `securityOverview.passkeySupported` rather than probing — see the
+  "Passkeys and on-device Google sign-in" section in
+  [api-gateway/CLAUDE.md](./server/app/api-gateway/CLAUDE.md).
 - **Cross-document drift.** Paths, commands, env vars, and route names are
   mentioned across `README.md`, multiple `CLAUDE.md` files, and
   `infra/README.md`. Rule 6 exists because one rename routinely needs to

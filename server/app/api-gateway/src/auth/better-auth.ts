@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { passkey } from '@better-auth/passkey';
 import { Logger } from '@nestjs/common';
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
@@ -8,6 +9,7 @@ import {
   bearer,
   emailOTP,
   haveIBeenPwned,
+  lastLoginMethod,
   phoneNumber,
 } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
@@ -16,6 +18,7 @@ import * as bcrypt from 'bcrypt';
 import type Redis from 'ioredis';
 
 import type { PrismaService } from '../prisma/prisma.service';
+import { androidOriginsFromFingerprints } from './android-origin';
 import {
   BCRYPT_SALT_ROUNDS,
   SESSION_TTL_MS,
@@ -496,8 +499,80 @@ export function createBetterAuth(prisma: PrismaService, redis: Redis) {
       haveIBeenPwned({
         enabled: process.env.HAVE_I_BEEN_PWNED_ENABLED === 'true',
       }),
+      // `storeInDatabase` is what makes this usable from the mobile app. The
+      // plugin's default is a cookie, and the mobile client authenticates
+      // with a bearer token and never sends or stores cookies — the column is
+      // the only copy it can read (exposed as `User.lastLoginMethod`).
+      //
+      // It is a convenience signal, not a security control: it tells the
+      // sign-in screen which method to offer first. Nothing authorises on it.
+      lastLoginMethod({ storeInDatabase: true }),
+      ...passkeyPlugin(),
     ],
   });
+}
+
+/**
+ * Passkeys are configured only when an RP ID is present.
+ *
+ * The relying-party ID is a bare registered domain — never an IP, never a
+ * port, never a scheme. That rules out the LAN address the gateway runs on in
+ * development, so the plugin genuinely cannot be loaded there: registration
+ * would fail at the authenticator before any request reached this service.
+ * Leaving it out entirely is the honest state, and it is what lets the mobile
+ * client hide the passkey section rather than offer a button that cannot work.
+ */
+function passkeyPlugin() {
+  const rpID = process.env.PASSKEY_RP_ID?.trim();
+  if (!rpID) return [];
+
+  if (/[:/]/.test(rpID)) {
+    throw new Error(
+      `PASSKEY_RP_ID must be a bare domain (e.g. "bp.example.com"), got ` +
+        `"${rpID}". A scheme, port, or path here fails at the authenticator ` +
+        'with a mismatched-RP error that looks like a server bug.',
+    );
+  }
+
+  const androidOrigins = androidOriginsFromFingerprints(
+    process.env.ANDROID_APP_SHA256_FINGERPRINT,
+  );
+
+  if (androidOrigins.length === 0) {
+    // Not fatal: the web dashboard can still register passkeys against the
+    // https origin. But the mobile app — the reason this exists — cannot,
+    // so silence would be the wrong choice.
+    logger.warn(
+      'PASSKEY_RP_ID is set but ANDROID_APP_SHA256_FINGERPRINT is missing or ' +
+        "malformed (expected keytool's 32 colon-separated hex bytes, " +
+        'comma-separated for several builds). Passkey registration from the ' +
+        'Android app will be rejected as a mismatched origin.',
+    );
+  }
+
+  const origins = [`https://${rpID}`, ...androidOrigins];
+
+  return [
+    passkey({
+      rpID,
+      rpName: process.env.PASSKEY_RP_NAME?.trim() || 'BP Monitor',
+      origin: origins,
+      authenticatorSelection: {
+        // The phone's own screen lock, not a roaming security key: this is a
+        // patient-facing health app, and requiring separate hardware would
+        // exclude almost everyone it is meant to serve.
+        authenticatorAttachment: 'platform',
+        // Passkeys must be discoverable or they cannot be used to *start* a
+        // sign-in — the account picker has nothing to list, and the feature
+        // degrades to a second factor, which is not what was asked for.
+        residentKey: 'required',
+        requireResidentKey: true,
+        // The screen lock has already been satisfied to unlock the key.
+        // 'required' on top of that prompts twice on some Android builds.
+        userVerification: 'preferred',
+      },
+    }),
+  ];
 }
 
 /**
@@ -512,7 +587,20 @@ function googleProvider() {
 
   if (!clientId || !clientSecret) return {};
 
-  return { google: { clientId, clientSecret } };
+  // The Android client ID is a second *audience*, not a second provider.
+  //
+  // Google issues an ID token whose `aud` is the client ID that asked for it,
+  // and the Android app asks through its own. Verification compares `aud`
+  // against this list, so omitting the Android ID makes every One Tap sign-in
+  // fail as an invalid token while the web flow keeps working — a failure
+  // that looks like a broken mobile build rather than a missing env var.
+  //
+  // Order matters: the first entry is the one used as `client_id` in the
+  // browser redirect flow, so the web credential stays first.
+  const androidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID?.trim();
+  const audiences = androidClientId ? [clientId, androidClientId] : clientId;
+
+  return { google: { clientId: audiences, clientSecret } };
 }
 
 /**
