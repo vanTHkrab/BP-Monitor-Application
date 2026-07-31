@@ -40,6 +40,7 @@ scalar DateTime
 type UserType {
   id: String!
   email: String
+  emailVerified: Boolean!
   firstname: String!
   lastname: String!
   phone: String!

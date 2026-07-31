@@ -8,6 +8,14 @@ export class UserObject {
   @Field({ nullable: true })
   email?: string;
 
+  /**
+   * Gates linking a Google account, and nothing else — verification is
+   * never required to use the app. The client needs this to explain a
+   * refused Google sign-in rather than show a generic error.
+   */
+  @Field()
+  emailVerified: boolean;
+
   @Field()
   firstname: string;
 

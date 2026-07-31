@@ -593,6 +593,7 @@ export class AuthService {
   private async toUserType(user: {
     id: string;
     email: string | null;
+    emailVerified: boolean;
     firstname: string;
     lastname: string;
     phone: string;
@@ -610,6 +611,7 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email ?? undefined,
+      emailVerified: user.emailVerified,
       firstname: user.firstname,
       lastname: user.lastname,
       phone: user.phone,
