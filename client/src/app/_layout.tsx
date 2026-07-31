@@ -88,6 +88,10 @@ function RootStack() {
           /setup, which would read as unrelated top-level screens. */}
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="(tabs)" />
+      {/* Pushed modally from any tab, shared by both roles — see the note
+          at the top of app/settings.tsx. A real navigation, not a gate
+          redirect, so it gets an actual transition. */}
+      <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }

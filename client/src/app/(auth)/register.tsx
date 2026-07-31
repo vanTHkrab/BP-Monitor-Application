@@ -28,7 +28,7 @@ import { AuthErrorBanner } from '@/modules/auth/components/auth-error-banner';
 import { AuthShell } from '@/modules/auth/components/auth-shell';
 import { AuthTabs } from '@/modules/auth/components/auth-tabs';
 import { AvatarPicker } from '@/modules/auth/components/avatar-picker';
-import { OptionRow } from '@/modules/auth/components/option-row';
+import { OptionRow } from '@/components/ui/option-row';
 import {
   validateRegister,
   type FieldErrors,

@@ -1,9 +1,9 @@
 /**
- * Single-choice row of pills, used for gender on the register form.
+ * Single-choice row of pills.
  *
- * A row of buttons rather than a native picker: three options fit on one
- * line, and a picker costs a modal round trip for a choice the user can make
- * in one tap. `null` is a real value here — gender is optional.
+ * Moved out of `modules/auth/components/` — nothing about it is
+ * auth-specific, and `app/settings.tsx` needs the same picker for theme and
+ * font-size that the register form uses for gender.
  */
 import { Pressable, Text, View } from 'react-native';
 
@@ -16,6 +16,12 @@ export type OptionRowProps<T extends string> = {
   options: readonly OptionRowItem<T>[];
   value: T | null;
   onChange: (value: T | null) => void;
+  /**
+   * Whether tapping the already-selected option clears it to `null`.
+   * Correct for an optional field (gender); wrong for a setting that must
+   * always have a value (theme, font size) — those pass `false`.
+   */
+  clearable?: boolean;
 };
 
 export function OptionRow<T extends string>({
@@ -23,6 +29,7 @@ export function OptionRow<T extends string>({
   options,
   value,
   onChange,
+  clearable = true,
 }: OptionRowProps<T>) {
   const colors = useTheme();
 
@@ -37,9 +44,10 @@ export function OptionRow<T extends string>({
           return (
             <Pressable
               key={option.value}
-              // Tapping the selected option clears it — otherwise an optional
-              // field becomes permanent after one accidental tap.
-              onPress={() => onChange(isSelected ? null : option.value)}
+              onPress={() => {
+                if (isSelected && !clearable) return;
+                onChange(isSelected ? null : option.value);
+              }}
               accessibilityRole="radio"
               accessibilityState={{ selected: isSelected }}
               className="flex-1 items-center rounded-xl border-2 py-3"

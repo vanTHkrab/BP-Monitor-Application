@@ -8,17 +8,20 @@
  * menu (client-old/app/(tabs)/menu.tsx) is ported — logout should end up as
  * one row in that screen, not its own placeholder.
  */
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GradientButton } from '@/components/ui/gradient-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useLogout, useSession } from '@/modules/auth';
 
 export default function MenuScreen() {
+  const colors = useTheme();
   const { user, isLoadingUser } = useSession();
   const { logout, isPending } = useLogout();
 
@@ -55,6 +58,18 @@ export default function MenuScreen() {
             </ThemedText>
           )}
         </ThemedView>
+
+        <Pressable
+          testID="menu-settings"
+          onPress={() => router.push('/settings')}
+          accessibilityRole="button"
+          style={[styles.card, { flexDirection: 'row', alignItems: 'center', backgroundColor: colors['surface-muted'] }]}>
+          <Ionicons name="settings-outline" size={22} color={colors['text-secondary']} style={{ marginRight: Spacing.two }} />
+          <ThemedText type="default" style={{ flex: 1 }}>
+            ตั้งค่าแอปพลิเคชั่น
+          </ThemedText>
+          <Ionicons name="chevron-forward" size={20} color={colors['text-secondary']} />
+        </Pressable>
 
         <GradientButton
           testID="menu-logout"
