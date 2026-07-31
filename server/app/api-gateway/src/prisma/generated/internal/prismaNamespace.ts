@@ -1353,6 +1353,7 @@ export const UserScalarFieldEnum = {
   phoneNumberVerified: 'phoneNumberVerified',
   passwordHash: 'passwordHash',
   role: 'role',
+  roleSelectedAt: 'roleSelectedAt',
   banned: 'banned',
   banReason: 'banReason',
   banExpires: 'banExpires',

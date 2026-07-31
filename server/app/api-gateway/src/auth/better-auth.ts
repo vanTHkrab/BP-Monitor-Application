@@ -21,6 +21,7 @@ import {
   SESSION_TTL_MS,
   getJwtSecret,
 } from './auth.config';
+import { normalizeSelfAssignedRole } from './types/auth.types';
 
 /**
  * The Better Auth instance.
@@ -333,9 +334,16 @@ export function createBetterAuth(prisma: PrismaService, redis: Redis) {
       additionalFields: {
         firstname: { type: 'string', required: true },
         lastname: { type: 'string', required: true },
-        // input:false is load-bearing. Better Auth accepts additional fields
-        // on sign-up, so without it a client can make itself a developer.
-        // The database hook below is the second line of defence.
+        // `input: false` is not optional here, and not merely defensive: the
+        // `admin` plugin declares `role` with `input: false` in its own
+        // schema, and a plugin's field declaration wins over this one. A
+        // sign-up carrying `role` is rejected outright with "role is not
+        // allowed to be set", so passing one through `signUpEmail` breaks
+        // registration entirely. (The plugin's `schema` option cannot undo
+        // it — `InferOptionSchema` only renames columns.)
+        //
+        // Self-selected roles are therefore applied *after* creation, by
+        // AuthService.register. See `normalizeSelfAssignedRole`.
         role: { type: 'string', required: false, input: false },
         dob: { type: 'date', required: false },
         gender: { type: 'string', required: false },
@@ -419,9 +427,20 @@ export function createBetterAuth(prisma: PrismaService, redis: Redis) {
       user: {
         create: {
           before: (user) => {
-            // Belt and braces with `input: false` above: whatever the request
-            // carried, a new account is a patient.
-            return Promise.resolve({ data: { ...user, role: 'patient' } });
+            // Last line of defence on the way into the table. `input: false`
+            // above already means a sign-up cannot carry a role, so in
+            // practice this sets the default for every path — GraphQL
+            // `register`, a direct `/api/auth/sign-up/*` call, and the Google
+            // OAuth callback.
+            //
+            // It stays because it fails closed: if a future change makes
+            // `role` writable at sign-up again, anything unrecognised or
+            // privileged still lands on `patient` rather than being written
+            // verbatim.
+            const role = normalizeSelfAssignedRole(
+              (user as { role?: unknown }).role,
+            );
+            return Promise.resolve({ data: { ...user, role } });
           },
         },
       },

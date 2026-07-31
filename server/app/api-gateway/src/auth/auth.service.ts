@@ -16,7 +16,11 @@ import { AuthPayloadObject } from './dto/auth-payload.object';
 import { LoginInput } from './dto/login.input';
 import { RegisterInput } from './dto/register.input';
 import { UserObject } from './dto/user.object';
-import { Gender, JwtPayload } from './types/auth.types';
+import {
+  Gender,
+  JwtPayload,
+  normalizeSelfAssignedRole,
+} from './types/auth.types';
 
 // Verify-password throttle (per-userId, in-memory). Tighter than the login
 // throttle because the caller is already authenticated — a wrong guess on
@@ -114,6 +118,11 @@ export class AuthService {
       });
     }
 
+    // No role is set here on purpose. Every account starts as `patient` with
+    // `roleSelectedAt` null, and the onboarding step that follows calls
+    // `selectRole`. One grant point, and a Google sign-up — which never sees
+    // RegisterInput — gets the same choice.
+
     await this.labelSession(result.token, input.deviceLabel);
 
     return {
@@ -166,6 +175,34 @@ export class AuthService {
     }
 
     return this.toUserType(user);
+  }
+
+  /**
+   * Applies the role the user picked in onboarding.
+   *
+   * Deliberately re-callable: `role` is a UI mode, not an authorization
+   * boundary — data access is gated on an *accepted* CaregiverPatient link,
+   * not on this column — so a settings screen can reuse this to let someone
+   * fix a mis-tap. The only thing that must never be self-assigned is
+   * `developer`, and `normalizeSelfAssignedRole` is what guarantees that.
+   *
+   * It runs here even though the DTO enum already constrained the value:
+   * this is the write that assigns the role, so it does not depend on a
+   * caller further up having validated first.
+   *
+   * `roleSelectedAt` is what the client's onboarding gate reads. Setting it
+   * on every call is intentional — re-choosing is still choosing.
+   */
+  async selectRole(userId: string, role: string): Promise<UserObject> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        role: normalizeSelfAssignedRole(role),
+        roleSelectedAt: new Date(),
+      },
+    });
+
+    return this.me(userId);
   }
 
   async updateProfile(
@@ -561,6 +598,7 @@ export class AuthService {
     phone: string;
     avatar: string | null;
     role: string;
+    roleSelectedAt: Date | null;
     createdAt: Date;
     dob: Date | null;
     gender: string | null;
@@ -577,6 +615,7 @@ export class AuthService {
       phone: user.phone,
       avatar: signedAvatar ?? undefined,
       role: user.role,
+      roleSelectedAt: user.roleSelectedAt ?? undefined,
       createdAt: user.createdAt,
       dob: user.dob ?? undefined,
       gender: user.gender ?? undefined,

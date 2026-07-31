@@ -93,6 +93,17 @@ model User {
   passwordHash String?  @map("password_hash") @db.VarChar(255)
   role         UserRole @default(patient)
 
+  /// When the user picked their own role in onboarding.
+  ///
+  /// Needed because `role` defaults to `patient`, so the column alone cannot
+  /// tell "chose patient" from "never chose" — and the app has to know which,
+  /// or someone who force-quits mid-onboarding is either asked forever or
+  /// never asked at all. Null means the onboarding role step is still due.
+  ///
+  /// Not set by an admin using `/admin/set-role`: that is a grant, not a
+  /// choice, and it should not silently satisfy the user's own step.
+  roleSelectedAt DateTime? @map("role_selected_at")
+
   // ── Better Auth admin plugin ──
   banned     Boolean?  @default(false)
   banReason  String?   @map("ban_reason") @db.VarChar(255)

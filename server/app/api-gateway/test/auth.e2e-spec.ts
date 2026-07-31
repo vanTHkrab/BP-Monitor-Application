@@ -62,7 +62,10 @@ describeWithDatabase('auth (e2e)', () => {
 
   const REGISTER = `
     mutation Register($input: RegisterInput!) {
-      register(input: $input) { token user { id email role firstname lastname } }
+      register(input: $input) {
+        token
+        user { id email role roleSelectedAt firstname lastname }
+      }
     }
   `;
   const LOGIN = `
@@ -78,7 +81,10 @@ describeWithDatabase('auth (e2e)', () => {
     extra: Record<string, unknown> = {},
   ): Promise<
     GraphqlResponse<{
-      register: { token: string; user: { id: string; role: string } };
+      register: {
+        token: string;
+        user: { id: string; role: string; roleSelectedAt: string | null };
+      };
     }>
   > {
     const email = emailFor(n);
@@ -136,17 +142,129 @@ describeWithDatabase('auth (e2e)', () => {
       expect(result.data?.register.user.id).toEqual(expect.any(String));
     });
 
-    it('always creates a patient, and rejects a role from the caller', async () => {
-      // Three guards stop a client naming its own role: the field is gone
-      // from RegisterInput, `input: false` blocks it at the Better Auth
-      // layer, and a before-create hook forces the default. This is the only
-      // test that proves the combination holds.
-      const supplied = await registerUser(2, { role: 'developer' });
-      expect(supplied.errors).toBeDefined();
-
+    it('creates a patient who has not chosen a role yet', async () => {
+      // `roleSelectedAt` is the onboarding gate's signal. `role` alone cannot
+      // carry it: it defaults to `patient`, so "chose patient" and "never
+      // chose" would look identical.
       const normal = await registerUser(21);
+
       expect(normal.errors).toBeUndefined();
       expect(normal.data?.register.user.role).toBe('patient');
+      expect(normal.data?.register.user.roleSelectedAt).toBeNull();
+    });
+
+    it('rejects a role supplied at registration', async () => {
+      // Registration is not a grant point. `forbidNonWhitelisted` rejects the
+      // unknown field, which keeps `selectRole` the only way in.
+      const supplied = await registerUser(2, { role: 'caregiver' });
+
+      expect(supplied.errors).toBeDefined();
+    });
+
+    it('ignores a role posted straight at Better Auth', async () => {
+      // `/api/auth/*` is mounted for the OAuth round trip and never passes
+      // through ValidationPipe, so a sign-up posted there can carry anything.
+      // `input: false` on the admin plugin's `role` field plus the
+      // before-create hook are what stop it.
+      const email = emailFor(23);
+      createdEmails.push(email);
+
+      const response = await request(app.getHttpServer() as never)
+        .post('/api/auth/sign-up/email')
+        .set('content-type', 'application/json')
+        .send({
+          email,
+          password: PASSWORD,
+          name: 'E2E Escalation',
+          firstname: 'E2E',
+          lastname: 'Escalation',
+          phoneNumber: phoneFor(23),
+          role: 'developer',
+        });
+
+      // Whether the route accepts the sign-up is not the point; what matters
+      // is that no developer row exists afterwards.
+      expect(response.status).toBeLessThan(500);
+
+      const created = await prisma.user.findUnique({ where: { email } });
+      if (created) {
+        expect(created.role).toBe('patient');
+      }
+    });
+  });
+
+  describe('selectRole', () => {
+    const SELECT_ROLE = `
+      mutation SelectRole($input: SelectRoleInput!) {
+        selectRole(input: $input) { id role roleSelectedAt }
+      }
+    `;
+
+    type SelectRoleData = {
+      selectRole: { id: string; role: string; roleSelectedAt: string | null };
+    };
+
+    it('applies the chosen role and stamps roleSelectedAt', async () => {
+      // The reason this is e2e and not a unit test: the value has to survive
+      // the GraphQL enum, the service, and the Prisma enum column. A unit
+      // test on `normalizeSelfAssignedRole` proves none of that wiring.
+      const registered = await registerUser(24);
+      const token = registered.data!.register.token;
+
+      const result = await gql<SelectRoleData>(
+        SELECT_ROLE,
+        { input: { role: 'caregiver' } },
+        token,
+      );
+
+      expect(result.errors).toBeUndefined();
+      expect(result.data?.selectRole.role).toBe('caregiver');
+      expect(result.data?.selectRole.roleSelectedAt).toEqual(
+        expect.any(String),
+      );
+    });
+
+    it('stamps roleSelectedAt even when the choice equals the default', async () => {
+      // Choosing `patient` must still close the onboarding step, or the user
+      // is asked the same question on every launch.
+      const registered = await registerUser(25);
+      const token = registered.data!.register.token;
+
+      const result = await gql<SelectRoleData>(
+        SELECT_ROLE,
+        { input: { role: 'patient' } },
+        token,
+      );
+
+      expect(result.errors).toBeUndefined();
+      expect(result.data?.selectRole.role).toBe('patient');
+      expect(result.data?.selectRole.roleSelectedAt).toEqual(
+        expect.any(String),
+      );
+    });
+
+    it('refuses to grant developer', async () => {
+      const registered = await registerUser(26);
+      const token = registered.data!.register.token;
+
+      const result = await gql<SelectRoleData>(
+        SELECT_ROLE,
+        { input: { role: 'developer' } },
+        token,
+      );
+
+      expect(result.errors).toBeDefined();
+
+      const me = await gql<{ me: { role: string } }>(ME, undefined, token);
+      expect(me.data?.me.role).toBe('patient');
+    });
+
+    it('requires a session', async () => {
+      const result = await gql<SelectRoleData>(SELECT_ROLE, {
+        input: { role: 'caregiver' },
+      });
+
+      expect(result.errors?.[0]?.extensions?.code).toBe('UNAUTHENTICATED');
     });
 
     it('rejects a duplicate phone', async () => {
