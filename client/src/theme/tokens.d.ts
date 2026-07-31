@@ -15,7 +15,7 @@ export type SemanticColorName =
   | 'accent'
   | 'danger';
 
-export type GradientName = 'background' | 'header' | 'accent' | 'danger';
+export type GradientName = 'background' | 'header' | 'accent' | 'danger' | 'cta';
 
 export declare const palette: Record<
   | 'blue'

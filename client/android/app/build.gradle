@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.vanthkrab.bpmobileapplication'
+    namespace 'com.project.bpmonitor'
     defaultConfig {
-        applicationId 'com.vanthkrab.bpmobileapplication'
+        applicationId 'com.project.bpmonitor'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

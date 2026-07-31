@@ -2,18 +2,35 @@ import '../global.css';
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { SplashScreen, ThemeProvider } from 'expo-router';
-import { useState } from 'react';
+import { Stack } from 'expo-router/stack';
+import { useEffect, useState } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TamaguiProvider } from 'tamagui';
 
 import tamaguiConfig from '../../tamagui.config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
 import { useDatabaseMigrations } from '@/database/migrator';
+import { initAuth, registerSessionExpiryHandler } from '@/modules/auth';
 import { createQueryClient } from '@/services/query-client';
 import { navigationThemeFor } from '@/theme';
 import { ColorSchemeProvider, useColorSchemePreference } from '@/theme/color-scheme';
 
 SplashScreen.preventAutoHideAsync();
+
+/**
+ * Restores the session and wires the transport's 401 fan-out, once.
+ *
+ * The handler is registered before `initAuth` runs so that a token rejected
+ * during the restore itself still routes through the same sign-out path.
+ */
+function useAuthBootstrap() {
+  useEffect(() => {
+    const unregister = registerSessionExpiryHandler();
+    void initAuth();
+    return unregister;
+  }, []);
+}
 
 /**
  * Split from the provider so it can read the resolved scheme back out.
@@ -25,6 +42,7 @@ function ThemedApp() {
   // Nothing may render before the local tables exist — screens read from
   // SQLite on mount, and a missing table is a crash, not an empty list.
   const migrations = useDatabaseMigrations();
+  useAuthBootstrap();
 
   if (migrations.error) throw migrations.error;
 
@@ -32,9 +50,24 @@ function ThemedApp() {
     <TamaguiProvider config={tamaguiConfig} defaultTheme={scheme}>
       <ThemeProvider value={navigationThemeFor(scheme)}>
         <AnimatedSplashOverlay />
-        {migrations.success ? <AppTabs /> : null}
+        {migrations.success ? <RootStack /> : null}
       </ThemeProvider>
     </TamaguiProvider>
+  );
+}
+
+/**
+ * Groups own their own chrome, so no header at this level. `animation:
+ * 'none'` because the only transitions here are gate redirects — animating
+ * one shows the user a screen they were never meant to land on.
+ */
+function RootStack() {
+  return (
+    <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+    </Stack>
   );
 }
 
@@ -44,10 +77,14 @@ export default function RootLayout() {
   const [queryClient] = useState(createQueryClient);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ColorSchemeProvider>
-        <ThemedApp />
-      </ColorSchemeProvider>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <QueryClientProvider client={queryClient}>
+          <ColorSchemeProvider>
+            <ThemedApp />
+          </ColorSchemeProvider>
+        </QueryClientProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }

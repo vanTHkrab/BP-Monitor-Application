@@ -7,6 +7,10 @@ Read first: [server/app/api-gateway/docs/AUTH-better-auth-identity.md](../../ser
 — it carries the decisions and the reasons, and several of them constrain
 what the client may do.
 
+Then read [CLIENT-auth-structure.md](./CLIENT-auth-structure.md) — the file
+layout the port targets, the old-to-new mapping, and the phase order. It also
+corrects three claims below that do not match the current code.
+
 ## What already works, unchanged
 
 The ten GraphQL auth operations are still there. Better Auth sits behind

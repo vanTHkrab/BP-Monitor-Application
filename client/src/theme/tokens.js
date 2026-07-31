@@ -93,12 +93,17 @@ const gradients = {
     header: ['#72DDF4', '#35B8E8'],
     accent: ['#A879E8', '#7E57C2', '#5E35B1'],
     danger: ['#F88B7E', '#EF6E63'],
+    cta: ['#FFB26B', '#FF8A45'],
   },
   dark: {
     background: ['#0E0B1E', '#15112E', '#1C1840'],
     header: ['#5BC4DE', '#2A95C4'],
     accent: ['#9C7BD9', '#6B45B5', '#4A2D9C'],
     danger: ['#E97A6F', '#D85A4D'],
+    // Identical to light on purpose: the capture button is the one control
+    // that must look the same in both modes, so it stays findable when a
+    // user switches theme.
+    cta: ['#FFB26B', '#FF8A45'],
   },
 };
 
