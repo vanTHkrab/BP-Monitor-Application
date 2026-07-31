@@ -1,9 +1,13 @@
 /**
  * Single-choice row of pills.
  *
- * Moved out of `modules/auth/components/` — nothing about it is
- * auth-specific, and `app/settings.tsx` needs the same picker for theme and
- * font-size that the register form uses for gender.
+ * Moved out of `modules/auth/components/` because nothing about it is
+ * auth-specific. It briefly also served theme and font size on
+ * `app/settings.tsx`; both now use purpose-built pickers
+ * (`theme-picker.tsx`, `font-size-picker.tsx`) because those two settings
+ * are better shown than labelled — a theme wants an icon, and a font size
+ * wants a sample at that size. Gender on the register form is the remaining
+ * consumer, and a row of words is right for it.
  */
 import { Pressable, Text, View } from 'react-native';
 
