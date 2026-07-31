@@ -51,7 +51,19 @@
       "@react-native-community/datetimepicker",
       "expo-secure-store",
       "expo-sharing",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/bp_voice_1.wav",
+            "./assets/sounds/bp_voice_2.wav",
+            "./assets/sounds/bp_voice_3.wav",
+            "./assets/sounds/bp_voice_4.wav",
+            "./assets/sounds/bp_voice_5.wav"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
