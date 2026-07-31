@@ -47,12 +47,23 @@ import { ThemePicker } from '@/components/ui/theme-picker';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useLogout } from '@/modules/auth';
+import { useReminderSettings } from '@/modules/notifications';
 import { palette } from '@/theme';
 
 export default function SettingsScreen() {
   const colors = useTheme();
   const fontScale = useFontScale();
   const { logout, isPending: isLoggingOut } = useLogout();
+  const { settings: reminders, isLoading: isLoadingReminders } = useReminderSettings();
+
+  // The row states the schedule rather than just naming the screen: "ปิดอยู่"
+  // vs "ทุก 4 ชั่วโมง" is the answer most visits to this row are looking for,
+  // and it saves opening the screen to find out.
+  const reminderSubtitle = isLoadingReminders
+    ? 'กำลังโหลด...'
+    : reminders.enabled
+      ? `เตือนทุก ${reminders.intervalHours} ชั่วโมง · เลือกไว้ ${reminders.selectedDays.length} วัน`
+      : 'ปิดอยู่';
 
   const handleLogout = async () => {
     await logout();
@@ -156,6 +167,16 @@ export default function SettingsScreen() {
 
             <FontSizePicker />
           </View>
+
+          <SettingSection title="การแจ้งเตือน" />
+
+          <SettingItem
+            testID="settings-reminders"
+            icon="notifications-outline"
+            title="เตือนให้วัดความดัน"
+            subtitle={reminderSubtitle}
+            onPress={() => router.push('/reminders')}
+          />
 
           <SettingSection title="บัญชีและความปลอดภัย" />
 

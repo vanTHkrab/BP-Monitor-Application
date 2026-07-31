@@ -13,6 +13,10 @@ import tamaguiConfig from '../../tamagui.config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useDatabaseMigrations } from '@/database/migrator';
 import { initAuth, registerSessionExpiryHandler } from '@/modules/auth';
+import {
+  initReminderNotifications,
+  stopReminderNotifications,
+} from '@/modules/notifications';
 import { AppLockGate } from '@/modules/security';
 import { createQueryClient } from '@/services/query-client';
 import { usePreferencesStore } from '@/stores';
@@ -35,6 +39,21 @@ function useAuthBootstrap() {
     const unregister = registerSessionExpiryHandler();
     void initAuth();
     return unregister;
+  }, []);
+}
+
+/**
+ * Listens for reminder notifications, once.
+ *
+ * Independent of auth on purpose: a reminder can be tapped while the session
+ * is still being restored, and the listener has to already exist at that
+ * moment or the tap is lost. It only routes and re-schedules — nothing here
+ * reads user data, so there is nothing to leak before sign-in resolves.
+ */
+function useNotificationBootstrap() {
+  useEffect(() => {
+    void initReminderNotifications();
+    return stopReminderNotifications;
   }, []);
 }
 
@@ -63,6 +82,7 @@ function ThemedApp() {
   // SQLite on mount, and a missing table is a crash, not an empty list.
   const migrations = useDatabaseMigrations();
   useAuthBootstrap();
+  useNotificationBootstrap();
   usePreferencesBootstrap();
 
   if (migrations.error) throw migrations.error;
@@ -124,6 +144,7 @@ function RootStack() {
         name="security"
         options={{ animation: 'slide_from_right' }}
       />
+      <Stack.Screen name="reminders" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="help" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="about" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="debug" options={{ animation: 'slide_from_right' }} />
