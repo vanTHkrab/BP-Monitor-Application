@@ -89,6 +89,36 @@ describe('drainQueue', () => {
     );
   });
 
+  // A caregiver's offline capture is the case this protects. The queue row
+  // knows whose reading it is, but only through two fields — drop the
+  // translation and the reading lands in the caregiver's own history, which
+  // nobody would notice until a clinician read the wrong chart.
+  describe('on-behalf attribution', () => {
+    it('sends the patient id when someone else recorded the reading', async () => {
+      const ports = makePorts({
+        listQueued: jest.fn(async () => [
+          queuedRow({ userId: 'patient-9', recordedById: 'caregiver-1' }),
+        ]),
+      });
+
+      await drainQueue(ports, USER);
+
+      expect(ports.createReading).toHaveBeenCalledWith(
+        expect.objectContaining({ patientId: 'patient-9' }),
+      );
+    });
+
+    it('sends no patient id for a reading someone recorded for themselves', async () => {
+      const ports = makePorts();
+
+      await drainQueue(ports, USER);
+
+      expect(ports.createReading).toHaveBeenCalledWith(
+        expect.objectContaining({ patientId: null }),
+      );
+    });
+  });
+
   describe('photos', () => {
     it('uploads a local photo and attaches the resulting image id', async () => {
       const ports = makePorts({

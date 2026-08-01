@@ -93,6 +93,19 @@ export async function recordQueueFailure(
     .where(eq(pendingReadings.clientId, clientId));
 }
 
+/**
+ * Every queued row's client id, across all users on this device.
+ *
+ * Device-wide because its one caller is the durable-photo sweep in
+ * `lib/pending-image-store.ts`, which has to decide whether a file on disk is
+ * still claimed by *anything*. Scoping it to the signed-in user would delete
+ * the photos of a reading queued under another account on the same phone.
+ */
+export async function listQueuedClientIds(db: ReadingsDatabase): Promise<string[]> {
+  const rows = await db.select({ clientId: pendingReadings.clientId }).from(pendingReadings);
+  return rows.map((row) => row.clientId);
+}
+
 /** Called only after the mirror row exists — see `promoteToMirror`. */
 export async function dequeueReading(db: ReadingsDatabase, clientId: string): Promise<void> {
   await db.delete(pendingReadings).where(eq(pendingReadings.clientId, clientId));

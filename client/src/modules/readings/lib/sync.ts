@@ -101,6 +101,11 @@ export async function drainQueue(ports: SyncPorts, userId: string): Promise<Sync
         clientId: row.clientId,
         imageId,
         notes: row.notes,
+        // On-behalf attribution has to survive the queue. `recordedById` is
+        // only set when someone else logged this, and the row's `userId` is
+        // then the patient — without sending it back the gateway files a
+        // caregiver's offline capture under the caregiver's own history.
+        patientId: row.recordedById ? row.userId : null,
       });
 
       await ports.promote(row.clientId, toMirrorRow(created, row, ports.now?.() ?? new Date()));

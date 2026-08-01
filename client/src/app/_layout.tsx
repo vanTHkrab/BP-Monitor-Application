@@ -17,6 +17,7 @@ import {
   initReminderNotifications,
   stopReminderNotifications,
 } from '@/modules/notifications';
+import { cleanupOrphanedPendingImages } from '@/modules/readings';
 import { AppLockGate } from '@/modules/security';
 import { createQueryClient } from '@/services/query-client';
 import { usePreferencesStore } from '@/stores';
@@ -72,6 +73,21 @@ function usePreferencesBootstrap() {
 }
 
 /**
+ * Collects durable photo copies nothing refers to any more, once per launch.
+ *
+ * The app can be killed between "reading synced" and "photo copy deleted", and
+ * nothing else would ever come back for that file — see
+ * `readings/lib/pending-image-store.ts`. Gated on the migrations because it
+ * reads the queue table to decide what is still claimed.
+ */
+function usePendingImageSweep(ready: boolean) {
+  useEffect(() => {
+    if (!ready) return;
+    void cleanupOrphanedPendingImages();
+  }, [ready]);
+}
+
+/**
  * Split from the provider so it can read the resolved scheme back out.
  * NativeWind owns the light/dark/system resolution; Tamagui and React
  * Navigation follow it. See src/theme/color-scheme.tsx.
@@ -84,6 +100,7 @@ function ThemedApp() {
   useAuthBootstrap();
   useNotificationBootstrap();
   usePreferencesBootstrap();
+  usePendingImageSweep(migrations.success);
 
   if (migrations.error) throw migrations.error;
 

@@ -25,6 +25,7 @@ export { GuidanceCard, EMERGENCY_NUMBER } from './components/guidance-card';
 export { LatestReadingCard } from './components/latest-reading-card';
 
 export { createReadingClientId } from './lib/client-id';
+export { cleanupOrphanedPendingImages } from './lib/pending-image-store';
 export {
   BP_THRESHOLDS,
   classifyReading,

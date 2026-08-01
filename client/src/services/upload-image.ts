@@ -79,7 +79,14 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   heic: 'image/heic',
 };
 
-const mimeTypeFor = (uri: string): string => {
+/**
+ * Best-effort MIME type from the file extension.
+ *
+ * Exported because the AI analysis path has to send the *same* value to
+ * `analyzeBPImage` that the presign was issued for — deriving it twice from
+ * two different tables is how the two quietly disagree on a `.heic`.
+ */
+export const mimeTypeForUri = (uri: string): string => {
   const extension = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
   return MIME_BY_EXTENSION[extension] ?? 'image/jpeg';
 };
@@ -100,7 +107,7 @@ export async function uploadImageViaPresign({
     });
   }
 
-  const mimeType = mimeTypeFor(uri);
+  const mimeType = mimeTypeForUri(uri);
 
   let size: number;
   try {

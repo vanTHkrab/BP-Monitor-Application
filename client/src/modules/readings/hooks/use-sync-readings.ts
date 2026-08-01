@@ -24,6 +24,7 @@ import { db } from '@/database';
 import { useSession } from '@/modules/auth';
 import { LocalImageMissingError, uploadImageViaPresign } from '@/services/upload-image';
 
+import { releasePendingImage } from '../lib/pending-image-store';
 import { LocalImageMissing, runSync, type SyncPorts, type SyncResult } from '../lib/sync';
 import { promoteToMirror } from '../repository/mirror';
 import {
@@ -57,6 +58,11 @@ function createPorts(): SyncPorts {
     recordImageUploaded: (clientId, imageId) => markQueuedImageUploaded(db, clientId, imageId),
     recordFailure: (clientId, attempts, message) =>
       recordQueueFailure(db, clientId, attempts, message),
+
+    // The durable copy has done its job once the row is in the mirror. The
+    // drain calls this after the promotion and swallows any failure; the
+    // app-launch sweep collects whatever is missed.
+    releaseImage: (clientId) => releasePendingImage(clientId),
   };
 }
 

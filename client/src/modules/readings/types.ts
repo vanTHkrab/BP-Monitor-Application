@@ -109,6 +109,15 @@ export type CreateReadingInput = {
   /** Local file URI of the captured photo, if there is one. */
   imageUri?: string;
   /**
+   * Server `Image.id`, when the photo is already on S3.
+   *
+   * The camera's online path uploads the photo to run AI analysis on it, so by
+   * the time the reading is saved the bytes are already in the bucket. Passing
+   * the id here is what stops the drain uploading the same file a second time
+   * and minting a second `Image` row — see `resolveImageId` in `lib/sync.ts`.
+   */
+  imageId?: number;
+  /**
    * Caregiver-on-behalf writes. Requires an accepted caregiver link; the
    * gateway enforces it (`assertCanActOnBehalfOf`).
    */

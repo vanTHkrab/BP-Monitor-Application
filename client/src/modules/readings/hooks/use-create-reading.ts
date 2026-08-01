@@ -19,6 +19,7 @@ import { db } from '@/database';
 import { useSession } from '@/modules/auth';
 
 import { createReadingClientId } from '../lib/client-id';
+import { persistPendingImage } from '../lib/pending-image-store';
 import { classifyReading } from '../lib/status';
 import { enqueueReading } from '../repository/queue';
 import type { CreateReadingInput } from '../types';
@@ -45,6 +46,15 @@ export function useCreateReading() {
 
       setSaving(true);
       try {
+        // Move the photo out of cache storage before the row that refers to it
+        // exists. A file the OS evicts while the reading waits for a network is
+        // a photo lost silently — see `lib/pending-image-store.ts`. Skipped for
+        // an already-uploaded image, where the local copy is disposable.
+        const imageUri =
+          input.imageUri && input.imageId == null
+            ? await persistPendingImage(input.imageUri, clientId)
+            : input.imageUri;
+
         await enqueueReading(db, {
           clientId,
           userId: subjectId,
@@ -56,8 +66,8 @@ export function useCreateReading() {
           // back later keeps whatever was stored with it. See `lib/status.ts`.
           status: classifyReading(input.systolic, input.diastolic),
           notes: input.notes ?? null,
-          imageUri: input.imageUri ?? null,
-          imageId: null,
+          imageUri: imageUri ?? null,
+          imageId: input.imageId ?? null,
           recordedById: isOnBehalf ? userId : null,
           recordedByName: isOnBehalf
             ? `${user?.firstname ?? ''} ${user?.lastname ?? ''}`.trim() || null
