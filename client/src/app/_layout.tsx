@@ -145,10 +145,10 @@ function RootStack() {
         name="settings"
         options={{ animation: 'slide_from_right' }}
       />
-      {/* The rest of the menu's rows — see app/(tabs)/menu.tsx. Each is a
-          ScreenPlaceholder until its real screen is ported; registering
-          them now means every row navigates somewhere real instead of a
-          dead link. */}
+      {/* The rest of the menu's rows — see app/(tabs)/menu.tsx. All real
+          screens now except `debug`, which is still a ScreenPlaceholder;
+          registering them all means every row navigates somewhere rather
+          than into a dead link. */}
       <Stack.Screen
         name="profile"
         options={{ animation: 'slide_from_right' }}

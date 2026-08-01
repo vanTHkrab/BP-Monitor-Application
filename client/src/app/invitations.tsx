@@ -23,11 +23,11 @@
  *      patient's consent card.
  *
  * Not ported: the caregiver's "ดูข้อมูล" jump into a patient's readings. It
- * set `activePatientId` and replaced the route with `/(tabs)`, and both the
- * home and history tabs are still `ScreenPlaceholder` in this tree — the
- * button would land somewhere that cannot honour it, and the caregiver
- * viewing-context state has no other reader yet. It belongs to the change
- * that ports those tabs.
+ * set `activePatientId` and replaced the route with `/(tabs)`. It was blocked
+ * on the home and history tabs, which have since landed and do read
+ * `useActivePatient()` — so the button now has somewhere real to go and is
+ * unblocked work rather than a dependency. Tracked as C-005; see
+ * docs/todo/CLIENT-remaining.md.
  */
 import { useMemo, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';

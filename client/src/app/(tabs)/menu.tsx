@@ -10,13 +10,12 @@
  * animation being ported, so this file skips the wrapper entirely rather
  * than carrying dead indirection.
  *
- * Every row is reachable today. `ตั้งค่าแอปพลิเคชั่น` (app/settings.tsx),
- * `ช่วยเหลือและคำแนะนำ` (app/help.tsx), `เกี่ยวกับ` (app/about.tsx), and
- * `ความปลอดภัย` (app/security/) are real, ported screens. `โปรไฟล์`,
- * `ผู้ดูแล`, and the dev-only `Debug` still land on a `ScreenPlaceholder` —
- * profile editing and caregiver linking each carry real state and server
- * calls, not just static content, so they're their own subsystem rather
- * than a port on this screen's scope.
+ * Every row is reachable today, and all of them are real ported screens
+ * except one: the dev-only `Debug` row still lands on a `ScreenPlaceholder`.
+ * client-old's debug tool is a tabbed mini-app of its own (diff / file /
+ * sqlite / storage / store / uploads inspectors, ~1,300 lines), so it is its
+ * own task rather than part of this screen — see
+ * docs/todo/CLIENT-debug-tools.md.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

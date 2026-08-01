@@ -16,20 +16,20 @@
  * screen's: back bar, bold section headings, individually-carded rows with a
  * tinted icon badge.
  *
- * One section from the original is still missing, and it is blocked rather
- * than deferred: **CSV/PDF export**. It exports blood-pressure readings, and
- * this tree has none — `(tabs)/history`, `(tabs)/camera`, and `(tabs)/index`
- * are all `ScreenPlaceholder`, and nothing reads or writes the `readings`
- * table that database/schema.ts defines. An export button here would produce
- * an empty file. It lands with the readings feature, not before.
+ * One section from the original is still missing: **CSV/PDF export**. It was
+ * blocked on there being readings to export; that is no longer true — the
+ * readings module, the home, history, and camera tabs all landed — so what
+ * is left is the builders themselves (client-old's `utils/export-report.ts`,
+ * ~730 lines) and wiring `expo-print` / `expo-sharing`, which are already in
+ * package.json and imported by nothing. See docs/todo/CLIENT-export.md.
  *
  * Two things from client-old are deliberately *not* ported:
  *
  *   - The "สำรองข้อมูลอัตโนมัติ" switch. It was `useState(true)` and nothing
- *     read it — it persisted nothing and backed up nothing. A real sync
- *     status row replaces it once there is a sync engine to report on;
- *     `pending_readings` exists in database/schema.ts but nothing writes to
- *     it yet. Shipping the switch again would be shipping the same lie.
+ *     read it — it persisted nothing and backed up nothing. There is a real
+ *     sync engine now (`modules/readings/lib/sync.ts`), so a row reporting
+ *     what it is actually holding would be honest; the switch would not be,
+ *     because nothing about the drain is optional.
  *   - The seven-taps-on-the-title dev-mode easter egg, which toggled the
  *     camera's OCR engine picker. This tree has no dev-mode store — the
  *     Debug row in app/(tabs)/menu.tsx is gated on `__DEV__` instead — so

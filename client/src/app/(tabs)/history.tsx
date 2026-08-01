@@ -22,9 +22,13 @@
  *   - **"เช็กรอบวัดของวันนี้"**, the reminder timeline. It needs
  *     `buildReminderTimelineForDate`, which lives in client-old's
  *     `utils/reminders.ts` and has no equivalent in `modules/notifications`.
- *   - **The PDF/CSV export button.** The builders (`utils/export-report.ts`,
- *     ~730 lines) and `expo-print` / `expo-sharing` are not in this tree. It
- *     is its own change with its own tests — see `docs/todo/CLIENT-history.md`.
+ *   - **The PDF/CSV export button.** `expo-print` and `expo-sharing` are in
+ *     package.json already (and imported by nothing, which is its own
+ *     problem); what is missing is the builders — client-old's
+ *     `utils/export-report.ts`, ~730 lines of CSV and report-HTML
+ *     construction. Its own change, with its own tests, because the output
+ *     is a document someone may hand to a clinician. See
+ *     `docs/todo/CLIENT-export.md`.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
