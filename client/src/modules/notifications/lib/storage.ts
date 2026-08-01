@@ -12,6 +12,8 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { reminderSettingsKey } from '@/config';
+
 import {
   DEFAULT_REMINDER_SETTINGS,
   INTERVAL_OPTIONS,
@@ -20,7 +22,7 @@ import {
   type ReminderSoundId,
 } from '../types';
 
-const storageKey = (userId?: string) => `bp.reminder_settings.${userId ?? 'guest'}`;
+const storageKey = reminderSettingsKey;
 
 function isSoundId(value: unknown): value is ReminderSoundId {
   return REMINDER_SOUND_OPTIONS.some((option) => option.id === value);

@@ -17,6 +17,7 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "expo": "~57.0.8",
+    "expo-build-properties": "~57.0.8",
     "expo-camera": "~57.0.3",
     "expo-constants": "~57.0.7",
     "expo-dev-client": "~57.0.9",
@@ -94,7 +95,7 @@
     "preios": "node ./scripts/verify-models.mjs",
     "typecheck": "tsc --noEmit -p .",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
-    "test": "jest",
+    "test": "jest --watchman=false",
     "test:watch": "jest --watch --coverage=false --changedSince=origin/main",
     "test:debug": "jest -o --watch --coverage=false",
     "test:update": "jest -u --coverage=false"

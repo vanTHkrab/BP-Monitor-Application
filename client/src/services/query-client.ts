@@ -17,9 +17,10 @@
  */
 import { QueryClient } from '@tanstack/react-query';
 
+import { cache, network } from '@/config';
 import { errorHttpStatus, isNetworkError } from './api-error';
 
-const MAX_NETWORK_RETRIES = 2;
+const MAX_NETWORK_RETRIES = network.maxRetries;
 
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -27,7 +28,7 @@ export function createQueryClient(): QueryClient {
       queries: {
         // Screens re-focus constantly on mobile; without this every tab
         // switch would refetch data that is seconds old.
-        staleTime: 30_000,
+        staleTime: cache.staleTimeMs,
         retry: (failureCount, error) => {
           // Only retry failures that could plausibly succeed later. A
           // FORBIDDEN or BAD_USER_INPUT will fail identically every time,

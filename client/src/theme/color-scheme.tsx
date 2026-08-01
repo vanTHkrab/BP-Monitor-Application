@@ -19,6 +19,7 @@
 import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react';
 import { colorScheme as nativewindColorScheme, useColorScheme } from 'nativewind';
 
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from '@/config';
 import type { ColorSchemeName } from './tokens';
 
 export type ColorSchemePreference = 'light' | 'dark' | 'system';
@@ -34,7 +35,29 @@ export type PreferenceStorage = {
   setItem(key: string, value: string): Promise<void>;
 };
 
-const STORAGE_KEY = 'bp:theme-preference';
+const STORAGE_KEY = STORAGE_KEYS.themePreference;
+const LEGACY_STORAGE_KEY = LEGACY_STORAGE_KEYS.themePreference;
+
+/**
+ * Reads the preference, falling back to the pre-rename key so an upgrading
+ * user does not snap back to `system` — see `config/storage-keys.ts`.
+ *
+ * Written through `storage` rather than `lib/storage-migration.ts` because
+ * this provider takes its storage as a prop and must not import AsyncStorage
+ * itself. The consequence is that the old key is rewritten forward but never
+ * deleted: `PreferenceStorage` has no `removeItem`, and widening that
+ * interface to delete one obsolete key on one launch is not worth it. The
+ * stale copy is read at most once, since the new key wins from then on.
+ */
+async function readPreference(storage: PreferenceStorage): Promise<string | null> {
+  const current = await storage.getItem(STORAGE_KEY);
+  if (current !== null) return current;
+
+  const legacy = await storage.getItem(LEGACY_STORAGE_KEY);
+  if (legacy !== null) await storage.setItem(STORAGE_KEY, legacy);
+
+  return legacy;
+}
 
 const PREFERENCES: readonly ColorSchemePreference[] = ['light', 'dark', 'system'];
 
@@ -72,8 +95,7 @@ export function ColorSchemeProvider({
     if (!storage) return;
 
     let cancelled = false;
-    storage
-      .getItem(STORAGE_KEY)
+    readPreference(storage)
       .then((stored) => {
         if (cancelled) return;
         if (isPreference(stored)) {

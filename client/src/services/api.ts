@@ -12,12 +12,13 @@
  * copy-pasted auth-failure handling and different error types. They are one
  * function here, and `graphqlUpload` shares the same response handling.
  */
+import { network } from '@/config';
 import { ApiError } from './api-error';
 import { getAuthToken } from './auth-token';
 import { getGraphqlEndpoint } from './endpoint';
 import { fireUnauthenticated } from './session';
 
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = network.requestTimeoutMs;
 
 type GraphqlError = {
   message: string;

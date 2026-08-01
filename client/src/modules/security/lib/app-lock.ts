@@ -26,7 +26,9 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 
-const APP_LOCK_KEY = 'bp.app_lock_enabled';
+import { STORAGE_KEYS } from '@/config';
+
+const APP_LOCK_KEY = STORAGE_KEYS.appLock;
 
 export type BiometricKind = 'face' | 'fingerprint' | 'iris' | 'passcode' | 'none';
 

@@ -9,6 +9,8 @@
  */
 import Constants from 'expo-constants';
 
+import { env } from '@/config';
+
 const DEFAULT_API_PORT = '3000';
 
 const isLoopbackHost = (host: string) =>
@@ -37,8 +39,7 @@ function getExpoHostUri(): string | null {
 }
 
 export function resolveGraphqlEndpoint(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
-  if (envUrl) return envUrl;
+  if (env.apiUrl) return env.apiUrl;
 
   const hostUri = getExpoHostUri();
   if (hostUri) {

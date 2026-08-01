@@ -2,6 +2,7 @@
  * The gateway side of the community feed. I/O only — it calls, maps, and
  * returns; it does not touch the cache and it does not format errors.
  */
+import { pagination } from '@/config';
 import { graphqlRequest } from '@/services/api';
 
 import {
@@ -29,7 +30,7 @@ import {
  * this tree does not paginate yet — when it does, this is the seam, and the
  * cache key in `use-posts.ts` has to grow a page component in the same change.
  */
-export const POSTS_PAGE_SIZE = 100;
+export const POSTS_PAGE_SIZE = pagination.postsPageSize;
 
 export async function fetchPosts(category?: PostCategory): Promise<Post[]> {
   const data = await graphqlRequest<{ posts: PostPayload[] }>(GQL_POSTS, {

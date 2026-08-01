@@ -10,13 +10,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from '@/config';
+
 /**
  * SecureStore keys must match /^[A-Za-z0-9._-]+$/, so the original
  * "bp:auth-token" key could not move across as-is. The old key is still read
  * once, to migrate users who upgrade rather than reinstall.
  */
-const LEGACY_TOKEN_KEY = 'bp:auth-token';
-const TOKEN_KEY = 'bp_auth_token';
+const LEGACY_TOKEN_KEY = LEGACY_STORAGE_KEYS.authToken;
+const TOKEN_KEY = STORAGE_KEYS.authToken;
 
 const useSecureStore = Platform.OS === 'ios' || Platform.OS === 'android';
 

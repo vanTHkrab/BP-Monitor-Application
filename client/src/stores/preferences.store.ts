@@ -16,6 +16,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from '@/config';
+import { readWithLegacyFallback } from '@/lib/storage-migration';
+
 /**
  * Elderly-first: `medium` is the default rather than the smallest rung, and
  * the ladder must stay monotonic. The old client documented a readability
@@ -24,8 +27,8 @@ import { create } from 'zustand';
 export const FONT_SIZES = ['small', 'medium', 'large', 'xlarge'] as const;
 export type FontSizePreference = (typeof FONT_SIZES)[number];
 
-const FONT_SIZE_KEY = 'bp:font-size-preference';
-const SETUP_DONE_KEY = 'bp:app-setup-completed';
+const FONT_SIZE_KEY = STORAGE_KEYS.fontSize;
+const SETUP_DONE_KEY = STORAGE_KEYS.setupCompleted;
 
 const isFontSize = (value: unknown): value is FontSizePreference =>
   FONT_SIZES.includes(value as FontSizePreference);
@@ -59,14 +62,17 @@ export const usePreferencesStore = create<PreferencesState & PreferencesActions>
 
   hydrate: async () => {
     try {
-      const [fontSize, setupCompleted] = await AsyncStorage.multiGet([
-        FONT_SIZE_KEY,
-        SETUP_DONE_KEY,
+      // Falls back to the pre-rename keys, or an upgrading user is walked
+      // through first-run setup again and loses their font size — see
+      // `config/storage-keys.ts`.
+      const [fontSize, setupCompleted] = await Promise.all([
+        readWithLegacyFallback(FONT_SIZE_KEY, LEGACY_STORAGE_KEYS.fontSize),
+        readWithLegacyFallback(SETUP_DONE_KEY, LEGACY_STORAGE_KEYS.setupCompleted),
       ]);
 
       set({
-        fontSize: isFontSize(fontSize[1]) ? fontSize[1] : initialState.fontSize,
-        setupCompleted: setupCompleted[1] === 'true',
+        fontSize: isFontSize(fontSize) ? fontSize : initialState.fontSize,
+        setupCompleted: setupCompleted === 'true',
         hydrated: true,
       });
     } catch {

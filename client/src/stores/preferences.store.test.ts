@@ -8,6 +8,7 @@ jest.mock(
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from '@/config';
 import { resetPreferencesStore, usePreferencesStore } from './preferences.store';
 
 const read = () => usePreferencesStore.getState();
@@ -33,14 +34,47 @@ describe('preferences.store', () => {
   });
 
   it('reads persisted values back on hydrate', async () => {
-    await AsyncStorage.setItem('bp:font-size-preference', 'large');
-    await AsyncStorage.setItem('bp:app-setup-completed', 'true');
+    await AsyncStorage.setItem(STORAGE_KEYS.fontSize, 'large');
+    await AsyncStorage.setItem(STORAGE_KEYS.setupCompleted, 'true');
 
     await read().hydrate();
 
     expect(read().fontSize).toBe('large');
     expect(read().setupCompleted).toBe(true);
     expect(read().hydrated).toBe(true);
+  });
+
+  // The upgrade path. Renaming a storage key is invisible on a fresh install
+  // and only bites the user who already had the app: without the fallback
+  // they lose their font size and get walked through first-run setup again.
+  it('reads values written under the pre-rename keys', async () => {
+    await AsyncStorage.setItem(LEGACY_STORAGE_KEYS.fontSize, 'xlarge');
+    await AsyncStorage.setItem(LEGACY_STORAGE_KEYS.setupCompleted, 'true');
+
+    await read().hydrate();
+
+    expect(read().fontSize).toBe('xlarge');
+    expect(read().setupCompleted).toBe(true);
+  });
+
+  it('rewrites a legacy value under the current key and drops the old copy', async () => {
+    await AsyncStorage.setItem(LEGACY_STORAGE_KEYS.fontSize, 'large');
+
+    await read().hydrate();
+
+    expect(await AsyncStorage.getItem(STORAGE_KEYS.fontSize)).toBe('large');
+    expect(await AsyncStorage.getItem(LEGACY_STORAGE_KEYS.fontSize)).toBeNull();
+  });
+
+  // Otherwise a stale pre-rename value would outrank the one the user just
+  // set, and their preference would revert on the next launch.
+  it('prefers the current key when both exist', async () => {
+    await AsyncStorage.setItem(LEGACY_STORAGE_KEYS.fontSize, 'small');
+    await AsyncStorage.setItem(STORAGE_KEYS.fontSize, 'xlarge');
+
+    await read().hydrate();
+
+    expect(read().fontSize).toBe('xlarge');
   });
 
   it('hydrates to defaults when nothing is stored', async () => {
@@ -52,7 +86,7 @@ describe('preferences.store', () => {
   });
 
   it('ignores a corrupt font size rather than rendering an unknown rung', async () => {
-    await AsyncStorage.setItem('bp:font-size-preference', 'gigantic');
+    await AsyncStorage.setItem(STORAGE_KEYS.fontSize, 'gigantic');
 
     await read().hydrate();
 
@@ -60,7 +94,7 @@ describe('preferences.store', () => {
   });
 
   it('treats any non-"true" setup flag as incomplete', async () => {
-    await AsyncStorage.setItem('bp:app-setup-completed', 'maybe');
+    await AsyncStorage.setItem(STORAGE_KEYS.setupCompleted, 'maybe');
 
     await read().hydrate();
 
@@ -82,7 +116,7 @@ describe('preferences.store', () => {
     await read().setFontSize('xlarge');
 
     expect(read().fontSize).toBe('xlarge');
-    expect(await AsyncStorage.getItem('bp:font-size-preference')).toBe('xlarge');
+    expect(await AsyncStorage.getItem(STORAGE_KEYS.fontSize)).toBe('xlarge');
   });
 
   it('applies a font size change even if persisting fails', async () => {
@@ -99,7 +133,7 @@ describe('preferences.store', () => {
     await read().completeSetup();
 
     expect(read().setupCompleted).toBe(true);
-    expect(await AsyncStorage.getItem('bp:app-setup-completed')).toBe('true');
+    expect(await AsyncStorage.getItem(STORAGE_KEYS.setupCompleted)).toBe('true');
   });
 
   it('lets the user out of onboarding even if the flag cannot be written', async () => {
