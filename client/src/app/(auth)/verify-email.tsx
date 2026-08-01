@@ -8,7 +8,7 @@
  * app — it only gates linking a Google account.
  */
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { GradientButton } from '@/components/ui/gradient-button';
@@ -28,8 +28,15 @@ export default function VerifyEmailScreen() {
   const cooldown = useRetryCountdown();
 
   const [otp, setOtp] = useState('');
-  const [sent, setSent] = useState(false);
   const [verified, setVerified] = useState(false);
+
+  /**
+   * "Have we already auto-sent?" — a ref, not state, because nothing renders
+   * it. As state it also had to be set synchronously inside the effect below,
+   * which re-rendered the screen for a value no one reads
+   * (`react-hooks/set-state-in-effect`).
+   */
+  const hasAutoSent = useRef(false);
 
   const email = user?.email ?? null;
 
@@ -37,8 +44,8 @@ export default function VerifyEmailScreen() {
   // verify, so making them tap "send" first is one extra step with no
   // benefit.
   useEffect(() => {
-    if (!email || sent) return;
-    setSent(true);
+    if (!email || hasAutoSent.current) return;
+    hasAutoSent.current = true;
     sendOtp(email)
       .then(() => cooldown.start(RESEND_COOLDOWN_SEC))
       .catch(() => {
