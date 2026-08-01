@@ -137,7 +137,7 @@ function RootStack() {
         options={{ animation: 'slide_from_right' }}
       />
       <Stack.Screen
-        name="caregivers"
+        name="invitations"
         options={{ animation: 'slide_from_right' }}
       />
       <Stack.Screen

@@ -1,0 +1,139 @@
+/**
+ * One linked person, inside a grouped surface.
+ *
+ * Deliberately close in shape to `modules/security`'s `SecurityRow` /
+ * `SecurityGroup` — same 64dp floor, same inset divider, same grouped card —
+ * but not reused from there: these rows lead with a person's avatar rather
+ * than a state icon, and their trailing slot is a destructive action rather
+ * than a chevron. Importing the security row and passing an `accessory` would
+ * have meant an avatar squeezed into a 44dp icon circle it was not built for.
+ */
+import { Ionicons } from '@expo/vector-icons';
+import type { ReactNode } from 'react';
+import { Pressable, Text, View } from 'react-native';
+
+import { Avatar } from '@/components/ui/avatar';
+import { useFontScale } from '@/hooks/use-font-scale';
+import { useTheme } from '@/hooks/use-theme';
+
+export type LinkRowProps = {
+  firstname?: string;
+  lastname?: string;
+  /** Full display name — used when only a combined string is available. */
+  name: string;
+  avatarUri?: string;
+  /** The line under the name: phone · relationship, or a waiting note. */
+  detail: string;
+  /** Dimmed treatment for rows that are not active yet (sent invites). */
+  muted?: boolean;
+  /** Trailing destructive action. */
+  onRemove?: () => void;
+  removeLabel?: string;
+  removeIcon?: keyof typeof Ionicons.glyphMap;
+  isLast?: boolean;
+  testID?: string;
+};
+
+export function LinkRow({
+  firstname,
+  lastname,
+  name,
+  avatarUri,
+  detail,
+  muted = false,
+  onRemove,
+  removeLabel = 'ลบ',
+  removeIcon = 'trash-outline',
+  isLast = false,
+  testID,
+}: LinkRowProps) {
+  const colors = useTheme();
+  const fontScale = useFontScale();
+
+  return (
+    <View>
+      <View
+        testID={testID}
+        className="flex-row items-center px-4"
+        // Matches SecurityRow's 64dp floor — elderly-first, and these rows sit
+        // next to each other in the same scroll.
+        style={{ minHeight: 64, opacity: muted ? 0.7 : 1 }}
+      >
+        <View className="mr-3.5">
+          {muted ? (
+            <View
+              className="h-11 w-11 items-center justify-center rounded-full"
+              style={{ backgroundColor: colors['surface-muted'] }}
+            >
+              <Ionicons name="time-outline" size={22} color={colors['text-secondary']} />
+            </View>
+          ) : (
+            <Avatar uri={avatarUri} firstname={firstname} lastname={lastname} size="sm" />
+          )}
+        </View>
+
+        <View className="flex-1 py-3 pr-3">
+          <Text
+            className="font-medium"
+            style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
+          >
+            {name}
+          </Text>
+          <Text
+            className="mt-0.5"
+            style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
+          >
+            {detail}
+          </Text>
+        </View>
+
+        {onRemove ? (
+          <Pressable
+            testID={testID ? `${testID}-remove` : undefined}
+            onPress={onRemove}
+            accessibilityRole="button"
+            accessibilityLabel={`${removeLabel} ${name}`}
+            // 48dp hit area around a 20px glyph.
+            className="items-center justify-center rounded-xl"
+            style={({ pressed }) => ({
+              minWidth: 48,
+              minHeight: 48,
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <Ionicons name={removeIcon} size={20} color={colors.danger} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {isLast ? null : (
+        <View className="ml-[68px] h-px" style={{ backgroundColor: colors.border }} />
+      )}
+    </View>
+  );
+}
+
+/** The surface the rows sit in. Mirrors `SecurityGroup`. */
+export function LinkGroup({ title, children }: { title: string; children: ReactNode }) {
+  const colors = useTheme();
+  const fontScale = useFontScale();
+
+  return (
+    <View className="mb-2 mt-6">
+      <Text
+        className="mb-2.5 ml-1 font-semibold uppercase"
+        style={{
+          fontSize: Math.round(12 * fontScale),
+          color: colors['text-secondary'],
+          letterSpacing: 0.5,
+        }}
+      >
+        {title}
+      </Text>
+
+      <View className="overflow-hidden rounded-2xl" style={{ backgroundColor: colors.surface }}>
+        {children}
+      </View>
+    </View>
+  );
+}

@@ -1,6 +1,6 @@
 # BP Monitor — Task Board
 
-_Last updated: 2026-06-06 · Updated by bp-task_
+_Last updated: 2026-08-01 · Updated by bp-task_
 
 ## Imports
 
@@ -18,6 +18,7 @@ _Last updated: 2026-06-06 · Updated by bp-task_
 - [ ] **C-002** `medium` Add 7-day BP trend chart to the history tab
 - [ ] **C-003** `medium` Implement PIN / biometric lock for the app-open flow
 - [~] **C-004** `high` Integrate on-device YOLO pre-flight result into camera UI warning banner
+- [ ] **C-005** `medium` Restore the caregiver "ดูข้อมูล" jump from invitations into a patient's readings — ship with the home/history tab port; `client/src/app/invitations.tsx` should set the viewing context in `client/src/modules/caregivers/`, not the auth store (see `docs/todo/CLIENT-auth-structure.md`, "activePatientId")
 
 ### web
 
@@ -30,6 +31,8 @@ _Last updated: 2026-06-06 · Updated by bp-task_
 - [ ] **A-001** `high` Add pagination to `readings` GraphQL query
 - [ ] **A-002** `medium` Rate-limit the `uploadBPImage` mutation per user
 - [ ] **A-003** `low` Expose a `healthz` endpoint for the infra liveness probe
+- [ ] **A-004** `medium` Fix `addCaregiverPatient`'s unusable default relationship — `schema.gql:380` defaults `relationship` to `"caregiver"`, which is absent from `VALID_RELATIONSHIPS` (`caregiver.service.ts:34`), so `parseRelationship` stores `other`; Prisma's `RelationshipType` has both `caregiver` and `patient` — pick the authoritative set and make the default a member of it
+- [ ] **A-005** `medium` Let a caregiver find a patient by email as well as phone in `addCaregiverPatient` — schema (input object accepting either field) + resolver/service lookup, then the client form in `client/src/modules/caregivers/components/invite-form.tsx`; cross-cutting, gateway and client ship together with the reason in the PR body (root CLAUDE.md rule 1)
 
 ### ai-service
 

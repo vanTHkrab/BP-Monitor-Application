@@ -185,7 +185,12 @@ does not belong in the new tree.
   `pendingInvites`. Same reason — `queryClient.clear()` plus each module owning
   its own reset.
 - **`activePatientId`.** Caregiver context, not auth state. It belongs to a
-  caregiver module when one exists.
+  caregiver module when one exists. `client/src/modules/caregivers/` now
+  exists (the invitations screen), but `activePatientId` is deliberately
+  still not there: nothing reads it until the home and history tabs are
+  ported off `ScreenPlaceholder`. It ships with the change that gives it a
+  reader, not before — see the header of
+  [invitations.tsx](../../client/src/app/invitations.tsx).
 
 Expected result: ~200 lines across `store/auth.store.ts` + `modules/auth/service.ts`.
 

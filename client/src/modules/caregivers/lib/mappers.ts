@@ -1,0 +1,68 @@
+/**
+ * GraphQL payloads → domain types.
+ *
+ * Same split as `modules/auth/lib/mappers.ts`: dates become `Date` here and
+ * nowhere else, and `null` becomes `undefined` so the rest of the module can
+ * use plain optional chaining rather than checking two empty values.
+ */
+import { parseRelationship } from './relationship';
+import type { CaregiverLink, CaregiverLinkStatus, PatientSummary } from '../types';
+
+export type CaregiverLinkPayload = {
+  caregiverId: string;
+  patientId: string;
+  relationship: string;
+  caregiverName: string;
+  caregiverPhone: string;
+  patientName: string;
+  patientPhone: string;
+  status: string;
+  respondedAt: string | null;
+};
+
+export type PatientSummaryPayload = {
+  id: string;
+  firstname: string;
+  lastname: string;
+  phone: string;
+  avatar: string | null;
+  dob: string | null;
+  relationship: string | null;
+  weight: number | null;
+  height: number | null;
+};
+
+/** Unknown statuses collapse to `pending`: it is the only one that shows the
+ *  patient an action, so an unrecognised value fails toward asking rather
+ *  than toward silently granting access. */
+function parseStatus(value: string): CaregiverLinkStatus {
+  return value === 'accepted' || value === 'rejected' ? value : 'pending';
+}
+
+export function caregiverLinkFromGql(payload: CaregiverLinkPayload): CaregiverLink {
+  return {
+    caregiverId: payload.caregiverId,
+    patientId: payload.patientId,
+    relationship: parseRelationship(payload.relationship),
+    caregiverName: payload.caregiverName,
+    caregiverPhone: payload.caregiverPhone,
+    patientName: payload.patientName,
+    patientPhone: payload.patientPhone,
+    status: parseStatus(payload.status),
+    respondedAt: payload.respondedAt ? new Date(payload.respondedAt) : undefined,
+  };
+}
+
+export function patientSummaryFromGql(payload: PatientSummaryPayload): PatientSummary {
+  return {
+    id: payload.id,
+    firstname: payload.firstname,
+    lastname: payload.lastname,
+    phone: payload.phone,
+    avatar: payload.avatar ?? undefined,
+    dob: payload.dob ? new Date(payload.dob) : undefined,
+    relationship: payload.relationship ? parseRelationship(payload.relationship) : undefined,
+    weight: payload.weight ?? undefined,
+    height: payload.height ?? undefined,
+  };
+}

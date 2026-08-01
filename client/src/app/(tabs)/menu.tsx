@@ -175,10 +175,10 @@ export default function MenuScreen() {
               onPress={() => router.push('/profile')}
             />
             <MenuItem
-              testID="menu-caregivers"
+              testID="menu-invitations"
               icon="people-outline"
               title="ผู้ดูแลและผู้ป่วย"
-              onPress={() => router.push('/caregivers')}
+              onPress={() => router.push('/invitations')}
             />
             <MenuItem
               testID="menu-settings"
