@@ -19,6 +19,8 @@ export { useFetchReadings } from './hooks/use-fetch-readings';
 export { useReadings, type UseReadingsOptions } from './hooks/use-readings';
 export { useSyncReadings } from './hooks/use-sync-readings';
 
+export { BPReadingCard } from './components/bp-reading-card';
+export { BPTrendChart } from './components/bp-trend-chart';
 export { GuidanceCard, EMERGENCY_NUMBER } from './components/guidance-card';
 export { LatestReadingCard } from './components/latest-reading-card';
 
@@ -32,6 +34,16 @@ export {
   statusLabel,
 } from './lib/status';
 export { byMeasuredAtDesc, mergeReadings, readingKey } from './lib/mappers';
+export {
+  DEFAULT_TIME_FILTER,
+  TIME_FILTERS,
+  chartMaxValue,
+  chartSeries,
+  cutoffFor,
+  filterByRange,
+  type TimeFilter,
+  type TimeRange,
+} from './lib/time-filter';
 export {
   LocalImageMissing,
   drainQueue,
