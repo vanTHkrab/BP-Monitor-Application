@@ -315,7 +315,7 @@ For every load-bearing finding, read the actual source — a `Grep` hit on a sta
    - Redis channels (`analyze_bp_image` / `analyze_bp_image.reply`) → check
      both `server/app/api-gateway/src/ai/` AND
      `server/app/ai-service/src/ai_service/handlers.py`.
-   - YOLO classes / thresholds → check both `client/lib/yolo/types.ts` AND
+   - YOLO classes / thresholds → check both `client/src/modules/capture/lib/detection.ts` AND
      `server/app/ai-service/src/ai_service/analyzer/yolo.py`.
    - Error codes (`extensions.code`) → check the gateway's `errorFormatter`
      AND every client callsite that branches on it.

@@ -165,7 +165,7 @@ Hard rules that turn into review comments if violated:
 - Auth token only via `setAuthToken` / `getAuthToken` / `clearAuthToken` from `constants/api.ts`.
 - New GraphQL transports MUST call `fireUnauthenticated()` on HTTP 401 or `extensions.code === 'UNAUTHENTICATED'` on token-bearing requests.
 - Local IDs only via `createClientId(prefix, userId)`. Reading IDs prefixed `local-`, post IDs `local-post-`; use `isLocalReadingId` / `isLocalPostId`.
-- BP image upload uses the multipart path in `services/camera.service.ts`. Avatars use `utils/upload-image.ts → uploadImageViaPresign`. On native, binary PUT goes through `expo-file-system/legacy` `uploadAsync` (`uploadType: BINARY_CONTENT`) — NEVER `new Blob([Uint8Array])`, it throws at runtime on RN.
+- BP image upload and avatars share `services/upload-image.ts → uploadImageViaPresign` (presign → PUT → confirm); the AI flow wraps it in `src/modules/capture/services/analysis-api.ts`. On native, binary PUT goes through `expo-file-system/legacy` `uploadAsync` (`uploadType: BINARY_CONTENT`) — NEVER `new Blob([Uint8Array])`, it throws at runtime on RN.
 - Sensitive data → SecureStore on native (AsyncStorage on web is the documented fallback). No credentials in AsyncStorage on native.
 - NativeWind className for styling. Dark mode = `s.themePreference === 'dark'`. Font sizes via `getFontClass(...)`.
 - catch blocks → `logWarn(scope, message, error, details?)`. No bare `catch {}`.
@@ -226,21 +226,22 @@ Three independent invariants that fail silently if mishandled — call them out 
 - On-device YOLO model parity: `client/assets/models/yolo11n.onnx` is byte-equal to
   `server/app/ai-service/models/yolo11n.onnx`. SHA256 is enforced by the prestart hook.
   If the backend retrains, `pnpm sync-yolo-model` + commit both copies in the same change.
-  Class IDs and thresholds in `lib/yolo/types.ts` mirror `analyzer/yolo.py::CLASS_NAMES` and
+  Class IDs and thresholds in `src/modules/capture/lib/detection.ts` mirror `analyzer/yolo.py::CLASS_NAMES` and
   `_conf_threshold` — change one side, change the other.
-- Pre-flight is warn-not-block, when wired: `services/preflight-detection.service.ts →
-  preflightCheckImage` returns `ok` (with auto-crop) / `no-monitor` / `missing-fields`. If it's
-  wired into a capture flow, that flow MUST expose a "ส่งต่อไป" override on every non-ok
-  verdict so a false negative doesn't strand the user — never gate upload on pre-flight
-  verdict. **Currently `app/(tabs)/camera.tsx` does not call this service at all** (bypassed at
-  the UI level, service/model/lib left in place for a fast revert — see client/CLAUDE.md
-  "On-device pre-flight"); don't assume the banner/override exists until you've checked.
+- The live framing gate is a nudge, never a gate: `src/modules/capture/lib/framing-state.ts`
+  classifies each detector frame and `hooks/use-live-framing.ts` smooths it and drives
+  auto-capture. The shutter is NEVER blocked by it — a detector false negative must not stop
+  someone recording a reading — and auto-capture calls the same `takePicture()` as the button.
+  Android real builds only; on iOS, web, and Expo Go `onDetections` never fires and the state
+  stays `searching`. That degraded mode is supported, not an error case.
 - Binary PUT on native goes through `expo-file-system/legacy` `uploadAsync`
   (`uploadType: BINARY_CONTENT`). `new Blob([Uint8Array])` compiles but throws at runtime on
   RN — see MEMORY[rn_blob_arraybuffer_trap]. The fetch+Blob path is web-only.
-- BP images use the multipart path in `services/camera.service.ts`. Avatars + other one-shots
-  use `utils/upload-image.ts → uploadImageViaPresign`. Both share the presign → PUT → confirm
-  shape; do not invent a third.
+- BP images and avatars share ONE upload path: `services/upload-image.ts →
+  uploadImageViaPresign` (presign → PUT → confirm). The AI flow wraps it in
+  `src/modules/capture/services/analysis-api.ts`, which then carries the resulting `imageId`
+  into `createReading` so the sync drain does not upload the same photo twice. Do not invent
+  a third path.
 ```
 
 ### Bundle size + perf budget (phone-side)

@@ -194,8 +194,8 @@ with global env):
 | `AI_DETECTOR_PATH` | `models/yolo11n.onnx` (relative to `ai-service/`) | resolved against `Path(__file__).resolve().parents[2]`, not `os.getcwd()`. Renamed from `AI_MODEL_PATH` to avoid pydantic v2's protected `model_*` namespace and to leave room for a separate OCR-model env var later. |
 | `AI_OCR_ENGINE` | `ssocr` | switch for future engines |
 | `AI_DEVICE_MODE` | `cpu` | `cpu` \| `cuda` (requires `onnxruntime-gpu`) |
-| `AI_CONFIDENCE_THRESHOLD` | `0.25` | YOLO box confidence floor — mirrors `client/lib/yolo/types.ts` `DEFAULT_CONF_THRESHOLD` (cross-process wire contract per root CLAUDE.md "Shared YOLO detector") |
-| `AI_IOU_THRESHOLD` | `0.45` | YOLO per-class NMS IoU — mirrors `client/lib/yolo/types.ts` `DEFAULT_IOU_THRESHOLD` |
+| `AI_CONFIDENCE_THRESHOLD` | `0.25` | YOLO box confidence floor — mirrors `client/src/modules/capture/lib/detection.ts` `DEFAULT_CONF_THRESHOLD` (cross-process wire contract per root CLAUDE.md "Shared YOLO detector") |
+| `AI_IOU_THRESHOLD` | `0.45` | YOLO per-class NMS IoU — mirrors `client/src/modules/capture/lib/detection.ts` `DEFAULT_IOU_THRESHOLD` |
 | `AI_ONNX_INTRA_OP_THREADS` | `2` | ORT `intra_op_num_threads` cap (avoids contention across YOLO + CRNN + per-bucket CNN sessions) |
 | `AI_ONNX_INTER_OP_THREADS` | `1` | ORT `inter_op_num_threads` cap (paired with `ORT_SEQUENTIAL`) |
 | `AI_IMAGE_FETCH_TIMEOUT_S` | `5` | httpx GET on presigned URL |
@@ -821,7 +821,7 @@ that reports the process-lifetime peak, not the request delta).
 
 | Surface | Behaviour |
 | --- | --- |
-| Settings screen → "About" or app logo | 7-tap within 2 seconds → toggle `devMode` boolean in [preferences slice](../../../client/store/slices/preferences.slice.ts) |
+| Settings screen → "About" or app logo | 7-tap within 2 seconds → toggle `devMode` boolean in [preferences store](../../../client/src/stores/preferences.store.ts) |
 | Camera screen | If `devMode === true`, render segmented control above shutter: `[ssocr, ssocr+cnn, crnn]`. Default selection = `crnn`. Persist `selectedOcrEngine` per session, not across reinstalls |
 | `submitBPReading` mutation | Include `ocrEngine: selectedOcrEngine` only when `devMode === true`. Production users send no field → server falls back to default |
 | Reading detail / result card | If response has `engine + metrics`, render a `<DevMetricsChip>` showing `{engine} · {total_ms}ms · +{rss_delta_mb}MB`. Otherwise hide |
@@ -893,7 +893,7 @@ reinstall wipes it — fine for research phase.
 
 #### PR 3 — client (dev gesture + UI)
 
-1. [preferences slice](../../../client/store/slices/preferences.slice.ts):
+1. [preferences store](../../../client/src/stores/preferences.store.ts):
    add `devMode: boolean` (default `false`),
    `selectedOcrEngine: 'crnn' | 'ssocr_cnn' | 'ssocr'` (default `'crnn'`)
 2. Settings screen: 7-tap gesture on app logo / title within 2 seconds
@@ -901,11 +901,12 @@ reinstall wipes it — fine for research phase.
 3. Camera screen: render `<OcrEngineSelector>` (segmented control)
    above shutter when `devMode === true`. Selector writes
    `selectedOcrEngine`
-4. [use-camera-analysis.ts](../../../client/hooks/use-camera-analysis.ts):
-   pass `ocrEngine: selectedOcrEngine` to the mutation only when
-   `devMode === true`. Otherwise omit the field
-5. Update [GQL_* operations in constants/api.ts](../../../client/constants/api.ts):
-   include `engine` and `metrics { ... }` in `submitBPReading` selection set
+4. [use-camera-analysis.ts](../../../client/src/modules/capture/hooks/use-camera-analysis.ts):
+   pass `ocrEngine: selectedOcrEngine` to `analyze()` only when
+   `devMode === true`. Otherwise omit the field — the parameter already
+   exists and is already omitted when unset
+5. The `engine` / `metrics` selection set is already requested by
+   [analysis-api.ts](../../../client/src/modules/capture/services/analysis-api.ts)
 6. Result card: render `<DevMetricsChip>` if response.engine present.
    Compact display: `crnn · 419ms · +18MB`
 7. Tests: not strictly required for hidden dev surface; smoke via Expo

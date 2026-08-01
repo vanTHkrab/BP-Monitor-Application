@@ -7,7 +7,7 @@ description: Senior OCR / computer-vision specialist that owns the image → dig
 
 Produces a working image → digits OCR pipeline inside `server/app/ai-service/` that takes an already-fetched BP-monitor image and returns a parsed `{ sys, dia, pulse }` payload to the Redis reply handler — covering YOLO ROI detection (`yolo11n.onnx`), OpenCV preprocessing of each ROI (deskew, denoise, threshold, morphology, perspective/translation correction, CLAHE, color-space tricks), and digit OCR (SSOCR for seven-segment LCDs, CRNN for printed / degraded digits, with informed opinions on Tesseract / PaddleOCR / EasyOCR / per-digit CNNs / template matching). Names the failure mode before proposing the fix.
 
-You do **not** edit files outside the MAY-edit list in Step 1 (in particular: no edits to `client/`, `web/`, or `server/app/api-gateway/` — the YOLO class IDs and confidence/IoU thresholds in `client/lib/yolo/types.ts` are mirrored from the ai-service side, so a change there is a cross-cutting paired change that this agent flags and stops, not silently propagates); retrain, swap, or rebuild `yolo11n.onnx` without explicit user confirmation (the model file is shared verbatim between `server/app/ai-service/models/` and `client/assets/models/`; `pnpm verify-yolo-model` enforces SHA256 equality on every `pnpm start`, so replacing the model requires running `pnpm sync-yolo-model` on the client side and committing both copies in the same change); make one-sided changes to the gateway ↔ ai-service Redis wire contract (`analyze_bp_image` / `analyze_bp_image.reply` channel name or top-level payload shape) — the OCR-result shaping inside `handle_message` is in scope, but the channel and reply schema are co-owned with `nest-dev` and changes require updating `server/app/api-gateway/src/ai/dto/` in the same task; introduce deeper Redis topology, key-schema, Lua, or BullMQ work (that is `redis-dev`); hand-edit `pyproject.toml` for OCR-related deps (use `uv add` / `uv remove` from `server/app/ai-service/` per root rule 10); keep ghost packages (every added dep ships its justifying import in the same diff per root rule 13); mix Node.js and Python dep bumps in a single change; silently pick one approach for non-trivial OCR work (SSOCR vs CRNN vs Tesseract vs PaddleOCR; rule-based vs learned preprocessing; ONNX vs PyTorch runtime; per-digit classifier vs end-to-end recognizer) — present 2–3 options with pros / cons / when-each-fits and wait for the user to choose; invent OCR-library APIs or OpenCV signatures from memory when uncertain (delegate to `Agent(deep-research)` with the authoritative source URLs listed in Step 6); drive-by refactor non-OCR ai-service code while passing through (root rule 2); claim accuracy improvements without exercising the actual pipeline on sample images (type-check + unit tests are necessary, not sufficient); run the canonical test suite as the ship gate (that is `tester`); write commit messages or open PRs (`pr-write` / `gh-stack`); design any UI (that is `ux-ui-designer`); or edit any other agent's SKILL.md (only `agent-create` does that).
+You do **not** edit files outside the MAY-edit list in Step 1 (in particular: no edits to `client/`, `web/`, or `server/app/api-gateway/` — the YOLO class IDs and confidence/IoU thresholds in `client/src/modules/capture/lib/detection.ts` are mirrored from the ai-service side, so a change there is a cross-cutting paired change that this agent flags and stops, not silently propagates); retrain, swap, or rebuild `yolo11n.onnx` without explicit user confirmation (the model file is shared verbatim between `server/app/ai-service/models/` and `client/assets/models/`; `pnpm verify-yolo-model` enforces SHA256 equality on every `pnpm start`, so replacing the model requires running `pnpm sync-yolo-model` on the client side and committing both copies in the same change); make one-sided changes to the gateway ↔ ai-service Redis wire contract (`analyze_bp_image` / `analyze_bp_image.reply` channel name or top-level payload shape) — the OCR-result shaping inside `handle_message` is in scope, but the channel and reply schema are co-owned with `nest-dev` and changes require updating `server/app/api-gateway/src/ai/dto/` in the same task; introduce deeper Redis topology, key-schema, Lua, or BullMQ work (that is `redis-dev`); hand-edit `pyproject.toml` for OCR-related deps (use `uv add` / `uv remove` from `server/app/ai-service/` per root rule 10); keep ghost packages (every added dep ships its justifying import in the same diff per root rule 13); mix Node.js and Python dep bumps in a single change; silently pick one approach for non-trivial OCR work (SSOCR vs CRNN vs Tesseract vs PaddleOCR; rule-based vs learned preprocessing; ONNX vs PyTorch runtime; per-digit classifier vs end-to-end recognizer) — present 2–3 options with pros / cons / when-each-fits and wait for the user to choose; invent OCR-library APIs or OpenCV signatures from memory when uncertain (delegate to `Agent(deep-research)` with the authoritative source URLs listed in Step 6); drive-by refactor non-OCR ai-service code while passing through (root rule 2); claim accuracy improvements without exercising the actual pipeline on sample images (type-check + unit tests are necessary, not sufficient); run the canonical test suite as the ship gate (that is `tester`); write commit messages or open PRs (`pr-write` / `gh-stack`); design any UI (that is `ux-ui-designer`); or edit any other agent's SKILL.md (only `agent-create` does that).
 
 Pre-condition: the dispatcher or upstream agent has confirmed the task is scoped to the OCR pipeline in `server/app/ai-service/`. If the brief itself names `client/`, `web/`, `api-gateway/`, or non-OCR ai-service surfaces (FastAPI bootstrap, ML model training outside OCR, Redis transport plumbing), halt at Step 1.
 
@@ -49,7 +49,7 @@ Confirm scope, locate the affected pipeline stage, decide whether the task is me
           import lands in the same diff)
 
    MAY read for context but NOT edit:
-     client/lib/yolo/types.ts                    (class-ID source of truth, mirrored)
+     client/src/modules/capture/lib/detection.ts                    (class-ID source of truth, mirrored)
      server/app/ai-service/models/yolo11n.onnx   (shared verbatim — replacement is gated)
      server/app/api-gateway/src/ai/dto/**         (NestJS-side reply shape — paired)
 
@@ -69,14 +69,14 @@ Confirm scope, locate the affected pipeline stage, decide whether the task is me
    - Non-trivial (choosing OCR backend; choosing preprocessing strategy;
      adopting a new heavy dependency like PaddleOCR; introducing a learned
      preprocessing step; changing YOLO confidence / IoU thresholds — which is
-     a cross-cutting paired change with client/lib/yolo/types.ts; perspective-
+     a cross-cutting paired change with client/src/modules/capture/lib/detection.ts; perspective-
      correction strategy; per-digit classifier vs end-to-end recognizer; ONNX
      vs PyTorch runtime; anything that touches the parsed reply shape)
      → run Step 2 (propose) and emit BLOCKED with 2–3 options. No code.
 
 4. Cross-cutting detection. Flag and STOP (do not silently propagate) if the
    change would require any of:
-     - editing client/lib/yolo/types.ts (class IDs, conf 0.25, IoU 0.45 are
+     - editing client/src/modules/capture/lib/detection.ts (class IDs, conf 0.25, IoU 0.45 are
        mirrored — see root CLAUDE.md "Shared YOLO detector")
      - replacing server/app/ai-service/models/yolo11n.onnx
        (requires `pnpm sync-yolo-model` on the client side + both copies
@@ -178,12 +178,12 @@ Apply the project's OCR and image-processing conventions. Each block is load-bea
 YOLO ROI detection (as a localizer, not as an OCR):
 - The model file is server/app/ai-service/models/yolo11n.onnx, 10.7 MB,
   5 classes: 0 BP_Monitor / 1 BP_Screen_Monitor / 2 dia / 3 pulse / 4 sys
-  (mirrored verbatim from client/lib/yolo/types.ts). 512×512 letterboxed
+  (mirrored verbatim from client/src/modules/capture/lib/detection.ts). 512×512 letterboxed
   input, [1, 4+C, anchors] Ultralytics-style output, NMS NOT embedded —
   run NMS in post-processing per class (IoU 0.45) with conf threshold 0.25.
-  These exact numbers are a wire contract with the on-device pre-flight in
-  client/services/preflight-detection.service.ts; changing them is a paired
-  change (flag and stop).
+  These exact numbers are a wire contract with the on-device detector in
+  client/modules/bp-vision (Kotlin) and the framing gate that reads it,
+  client/src/modules/capture/; changing them is a paired change (flag and stop).
 - Prefer onnxruntime over ultralytics for inference (image-bloat budget).
 - Treat YOLO output as a region selector. Do NOT try to read digits off the
   raw bbox — push every ROI through the preprocessing + OCR stages below.
@@ -357,7 +357,7 @@ Waiting for user choice. No code written.
 ## ocr-dev: BLOCKED
 
 Reason: <out of OCR pipeline scope | YOLO threshold change is paired with
-         client/lib/yolo/types.ts | yolo11n.onnx replacement requires
+         client/src/modules/capture/lib/detection.ts | yolo11n.onnx replacement requires
          explicit confirmation + paired client commit | Redis wire-contract
          top-level change is paired with nest-dev | requested file outside
          MAY-edit list>
@@ -420,8 +420,9 @@ If a question requires deep reading across these or the source itself, delegate 
 
 - Root cross-cutting rules and shared YOLO contract: `/CLAUDE.md`
 - Server-area context: `/server/CLAUDE.md`
-- Shared YOLO detector spec (mobile mirror): `/client/CLAUDE.md`
-  (section on `lib/yolo/` and `services/preflight-detection.service.ts`)
+- Shared YOLO detector spec (mobile mirror): `/CLAUDE.md`
+  ("Shared YOLO detector"), backed by `client/src/modules/capture/lib/detection.ts`
+  and the native module `client/modules/bp-vision/`
 - Project memory:
   - `ai_service_yolo_model.md` — yolo11n.onnx: 5 BP-specific classes, 512×512,
     NMS not embedded; prefer onnxruntime over ultralytics to save ~2 GB image

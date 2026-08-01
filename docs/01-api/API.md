@@ -454,8 +454,9 @@ mutation CreateReading($input: CreateReadingInput!) {
 | 6 | `createReading(input: { …, s3Key })` | Reuse the existing key — **don't** re-upload |
 
 See the mobile-side workflow at
-[`client/services/camera.service.ts`](../client/services/camera.service.ts)
-(`analyzeImage`).
+[`client/src/modules/capture/services/analysis-api.ts`](../../client/src/modules/capture/services/analysis-api.ts)
+(`analyzeImage`), which delegates steps 1-3 to
+[`client/src/services/upload-image.ts`](../../client/src/services/upload-image.ts).
 
 #### Image rendering — signed URLs (no public bucket endpoint)
 
