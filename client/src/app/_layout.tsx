@@ -145,6 +145,8 @@ function RootStack() {
         options={{ animation: 'slide_from_right' }}
       />
       <Stack.Screen name="reminders" options={{ animation: 'slide_from_right' }} />
+      {/* Pushed from the home screen's bell. Was a <Modal> in client-old. */}
+      <Stack.Screen name="alerts" options={{ animation: 'slide_from_right' }} />
       {/* Not a menu row — pushed from a post in the community feed, and the
           one route here that a deep link can land on cold. */}
       <Stack.Screen name="post/[id]" options={{ animation: 'slide_from_right' }} />

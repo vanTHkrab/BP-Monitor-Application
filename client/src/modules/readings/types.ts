@@ -67,6 +67,34 @@ export type Reading = {
   lastError?: string;
 };
 
+/**
+ * A server-raised alert about a reading.
+ *
+ * In this module, not one of its own: `AlertType.bpReadingId` is non-null, so
+ * every alert is about a reading by construction.
+ */
+export type Alert = {
+  id: number;
+  readingId: number;
+  message: string;
+  /** The gateway's own free-form level string. Rendered, not branched on. */
+  level: string;
+  isRead: boolean;
+  createdAt: Date;
+  /**
+   * The snapshot the gateway embeds so the list does not need a follow-up
+   * query per row. Absent only if the reading was deleted after the alert.
+   */
+  reading?: {
+    remoteId: number;
+    systolic: number;
+    diastolic: number;
+    pulse: number;
+    status: BPStatus;
+    measuredAt: Date;
+  };
+};
+
 export type CreateReadingInput = {
   systolic: number;
   diastolic: number;

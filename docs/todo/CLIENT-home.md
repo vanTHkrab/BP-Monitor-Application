@@ -1,23 +1,25 @@
 # Client: the home tab, and the readings layer under it
 
-`app/(tabs)/index.tsx` is still a `ScreenPlaceholder`. This is what it takes
-to replace it, and why the first half of the work is not the screen.
+> **Status: both steps have shipped.** `modules/readings/` landed in `a2cb8e4`
+> and `app/(tabs)/index.tsx` is the real screen. This file is kept as the
+> record of *why* it is shaped the way it is, and of what is still deferred —
+> see "What is still open" at the end.
 
 Read [CLIENT-auth-structure.md](./CLIENT-auth-structure.md) for the module
-layout this builds on. History and camera both sit on the same data layer —
-see [CLIENT-history.md](./CLIENT-history.md) and
+layout this builds on. History and camera sit on the same data layer — see
+[CLIENT-history.md](./CLIENT-history.md) and
 [CLIENT-camera-models.md](./CLIENT-camera-models.md).
 
 ---
 
-## Step 0 — the readings module (blocking, and shared)
+## Step 0 — the readings module (shipped)
 
-**Nothing in this tree reads or writes the `readings` table.** It is defined
-in [`database/schema.ts`](../../client/src/database/schema.ts), the migrator
-runs, and no code touches it. Home's centrepiece is the latest reading and
-its status; History is a list of them; Camera's whole purpose is producing
-one. All three are blocked on the same missing layer, so it ships once, on
-its own, before any of them.
+Nothing in this tree read or wrote the `readings` table: it was defined in
+[`database/schema.ts`](../../client/src/database/schema.ts), the migrator ran,
+and no code touched it. Home's centrepiece is the latest reading and its
+status; History is a list of them; Camera's whole purpose is producing one.
+All three were blocked on the same missing layer, so it shipped once, on its
+own, before any of them.
 
 It is also the highest-blast-radius work left in the client. The root
 `CLAUDE.md` names offline-first integrity as a special-attention area for a
@@ -48,22 +50,26 @@ src/modules/readings/
 ├── types.ts                 Reading, BPStatus, CreateReadingInput
 ├── lib/
 │   ├── status.ts            sys/dia → BPStatus + threshold table  (+ test)
-│   ├── mappers.ts           GraphQL ⇄ domain ⇄ drizzle row
-│   └── sync-plan.ts         which queued rows to attempt, and in what order (+ test)
+│   ├── client-id.ts         120-bit id the duplicate guard keys on  (+ test)
+│   ├── mappers.ts           GraphQL ⇄ domain ⇄ drizzle row + merge  (+ test)
+│   └── sync.ts              the drain, against injected ports       (+ test)
 ├── repository/
 │   ├── queue.ts             pendingReadings: enqueue / list / bump attempts / drop
-│   └── mirror.ts            readings: upsert many, read newest-first, prune
+│   ├── mirror.ts            readings: upsert, promote, prune        (+ test)
+│   └── types.ts             the injectable Database handle
 ├── services/
 │   ├── operations.ts        GQL_READINGS, GQL_CREATE_READING, GQL_DELETE_READING
-│   └── readings-api.ts      I/O only
-├── hooks/
-│   ├── use-readings.ts      useLiveQuery over the mirror — the read path
-│   ├── use-create-reading.ts  write → queue → drain
-│   └── use-sync-readings.ts   the drain itself, with the mutex
+│   ├── readings-api.ts      I/O only
+│   └── alert-operations.ts + alerts-api.ts
+├── components/              latest-reading-card, guidance-card
+├── hooks/                   readings / create / delete / fetch / sync / alerts
 └── index.ts
 ```
 
-### The three rules that must survive
+### The rules that must survive
+
+`lib/sync.ts` documents five and each has a test; the three below are the
+ones that shape the whole module.
 
 1. **The mutex is a promise, not a boolean.** Concurrent callers `return` the
    in-flight promise. A boolean flag lets a second caller skip the drain
@@ -81,18 +87,28 @@ src/modules/readings/
 
 ### Caregiver context
 
-`activePatientId` belongs to `modules/caregivers`, has no reader yet, and
-gets one here: `readings(patientId:)` on the gateway takes it, and an
-**accepted** link is the authorization. Tracked as **C-005**. Wire it in the
-change that ports these tabs, per the note in
-[`app/invitations.tsx`](../../client/src/app/invitations.tsx).
+`activePatientId` belongs to `modules/caregivers`, and home is its first
+reader: `readings(patientId:)` on the gateway takes it, and an **accepted**
+link is the authorization. It is session-scoped and deliberately not
+persisted — reopening the app as a caregiver should land on your own account,
+not silently inside someone else's medical history. Tracked as **C-005**;
+see "What is still open".
 
 ---
 
-## Step 1 — the home screen
+## Step 1 — the home screen (shipped)
 
-`client-old/app/(tabs)/index.tsx` is 742 lines. Inventory, and what happens
-to each part:
+`client-old/app/(tabs)/index.tsx` was 742 lines. The layout is ported
+section-for-section — greeting header with bell, caregiver picker or reading
+card, gradient camera CTA, guidance card, "แนวโน้มและรายงาน",
+"สุขภาพและการดูแลตัวเอง" — with copy, gradients, radii, and per-status accents
+unchanged. Colours resolve through `useTheme()` rather than the hexes the old
+screen hardcoded; `theme/tokens.js` is a verbatim port of client-old's
+`Theme`, so that renders the same palette while dropping the drift (the old
+file used slate `#0F172A` / `#111827` for dark surfaces, which appear nowhere
+in `Theme.dark`).
+
+Inventory, and what happened to each part:
 
 | Section | Verdict |
 | --- | --- |
@@ -100,19 +116,22 @@ to each part:
 | Notification bell + count + modal | Port the bell and count. The modal is a list — make it a route, same reasoning as the comment thread in [`app/post/[id].tsx`](../../client/src/app/post/[id].tsx). |
 | Caregiver empty state ("ยังไม่ได้เลือกผู้ป่วย") | Port — it is the entry point for `activePatientId`. |
 | Latest reading card + status pill | Port. Needs Step 0. |
-| Guidance text keyed by status | Port. Pure lookup — belongs in `lib/status.ts` next to the thresholds, with a test. |
+| Guidance text keyed by status | Ported into `components/guidance-card.tsx`. It is that card's content, not a property of the classification — a second surface wanting different wording should write its own rather than bend this one. The short one-liner in `lib/status.ts` is separate and used elsewhere. |
 | Camera CTA | Port as a link. The camera screen itself is [CLIENT-camera-models.md](./CLIENT-camera-models.md). |
 | Emergency call button | Port. `Linking.openURL('tel:1669')`. |
-| PDF/CSV report export | **Blocked.** Same blocker `app/settings.tsx` documents — the export builders were never ported and there is nothing to export until Step 0 lands. It belongs with History, which is where a user looks for their data. |
+| PDF/CSV report export | **Deferred, not ported.** The export builders were never carried over; it belongs with History, where a user looks for their data. The history card takes the full row until then. |
+| "เคล็ดลับการดูแลสุขภาพ" row | **Not ported** — `/health-tips` is not a route in this tree, and a row that navigates nowhere is worse than one that is not there yet. |
 
 ### Alerts
 
-`alerts` / `markAlertRead` / `markAllAlertsRead` exist on the gateway and are
-already the notification list's source. `AlertType.reading` embeds a snapshot
-of the triggering reading, so the bell does **not** need a second query — see
-[API.md §5.5](../01-api/API.md). This is small enough to live in
-`modules/readings/` rather than earn its own module, since every alert is
-about a reading.
+`alerts` / `markAlertRead` / `markAllAlertsRead` back the notification list.
+`AlertType.reading` embeds a snapshot of the triggering reading, so the bell
+does **not** need a second query — see [API.md §5.5](../01-api/API.md). They
+live in `modules/readings/` rather than a module of their own, since
+`bpReadingId` is non-null and every alert is about a reading by construction.
+
+The list itself is `app/alerts.tsx`, a route rather than the `<Modal>` it was
+in client-old — same call as the comment thread and the reminder settings.
 
 ---
 
@@ -131,3 +150,25 @@ and its harness. Not a snapshot — assert behaviour:
 
 `renderScreen` is async — see the traps documented in
 [`__test__/test-utils.tsx`](../../client/__test__/test-utils.tsx).
+
+Shipped as [`__test__/screens/home.test.tsx`](../../client/__test__/screens/home.test.tsx),
+23 cases. The data hooks are mocked: `useReadings` is a `useLiveQuery` over
+expo-sqlite, which cannot run under Jest, and the layer beneath it is already
+covered against real migrations in `repository.test.ts`. What is left for a
+screen test is what the screen decides — which of two mutually exclusive
+states to show, whether the emergency button appears, whether the badge tells
+the truth.
+
+---
+
+## What is still open
+
+- **C-005 is half done.** `activePatientId` now exists
+  (`modules/caregivers/hooks/use-active-patient.ts`) and home branches on it,
+  but nothing *sets* it yet — the "ดูข้อมูล" button on `app/invitations.tsx`
+  is still unported. That button is now unblocked: it calls
+  `setActivePatient(patient)` and navigates to `/(tabs)`.
+- **Export** ships with history. Delete the blocked-export paragraph from
+  `app/settings.tsx`'s header in the same change (root `CLAUDE.md` rule 6).
+- **`/health-tips`** has no route. Either port the screen or drop the row
+  from the plan for good.

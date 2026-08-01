@@ -8,6 +8,11 @@
  * someone accept twice.
  */
 export {
+  resetActivePatient,
+  useActivePatient,
+  useActivePatientStore,
+} from './hooks/use-active-patient';
+export {
   useCaregiverLinks,
   useInvitePatient,
   useMyPatients,

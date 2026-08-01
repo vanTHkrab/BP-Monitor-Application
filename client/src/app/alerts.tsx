@@ -1,0 +1,163 @@
+/**
+ * The notification list behind the home screen's bell.
+ *
+ * A `<Modal>` inside `client-old/app/(tabs)/index.tsx`, and a route here for
+ * the same reason the comment thread and the reminder settings became routes:
+ * it is a scrolling list, Android's Back gesture belongs to it, and a
+ * notification is something a push payload will eventually want to deep-link
+ * into.
+ *
+ * Each row carries the reading that triggered it. The gateway embeds that
+ * snapshot specifically so this screen needs one request, not one per row —
+ * see `services/alert-operations.ts`.
+ */
+import { Ionicons } from '@expo/vector-icons';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+
+import { GradientBackground } from '@/components/gradient-background';
+import { useFontScale } from '@/hooks/use-font-scale';
+import { useTheme } from '@/hooks/use-theme';
+import {
+  statusColorFor,
+  statusLabel,
+  useAlerts,
+  useMarkAlertRead,
+  useMarkAllAlertsRead,
+  type Alert,
+} from '@/modules/readings';
+import { SecurityHeader } from '@/modules/security';
+
+export default function AlertsScreen() {
+  const colors = useTheme();
+  const fontScale = useFontScale();
+
+  const { alerts, unreadCount, isLoading, isRefetching, refetch } = useAlerts();
+  const { markAlertRead } = useMarkAlertRead();
+  const { markAllAlertsRead, isPending } = useMarkAllAlertsRead();
+
+  return (
+    <GradientBackground>
+      <View className="flex-1">
+        <SecurityHeader title="การแจ้งเตือน" />
+
+        {unreadCount > 0 ? (
+          <View className="flex-row items-center justify-between px-5 pb-2">
+            <Text
+              style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
+            >
+              {`ยังไม่ได้อ่าน ${unreadCount} รายการ`}
+            </Text>
+            <Pressable
+              testID="alerts-mark-all-read"
+              onPress={() => markAllAlertsRead()}
+              disabled={isPending}
+              accessibilityRole="button"
+              accessibilityLabel="ทำเครื่องหมายว่าอ่านทั้งหมดแล้ว"
+              className="items-center justify-center px-2"
+              style={{ minHeight: 44, opacity: isPending ? 0.5 : 1 }}
+            >
+              <Text
+                className="font-semibold"
+                style={{ fontSize: Math.round(14 * fontScale), color: colors.primary }}
+              >
+                อ่านทั้งหมด
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <FlatList
+          data={alerts}
+          keyExtractor={(alert) => String(alert.id)}
+          className="flex-1"
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
+          }
+          ListEmptyComponent={
+            <View className="mt-4 rounded-2xl p-5" style={{ backgroundColor: colors.surface }}>
+              <Text
+                testID="alerts-empty"
+                style={{
+                  fontSize: Math.round(15 * fontScale),
+                  lineHeight: Math.round(22 * fontScale),
+                  color: colors['text-secondary'],
+                }}
+              >
+                {isLoading
+                  ? 'กำลังโหลดการแจ้งเตือน…'
+                  : 'ยังไม่มีการแจ้งเตือน ระบบจะแจ้งเมื่อพบค่าความดันที่ควรสังเกต'}
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <AlertRow alert={item} onPress={() => !item.isRead && markAlertRead(item.id)} />
+          )}
+        />
+      </View>
+    </GradientBackground>
+  );
+}
+
+function AlertRow({ alert, onPress }: { alert: Alert; onPress: () => void }) {
+  const colors = useTheme();
+  const fontScale = useFontScale();
+
+  const accent = alert.reading ? statusColorFor(alert.reading.status) : colors['text-secondary'];
+
+  return (
+    <Pressable
+      testID={`alert-${alert.id}`}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={alert.isRead ? alert.message : `ยังไม่ได้อ่าน: ${alert.message}`}
+      className="mb-3 flex-row rounded-2xl p-4"
+      style={({ pressed }) => ({
+        backgroundColor: colors.surface,
+        opacity: pressed ? 0.9 : 1,
+      })}
+    >
+      <View
+        className="mr-3 h-10 w-10 items-center justify-center rounded-full"
+        style={{ backgroundColor: colors['surface-muted'] }}
+      >
+        <Ionicons name="pulse-outline" size={20} color={accent} />
+      </View>
+
+      <View className="flex-1">
+        <Text
+          className={alert.isRead ? 'font-medium' : 'font-bold'}
+          style={{
+            fontSize: Math.round(15 * fontScale),
+            lineHeight: Math.round(22 * fontScale),
+            color: colors['text-primary'],
+          }}
+        >
+          {alert.message}
+        </Text>
+
+        {alert.reading ? (
+          <Text
+            className="mt-1"
+            style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
+          >
+            {`${alert.reading.systolic}/${alert.reading.diastolic} mmHg · ${statusLabel(
+              alert.reading.status,
+            )}`}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* An unread dot rather than a bold-plus-background treatment: the row
+          is already bold, and two signals for one state is one too many. */}
+      {alert.isRead ? null : (
+        <View
+          testID={`alert-${alert.id}-unread`}
+          className="ml-2 mt-1.5 h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: colors.primary }}
+        />
+      )}
+    </Pressable>
+  );
+}
