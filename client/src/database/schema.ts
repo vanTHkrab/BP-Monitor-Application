@@ -87,6 +87,15 @@ export const readings = sqliteTable(
     status: text('status').notNull(),
     notes: text('notes'),
 
+    /**
+     * The server's object key for the photo — what `ReadingType.s3Key`
+     * returns, and the only image reference a row fetched from the server
+     * has. Distinct from `imageUri` on purpose: that one holds a *local*
+     * `file://` path, which exists only on the device that took the photo
+     * and is meaningless after a reinstall. A row can legitimately carry
+     * both (taken here, then confirmed) or only `s3Key` (fetched).
+     */
+    s3Key: text('s3_key'),
     imageUri: text('image_uri'),
     imageId: integer('image_id'),
 
