@@ -36,6 +36,7 @@ export const STORAGE_KEYS = {
   fontSize: 'bp.font_size',
   setupCompleted: 'bp.setup_completed',
   appLock: 'bp.app_lock_enabled',
+  autoCapture: 'bp.auto_capture_enabled',
 } as const;
 
 /**
