@@ -1,17 +1,19 @@
 /**
- * Turns a thrown transport error into something the invitations screen can
- * render.
+ * Turns a thrown transport error into something a screen can render.
  *
- * Same invariant as `modules/auth/lib/errors.ts`: raw English never reaches
- * the UI. This one is separate because it returns a plain string — there is
- * no `field` to dispatch to on a screen whose one form has one input, and
- * borrowing `AuthErrorView` would mean returning two fields that are always
- * null.
+ * The invariant: raw English never reaches the UI. The gateway localises its
+ * `HttpException` messages, so a Thai message is passed through verbatim;
+ * anything else is replaced with the caller's fallback.
  *
- * The caregiver resolver's exceptions are already Thai
- * (`ไม่พบผู้ใช้จากเบอร์โทรศัพท์นี้`, `มีความสัมพันธ์นี้อยู่แล้ว`, …), so the
- * default path is to pass the server's own wording through and only replace
- * it when it is not localised.
+ * Distinct from `modules/auth/lib/errors.ts`, which returns an `AuthErrorView`
+ * carrying the form field to dispatch to and a throttle countdown. Screens
+ * with one input and no throttle want a string, and borrowing that shape
+ * meant returning two fields that were always null.
+ *
+ * In `lib/` rather than in a module because three modules now need it —
+ * caregivers, community, and whatever ports next. A per-module copy is how
+ * the "never leak English" rule ends up enforced in two places and dropped
+ * in the third.
  */
 import { errorCode } from '@/services/api-error';
 
@@ -23,7 +25,7 @@ const stripCode = (message: string) => message.replace(/^\s*\[[A-Z_]+\]\s*/, '')
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : typeof error === 'string' ? error : '';
 
-export function caregiverErrorMessage(error: unknown, fallback: string): string {
+export function formatErrorMessage(error: unknown, fallback: string): string {
   const code = errorCode(error);
 
   if (code === 'NETWORK_TIMEOUT') {

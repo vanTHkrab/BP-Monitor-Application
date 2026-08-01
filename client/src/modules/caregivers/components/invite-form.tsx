@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
+import { formatErrorMessage } from '@/lib/error-message';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
 import { useFontScale } from '@/hooks/use-font-scale';
@@ -24,7 +25,6 @@ import { status as statusColor } from '@/theme';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
 
 import { useInvitePatient } from '../hooks/use-caregivers';
-import { caregiverErrorMessage } from '../lib/errors';
 import { DEFAULT_RELATIONSHIP } from '../lib/relationship';
 import type { RelationshipType } from '../types';
 import { RelationshipPicker } from './relationship-picker';
@@ -64,7 +64,7 @@ export function InviteForm() {
     } catch (error) {
       setBanner({
         tone: 'error',
-        text: caregiverErrorMessage(error, 'ส่งคำเชิญไม่สำเร็จ กรุณาลองใหม่'),
+        text: formatErrorMessage(error, 'ส่งคำเชิญไม่สำเร็จ กรุณาลองใหม่'),
       });
     }
   };

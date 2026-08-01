@@ -15,7 +15,6 @@ export {
   useRespondToInvite,
 } from './hooks/use-caregivers';
 
-export { caregiverErrorMessage } from './lib/errors';
 export {
   DEFAULT_RELATIONSHIP,
   RELATIONSHIP_OPTIONS,

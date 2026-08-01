@@ -41,7 +41,6 @@ import {
   InviteForm,
   LinkGroup,
   LinkRow,
-  caregiverErrorMessage,
   deriveSections,
   isEmpty,
   linkKey,
@@ -52,6 +51,7 @@ import {
   useRespondToInvite,
   type CaregiverLink,
 } from '@/modules/caregivers';
+import { formatErrorMessage } from '@/lib/error-message';
 import { SecurityHeader } from '@/modules/security';
 import { formatThaiPhone } from '@/utils/phone-format';
 
@@ -75,7 +75,7 @@ export default function InvitationsScreen() {
     try {
       await respondToInvite({ caregiverId: link.caregiverId, accept });
     } catch (caught) {
-      setError(caregiverErrorMessage(caught, 'ตอบรับคำเชิญไม่สำเร็จ กรุณาลองใหม่'));
+      setError(formatErrorMessage(caught, 'ตอบรับคำเชิญไม่สำเร็จ กรุณาลองใหม่'));
     }
   };
 
@@ -105,7 +105,7 @@ export default function InvitationsScreen() {
             try {
               await removeCaregiverLink({ caregiverId, patientId });
             } catch (caught) {
-              setError(caregiverErrorMessage(caught, 'ดำเนินการไม่สำเร็จ กรุณาลองใหม่'));
+              setError(formatErrorMessage(caught, 'ดำเนินการไม่สำเร็จ กรุณาลองใหม่'));
             }
           },
         },
