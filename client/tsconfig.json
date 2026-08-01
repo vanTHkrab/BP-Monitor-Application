@@ -9,6 +9,9 @@
       ],
       "@/assets/*": [
         "./assets/*"
+      ],
+      "@/native/*": [
+        "./modules/*"
       ]
     }
   },

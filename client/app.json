@@ -20,7 +20,8 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.project.bpmonitor",
-      "versionCode": 1
+      "versionCode": 1,
+      "permissions": ["android.permission.CAMERA"]
     },
     "web": {
       "output": "static",
@@ -52,6 +53,13 @@
       "expo-secure-store",
       "expo-sharing",
       "@react-native-google-signin/google-signin",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "ใช้กล้องเพื่อถ่ายภาพหน้าจอเครื่องวัดความดัน"
+        }
+      ],
+      "./modules/bp-vision/plugin/withBpVisionModels",
       [
         "expo-notifications",
         {

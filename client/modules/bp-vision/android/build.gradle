@@ -1,0 +1,63 @@
+apply plugin: 'com.android.library'
+
+group = 'expo.modules.bpvision'
+version = ''
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+// If you want to use the managed Android SDK versions from expo-modules-core, set this to true.
+// The Android SDK versions will be bumped from time to time in SDK releases and may introduce breaking changes in your module code.
+// Most of the time, you may like to manage the Android SDK versions yourself.
+def useManagedAndroidSdkVersions = false
+if (useManagedAndroidSdkVersions) {
+  useDefaultAndroidSdkVersions()
+} else {
+  buildscript {
+    // Simple helper that allows the root project to override versions declared by this library.
+    ext.safeExtGet = { prop, fallback ->
+      rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+    }
+  }
+  project.android {
+    compileSdkVersion safeExtGet("compileSdkVersion", 36)
+    defaultConfig {
+      minSdkVersion safeExtGet("minSdkVersion", 24)
+      targetSdkVersion safeExtGet("targetSdkVersion", 36)
+    }
+  }
+}
+
+android {
+  namespace "expo.modules.bpvision"
+  defaultConfig {
+    versionCode 1
+    versionName ""
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // CameraX — capture/preview. Released in lockstep; keep these four in sync.
+  // 1.6.1 is the latest stable release as of this change (androidx.camera
+  // group on Google's Maven, checked via maven-metadata.xml — 1.7.x is
+  // alpha-only at time of writing).
+  def cameraxVersion = "1.6.1"
+  implementation "androidx.camera:camera-core:$cameraxVersion"
+  implementation "androidx.camera:camera-camera2:$cameraxVersion"
+  implementation "androidx.camera:camera-lifecycle:$cameraxVersion"
+  implementation "androidx.camera:camera-view:$cameraxVersion"
+
+  // ONNX Runtime for Android — on-device YOLO inference, replacing
+  // onnxruntime-react-native's broken autolinking. 1.27.0 is the latest
+  // stable release on Maven Central at time of writing; no hard pin to
+  // match since onnxruntime-react-native@1.24.3 (the JS package being
+  // replaced) is no longer installed, so its transitive AAR version
+  // couldn't be inspected ahead of time.
+  implementation "com.microsoft.onnxruntime:onnxruntime-android:1.27.0"
+}
