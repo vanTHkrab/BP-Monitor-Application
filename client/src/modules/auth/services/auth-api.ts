@@ -79,17 +79,31 @@ export async function fetchMe(): Promise<User> {
   return userFromGql(data.me);
 }
 
-/** Partial update — only the fields present are written. */
+/**
+ * Partial update — only the fields present are written.
+ *
+ * Absent and `null` are different instructions, and the difference is the
+ * whole reason the optional columns accept `null` here. The gateway writes a
+ * column only when the key is present (`if (data.dob !== undefined)`) and
+ * clears it when the value is empty (`patch.dob = data.dob || null`), so
+ * omitting a field leaves it alone while sending `null` erases it. Typing
+ * these as `number | undefined` would have made "clear my weight"
+ * unexpressible: `undefined` is dropped by JSON serialisation before the
+ * request goes out, so it reads on the server as "leave it".
+ *
+ * `email` is accepted by the schema and deliberately not offered here — see
+ * the header of `app/profile.tsx`.
+ */
 export async function updateProfile(input: {
   firstname?: string;
   lastname?: string;
   phone?: string;
   avatar?: string;
-  dob?: string;
-  gender?: string;
-  weight?: number;
-  height?: number;
-  congenitalDisease?: string;
+  dob?: string | null;
+  gender?: string | null;
+  weight?: number | null;
+  height?: number | null;
+  congenitalDisease?: string | null;
 }): Promise<User> {
   const data = await graphqlRequest<{ updateProfile: UserPayload }>(GQL_UPDATE_PROFILE, { input });
   return userFromGql(data.updateProfile);

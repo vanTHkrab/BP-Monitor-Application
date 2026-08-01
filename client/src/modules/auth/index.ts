@@ -23,6 +23,7 @@ export { useLogout } from './hooks/use-logout';
 export { useRegister } from './hooks/use-register';
 export { useSession } from './hooks/use-session';
 export { useSetPhone } from './hooks/use-set-phone';
+export { useUpdateProfile, type UpdateProfileInput } from './hooks/use-update-profile';
 export { useVerifyEmail } from './hooks/use-verify-email';
 
 export {
