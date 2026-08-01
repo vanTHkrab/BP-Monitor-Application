@@ -54,7 +54,7 @@ export function ProfileHero({
         style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
       >
         <View>
-          <Avatar uri={avatarUri} firstname={firstname} lastname={lastname} size="lg" />
+          <Avatar uri={avatarUri} firstname={firstname} lastname={lastname} size="xl" />
 
           {isUploading ? (
             <View

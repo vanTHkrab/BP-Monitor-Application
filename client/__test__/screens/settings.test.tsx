@@ -45,12 +45,6 @@ function pressAlertButton(index: number) {
   return buttons?.[index]?.onPress?.();
 }
 
-function pressBackButton() {
-  const spy = Alert.alert as unknown as jest.Mock;
-  const buttons = spy.mock.calls.at(-1)?.[2] as { onPress?: () => void }[] | undefined;
-  return buttons?.[0]?.onPress?.();
-}
-
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(Alert, 'alert').mockImplementation(() => {});

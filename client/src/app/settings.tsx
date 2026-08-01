@@ -42,19 +42,17 @@ import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 import { GradientBackground } from '@/components/gradient-background';
 import { FontSizePicker } from '@/components/ui/font-size-picker';
-import { GradientButton } from '@/components/ui/gradient-button';
 import { SettingItem, SettingSection } from '@/components/ui/setting-item';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
-import { useDeleteMyData, useLogout } from '@/modules/auth';
+import { useDeleteMyData } from '@/modules/auth';
 import { useReminderSettings } from '@/modules/notifications';
 import { palette } from '@/theme';
 
 export default function SettingsScreen() {
   const colors = useTheme();
   const fontScale = useFontScale();
-  const { logout, isPending: isLoggingOut } = useLogout();
   const { deleteMyData, isPending: isDeleting } = useDeleteMyData();
   const { settings: reminders, isLoading: isLoadingReminders } = useReminderSettings();
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
@@ -67,11 +65,6 @@ export default function SettingsScreen() {
     : reminders.enabled
       ? `เตือนทุก ${reminders.intervalHours} ชั่วโมง · เลือกไว้ ${reminders.selectedDays.length} วัน`
       : 'ปิดอยู่';
-
-  const handleLogout = async () => {
-    await logout();
-    router.replace('/login');
-  };
 
   /**
    * Two gates, and the second one names what survives.
@@ -221,16 +214,6 @@ export default function SettingsScreen() {
             subtitle="รหัสผ่าน Passkey อุปกรณ์ที่เข้าสู่ระบบ และล็อกแอป"
             onPress={() => router.push('/security')}
           />
-
-          <View className="mt-4">
-            <GradientButton
-              testID="settings-logout"
-              title="ออกจากระบบ"
-              variant="danger"
-              onPress={handleLogout}
-              loading={isLoggingOut}
-            />
-          </View>
 
           {/* Last, and visually quieter than the sign-out button above it. A
               destructive action wants to be findable, not reachable by

@@ -11,11 +11,11 @@ import { Text, View } from 'react-native';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 
-export type AvatarSize = 'sm' | 'md' | 'lg';
+export type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 
-const SIZE_PX: Record<AvatarSize, number> = { sm: 36, md: 48, lg: 64 };
-const ICON_SIZE: Record<AvatarSize, number> = { sm: 18, md: 24, lg: 32 };
-const INITIALS_FONT: Record<AvatarSize, number> = { sm: 14, md: 18, lg: 24 };
+const SIZE_PX: Record<AvatarSize, number> = { sm: 36, md: 48, lg: 64, xl: 96 };
+const ICON_SIZE: Record<AvatarSize, number> = { sm: 18, md: 24, lg: 32, xl: 48 };
+const INITIALS_FONT: Record<AvatarSize, number> = { sm: 14, md: 18, lg: 24, xl: 32 };
 
 function initialsOf(firstname?: string, lastname?: string): string | null {
   const first = firstname?.trim()?.[0];
