@@ -8,7 +8,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 `pnpm test` alone.**
 
 ```bash
-pnpm check       # lint → typecheck → test, in that order, fail-fast
+pnpm check       # lint → typecheck → verify-graphql → test, fail-fast
 ```
 
 The order is the point. Lint runs *first* because it catches the class of
@@ -17,9 +17,21 @@ cascading re-render that type-checks cleanly and that no unit test asserts
 against. A suite that passes over code the linter rejects is a green light
 nobody earned.
 
+`verify-graphql` runs before the suite for the same reason, one layer out:
+it validates every operation in `src/` against the gateway's generated
+schema (`server/app/api-gateway/src/schema.gql`). A selection the server
+rejects is invisible to all three of the other steps — TypeScript sees a
+template string and Jest mocks the transport — and it fails *before* any
+resolver runs, so it takes down every operation sharing the field list.
+That is exactly how `recordedBy { id name }` broke the readings query and
+the create mutation at once while the whole suite stayed green. The check
+is a few milliseconds; it is placed ahead of `test` so the cheap answer
+arrives first. A checkout without `server/` present skips it with a
+warning rather than failing.
+
 The individual steps stay available for a tight edit loop
-(`pnpm lint` / `pnpm typecheck` / `pnpm test`), but the finishing check is
-`pnpm check`.
+(`pnpm lint` / `pnpm typecheck` / `pnpm verify-graphql` / `pnpm test`), but
+the finishing check is `pnpm check`.
 
 `pnpm test` passes `--watchman=false`. Watchman only accelerates file
 crawling for `--watch`, and a one-shot run does not need it — but it does

@@ -4,6 +4,14 @@
  * `clientId` is requested back on every read. It is what the mirror upsert
  * matches a locally-created row against, and without it a reading this device
  * queued would come back looking like somebody else's and appear twice.
+ *
+ * **`recordedBy` selects `firstname` + `lastname`, not `name`.** The gateway's
+ * `ReadingRecordedByType` has no `name` field, and because this fragment is
+ * shared by the query *and* the mutation, asking for one failed both with a
+ * bare "Graphql validation error" — no readings ever pulled and no reading
+ * ever synced. Anything added here has to exist on `ReadingType` in
+ * `server/app/api-gateway/src/reading/reading.resolver.ts`; that file is the
+ * source of truth and `src/schema.gql` is generated from it.
  */
 
 const READING_FIELDS = `
@@ -18,7 +26,7 @@ const READING_FIELDS = `
   s3Key
   notes
   createdAt
-  recordedBy { id name }
+  recordedBy { id firstname lastname }
 `;
 
 export const GQL_READINGS = `

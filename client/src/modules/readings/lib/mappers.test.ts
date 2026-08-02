@@ -82,11 +82,25 @@ describe('readingFromGql', () => {
     expect(reading.syncState).toBe('synced');
   });
 
-  it('flattens caregiver attribution', () => {
-    const reading = readingFromGql(payload({ recordedBy: { id: 'c9', name: 'สมชาย ใจดี' } }));
+  // The gateway sends `firstname` + `lastname` — there is no `name` field on
+  // `ReadingRecordedByType`. Selecting one failed the shared fragment, which
+  // took the readings query and the create mutation down together.
+  it('flattens caregiver attribution into one name', () => {
+    const reading = readingFromGql(
+      payload({ recordedBy: { id: 'c9', firstname: 'สมชาย', lastname: 'ใจดี' } }),
+    );
 
     expect(reading.recordedById).toBe('c9');
     expect(reading.recordedByName).toBe('สมชาย ใจดี');
+  });
+
+  it('leaves the name undefined when the gateway has neither half', () => {
+    const reading = readingFromGql(
+      payload({ recordedBy: { id: 'c9', firstname: '', lastname: '' } }),
+    );
+
+    expect(reading.recordedById).toBe('c9');
+    expect(reading.recordedByName).toBeUndefined();
   });
 
   it('renders an unrecognised status rather than crashing', () => {

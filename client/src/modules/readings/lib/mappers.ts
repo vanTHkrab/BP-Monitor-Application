@@ -26,8 +26,13 @@ export type ReadingPayload = {
   s3Key: string | null;
   notes: string | null;
   createdAt: string;
-  recordedBy: { id: string; name: string } | null;
+  /** Mirrors the gateway's `ReadingRecordedByType` — two name fields, not one. */
+  recordedBy: { id: string; firstname: string; lastname: string } | null;
 };
+
+/** "สมชาย ใจดี". Empty when the gateway sends two blank strings. */
+const fullName = (person: { firstname: string; lastname: string }): string | undefined =>
+  `${person.firstname ?? ''} ${person.lastname ?? ''}`.trim() || undefined;
 
 /**
  * The list key. Stable across the queue→mirror promotion, because it is
@@ -54,7 +59,7 @@ export function readingFromGql(payload: ReadingPayload): Reading {
     notes: optional(payload.notes),
     s3Key: optional(payload.s3Key),
     recordedById: optional(payload.recordedBy?.id),
-    recordedByName: optional(payload.recordedBy?.name),
+    recordedByName: payload.recordedBy ? fullName(payload.recordedBy) : undefined,
     createdAt: new Date(payload.createdAt),
     syncState: 'synced',
   };
@@ -78,7 +83,7 @@ export function mirrorRowFromGql(payload: ReadingPayload, syncedAt = new Date())
     imageUri: null,
     imageId: null,
     recordedById: payload.recordedBy?.id ?? null,
-    recordedByName: payload.recordedBy?.name ?? null,
+    recordedByName: payload.recordedBy ? (fullName(payload.recordedBy) ?? null) : null,
     createdAt: new Date(payload.createdAt).toISOString(),
     updatedAt: null,
     syncedAt: syncedAt.toISOString(),
