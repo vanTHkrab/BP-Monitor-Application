@@ -63,8 +63,18 @@ src/modules/readings/
 │   └── alert-operations.ts + alerts-api.ts
 ├── components/              latest-reading-card, guidance-card
 ├── hooks/                   readings / create / delete / fetch / sync / alerts
+│   └── use-readings-sync    app-level push+pull triggers, one provider (+ test)
 └── index.ts
 ```
+
+`use-readings-sync.tsx` is the only thing screens see of either direction.
+`useFetchReadings` and `useSyncReadings` are internal to the module: when
+screens called them directly, the pull had no trigger outside a
+`RefreshControl` (a fresh install showed empty history until someone dragged
+the screen down) and every call site registered its own `AppState` and
+`NetInfo` listener. `ReadingsSyncProvider` is mounted once in
+[`app/_layout.tsx`](../../client/src/app/_layout.tsx), inside the migrations
+gate.
 
 ### The rules that must survive
 

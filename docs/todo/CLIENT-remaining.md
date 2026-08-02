@@ -93,10 +93,14 @@ reachable when no detector exists.
 ## 6. Doc drift from the earlier ports
 
 `client/constants/api.ts` and `client/store/slices/` are referenced by
-`docs/01-api/API.md`, `infra/README.md`, the api-gateway docs, and the root
-`CLAUDE.md`'s "engineering posture" section. Neither path exists in this
-tree — GraphQL operations live per-module in `services/*-api.ts`, and there
-are no Zustand slices.
+`docs/01-api/API.md`, `infra/README.md`, and the api-gateway docs. Neither
+path exists in this tree — GraphQL operations live per-module in
+`services/*-api.ts`, and there are no Zustand slices.
+
+The root `CLAUDE.md` has been reconciled (both the "engineering posture"
+path and the "offline-first integrity" paragraph, which still described the
+old single-table `pending_readings` + `syncStatus` design). The remaining
+files have not.
 
 Mechanical, but it is the kind of thing that sends the next contributor (or
 agent) looking for a file that has not existed for four commits.

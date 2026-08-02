@@ -81,6 +81,10 @@ export function BPReadingCard({
   const metaSize = Math.round(14 * fontScale);
   const statusTint = statusColorFor(reading.status);
 
+  // One failed attempt is ordinary — the phone was in a lift. Two is a
+  // pattern, and the point at which saying so beats a permanent "waiting".
+  const isStuck = reading.syncState === 'queued' && (reading.attempts ?? 0) >= 2;
+
   const attribution = reading.recordedById
     ? reading.recordedById === currentUserId
       ? 'คุณบันทึกให้'
@@ -169,19 +173,24 @@ export function BPReadingCard({
             {reading.syncState === 'queued' ? (
               <View className="mt-1.5 flex-row items-center">
                 <Ionicons
-                  name="cloud-offline-outline"
+                  name={isStuck ? 'alert-circle-outline' : 'cloud-offline-outline'}
                   size={13}
-                  color={colors['text-secondary']}
+                  color={isStuck ? statusColorFor('high') : colors['text-secondary']}
                 />
                 <Text
                   testID={`reading-${reading.key}-pending`}
                   className="ml-1"
                   style={{
                     fontSize: Math.round(13 * fontScale),
-                    color: colors['text-secondary'],
+                    color: isStuck ? statusColorFor('high') : colors['text-secondary'],
                   }}
                 >
-                  ยังไม่ได้ซิงก์
+                  {/* A reading that has failed repeatedly is a different
+                      situation from one waiting for a signal, and the patient
+                      is the only person who can act on it — before this, both
+                      said "ยังไม่ได้ซิงก์" forever and the reason was written
+                      to a column no screen read. */}
+                  {isStuck ? `ส่งไม่สำเร็จ · ลองแล้ว ${reading.attempts} ครั้ง` : 'ยังไม่ได้ซิงก์'}
                 </Text>
               </View>
             ) : null}

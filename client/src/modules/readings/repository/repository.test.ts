@@ -179,17 +179,45 @@ describe('readings repository', () => {
       expect(await listMirrorRows(db, USER)).toHaveLength(1);
     });
 
-    it('leaves the queue row alone when the promotion fails', async () => {
+    // The same reading, deleted server-side and re-submitted from this queue
+    // entry, comes back with a new remoteId under its original clientId. The
+    // unique index on client_id used to reject that insert, which rolled the
+    // transaction back and left the row to fail identically on every
+    // subsequent drain — a reading permanently stuck at "รอซิงก์".
+    it('replaces a stale mirror row holding the same clientId', async () => {
       await enqueueReading(db, queued('c1'));
-      // Same clientId already mirrored under a different remoteId — the unique
-      // index on client_id rejects the insert, so the delete must not happen.
       await upsertMirrorRows(db, [mirrored(10, { clientId: 'c1' })]);
 
+      await promoteToMirror(db, 'c1', mirrored(11, { clientId: 'c1' }));
+
+      expect(await findQueuedReading(db, 'c1')).toBeUndefined();
+      expect((await listMirrorRows(db, USER)).map((r) => r.remoteId)).toEqual([11]);
+    });
+
+    it('leaves the queue row alone when the promotion fails', async () => {
+      await enqueueReading(db, queued('c1'));
+
+      // A row the mirror cannot store at all — `user_id` is NOT NULL. The
+      // insert throws, and the queue delete in the same transaction must roll
+      // back with it or the reading is gone with nothing to show for it.
+      const invalid = { ...mirrored(11, { clientId: 'c1' }), userId: null };
+
       await expect(
-        promoteToMirror(db, 'c1', mirrored(11, { clientId: 'c1' })),
+        promoteToMirror(db, 'c1', invalid as unknown as ReadingRow),
       ).rejects.toThrow();
 
       expect(await findQueuedReading(db, 'c1')).toBeDefined();
+    });
+
+    // Same hazard on the fetch path: one colliding row used to roll back the
+    // whole upsert, so a single re-submitted reading meant the entire pull
+    // mirrored nothing.
+    it('replaces a stale clientId collision on the fetch path too', async () => {
+      await upsertMirrorRows(db, [mirrored(10, { clientId: 'c1' })]);
+
+      await upsertMirrorRows(db, [mirrored(11, { clientId: 'c1' }), mirrored(12)]);
+
+      expect((await listMirrorRows(db, USER)).map((r) => r.remoteId).sort()).toEqual([11, 12]);
     });
 
     it('deletes a mirrored row by server id', async () => {

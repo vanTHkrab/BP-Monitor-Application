@@ -41,8 +41,7 @@ const mockReadings = {
   isLoading: false,
 };
 const mockAlerts = { unreadCount: 0 };
-const mockSync = jest.fn();
-const mockFetch = jest.fn();
+const mockRefresh = jest.fn();
 
 jest.mock('@/modules/readings', () => {
   const actual = jest.requireActual('@/modules/readings/components/latest-reading-card');
@@ -52,8 +51,7 @@ jest.mock('@/modules/readings', () => {
     GuidanceCard: guidance.GuidanceCard,
     useReadings: () => mockReadings,
     useAlerts: () => mockAlerts,
-    useFetchReadings: () => ({ fetchReadings: mockFetch, isFetching: false }),
-    useSyncReadings: () => ({ sync: mockSync }),
+    useReadingsSync: () => ({ refresh: mockRefresh, isRefreshing: false, error: null }),
   };
 });
 

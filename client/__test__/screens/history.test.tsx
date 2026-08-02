@@ -50,8 +50,7 @@ jest.mock('@/modules/readings', () => {
     BPTrendChart: jest.requireActual('@/modules/readings/components/bp-trend-chart')
       .BPTrendChart,
     useReadings: () => mockReadings,
-    useFetchReadings: () => ({ fetchReadings: jest.fn(), isFetching: false }),
-    useSyncReadings: () => ({ sync: jest.fn() }),
+    useReadingsSync: () => ({ refresh: jest.fn(), isRefreshing: false, error: null }),
   };
 });
 

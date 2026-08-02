@@ -34,7 +34,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -51,9 +51,8 @@ import {
   TIME_FILTERS,
   chartSeries,
   filterByRange,
-  useFetchReadings,
   useReadings,
-  useSyncReadings,
+  useReadingsSync,
   type TimeFilter,
 } from '@/modules/readings';
 import { gradientFor, palette } from '@/theme';
@@ -79,18 +78,12 @@ export default function HistoryScreen() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>(DEFAULT_TIME_FILTER);
 
   const { readings, isLoading } = useReadings({ patientId: viewingPatientId });
-  const { fetchReadings, isFetching } = useFetchReadings({ patientId: viewingPatientId });
-  const { sync } = useSyncReadings();
+  const { refresh, isRefreshing } = useReadingsSync();
 
   const filtered = useMemo(() => filterByRange(readings, timeFilter), [readings, timeFilter]);
   // Memoised separately from the list so changing the filter does not
   // re-derive the chart series and every row in one pass.
   const series = useMemo(() => chartSeries(filtered), [filtered]);
-
-  const refresh = useCallback(async () => {
-    await sync();
-    await fetchReadings();
-  }, [fetchReadings, sync]);
 
   return (
     <GradientBackground safeArea={false}>
@@ -99,7 +92,10 @@ export default function HistoryScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 108 }}
         refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={() => void refresh()} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => void refresh({ force: true })}
+          />
         }
       >
         <View className="items-center px-4 py-4">

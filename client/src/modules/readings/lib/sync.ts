@@ -29,10 +29,15 @@
  *    that ordering a retry mints a second `Image` row and orphans the first
  *    object in the bucket.
  *
- * 4. **A missing local photo is not a failure.** The OS can evict a cached
- *    file before the user reconnects. Losing the picture is bad; refusing to
- *    sync the *numbers* because the picture is gone is worse, so the reading
- *    goes up without it.
+ * 4. **A photo never blocks the numbers forever.** A *missing* local file is
+ *    not a failure at all — the OS can evict a cached copy before the user
+ *    reconnects, and refusing to sync a blood-pressure measurement because
+ *    its picture is gone is the wrong trade. An upload that *fails* is
+ *    retried, but only `IMAGE_ATTEMPT_LIMIT` times: after that the reading
+ *    goes up without the photo. Before that limit existed, one un-uploadable
+ *    image (an expired presign, a bucket 5xx, a file the OS re-encoded) kept
+ *    a reading in the queue permanently, and every reading taken with the
+ *    camera has an image.
  *
  * 5. **One row's failure never stops the queue.** Each is attempted
  *    independently, failures are recorded on the row, and the drain moves on.
@@ -72,6 +77,18 @@ export type SyncResult = {
   /** Rows left in the queue for the next pass. */
   failed: number;
 };
+
+/**
+ * How many drains may fail on the *image* before the reading goes up without
+ * it — see rule 4.
+ *
+ * Three, because the failures worth retrying are transient (a presign that
+ * expired while the device was offline, a bucket returning 5xx, a socket that
+ * died mid-PUT) and none of those survive three separate network conditions.
+ * A fourth attempt would be indistinguishable from the permanent case, and
+ * the permanent case currently costs the patient their reading.
+ */
+export const IMAGE_ATTEMPT_LIMIT = 3;
 
 const isRemote = (uri: string) => /^https?:\/\//i.test(uri);
 
@@ -113,10 +130,17 @@ export async function drainQueue(ports: SyncPorts, userId: string): Promise<Sync
 
       // Best-effort, and deliberately after the promotion: losing the local
       // copy of a photo whose row failed to promote would be unrecoverable.
-      try {
-        await ports.releaseImage?.(row.clientId);
-      } catch {
-        // An app-launch sweep collects anything missed here.
+      //
+      // Skipped entirely when rule 4 gave up on the upload: the durable copy
+      // is then the *only* copy of that photo anywhere, and deleting it here
+      // would take a picture away from a patient to save a few kilobytes.
+      const photoIsOnlyLocal = row.imageUri != null && imageId == null;
+      if (!photoIsOnlyLocal) {
+        try {
+          await ports.releaseImage?.(row.clientId);
+        } catch {
+          // An app-launch sweep collects anything missed here.
+        }
       }
     } catch (error) {
       // Rule 5. Record and continue — the next row may be perfectly fine.
@@ -151,7 +175,17 @@ async function resolveImageId(ports: SyncPorts, row: PendingReading): Promise<nu
       // Rule 4: the numbers matter more than the picture.
       return null;
     }
-    throw error;
+
+    // Still inside the retry budget — fail the whole row so the next pass
+    // tries the upload again rather than filing a reading whose photo could
+    // still have made it.
+    if (row.attempts + 1 < IMAGE_ATTEMPT_LIMIT) throw error;
+
+    // Budget spent. The reading goes up without the image; `toMirrorRow`
+    // keeps the local `file://` copy on the mirrored row, so the patient
+    // still sees their own photo on this device — it just never reached S3,
+    // and no other device will have it.
+    return null;
   }
 }
 

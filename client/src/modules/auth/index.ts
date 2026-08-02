@@ -8,7 +8,11 @@
  * hooks own, which is exactly how a "signed in but the UI disagrees" bug
  * gets made.
  */
-export { initAuth, registerSessionExpiryHandler } from './bootstrap';
+export {
+  initAuth,
+  registerSessionExpiryHandler,
+  registerSessionUserMirror,
+} from './bootstrap';
 export { resolveGate, type GateDestination } from './route-gate';
 
 export { useChangePassword } from './hooks/use-change-password';

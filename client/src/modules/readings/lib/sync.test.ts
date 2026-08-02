@@ -1,4 +1,11 @@
-import { LocalImageMissing, drainQueue, resetSyncMutex, runSync, type SyncPorts } from './sync';
+import {
+  IMAGE_ATTEMPT_LIMIT,
+  LocalImageMissing,
+  drainQueue,
+  resetSyncMutex,
+  runSync,
+  type SyncPorts,
+} from './sync';
 import type { Reading } from '../types';
 import type { PendingReading } from '@/database/schema';
 
@@ -180,7 +187,7 @@ describe('drainQueue', () => {
       expect(ports.createReading).toHaveBeenCalledWith(expect.objectContaining({ imageId: null }));
     });
 
-    it('treats any other upload failure as a failure of the whole row', async () => {
+    it('fails the whole row while the upload still has retries left', async () => {
       const ports = makePorts({
         listQueued: jest.fn(async () => [queuedRow({ imageUri: 'file:///tmp/a.jpg' })]),
         uploadImage: jest.fn(async () => {
@@ -192,6 +199,50 @@ describe('drainQueue', () => {
 
       expect(result).toEqual({ synced: 0, failed: 1 });
       expect(ports.createReading).not.toHaveBeenCalled();
+    });
+
+    // The bug this budget exists for: one photo that could never be uploaded
+    // — an expired presign, a bucket 5xx, a file the OS re-encoded — kept a
+    // blood-pressure reading out of the patient's record permanently, and
+    // every reading taken with the camera has a photo.
+    it('sends the numbers without the photo once the retry budget is spent', async () => {
+      const ports = makePorts({
+        listQueued: jest.fn(async () => [
+          queuedRow({ imageUri: 'file:///tmp/a.jpg', attempts: IMAGE_ATTEMPT_LIMIT - 1 }),
+        ]),
+        uploadImage: jest.fn(async () => {
+          throw new Error('S3 PUT failed with 500');
+        }),
+      });
+
+      const result = await drainQueue(ports, USER);
+
+      expect(result).toEqual({ synced: 1, failed: 0 });
+      expect(ports.createReading).toHaveBeenCalledWith(
+        expect.objectContaining({ imageId: null }),
+      );
+    });
+
+    it('keeps the durable copy when the photo never reached the server', async () => {
+      const ports = makePorts({
+        listQueued: jest.fn(async () => [
+          queuedRow({ imageUri: 'file:///tmp/a.jpg', attempts: IMAGE_ATTEMPT_LIMIT - 1 }),
+        ]),
+        uploadImage: jest.fn(async () => {
+          throw new Error('S3 PUT failed with 500');
+        }),
+      });
+
+      await drainQueue(ports, USER);
+
+      // That file is now the only copy of the photo in existence. Releasing
+      // it here — or sweeping it at the next launch — takes a picture away
+      // from a patient to reclaim a few kilobytes.
+      expect(ports.releaseImage).not.toHaveBeenCalled();
+      expect(ports.promote).toHaveBeenCalledWith(
+        'c1',
+        expect.objectContaining({ imageUri: 'file:///tmp/a.jpg' }),
+      );
     });
 
     it('keeps the local photo path on the promoted row', async () => {

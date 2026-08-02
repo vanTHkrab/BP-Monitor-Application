@@ -12,12 +12,16 @@ import { TamaguiProvider } from 'tamagui';
 import tamaguiConfig from '../../tamagui.config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useDatabaseMigrations } from '@/database/migrator';
-import { initAuth, registerSessionExpiryHandler } from '@/modules/auth';
+import {
+  initAuth,
+  registerSessionExpiryHandler,
+  registerSessionUserMirror,
+} from '@/modules/auth';
 import {
   initReminderNotifications,
   stopReminderNotifications,
 } from '@/modules/notifications';
-import { cleanupOrphanedPendingImages } from '@/modules/readings';
+import { ReadingsSyncProvider, cleanupOrphanedPendingImages } from '@/modules/readings';
 import { AppLockGate } from '@/modules/security';
 import { createQueryClient } from '@/services/query-client';
 import { usePreferencesStore } from '@/stores';
@@ -38,8 +42,14 @@ SplashScreen.preventAutoHideAsync();
 function useAuthBootstrap() {
   useEffect(() => {
     const unregister = registerSessionExpiryHandler();
+    // Mirrors the signed-in user id to device storage so an offline cold
+    // start knows whose local readings to show — see `modules/auth/bootstrap`.
+    const unsubscribe = registerSessionUserMirror();
     void initAuth();
-    return unregister;
+    return () => {
+      unregister();
+      unsubscribe();
+    };
   }, []);
 }
 
@@ -113,10 +123,16 @@ function ThemedApp() {
             version leaves whichever screen forgot it as an open door. It is
             a no-op — rendering children straight through — for the majority
             who never turn the lock on. */}
+        {/* Inside the migrations gate because it reads the queue and the
+            mirror, and outside `AppLockGate` on purpose: a locked app should
+            still be draining and pulling, so unlocking lands on fresh data
+            rather than on a spinner. */}
         {migrations.success ? (
-          <AppLockGate>
-            <RootStack />
-          </AppLockGate>
+          <ReadingsSyncProvider>
+            <AppLockGate>
+              <RootStack />
+            </AppLockGate>
+          </ReadingsSyncProvider>
         ) : null}
       </ThemeProvider>
     </TamaguiProvider>

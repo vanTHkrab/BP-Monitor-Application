@@ -219,6 +219,62 @@ export default function ReadingDetailScreen() {
               />
             </View>
 
+            {/* The queue records why a row failed and how often. Nothing
+                rendered it, so a reading stuck behind a bad photo or an
+                expired token looked identical to one waiting for a signal —
+                and the only person who could reconnect the phone had no way
+                to tell the difference. Shown here rather than on the card
+                because it is diagnostic detail, not a list-level state. */}
+            {reading.syncState === 'queued' && (reading.attempts ?? 0) > 0 ? (
+              <View
+                testID="reading-detail-sync-failure"
+                className="mb-4 rounded-2xl border p-4"
+                style={{ backgroundColor: colors.surface, borderColor: statusColorFor('high') }}
+              >
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={16}
+                    color={statusColorFor('high')}
+                  />
+                  <Text
+                    className="ml-1.5 font-bold"
+                    style={{
+                      fontSize: Math.round(15 * fontScale),
+                      color: colors['text-primary'],
+                    }}
+                  >
+                    {`ส่งขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (${reading.attempts} ครั้ง)`}
+                  </Text>
+                </View>
+
+                <Text
+                  className="mt-2"
+                  style={{
+                    fontSize: Math.round(13 * fontScale),
+                    lineHeight: Math.round(20 * fontScale),
+                    color: colors['text-secondary'],
+                  }}
+                >
+                  ข้อมูลยังอยู่ในเครื่องและจะส่งใหม่อัตโนมัติเมื่อเชื่อมต่อได้
+                  ลากหน้าจอประวัติลงเพื่อลองอีกครั้งได้ทันที
+                </Text>
+
+                {reading.lastError ? (
+                  <Text
+                    className="mt-2"
+                    style={{
+                      fontSize: Math.round(12 * fontScale),
+                      lineHeight: Math.round(18 * fontScale),
+                      color: colors['text-secondary'],
+                    }}
+                  >
+                    {reading.lastError}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
             <View
               className="mb-4 rounded-2xl border p-4"
               style={{ backgroundColor: colors.surface, borderColor: colors.border }}

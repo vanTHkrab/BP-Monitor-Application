@@ -19,7 +19,7 @@ import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import { useActivePatient } from '@/modules/caregivers';
-import { BPReadingCard, useFetchReadings, useReadings } from '@/modules/readings';
+import { BPReadingCard, useReadings, useReadingsSync } from '@/modules/readings';
 import { SecurityHeader } from '@/modules/security';
 
 export default function HistoryListScreen() {
@@ -30,7 +30,10 @@ export default function HistoryListScreen() {
   const { viewingPatientId } = useActivePatient();
 
   const { readings, isLoading } = useReadings({ patientId: viewingPatientId });
-  const { fetchReadings, isFetching } = useFetchReadings({ patientId: viewingPatientId });
+  // Pulling here also drains the queue, which the old wiring did not: this
+  // screen called `fetchReadings` alone, so a user who came here to check on
+  // a stuck reading refreshed everything except the thing they were watching.
+  const { refresh, isRefreshing } = useReadingsSync();
 
   return (
     <GradientBackground>
@@ -53,7 +56,10 @@ export default function HistoryListScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={isFetching} onRefresh={() => void fetchReadings()} />
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={() => void refresh({ force: true })}
+            />
           }
           ListEmptyComponent={
             <View

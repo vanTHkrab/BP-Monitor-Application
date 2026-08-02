@@ -11,13 +11,21 @@
  *
  * `lib/sync.ts` is exported for its types and its test seam only — the drain
  * is wired to real I/O in exactly one place, `hooks/use-sync-readings.ts`.
+ *
+ * `useFetchReadings` and `useSyncReadings` are **not** exported for the same
+ * reason. Screens used to call both, which is how the app ended up with a
+ * pull nobody triggered and four copies of every sync listener. The app-level
+ * `ReadingsSyncProvider` owns them now; a screen gets `useReadingsSync()`.
  */
 export { useAlerts, useMarkAlertRead, useMarkAllAlertsRead } from './hooks/use-alerts';
 export { useCreateReading } from './hooks/use-create-reading';
 export { useDeleteReading } from './hooks/use-delete-reading';
-export { useFetchReadings } from './hooks/use-fetch-readings';
 export { useReadings, type UseReadingsOptions } from './hooks/use-readings';
-export { useSyncReadings } from './hooks/use-sync-readings';
+export {
+  ReadingsSyncProvider,
+  useReadingsSync,
+  type ReadingsSyncValue,
+} from './hooks/use-readings-sync';
 
 export { BPReadingCard } from './components/bp-reading-card';
 export { BPTrendChart } from './components/bp-trend-chart';

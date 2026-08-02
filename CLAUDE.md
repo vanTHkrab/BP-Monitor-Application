@@ -253,7 +253,7 @@ small, the surface area is wide, and one careless change can cross three
 processes — work like the senior on the team, not like an autocompleter.
 
 - **Hold the system in your head before editing the file.** A change in
-  `client/store/slices/readings.slice.ts` may interact with a SQLite queue,
+  `client/src/modules/readings/lib/sync.ts` may interact with a SQLite queue,
   a Mercurius resolver, a Redis payload, and a Prisma migration. If you
   don't know which of those are in scope, slow down and trace the path
   before writing code.
@@ -291,13 +291,23 @@ The repo has a handful of high-leverage / high-blast-radius surfaces. These
 are the parts where a senior eye matters most — they look ordinary but
 misbehave subtly when changed without context:
 
-- **Offline-first integrity (mobile).** The SQLite mirror + sync mutexes in
-  `client/store/slices/` are the contract between "user tapped save" and
-  "server confirmed save." `pending_readings` doubles as the synced-row
-  mirror (`syncStatus` distinguishes queue vs cache), so a sync now marks
-  rows synced in place rather than deleting them — partial sync, duplicate
-  sync, lost mutex releases, **and** stale-mirror drift all manifest as
-  data loss visible only to the patient.
+- **Offline-first integrity (mobile).** The queue, the mirror, and the sync
+  mutex in `client/src/modules/readings/` are the contract between "user
+  tapped save" and "server confirmed save." They are **two tables**:
+  `pending_readings` is the outbox and `readings` is the mirror of what the
+  server confirmed, and a sync promotes a row from one to the other inside a
+  single transaction. (The old client kept both in `pending_readings` behind
+  a `syncStatus` column; that design is gone, and the split is why the
+  promotion has to be transactional.) Partial sync, duplicate sync, lost
+  mutex releases, **and** stale-mirror drift all manifest as data loss
+  visible only to the patient.
+- **Readings sync is triggered in exactly one place (mobile).**
+  `modules/readings/hooks/use-readings-sync.tsx` owns the app's only
+  `AppState` and `NetInfo` listeners and the only automatic pull. Screens
+  call `useReadingsSync()` and never `useFetchReadings` / `useSyncReadings`,
+  which are module-internal. Wiring either one into a screen again
+  reintroduces both original bugs: duplicated listeners, and a pull that
+  only ever runs when the user drags the screen down.
 - **Gateway ↔ AI Redis wire.** The `analyze_bp_image` /
   `analyze_bp_image.reply` channels are typed only by convention. A field
   rename on one side and a stale deploy on the other will fail silently —

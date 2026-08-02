@@ -29,6 +29,7 @@ import { Platform } from 'react-native';
 
 import { db } from '@/database';
 
+import { listMirrorLocalImageClientIds } from '../repository/mirror';
 import { listQueuedClientIds } from '../repository/queue';
 
 const PENDING_DIR_NAME = 'pending-images';
@@ -122,10 +123,16 @@ export async function releasePendingImage(clientId: string | null | undefined): 
 }
 
 /**
- * App-launch sweep: delete copies no queued reading refers to any more.
+ * App-launch sweep: delete copies no reading refers to any more.
  *
  * Device-wide rather than per-user on purpose — a file orphaned by the
  * previous account is exactly the kind of leak nobody comes back for.
+ *
+ * **Two claimants, not one.** The queue is the obvious one. The mirror is the
+ * one that was missed: rule 4 in `lib/sync.ts` promotes a reading whose
+ * upload gave up, and that row's `imageUri` still points here. Sweeping on
+ * the queue alone deleted exactly those photos on the next launch — a picture
+ * vanishing hours later from a reading that shows as synced.
  */
 export async function cleanupOrphanedPendingImages(): Promise<void> {
   if (Platform.OS === 'web') return;
@@ -134,8 +141,12 @@ export async function cleanupOrphanedPendingImages(): Promise<void> {
     const dir = pendingDir();
     if (!dir.exists) return;
 
+    const [queued, mirrored] = await Promise.all([
+      listQueuedClientIds(db),
+      listMirrorLocalImageClientIds(db),
+    ]);
     const activeKeys = new Set(
-      (await listQueuedClientIds(db)).map(sanitizeClientIdForFilename),
+      [...queued, ...mirrored].map(sanitizeClientIdForFilename),
     );
     for (const entry of dir.list()) {
       if (!(entry instanceof File) || !entry.name) continue;

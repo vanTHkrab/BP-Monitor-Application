@@ -58,10 +58,46 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 export async function clearAuthToken(): Promise<void> {
+  await forgetSessionUserId();
+
   if (useSecureStore) {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await removeLegacyToken();
     return;
   }
   await AsyncStorage.removeItem(TOKEN_KEY);
+}
+
+/**
+ * The token's owner, remembered across launches.
+ *
+ * Plain `AsyncStorage` rather than SecureStore: a user id is not a
+ * credential, it is already all over the local database, and putting it
+ * behind the keychain would buy nothing while adding a second thing that can
+ * fail during a cold start. Cleared with the token, in `clearAuthToken`, so
+ * the two can never disagree about whether there is a session.
+ */
+export async function rememberSessionUserId(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.sessionUserId, userId);
+  } catch {
+    // Best effort. Losing this costs an offline launch its history, not the
+    // session itself — never the sign-in.
+  }
+}
+
+export async function getSessionUserId(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(STORAGE_KEYS.sessionUserId);
+  } catch {
+    return null;
+  }
+}
+
+export async function forgetSessionUserId(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(STORAGE_KEYS.sessionUserId);
+  } catch {
+    // Same reasoning as `rememberSessionUserId`.
+  }
 }

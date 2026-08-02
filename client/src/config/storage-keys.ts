@@ -32,6 +32,16 @@ export const STORAGE_KEYS = {
    */
   authToken: 'bp_auth_token',
 
+  /**
+   * Who the stored token belongs to, mirrored device-side.
+   *
+   * Not a credential and not a source of truth — `me` is. It exists so a
+   * cold start with no network can still say *whose* local readings to show:
+   * without it, an offline launch has a valid token, no user id, and
+   * therefore an empty history on a device that holds every row.
+   */
+  sessionUserId: 'bp.session_user_id',
+
   themePreference: 'bp.theme_preference',
   fontSize: 'bp.font_size',
   setupCompleted: 'bp.setup_completed',

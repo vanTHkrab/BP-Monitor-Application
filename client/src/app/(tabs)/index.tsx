@@ -41,7 +41,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import { useCallback } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -55,9 +54,8 @@ import {
   GuidanceCard,
   LatestReadingCard,
   useAlerts,
-  useFetchReadings,
   useReadings,
-  useSyncReadings,
+  useReadingsSync,
 } from '@/modules/readings';
 import { gradientFor, palette } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
@@ -77,16 +75,11 @@ export default function HomeScreen() {
   const mustPickPatient = isCaregiver && !isViewingPatient;
 
   const { latest, pendingCount, isLoading } = useReadings({ patientId: viewingPatientId });
-  const { fetchReadings, isFetching } = useFetchReadings({ patientId: viewingPatientId });
   const { unreadCount } = useAlerts();
-  const { sync } = useSyncReadings();
-
-  const refresh = useCallback(async () => {
-    // Push first, then pull: a reading that just drained comes back in the
-    // same refresh instead of one pull later.
-    await sync();
-    await fetchReadings();
-  }, [fetchReadings, sync]);
+  // Push-then-pull, its triggers, and its throttle all live in the app-level
+  // provider — see `modules/readings/hooks/use-readings-sync.tsx`. The screen
+  // only says "the user asked for this one".
+  const { refresh, isRefreshing } = useReadingsSync();
 
   const accent = gradientFor(scheme, 'accent');
 
@@ -97,7 +90,10 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 108 }}
         refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={() => void refresh()} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => void refresh({ force: true })}
+          />
         }
       >
         <View className="flex-row items-center justify-between px-4 py-4">

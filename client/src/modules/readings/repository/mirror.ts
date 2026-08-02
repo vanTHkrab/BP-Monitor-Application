@@ -7,7 +7,7 @@
  *
  * Same injection rule as `queue.ts`: the database is a parameter.
  */
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 
 import { pendingReadings, readings, type Reading as ReadingRow } from '@/database/schema';
 import type { ReadingsDatabase } from './types';
@@ -27,6 +27,20 @@ export async function upsertMirrorRows(db: ReadingsDatabase, rows: ReadingRow[])
   // "Transaction function cannot return a promise" on both drivers.
   db.transaction((tx) => {
     for (const row of rows) {
+      // `onConflictDoUpdate` below only covers the primary key. The table has
+      // a *second* unique index, on `client_id`, and a row can legitimately
+      // arrive with a clientId this device already holds under a different
+      // remoteId — a reading deleted and re-submitted from the same queue
+      // entry. That raises a UNIQUE violation the DO UPDATE clause never
+      // sees, which rolls back the whole transaction: one such row and the
+      // entire fetch mirrors nothing, silently, behind a Thai toast.
+      if (row.clientId != null) {
+        tx
+          .delete(readings)
+          .where(and(eq(readings.clientId, row.clientId), ne(readings.remoteId, row.remoteId)))
+          .run();
+      }
+
       tx
         .insert(readings)
         .values(row)
@@ -67,6 +81,14 @@ export async function promoteToMirror(
   row: ReadingRow,
 ): Promise<void> {
   db.transaction((tx) => {
+    // Same second-unique-index hazard as `upsertMirrorRows`: a stale mirror
+    // row carrying this clientId under an older remoteId would make the
+    // insert below violate `readings_client_id_unique`, and the rollback
+    // would leave the reading in the queue to fail identically forever.
+    tx
+      .delete(readings)
+      .where(and(eq(readings.clientId, clientId), ne(readings.remoteId, row.remoteId)))
+      .run();
     tx.insert(readings).values(row).onConflictDoUpdate({ target: readings.remoteId, set: row }).run();
     tx.delete(pendingReadings).where(eq(pendingReadings.clientId, clientId)).run();
   });
@@ -108,6 +130,28 @@ export async function pruneMissingMirrorRows(
   if (stale.length === 0) return;
 
   await db.delete(readings).where(and(eq(readings.userId, userId), inArray(readings.remoteId, stale)));
+}
+
+/**
+ * Client ids of mirrored readings that still point at a local photo.
+ *
+ * Device-wide, and the counterpart to `listQueuedClientIds`: rule 4 in
+ * `lib/sync.ts` can promote a reading whose image never reached S3, and the
+ * durable copy is then the only copy in existence. Without this, the
+ * app-launch sweep — which only knew about the *queue* — would delete it on
+ * the next cold start and the patient's photo would disappear from a reading
+ * that otherwise looks perfectly synced.
+ */
+export async function listMirrorLocalImageClientIds(
+  db: ReadingsDatabase,
+): Promise<string[]> {
+  const rows = await db
+    .select({ clientId: readings.clientId, imageUri: readings.imageUri })
+    .from(readings);
+
+  return rows
+    .filter((row) => row.clientId != null && row.imageUri != null)
+    .map((row) => row.clientId as string);
 }
 
 /** Sign-out. The mirror is a cache; the next account must not read it. */

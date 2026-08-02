@@ -39,12 +39,18 @@ export function useFetchReadings({ patientId }: { patientId?: string } = {}) {
       const remote = await readingsApi.fetchReadings(patientId);
       const rows = remote.map((reading) => mirrorRowFromReading(reading, syncedAt));
 
-      await upsertMirrorRows(db, rows);
+      // Prune first, then upsert. The other order looks equivalent and is
+      // not: a reading re-submitted under the same `clientId` comes back with
+      // a *new* `remoteId`, and inserting it while the row it replaces is
+      // still present violates `readings_client_id_unique` and rolls back the
+      // whole write. Dropping what the server no longer has, first, means the
+      // upsert only ever sees rows it can land.
       await pruneMissingMirrorRows(
         db,
         subjectId,
         rows.map((row) => row.remoteId),
       );
+      await upsertMirrorRows(db, rows);
       return true;
     } catch (caught) {
       // Offline is the common case here and is not worth a red banner — the

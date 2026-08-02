@@ -5,20 +5,15 @@
  * system — this is the only place those are connected, which is what keeps
  * the five sync rules assertable in `lib/sync.test.ts`.
  *
- * Also owns the *triggers*. There are three, and they are deliberately all
- * edges rather than a timer: a poll would drain a queue that is almost always
- * empty, on a device where every wakeup costs battery.
- *
- *   - app returns to the foreground
- *   - the network comes back (offline → online)
- *   - a reading is saved while online (`use-create-reading.ts` calls `sync()`)
- *
- * The module-level mutex in `lib/sync.ts` is what makes overlapping triggers
- * safe; without it the foreground and NetInfo edges routinely fire together.
+ * **Triggers do not live here.** They belong to `use-readings-sync.tsx`,
+ * which owns one `AppState` and one `NetInfo` listener for the whole app.
+ * They used to be in this file, which meant every caller — two tabs and
+ * `use-create-reading` — registered its own pair. This hook is now just
+ * "push the queue, once, if there is a network", and the two callers are the
+ * sync provider and the save path.
  */
 import NetInfo from '@react-native-community/netinfo';
-import { useCallback, useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { useCallback } from 'react';
 
 import { db } from '@/database';
 import { useSession } from '@/modules/auth';
@@ -66,10 +61,18 @@ function createPorts(): SyncPorts {
   };
 }
 
+/**
+ * One set of ports for the process, not one per hook instance.
+ *
+ * They hold no state — every function closes over the `db` singleton and
+ * nothing else — so a per-instance copy was only ever extra allocation, and
+ * it made "how many drains can exist?" look like a question about React.
+ */
+let ports: SyncPorts | null = null;
+const sharedPorts = (): SyncPorts => (ports ??= createPorts());
+
 export function useSyncReadings() {
   const { userId, isAuthenticated } = useSession();
-  const portsRef = useRef<SyncPorts | null>(null);
-  portsRef.current ??= createPorts();
 
   const sync = useCallback(async (): Promise<SyncResult | null> => {
     if (!isAuthenticated || !userId) return null;
@@ -78,32 +81,8 @@ export function useSyncReadings() {
     // Offline is not a failure. The queue is the whole point — it waits.
     if (state.isConnected === false) return null;
 
-    return runSync(portsRef.current!, userId);
+    return runSync(sharedPorts(), userId);
   }, [isAuthenticated, userId]);
-
-  // Foreground edge. `AppState` fires on every transition, so this filters to
-  // the one that means "the user came back".
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void sync();
-    });
-    return () => subscription.remove();
-  }, [sync]);
-
-  // Offline → online edge. Only the rising edge: NetInfo also emits on
-  // reachability changes while already connected, and draining on each of
-  // those is work with nothing to do.
-  useEffect(() => {
-    let wasConnected: boolean | null = null;
-
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      const isConnected = state.isConnected === true;
-      if (isConnected && wasConnected === false) void sync();
-      wasConnected = isConnected;
-    });
-
-    return unsubscribe;
-  }, [sync]);
 
   return { sync };
 }
