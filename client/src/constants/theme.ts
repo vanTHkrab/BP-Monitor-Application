@@ -20,18 +20,30 @@ export const Fonts = Platform.select({
     rounded: 'ui-rounded',
     /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
+
+    // 🟢 Noto Sans Thai
+    notoSans: 'NotoSansThai_400Regular',
+    notoSansBold: 'NotoSansThai_700Bold',
   },
   default: {
     sans: 'normal',
     serif: 'serif',
     rounded: 'normal',
     mono: 'monospace',
+
+    // 🟢 Noto Sans Thai
+    notoSans: 'NotoSansThai_400Regular',
+    notoSansBold: 'NotoSansThai_700Bold',
   },
   web: {
     sans: 'var(--font-display)',
     serif: 'var(--font-serif)',
     rounded: 'var(--font-rounded)',
     mono: 'var(--font-mono)',
+
+    // 🟢 ใส่ fallback สำหรับ web
+    notoSans: 'NotoSansThai_400Regular, sans-serif',
+    notoSansBold: 'NotoSansThai_700Bold, sans-serif',
   },
 });
 

@@ -59,6 +59,7 @@ import {
 } from '@/modules/readings';
 import { gradientFor, palette } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
+import {Fonts} from "@/constants/theme";
 
 cssInterop(LinearGradient, { className: 'style' });
 
@@ -114,7 +115,7 @@ export default function HomeScreen() {
               <Text
                 className="font-semibold"
                 numberOfLines={1}
-                style={{ fontSize: Math.round(20 * fontScale), color: colors['text-primary'] }}
+                style={{ fontSize: Math.round(20 * fontScale), color: colors['text-primary'], fontFamily: Fonts.notoSans, fontWeight: "bold"}}
               >
                 {`สวัสดี, คุณ ${user?.firstname || 'ผู้ใช้'}`}
               </Text>
