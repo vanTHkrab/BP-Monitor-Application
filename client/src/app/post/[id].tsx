@@ -9,7 +9,7 @@
  *
  * Comments are flat and online-only. Flat because client-old never rendered
  * a reply and `parentId` is a feature, not a port. Online-only for the same
- * reason the feed is — see the header of `app/(tabs)/chat.tsx`.
+ * reason the feed is — see the header of `app/(tabs)/post.tsx`.
  *
  * The one structural nuisance: the gateway has no `post(id:)` query, so
  * `usePost` reconstructs the post from the feed when this route is opened

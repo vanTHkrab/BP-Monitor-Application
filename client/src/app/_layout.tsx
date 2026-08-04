@@ -30,8 +30,14 @@ import {
   ColorSchemeProvider,
   useColorSchemePreference,
 } from '@/theme/color-scheme';
+import { StatusBar } from 'expo-status-bar';
+import {
+  useFonts,
+  NotoSansThai_400Regular,
+  NotoSansThai_700Bold
+} from '@expo-google-fonts/noto-sans-thai';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().then();
 
 /**
  * Restores the session and wires the transport's 401 fan-out, once.
@@ -131,6 +137,7 @@ function ThemedApp() {
           <ReadingsSyncProvider>
             <AppLockGate>
               <RootStack />
+              <StatusBar />
             </AppLockGate>
           </ReadingsSyncProvider>
         ) : null}
@@ -197,6 +204,21 @@ export default function RootLayout() {
   // Created in state, not at module scope, so a fast refresh does not leave
   // two clients alive with different caches.
   const [queryClient] = useState(createQueryClient);
+
+  const [loaded, error] = useFonts({
+    NotoSansThai_400Regular,
+    NotoSansThai_700Bold,
+  });
+
+  useEffect(() => {
+    if (loaded || error) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded, error]);
+
+  if (!loaded && !error) {
+    return null;
+  }
 
   return (
     <SafeAreaProvider>
