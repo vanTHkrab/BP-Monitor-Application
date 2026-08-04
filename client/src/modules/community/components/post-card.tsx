@@ -58,11 +58,11 @@ export function PostCard({ post, isOwner, onPress, onLike, onComment, onMore }: 
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`โพสต์ของ ${post.userName}`}
-      className="mb-3 rounded-2xl p-4"
-      style={({ pressed }) => ({
+      className="mb-3 rounded-2xl p-4 "
+      style={{
         backgroundColor: colors.surface,
-        opacity: pressed ? 0.95 : 1,
-      })}
+        // opacity: pressed ? 0.95 : 0,
+      }}
     >
       <View className="mb-3 flex-row items-center">
         <Avatar uri={post.userAvatar} firstname={post.userName} size="sm" />

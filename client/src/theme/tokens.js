@@ -59,7 +59,7 @@ const semantic = {
     background: '#BFE8F0',
     surface: '#FFFFFF',
     'surface-muted': '#EBF5FB',
-    border: '#FFFFFF',
+    border: '#BFE8F0',
     'text-primary': '#2C3E50',
     'text-secondary': '#7F8C8D',
     'icon-neutral': '#374151',

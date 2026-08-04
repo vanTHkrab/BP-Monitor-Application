@@ -21,7 +21,9 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.project.bpmonitor",
       "versionCode": 1,
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static",
@@ -70,6 +72,18 @@
             "./assets/sounds/bp_voice_4.wav",
             "./assets/sounds/bp_voice_5.wav"
           ]
+        }
+      ],
+      [
+        "expo-status-bar",
+        {
+          "hidden": false
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow $(PRODUCT_NAME) to access your contacts."
         }
       ]
     ],
