@@ -154,7 +154,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="chat"
+        name="post"
         options={{
           title: 'ชุมชน',
           tabBarIcon: ({ color, focused }) => (
