@@ -10,6 +10,7 @@
  * The chart is not asserted through the renderer. Its input is tested; how
  * `react-native-gifted-charts` draws it is that library's business.
  */
+import { Alert } from 'react-native';
 import { router } from 'expo-router';
 
 jest.mock(
@@ -41,21 +42,31 @@ jest.mock('@/modules/caregivers', () => ({
 
 const mockReadings = { readings: [] as Record<string, unknown>[], isLoading: false };
 
-jest.mock('@/modules/readings', () => {
-  const timeFilter = jest.requireActual('@/modules/readings/lib/time-filter');
-  return {
-    ...timeFilter,
-    BPReadingCard: jest.requireActual('@/modules/readings/components/bp-reading-card')
-      .BPReadingCard,
-    BPTrendChart: jest.requireActual('@/modules/readings/components/bp-trend-chart')
-      .BPTrendChart,
-    useReadings: () => mockReadings,
-    useReadingsSync: () => ({ refresh: jest.fn(), isRefreshing: false, error: null }),
-  };
-});
+const mockExportReadings = jest.fn();
+
+// Only the data hooks are replaced; the components — including the real
+// `ExportFormatSheet` the tests below press — come from the actual module.
+// That became possible once `@/database` opened the device database on first
+// `getDb()` rather than on import.
+jest.mock('@/modules/readings', () => ({
+  ...jest.requireActual('@/modules/readings'),
+  useReadings: () => mockReadings,
+  useReadingsSync: () => ({ refresh: jest.fn(), isRefreshing: false, error: null }),
+  // The export itself is covered by `lib/export.test.ts`; what this file
+  // cares about is which rows the screen hands over — the filtered set, not
+  // everything.
+  useExportReadings: () => ({ exportReadings: mockExportReadings, isExporting: false }),
+}));
 
 import HistoryScreen from '@/app/(tabs)/history';
 import { fireEvent, renderScreen, waitFor } from '../test-utils';
+
+/** Runs the button at `index` of the last Alert — 0 is PDF, 1 is CSV here. */
+function pressAlertButton(index: number) {
+  const spy = Alert.alert as unknown as jest.Mock;
+  const buttons = spy.mock.calls.at(-1)?.[2] as { onPress?: () => void }[] | undefined;
+  return buttons?.[index]?.onPress?.();
+}
 
 const daysAgo = (days: number) => {
   const date = new Date();
@@ -79,6 +90,7 @@ const reading = (days: number, over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(router, 'push').mockImplementation(() => {});
+  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   mockUser.current = { firstname: 'สมชาย', lastname: 'ใจดี', role: 'patient' };
   mockActivePatient.current = { viewingPatientId: undefined, isViewingPatient: false };
   mockReadings.readings = [];
@@ -133,6 +145,48 @@ describe('HistoryScreen', () => {
       // `waitFor`, not a bare assertion: RNTL v14 renders concurrently, so
       // the re-render from this state change has not flushed synchronously.
       await waitFor(() => expect(view.getByTestId('reading-k200')).toBeTruthy());
+    });
+  });
+
+  describe('exporting', () => {
+    // The bug this guards: exporting `readings` instead of `filtered` hands
+    // the user a document covering a period they did not ask for, while the
+    // screen in front of them shows a narrower one.
+    it('exports the filtered range, not the whole history', async () => {
+      mockReadings.readings = [reading(2), reading(200)];
+      const view = await renderScreen(<HistoryScreen />);
+
+      await fireEvent.press(view.getByTestId('history-export'));
+      await fireEvent.press(await view.findByTestId('export-format-pdf'));
+
+      const [rows] = mockExportReadings.mock.calls.at(-1) as [{ key: string }[], string];
+      expect(rows.map((row) => row.key)).toEqual(['k2']);
+    });
+
+    it.each(['pdf', 'csv'])('exports as %s once that format is picked', async (format) => {
+      mockReadings.readings = [reading(2)];
+      const view = await renderScreen(<HistoryScreen />);
+
+      await fireEvent.press(view.getByTestId('history-export'));
+      await fireEvent.press(await view.findByTestId(`export-format-${format}`));
+
+      expect(mockExportReadings).toHaveBeenCalledWith(expect.anything(), format);
+    });
+
+    // An empty PDF is a worse answer than a disabled button. Asserted on the
+    // trigger rather than on the sheet's absence: Tamagui keeps `Sheet`
+    // content mounted while closed, so `queryByTestId` finds the PDF button
+    // either way and would pass for the wrong reason.
+    it('does not offer an export when the range is empty', async () => {
+      mockReadings.readings = [reading(200)];
+      const view = await renderScreen(<HistoryScreen />);
+
+      const trigger = view.getByTestId('history-export');
+      expect(trigger).toBeDisabled();
+
+      await fireEvent.press(trigger);
+
+      expect(mockExportReadings).not.toHaveBeenCalled();
     });
   });
 

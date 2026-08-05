@@ -129,8 +129,8 @@ Inventory, and what happened to each part:
 | Guidance text keyed by status | Ported into `components/guidance-card.tsx`. It is that card's content, not a property of the classification — a second surface wanting different wording should write its own rather than bend this one. The short one-liner in `lib/status.ts` is separate and used elsewhere. |
 | Camera CTA | Port as a link. The camera screen itself is [CLIENT-camera-models.md](./CLIENT-camera-models.md). |
 | Emergency call button | Port. `Linking.openURL('tel:1669')`. |
-| PDF/CSV report export | **Deferred, not ported.** The export builders were never carried over; it belongs with History, where a user looks for their data. The history card takes the full row until then. |
-| "เคล็ดลับการดูแลสุขภาพ" row | **Not ported** — `/health-tips` is not a route in this tree, and a row that navigates nowhere is worse than one that is not there yet. |
+| PDF/CSV report export | **Ported**, back in the original's two-up grid beside "ดูประวัติทั้งหมด". Exports PDF directly — the card says "PDF" on its face, so it does not ask for a format the way settings and history do. See [CLIENT-export.md](./CLIENT-export.md). |
+| "เคล็ดลับการดูแลสุขภาพ" row | Ported. `/health-tips` now exists ([`app/health-tips.tsx`](../../client/src/app/health-tips.tsx)); the row opens it. The four tips live in `modules/health-tips/` rather than in the route, since the icon mapping is worth asserting on its own. |
 
 ### Alerts
 
@@ -178,7 +178,5 @@ the truth.
   but nothing *sets* it yet — the "ดูข้อมูล" button on `app/invitations.tsx`
   is still unported. That button is now unblocked: it calls
   `setActivePatient(patient)` and navigates to `/(tabs)`.
-- **Export** ships with history. Delete the blocked-export paragraph from
-  `app/settings.tsx`'s header in the same change (root `CLAUDE.md` rule 6).
-- **`/health-tips`** has no route. Either port the screen or drop the row
-  from the plan for good.
+- ~~**`/health-tips`** has no route.~~ Done — the screen is ported and the
+  home row links to it.

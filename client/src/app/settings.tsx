@@ -16,12 +16,11 @@
  * screen's: back bar, bold section headings, individually-carded rows with a
  * tinted icon badge.
  *
- * One section from the original is still missing: **CSV/PDF export**. It was
- * blocked on there being readings to export; that is no longer true — the
- * readings module, the home, history, and camera tabs all landed — so what
- * is left is the builders themselves (client-old's `utils/export-report.ts`,
- * ~730 lines) and wiring `expo-print` / `expo-sharing`, which are already in
- * package.json and imported by nothing. See docs/todo/CLIENT-export.md.
+ * **CSV/PDF export lands here as whole-history export.** The range-scoped
+ * counterpart is the button on `app/(tabs)/history.tsx`, which exports what
+ * its time filter is showing; this one is the "all of it" door, which is why
+ * it sits directly above "ลบข้อมูล". Both go through `useExportReadings`, so
+ * neither can disagree with the other about whose name goes on the document.
  *
  * Two things from client-old are deliberately *not* ported:
  *
@@ -47,7 +46,9 @@ import { ThemePicker } from '@/components/ui/theme-picker';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useDeleteMyData } from '@/modules/auth';
+import { useActivePatient } from '@/modules/caregivers';
 import { useReminderSettings } from '@/modules/notifications';
+import { ExportFormatSheet, useExportReadings, useReadings } from '@/modules/readings';
 import { palette } from '@/theme';
 
 export default function SettingsScreen() {
@@ -56,6 +57,20 @@ export default function SettingsScreen() {
   const { deleteMyData, isPending: isDeleting } = useDeleteMyData();
   const { settings: reminders, isLoading: isLoadingReminders } = useReminderSettings();
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
+
+  // Scoped to whoever is being viewed, so a caregiver exporting from here
+  // gets the patient's readings — the same set the history tab shows them.
+  const { viewingPatientId } = useActivePatient();
+  const { readings } = useReadings({ patientId: viewingPatientId });
+  const { exportReadings, isExporting } = useExportReadings();
+
+  /**
+   * Whole history, so the only question is the format. client-old asked three
+   * times here (data type, then period, then format); the period question is
+   * what "ส่งออกข้อมูล" already answers, and the data-type question offered
+   * community posts, which this tree does not export.
+   */
+  const [formatSheetOpen, setFormatSheetOpen] = useState(false);
 
   // The row states the schedule rather than just naming the screen: "ปิดอยู่"
   // vs "ทุก 4 ชั่วโมง" is the answer most visits to this row are looking for,
@@ -215,6 +230,25 @@ export default function SettingsScreen() {
             onPress={() => router.push('/security')}
           />
 
+          <SettingSection title="ข้อมูลของฉัน" />
+
+          {/* Placed immediately above "ลบข้อมูล" on purpose: someone about to
+              delete their history is exactly the person who should be offered
+              a copy of it first. */}
+          <SettingItem
+            testID="settings-export"
+            icon="download-outline"
+            title="ส่งออกข้อมูล"
+            subtitle={
+              readings.length === 0
+                ? 'ยังไม่มีค่าความดันให้ส่งออก'
+                : `รายงาน PDF หรือ CSV ของค่าความดันทั้งหมด (${readings.length} รายการ)`
+            }
+            accent="purple"
+            onPress={() => setFormatSheetOpen(true)}
+            disabled={readings.length === 0 || isExporting}
+          />
+
           {/* Last, and visually quieter than the sign-out button above it. A
               destructive action wants to be findable, not reachable by
               accident — and this one is two taps from a confirm dialog that
@@ -247,6 +281,14 @@ export default function SettingsScreen() {
           <View className="h-10" />
         </ScrollView>
       </View>
+
+      <ExportFormatSheet
+        open={formatSheetOpen}
+        onOpenChange={setFormatSheetOpen}
+        onSelect={(format) => void exportReadings(readings, format)}
+        title="ส่งออกข้อมูล"
+        summary={`ค่าความดันทั้งหมด ${readings.length} รายการ`}
+      />
     </GradientBackground>
   );
 }

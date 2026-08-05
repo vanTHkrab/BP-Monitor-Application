@@ -16,19 +16,18 @@
  * and the list with a "ยังไม่ได้ซิงก์" line, not missing until the next sync.
  * client-old fetched on focus and rendered from a Zustand array.
  *
- * Two sections of the original are not here, both because what they depend on
- * is not ported:
+ * One section of the original is still not here, because what it depends on
+ * is not ported: **"เช็กรอบวัดของวันนี้"**, the reminder timeline. It needs
+ * `buildReminderTimelineForDate`, which lives in client-old's
+ * `utils/reminders.ts` and has no equivalent in `modules/notifications`.
  *
- *   - **"เช็กรอบวัดของวันนี้"**, the reminder timeline. It needs
- *     `buildReminderTimelineForDate`, which lives in client-old's
- *     `utils/reminders.ts` and has no equivalent in `modules/notifications`.
- *   - **The PDF/CSV export button.** `expo-print` and `expo-sharing` are in
- *     package.json already (and imported by nothing, which is its own
- *     problem); what is missing is the builders — client-old's
- *     `utils/export-report.ts`, ~730 lines of CSV and report-HTML
- *     construction. Its own change, with its own tests, because the output
- *     is a document someone may hand to a clinician. See
- *     `docs/todo/CLIENT-export.md`.
+ * **The export button exports `filtered`, not `readings`** — what the user is
+ * looking at, not everything they have. The time filter above it is the
+ * period, which is why the export asks only for a format and not for a range
+ * the screen already states. Whole-history export lives on `app/settings.tsx`.
+ * The original's dark-slate gradient (`#2C3E50` → `#1a1a2e`) is not carried
+ * over for the same reason as the other drift noted above: it appears nowhere
+ * in `Theme`. It uses the `accent` gradient token instead.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -47,10 +46,12 @@ import { useActivePatient } from '@/modules/caregivers';
 import {
   BPReadingCard,
   BPTrendChart,
+  ExportFormatSheet,
   DEFAULT_TIME_FILTER,
   TIME_FILTERS,
   chartSeries,
   filterByRange,
+  useExportReadings,
   useReadings,
   useReadingsSync,
   type TimeFilter,
@@ -80,10 +81,21 @@ export default function HistoryScreen() {
   const { readings, isLoading } = useReadings({ patientId: viewingPatientId });
   const { refresh, isRefreshing } = useReadingsSync();
 
+  const { exportReadings, isExporting } = useExportReadings();
+
   const filtered = useMemo(() => filterByRange(readings, timeFilter), [readings, timeFilter]);
   // Memoised separately from the list so changing the filter does not
   // re-derive the chart series and every row in one pass.
   const series = useMemo(() => chartSeries(filtered), [filtered]);
+
+  /**
+   * One sheet, not client-old's three chained `Alert`s. The original asked for
+   * data type (readings vs. community posts — this tree exports only
+   * readings), then a period, then a format. The period is the filter above,
+   * so asking again would be asking the user to restate what is on screen.
+   */
+  const [formatSheetOpen, setFormatSheetOpen] = useState(false);
+  const rangeLabel = TIME_FILTERS.find((filter) => filter.key === timeFilter)?.label ?? '';
 
   return (
     <GradientBackground safeArea={false}>
@@ -195,9 +207,48 @@ export default function HistoryScreen() {
                 </Pressable>
               </View>
             ) : null}
+
+            <View className="mb-3 px-4">
+              <Pressable
+                testID="history-export"
+                onPress={() => setFormatSheetOpen(true)}
+                disabled={filtered.length === 0 || isExporting}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: filtered.length === 0 || isExporting }}
+                accessibilityLabel="ส่งออกรายงาน PDF หรือ CSV ของช่วงเวลาที่เลือก"
+                className="overflow-hidden rounded-2xl shadow-lg"
+                style={({ pressed }) => ({
+                  // An empty range has nothing to put in the document, and an
+                  // empty PDF is a worse answer than a disabled button.
+                  opacity: filtered.length === 0 || isExporting ? 0.5 : pressed ? 0.9 : 1,
+                })}
+              >
+                <LinearGradient
+                  colors={gradientFor(scheme, 'accent')}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  className="flex-row items-center justify-center gap-2 rounded-2xl py-4"
+                >
+                  <Ionicons name="download-outline" size={22} color="#FFFFFF" />
+                  <Text
+                    className="font-semibold text-white"
+                    style={{ fontSize: Math.round(15 * fontScale) }}
+                  >
+                    {isExporting ? 'กำลังส่งออก...' : 'ส่งออกรายงาน PDF/CSV'}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
           </>
         )}
       </ScrollView>
+
+      <ExportFormatSheet
+        open={formatSheetOpen}
+        onOpenChange={setFormatSheetOpen}
+        onSelect={(format) => void exportReadings(filtered, format)}
+        summary={`ช่วง ${rangeLabel} · ${filtered.length} รายการ`}
+      />
     </GradientBackground>
   );
 }

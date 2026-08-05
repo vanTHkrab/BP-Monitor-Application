@@ -12,6 +12,12 @@
  * `lib/sync.ts` is exported for its types and its test seam only — the drain
  * is wired to real I/O in exactly one place, `hooks/use-sync-readings.ts`.
  *
+ * `services/export-file.ts` is unexported for the same family of reason:
+ * `useExportReadings` owns resolving *whose* readings are being exported, and
+ * a screen that skipped it would put the caregiver's name on the patient's
+ * report. The pure builders in `lib/export.ts` stay internal too — nothing
+ * outside this module has a `Reading[]` to build a report from.
+ *
  * `useFetchReadings` and `useSyncReadings` are **not** exported for the same
  * reason. Screens used to call both, which is how the app ended up with a
  * pull nobody triggered and four copies of every sync listener. The app-level
@@ -20,6 +26,7 @@
 export { useAlerts, useMarkAlertRead, useMarkAllAlertsRead } from './hooks/use-alerts';
 export { useCreateReading } from './hooks/use-create-reading';
 export { useDeleteReading } from './hooks/use-delete-reading';
+export { useExportReadings } from './hooks/use-export-readings';
 export { useReadings, type UseReadingsOptions } from './hooks/use-readings';
 export {
   ReadingsSyncProvider,
@@ -29,6 +36,7 @@ export {
 
 export { BPReadingCard } from './components/bp-reading-card';
 export { BPTrendChart } from './components/bp-trend-chart';
+export { ExportFormatSheet } from './components/export-format-sheet';
 export { GuidanceCard, EMERGENCY_NUMBER } from './components/guidance-card';
 export { LatestReadingCard } from './components/latest-reading-card';
 

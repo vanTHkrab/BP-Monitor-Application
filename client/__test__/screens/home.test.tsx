@@ -36,6 +36,7 @@ jest.mock('@/modules/caregivers', () => ({
 }));
 
 const mockReadings = {
+  readings: [] as Record<string, unknown>[],
   latest: undefined as Record<string, unknown> | undefined,
   pendingCount: 0,
   isLoading: false,
@@ -43,17 +44,21 @@ const mockReadings = {
 const mockAlerts = { unreadCount: 0 };
 const mockRefresh = jest.fn();
 
-jest.mock('@/modules/readings', () => {
-  const actual = jest.requireActual('@/modules/readings/components/latest-reading-card');
-  const guidance = jest.requireActual('@/modules/readings/components/guidance-card');
-  return {
-    LatestReadingCard: actual.LatestReadingCard,
-    GuidanceCard: guidance.GuidanceCard,
-    useReadings: () => mockReadings,
-    useAlerts: () => mockAlerts,
-    useReadingsSync: () => ({ refresh: mockRefresh, isRefreshing: false, error: null }),
-  };
-});
+// Only the data hooks are replaced; every component comes from the real
+// module. That became possible once `@/database` opened the device database
+// on first `getDb()` instead of on import — before, requiring the barrel at
+// all threw here.
+const mockExportReadings = jest.fn();
+
+jest.mock('@/modules/readings', () => ({
+  ...jest.requireActual('@/modules/readings'),
+  useReadings: () => mockReadings,
+  useAlerts: () => mockAlerts,
+  useReadingsSync: () => ({ refresh: mockRefresh, isRefreshing: false, error: null }),
+  // The export itself is covered by `lib/export.test.ts`; what home decides
+  // is *which* readings go in and that it never asks for a format.
+  useExportReadings: () => ({ exportReadings: mockExportReadings, isExporting: false }),
+}));
 
 import HomeScreen from '@/app/(tabs)/index';
 import { fireEvent, renderScreen } from '../test-utils';
@@ -80,6 +85,7 @@ beforeEach(() => {
     viewingPatientId: undefined,
     isViewingPatient: false,
   };
+  mockReadings.readings = [];
   mockReadings.latest = undefined;
   mockReadings.pendingCount = 0;
   mockReadings.isLoading = false;
@@ -225,11 +231,39 @@ describe('HomeScreen', () => {
     });
   });
 
+  describe('the report card', () => {
+    // The card says "PDF" on its face, so unlike settings and history it does
+    // not ask for a format. A sheet here would be asking the user to confirm
+    // what they just read.
+    it('exports PDF directly, without asking for a format', async () => {
+      mockReadings.readings = [reading()];
+      const view = await renderScreen(<HomeScreen />);
+
+      await fireEvent.press(view.getByTestId('home-export-report'));
+
+      expect(mockExportReadings).toHaveBeenCalledWith(mockReadings.readings, 'pdf');
+      expect(view.queryByTestId('export-format-pdf')).toBeNull();
+    });
+
+    // An empty PDF is a worse answer than a disabled card.
+    it('is inert and says why when there is nothing to export', async () => {
+      const view = await renderScreen(<HomeScreen />);
+
+      await fireEvent.press(view.getByTestId('home-export-report'));
+
+      expect(mockExportReadings).not.toHaveBeenCalled();
+      // Distinct from the latest-reading card's "ยังไม่มีข้อมูล": that one
+      // means "you have no readings", this one means "nothing to export".
+      expect(view.getByText('ยังไม่มีข้อมูลให้ส่งออก')).toBeTruthy();
+    });
+  });
+
   it.each([
     ['home-alerts', '/alerts'],
     ['home-capture', '/(tabs)/camera'],
     ['home-open-history', '/(tabs)/history'],
     ['home-open-reminders', '/reminders'],
+    ['home-open-health-tips', '/health-tips'],
   ])('navigates from %s to %s', async (testID, href) => {
     const view = await renderScreen(<HomeScreen />);
 

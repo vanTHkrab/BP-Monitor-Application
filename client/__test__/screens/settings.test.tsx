@@ -30,6 +30,27 @@ jest.mock('@/modules/notifications', () => ({
   useReminderSettings: () => mockReminders,
 }));
 
+// Only the two hooks this screen calls are replaced; the rest of the module
+// is the real thing. That is possible because `@/database` opens the device
+// database on first `getDb()` rather than on import — before that, importing
+// the barrel at all threw, so the whole module had to be swapped for a stub
+// and the screen was no longer being tested against real code.
+//
+// `useReadings` still has to go: it is a `useLiveQuery` over expo-sqlite,
+// which has no native module here. `useExportReadings` goes because this file
+// is about the screen, not about `Print.printToFileAsync`.
+const mockExportReadings = jest.fn();
+const mockReadings = { current: [] as unknown[] };
+jest.mock('@/modules/readings', () => ({
+  ...jest.requireActual('@/modules/readings'),
+  useReadings: () => ({ readings: mockReadings.current, isLoading: false }),
+  useExportReadings: () => ({ exportReadings: mockExportReadings, isExporting: false }),
+}));
+
+jest.mock('@/modules/caregivers', () => ({
+  useActivePatient: () => ({ viewingPatientId: undefined }),
+}));
+
 const mockDeleteMyData = jest.fn();
 jest.mock('@/modules/auth', () => ({
   useDeleteMyData: () => ({ deleteMyData: mockDeleteMyData, isPending: false }),
@@ -59,6 +80,7 @@ beforeEach(() => {
     endHour: 20,
   };
   mockReminders.isLoading = false;
+  mockReadings.current = [{ key: 'k1' }, { key: 'k2' }];
 });
 
 describe('SettingsScreen', () => {
@@ -69,6 +91,40 @@ describe('SettingsScreen', () => {
     expect(view.getByTestId('settings-reminders')).toBeTruthy();
     expect(view.getByTestId('settings-security')).toBeTruthy();
     expect(view.getByTestId('settings-delete-data')).toBeTruthy();
+    expect(view.getByTestId('settings-export')).toBeTruthy();
+  });
+
+  describe('exporting', () => {
+    it('offers a format instead of exporting straight away', async () => {
+      const view = await renderScreen(<SettingsScreen />);
+
+      await fireEvent.press(view.getByTestId('settings-export'));
+
+      expect(await view.findByTestId('export-format-pdf')).toBeTruthy();
+      expect(mockExportReadings).not.toHaveBeenCalled();
+    });
+
+    it.each(['pdf', 'csv'])('exports as %s once that format is picked', async (format) => {
+      const view = await renderScreen(<SettingsScreen />);
+
+      await fireEvent.press(view.getByTestId('settings-export'));
+      await fireEvent.press(await view.findByTestId(`export-format-${format}`));
+
+      expect(mockExportReadings).toHaveBeenCalledWith(mockReadings.current, format);
+    });
+
+    // An empty PDF is a worse answer than a disabled row. Asserted on the row
+    // rather than the sheet's absence: Tamagui keeps `Sheet` content mounted
+    // while closed, so querying for the PDF button passes either way.
+    it('is disabled and says why when there is nothing to export', async () => {
+      mockReadings.current = [];
+      const view = await renderScreen(<SettingsScreen />);
+
+      await fireEvent.press(view.getByTestId('settings-export'));
+
+      expect(mockExportReadings).not.toHaveBeenCalled();
+      expect(view.getByText('ยังไม่มีค่าความดันให้ส่งออก')).toBeTruthy();
+    });
   });
 
   // The row exists to answer "am I being reminded, and how often" without

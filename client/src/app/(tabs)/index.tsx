@@ -26,16 +26,11 @@
  * it). The gateway remains the actual gate — `readings(patientId:)` needs an
  * accepted link — so this only decides what to ask for.
  *
- * Two of the original's tiles are not here, both because what they open does
- * not exist yet rather than by preference:
- *
- *   - **The PDF report card.** The export builders are not ported and there
- *     is nothing to export until history lands; it ships there, where a user
- *     goes looking for their data. See `docs/todo/CLIENT-history.md`. The
- *     history card takes the full row until then.
- *   - **The "เคล็ดลับการดูแลสุขภาพ" row.** `/health-tips` is not a route in
- *     this tree. A row that navigates nowhere is worse than one that is not
- *     there yet.
+ * **The report card exports PDF directly**, with no format sheet — unlike
+ * `app/settings.tsx` and `app/(tabs)/history.tsx`, which ask. The card says
+ * "PDF" on its face, so asking would be asking the user to confirm what they
+ * just read. All three go through `useExportReadings`, so the document itself
+ * cannot differ between them. See `docs/todo/CLIENT-export.md`.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,10 +49,11 @@ import {
   GuidanceCard,
   LatestReadingCard,
   useAlerts,
+  useExportReadings,
   useReadings,
   useReadingsSync,
 } from '@/modules/readings';
-import { gradientFor, palette } from '@/theme';
+import { gradientFor, palette, status } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 import {Fonts} from "@/constants/theme";
 
@@ -75,12 +71,15 @@ export default function HomeScreen() {
   const isCaregiver = user?.role === 'caregiver';
   const mustPickPatient = isCaregiver && !isViewingPatient;
 
-  const { latest, pendingCount, isLoading } = useReadings({ patientId: viewingPatientId });
+  const { readings, latest, pendingCount, isLoading } = useReadings({
+    patientId: viewingPatientId,
+  });
   const { unreadCount } = useAlerts();
   // Push-then-pull, its triggers, and its throttle all live in the app-level
   // provider — see `modules/readings/hooks/use-readings-sync.tsx`. The screen
   // only says "the user asked for this one".
   const { refresh, isRefreshing } = useReadingsSync();
+  const { exportReadings, isExporting } = useExportReadings();
 
   const accent = gradientFor(scheme, 'accent');
 
@@ -225,45 +224,152 @@ export default function HomeScreen() {
             <View className="mt-6 px-4">
               <SectionTitle>แนวโน้มและรายงาน</SectionTitle>
 
-              <Pressable
-                testID="home-open-history"
-                onPress={() => router.push('/(tabs)/history')}
-                accessibilityRole="button"
-                accessibilityLabel="ดูประวัติทั้งหมด"
-                style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
-              >
-                <View
-                  className="min-h-[170px] items-center rounded-2xl border p-[18px] shadow-md"
-                  style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+              {/* The original's two-up grid. The report card was dropped from
+                  the first port because `/health-tips`-style dead ends are
+                  worse than a gap; it is back now that the export exists. */}
+              <View className="flex-row">
+                <Pressable
+                  testID="home-open-history"
+                  onPress={() => router.push('/(tabs)/history')}
+                  accessibilityRole="button"
+                  accessibilityLabel="ดูประวัติทั้งหมด"
+                  className="flex-1"
+                  style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
                 >
                   <View
-                    className="mb-2 h-[72px] w-[72px] items-center justify-center rounded-2xl"
-                    style={{ backgroundColor: colors['surface-muted'] }}
+                    className="min-h-[170px] items-center rounded-2xl border p-[18px] shadow-md"
+                    style={{ backgroundColor: colors.surface, borderColor: colors.border }}
                   >
-                    <Ionicons name="trending-up" size={32} color={palette.blue} />
+                    <View
+                      className="mb-2 h-[72px] w-[72px] items-center justify-center rounded-2xl"
+                      style={{ backgroundColor: colors['surface-muted'] }}
+                    >
+                      <Ionicons name="trending-up" size={32} color={palette.blue} />
+                    </View>
+                    <View className="mt-0.5 flex-row items-center justify-center">
+                      <Text
+                        className="mb-1"
+                        style={{
+                          fontSize: Math.round(14 * fontScale),
+                          color: colors['text-secondary'],
+                        }}
+                      >
+                        ดูประวัติทั้งหมด
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={16}
+                        color={colors['text-secondary']}
+                      />
+                    </View>
                   </View>
-                  <View className="mt-0.5 flex-row items-center justify-center">
+                </Pressable>
+
+                <Pressable
+                  testID="home-export-report"
+                  onPress={() => void exportReadings(readings, 'pdf')}
+                  disabled={readings.length === 0 || isExporting}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: readings.length === 0 || isExporting }}
+                  accessibilityLabel="สร้างรายงานสุขภาพเป็นไฟล์ PDF"
+                  className="ml-4 flex-1"
+                  style={({ pressed }) => ({
+                    opacity: readings.length === 0 || isExporting ? 0.5 : pressed ? 0.9 : 1,
+                  })}
+                >
+                  <View
+                    className="min-h-[170px] items-center rounded-2xl border p-[18px] shadow-md"
+                    style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+                  >
                     <Text
                       className="mb-1"
+                      style={{
+                        fontSize: Math.round(12 * fontScale),
+                        color: colors['text-secondary'],
+                      }}
+                    >
+                      สร้างรายงานสุขภาพ
+                    </Text>
+                    <LinearGradient
+                      colors={gradientFor(scheme, 'accent')}
+                      className="mb-2 h-[72px] w-[72px] items-center justify-center rounded-2xl"
+                    >
+                      <Text
+                        className="font-bold text-white"
+                        style={{ fontSize: Math.round(12 * fontScale) }}
+                      >
+                        PDF
+                      </Text>
+                    </LinearGradient>
+                    <Text
+                      className="mb-1 text-center"
                       style={{
                         fontSize: Math.round(14 * fontScale),
                         color: colors['text-secondary'],
                       }}
                     >
-                      ดูประวัติทั้งหมด
+                      {/* No format sheet here, unlike settings and history.
+                          The card says PDF on its face; asking again would be
+                          asking the user to confirm what they just read. */}
+                      {isExporting
+                        ? 'กำลังสร้าง...'
+                        : readings.length === 0
+                          ? 'ยังไม่มีข้อมูลให้ส่งออก'
+                          : 'กดเพื่อสร้าง'}
                     </Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color={colors['text-secondary']}
-                    />
                   </View>
-                </View>
-              </Pressable>
+                </Pressable>
+              </View>
             </View>
 
             <View className="mt-6 px-4">
               <SectionTitle>สุขภาพและการดูแลตัวเอง</SectionTitle>
+
+              <Pressable
+                testID="home-open-health-tips"
+                onPress={() => router.push('/health-tips')}
+                accessibilityRole="button"
+                accessibilityLabel="เคล็ดลับการดูแลสุขภาพ อ่านบทความเกี่ยวกับการดูแลความดันโลหิต"
+                className="mb-3"
+                style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+              >
+                <View
+                  className="flex-row items-center rounded-2xl border p-4 shadow-md"
+                  style={{
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <View className="mr-3 h-11 w-11 items-center justify-center rounded-full bg-[#E8F5E9]">
+                    <Ionicons name="leaf" size={22} color={status.normal} />
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      className="font-semibold"
+                      style={{
+                        fontSize: Math.round(16 * fontScale),
+                        color: colors['text-primary'],
+                      }}
+                    >
+                      เคล็ดลับการดูแลสุขภาพ
+                    </Text>
+                    <Text
+                      className="mt-0.5"
+                      style={{
+                        fontSize: Math.round(14 * fontScale),
+                        color: colors['text-secondary'],
+                      }}
+                    >
+                      อ่านบทความเกี่ยวกับการดูแลความดันโลหิต
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={colors['text-secondary']}
+                  />
+                </View>
+              </Pressable>
 
               <Pressable
                 testID="home-open-reminders"

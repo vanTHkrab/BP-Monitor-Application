@@ -6,11 +6,12 @@ import { SplashScreen, ThemeProvider } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { TamaguiProvider } from 'tamagui';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TamaguiProvider, ToastProvider, ToastViewport } from 'tamagui';
 
 import tamaguiConfig from '../../tamagui.config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { AppToast } from '@/components/ui/app-toast';
 import { useDatabaseMigrations } from '@/database/migrator';
 import {
   initAuth,
@@ -110,6 +111,7 @@ function usePendingImageSweep(ready: boolean) {
  */
 function ThemedApp() {
   const { scheme } = useColorSchemePreference();
+  const insets = useSafeAreaInsets();
   // Nothing may render before the local tables exist — screens read from
   // SQLite on mount, and a missing table is a crash, not an empty list.
   const migrations = useDatabaseMigrations();
@@ -122,8 +124,14 @@ function ThemedApp() {
 
   return (
     <TamaguiProvider config={tamaguiConfig} defaultTheme={scheme}>
-      <ThemeProvider value={navigationThemeFor(scheme)}>
-        <AnimatedSplashOverlay />
+      {/* `native={false}`: the OS toast has no theme of ours and no room for
+          two lines, so `AppToast` renders every toast itself. The viewport is
+          here rather than inside a screen because a toast has to outlive the
+          screen that pushed it — the export success lands while the share
+          sheet is taking over. */}
+      <ToastProvider native={false} swipeDirection="up" duration={4000}>
+        <ThemeProvider value={navigationThemeFor(scheme)}>
+          <AnimatedSplashOverlay />
         {/* Wraps the whole navigator, not a screen: the app lock has to hold
             whatever route the user was on when they left, and a per-screen
             version leaves whichever screen forgot it as an open door. It is
@@ -133,15 +141,21 @@ function ThemedApp() {
             mirror, and outside `AppLockGate` on purpose: a locked app should
             still be draining and pulling, so unlocking lands on fresh data
             rather than on a spinner. */}
-        {migrations.success ? (
-          <ReadingsSyncProvider>
-            <AppLockGate>
-              <RootStack />
-              <StatusBar />
-            </AppLockGate>
-          </ReadingsSyncProvider>
-        ) : null}
-      </ThemeProvider>
+          {migrations.success ? (
+            <ReadingsSyncProvider>
+              <AppLockGate>
+                <RootStack />
+                <StatusBar />
+              </AppLockGate>
+            </ReadingsSyncProvider>
+          ) : null}
+
+          {/* Last, so it paints over the navigator. Offset by the status bar
+              inset — a toast under the notch is a toast nobody reads. */}
+          <ToastViewport top={insets.top + 8} left={0} right={0} />
+          <AppToast />
+        </ThemeProvider>
+      </ToastProvider>
     </TamaguiProvider>
   );
 }
