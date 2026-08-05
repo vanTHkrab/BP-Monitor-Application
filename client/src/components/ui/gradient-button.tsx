@@ -11,6 +11,7 @@ import { cssInterop } from 'nativewind';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import { useFontScale } from '@/hooks/use-font-scale';
 import { gradientFor, type GradientName } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -33,6 +34,14 @@ const SIZE_CLASS: Record<GradientButtonSize, string> = {
   large: 'py-[18px] px-8',
 };
 
+/*
+ * The label size belongs to the *button* size, not to a typography role, so
+ * these stay here rather than becoming `ThemedText` variants — a shared text
+ * component gaining `button-small` / `button-medium` steps would be the tail
+ * wagging the dog. What they do gain is `useFontScale()`, which is the same
+ * multiplier `ThemedText` applies, so a button label tracks the user's font
+ * preference exactly like the prose around it.
+ */
 const SIZE_FONT: Record<GradientButtonSize, number> = {
   small: 14,
   medium: 15,
@@ -61,6 +70,7 @@ export function GradientButton({
   testID,
 }: GradientButtonProps) {
   const { scheme } = useColorSchemePreference();
+  const fontScale = useFontScale();
   // A press while loading would fire a second mutation against the same
   // form — the spinner is feedback, not a guard.
   const isBlocked = disabled || loading;
@@ -88,7 +98,7 @@ export function GradientButton({
             {icon ? <View className="mr-2">{icon}</View> : null}
             <Text
               className="font-bold text-white"
-              style={{ fontSize: SIZE_FONT[size] }}
+              style={{ fontSize: Math.round(SIZE_FONT[size] * fontScale) }}
               numberOfLines={1}>
               {title}
             </Text>

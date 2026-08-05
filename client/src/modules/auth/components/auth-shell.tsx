@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
 import { GradientBackground } from '@/components/gradient-background';
+import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -23,6 +24,7 @@ export type AuthShellProps = {
 export function AuthShell({ children, showHero = true }: AuthShellProps) {
   const { scheme } = useColorSchemePreference();
   const colors = useTheme();
+  const fontScale = useFontScale();
   const isDark = scheme === 'dark';
 
   return (
@@ -48,12 +50,27 @@ export function AuthShell({ children, showHero = true }: AuthShellProps) {
                     </View>
                   </View>
                 </View>
+                {/*
+                  * Sizes stay literal rather than moving to `ThemedText`
+                  * variants: 28 / 15 / 12 map to no typography role, and
+                  * minting three single-use variants would put one screen's
+                  * composition into a shared scale. They take the same
+                  * multiplier `ThemedText` does, which is the part that was
+                  * actually missing.
+                  */}
                 <Text
                   className="mb-1 font-bold"
-                  style={{ fontSize: 28, color: isDark ? '#FFFFFF' : colors['text-primary'] }}>
+                  style={{
+                    fontSize: Math.round(28 * fontScale),
+                    color: isDark ? '#FFFFFF' : colors['text-primary'],
+                  }}>
                   BP Monitor
                 </Text>
-                <Text style={{ fontSize: 15, color: colors['text-secondary'] }}>
+                <Text
+                  style={{
+                    fontSize: Math.round(15 * fontScale),
+                    color: colors['text-secondary'],
+                  }}>
                   ติดตามความดันโลหิตอย่างง่ายดาย
                 </Text>
               </View>
@@ -70,7 +87,9 @@ export function AuthShell({ children, showHero = true }: AuthShellProps) {
           </View>
 
           <View className="py-6">
-            <Text className="text-center text-white" style={{ fontSize: 12 }}>
+            <Text
+              className="text-center text-white"
+              style={{ fontSize: Math.round(12 * fontScale) }}>
               Copyright©2025 BP Monitor App
             </Text>
           </View>

@@ -9,8 +9,9 @@
  * wants a sample at that size. Gender on the register form is the remaining
  * consumer, and a row of words is right for it.
  */
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 export type OptionRowItem<T extends string> = { value: T; label: string };
@@ -39,9 +40,9 @@ export function OptionRow<T extends string>({
 
   return (
     <View className="mb-4">
-      <Text className="mb-2 ml-1 font-semibold" style={{ fontSize: 13, color: colors['text-secondary'] }}>
+      <ThemedText type="label" themeColor="text-secondary" className="mb-2 ml-1">
         {label}
-      </Text>
+      </ThemedText>
       <View className="flex-row gap-2">
         {options.map((option) => {
           const isSelected = option.value === value;
@@ -56,17 +57,18 @@ export function OptionRow<T extends string>({
               accessibilityState={{ selected: isSelected }}
               className="flex-1 items-center rounded-xl border-2 py-3"
               style={{
-                borderColor: isSelected ? colors.primary : colors.border,
+                borderColor: isSelected ? colors.primary : colors['border-strong'],
                 backgroundColor: isSelected ? colors.primary : 'transparent',
               }}>
-              <Text
-                className="font-semibold"
-                style={{
-                  fontSize: 14,
-                  color: isSelected ? '#FFFFFF' : colors['text-secondary'],
-                }}>
+              <ThemedText
+                type="smallBold"
+                themeColor="text-secondary"
+                // White on the filled state is not a semantic token — the
+                // token is the *background*, and this is the contrast pair
+                // for it. `style` lands after `themeColor`, so it wins.
+                style={isSelected ? { color: '#FFFFFF' } : undefined}>
                 {option.label}
-              </Text>
+              </ThemedText>
             </Pressable>
           );
         })}

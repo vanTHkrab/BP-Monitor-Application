@@ -126,17 +126,36 @@ top-level screens.
   Google sign-up carries none, so that flow needs a step before `role`. It is
   blocked on Google credentials — see
   [CLIENT-auth-integration.md](./CLIENT-auth-integration.md).
-- **Font size is persisted and now consumed by two components, not yet
-  app-wide.** `src/hooks/use-font-scale.ts` turns the preference into a
-  multiplier (`1.0` at `medium`) that a component applies to its own
-  literal sizes — a multiplier rather than a per-role scale table, because
-  the app still has no shared typography scale. `TextField` and
-  `AuthErrorBanner` read it; `auth-shell.tsx`, `gradient-button.tsx`, and
-  `option-row.tsx` still hardcode their `fontSize` literals and need the
-  same treatment — mechanical, but touches enough files to be its own
-  pass. Mind the elderly-first readability floor (~11px body) documented in
-  `client-old/CLAUDE.md`; `use-font-scale.ts`'s own comment ties the scale
+- ~~**Font size is persisted but not consumed app-wide.**~~ Done. The three
+  named holdouts — `auth-shell.tsx`, `gradient-button.tsx`, `option-row.tsx` —
+  all scale now, and `ThemedText` scales by construction so a screen adopting
+  it cannot forget. Mind the elderly-first readability floor (~11px body)
+  documented in `client-old/CLAUDE.md`; `use-font-scale.ts` ties the scale
   back to it.
+
+  **`useFontScale()` gained OS compensation in the same pass**, and that is
+  the part worth knowing about. `<Text allowFontScaling>` defaults to `true`,
+  so React Native multiplies the system accessibility font size on top of
+  whatever the app computes — the two compounded to ~1.79× at OS 130% with
+  the app at `xlarge`, and the preview on this flow's own setup screen, which
+  shows the choice as a px number, was therefore wrong on any device whose
+  system font size was not the default. The hook now divides the OS scale out
+  and lets RN multiply it back, so the net size is exactly
+  `base × preference` and the preview tells the truth. All 54 existing callers
+  inherited the fix without an edit.
+
+  The system setting is not ignored — it is expressed through the app's four
+  steps, which is the control this app puts in front of the user. Anything
+  that genuinely wants both stacked has to opt out with
+  `allowFontScaling={false}` and multiply the OS scale itself; nothing does.
+
+- **There is still no shared typography scale**, and `ThemedText`'s variants
+  are not one. They are the sizes the app already used, given names. Three
+  sizes in `auth-shell.tsx` (28 / 15 / 12) and the three button-label sizes in
+  `gradient-button.tsx` map to no role and stay literal on purpose — minting
+  single-use variants would put one screen's composition into a shared scale.
+  When enough of those accumulate, that is the signal to design a real scale
+  rather than to keep adding steps.
 - **No "change role later" screen.** `selectRole` is deliberately
   re-callable, so a settings row can reuse the same hook. Safe because `role`
   is a UI mode, not an access-control boundary — reading another user's data

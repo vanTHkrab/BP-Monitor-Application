@@ -117,9 +117,25 @@ is used for primary actions and selected states only.
 
 ### Typography rules (project-specific)
 
+- **Reach for `ThemedText` first** (`src/components/themed-text.tsx`). It takes
+  a `type` variant (`title` / `subtitle` / `label` / `default` / `small` /
+  `smallBold` / `link` / `code`), a `themeColor` token, and a `className` for
+  layout — and it scales by construction, so a screen using it cannot forget
+  the font preference. Do **not** put `text-sm` / `text-lg` in its
+  `className`: those emit a fixed `fontSize` into the same style object as the
+  scaled one, making "which wins" a question of ordering. The variant is the
+  only sizing input.
+- A size no variant offers means one of two things: it is component-specific
+  (a button-label size belongs to the button, not to a shared scale), or the
+  app finally needs a real typography scale. Neither is "add a single-use
+  variant". Component-specific sizes stay literal and take the multiplier
+  below.
 - Font size scales with the user's stored preference through
   **`useFontScale()`** (`src/hooks/use-font-scale.ts`), which returns a
-  *multiplier* (`1.0` at `medium`). A component applies it to its own literal:
+  *multiplier* (`1.0` at `medium`) with the **OS accessibility scale already
+  divided out** — `allowFontScaling` stays on and RN multiplies it back, so
+  the app's setting and the system setting never compound. A component applies
+  it to its own literal:
   ```tsx
   const fontScale = useFontScale();
   <Text style={{ fontSize: Math.round(16 * fontScale) }} />
@@ -252,8 +268,8 @@ Before presenting the design, run this checklist internally:
 - [ ] `accessibilityLabel` present on every Pressable.
 - [ ] Motion respects `isReduceMotionEnabled`.
 - [ ] `SafeAreaView` present where edges are visible.
-- [ ] Font sizes scale via `useFontScale()`, not hardcoded classes, and stay
-      readable at the largest rung.
+- [ ] Text uses `ThemedText` where a variant fits; anything left literal
+      scales via `useFontScale()` and stays readable at the largest rung.
 - [ ] No new raw hex values — every colour comes from `useTheme()` or `@/theme`.
 - [ ] Interactive outlines use `border-strong`, dividers use `border`.
 - [ ] No impeccable absolute bans present.
