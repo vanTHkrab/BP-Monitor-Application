@@ -17,7 +17,7 @@ import { asc, desc, eq } from 'drizzle-orm';
 import { useMemo } from 'react';
 
 import { getDb, pendingReadings, readings } from '@/database';
-import { useSession } from '@/modules/auth';
+import { useSubject } from '@/modules/caregivers';
 
 import {
   mergeReadings,
@@ -26,19 +26,17 @@ import {
 } from '../lib/mappers';
 import type { Reading } from '../types';
 
-export type UseReadingsOptions = {
-  /**
-   * Whose readings to show. Defaults to the signed-in user; a caregiver
-   * viewing a patient passes the patient's id. The gateway enforces the
-   * accepted-link rule server-side — this only decides which local rows to
-   * read.
-   */
-  patientId?: string;
-};
-
-export function useReadings({ patientId }: UseReadingsOptions = {}) {
-  const { userId } = useSession();
-  const subjectId = patientId ?? userId ?? '';
+/**
+ * No `patientId` parameter any more.
+ *
+ * Every one of the five call sites passed exactly `viewingPatientId`, so the
+ * parameter could not be passed *right* — only forgotten, which is what
+ * happened next door in `useAlerts` and put two people's data on the home
+ * screen. `useSubject()` answers it once for every hook. See
+ * `modules/caregivers/hooks/use-subject.ts`.
+ */
+export function useReadings() {
+  const { subjectId } = useSubject();
 
   const mirror = useLiveQuery(
     getDb()

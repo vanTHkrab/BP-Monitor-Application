@@ -13,19 +13,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useSession } from '@/modules/auth';
+import { useSubject } from '@/modules/caregivers';
 
 import * as alertsApi from '../services/alerts-api';
 import type { Alert } from '../types';
 
-const ALERTS_KEY = ['alerts'];
+/**
+ * Keyed by subject, not a bare `['alerts']`.
+ *
+ * A single key would serve the caregiver's own alerts from cache the moment
+ * they entered a patient, and then overwrite them with the patient's — the
+ * badge would show whichever request landed last. Two subjects are two
+ * cache entries.
+ */
+const alertsKey = (subjectId: string) => ['alerts', subjectId];
 
 export function useAlerts() {
   const { isAuthenticated } = useSession();
+  // Read rather than accepted as a prop: see `modules/caregivers/hooks/
+  // use-subject.ts` for why this is not a parameter.
+  const { subjectId, isSelf, patientIdArg } = useSubject();
 
   const query = useQuery<Alert[]>({
-    queryKey: ALERTS_KEY,
-    queryFn: alertsApi.fetchAlerts,
-    enabled: isAuthenticated,
+    queryKey: alertsKey(subjectId),
+    queryFn: () => alertsApi.fetchAlerts(patientIdArg),
+    enabled: isAuthenticated && Boolean(subjectId),
   });
 
   const alerts = query.data ?? [];
@@ -37,20 +49,39 @@ export function useAlerts() {
     isRefetching: query.isRefetching,
     error: query.error,
     refetch: query.refetch,
+    /**
+     * False while a caregiver is viewing a patient.
+     *
+     * `markRead` on the gateway is scoped to the alert's **owner**
+     * (`where: { id, userId }`), so a caregiver's attempt matches no rows and
+     * returns false — a silent no-op the UI would render as success. That
+     * scoping is right: marking read is the patient's own state, and letting
+     * a caregiver clear it would hide a critical alert from the person it is
+     * about. So the screen hides the controls instead of offering something
+     * that does nothing.
+     *
+     * A caregiver getting alerts *of their own* about a patient is the real
+     * answer here, and needs the fan-out in docs/todo/CLIENT-caregiver.md §3.
+     */
+    canMarkRead: isSelf,
   };
 }
 
 export function useMarkAlertRead() {
   const queryClient = useQueryClient();
+  // Same key the query wrote under. A bare ['alerts'] would roll back onto,
+  // and optimistically patch, whichever subject was cached last.
+  const { subjectId } = useSubject();
+  const key = alertsKey(subjectId);
 
   const mutation = useMutation({
     mutationFn: (id: number) => alertsApi.markAlertRead(id),
 
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ALERTS_KEY });
-      const previous = queryClient.getQueryData<Alert[]>(ALERTS_KEY);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Alert[]>(key);
 
-      queryClient.setQueryData<Alert[]>(ALERTS_KEY, (alerts) =>
+      queryClient.setQueryData<Alert[]>(key, (alerts) =>
         alerts?.map((alert) => (alert.id === id ? { ...alert, isRead: true } : alert)),
       );
 
@@ -58,7 +89,7 @@ export function useMarkAlertRead() {
     },
 
     onError: (_error, _id, context) => {
-      if (context?.previous) queryClient.setQueryData(ALERTS_KEY, context.previous);
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
     },
   });
 
@@ -67,15 +98,17 @@ export function useMarkAlertRead() {
 
 export function useMarkAllAlertsRead() {
   const queryClient = useQueryClient();
+  const { subjectId } = useSubject();
+  const key = alertsKey(subjectId);
 
   const mutation = useMutation({
     mutationFn: () => alertsApi.markAllAlertsRead(),
 
     onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ALERTS_KEY });
-      const previous = queryClient.getQueryData<Alert[]>(ALERTS_KEY);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Alert[]>(key);
 
-      queryClient.setQueryData<Alert[]>(ALERTS_KEY, (alerts) =>
+      queryClient.setQueryData<Alert[]>(key, (alerts) =>
         alerts?.map((alert) => ({ ...alert, isRead: true })),
       );
 
@@ -83,7 +116,7 @@ export function useMarkAllAlertsRead() {
     },
 
     onError: (_error, _variables, context) => {
-      if (context?.previous) queryClient.setQueryData(ALERTS_KEY, context.previous);
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
     },
   });
 

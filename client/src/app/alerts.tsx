@@ -31,7 +31,7 @@ export default function AlertsScreen() {
   const colors = useTheme();
   const fontScale = useFontScale();
 
-  const { alerts, unreadCount, isLoading, isRefetching, refetch } = useAlerts();
+  const { alerts, unreadCount, isLoading, isRefetching, refetch, canMarkRead } = useAlerts();
   const { markAlertRead } = useMarkAlertRead();
   const { markAllAlertsRead, isPending } = useMarkAllAlertsRead();
 
@@ -45,8 +45,17 @@ export default function AlertsScreen() {
             <Text
               style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
             >
-              {`ยังไม่ได้อ่าน ${unreadCount} รายการ`}
+              {canMarkRead
+                ? `ยังไม่ได้อ่าน ${unreadCount} รายการ`
+                : `ยังไม่ได้อ่าน ${unreadCount} รายการ · ผู้ป่วยเป็นผู้อ่านเอง`}
             </Text>
+            {/*
+              Hidden while viewing a patient. Marking read is the patient's own
+              state — the gateway scopes it to the alert's owner, so the button
+              would do nothing, and if it did work it would clear a critical
+              alert for the person it is about. See `useAlerts().canMarkRead`.
+            */}
+            {canMarkRead ? (
             <Pressable
               testID="alerts-mark-all-read"
               onPress={() => markAllAlertsRead()}
@@ -63,6 +72,7 @@ export default function AlertsScreen() {
                 อ่านทั้งหมด
               </Text>
             </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -92,7 +102,12 @@ export default function AlertsScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <AlertRow alert={item} onPress={() => !item.isRead && markAlertRead(item.id)} />
+            <AlertRow
+              alert={item}
+              onPress={
+                canMarkRead && !item.isRead ? () => markAlertRead(item.id) : undefined
+              }
+            />
           )}
         />
       </View>
@@ -100,7 +115,12 @@ export default function AlertsScreen() {
   );
 }
 
-function AlertRow({ alert, onPress }: { alert: Alert; onPress: () => void }) {
+/**
+ * `onPress` is optional: a caregiver viewing a patient's alerts has nothing to
+ * mark — read state belongs to the patient. An undefined handler leaves the
+ * row inert rather than tappable-but-silent.
+ */
+function AlertRow({ alert, onPress }: { alert: Alert; onPress?: () => void }) {
   const colors = useTheme();
   const fontScale = useFontScale();
 

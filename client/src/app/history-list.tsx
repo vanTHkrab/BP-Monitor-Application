@@ -18,7 +18,6 @@ import { GradientBackground } from '@/components/gradient-background';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
-import { useActivePatient } from '@/modules/caregivers';
 import { BPReadingCard, useReadings, useReadingsSync } from '@/modules/readings';
 import { SecurityHeader } from '@/modules/security';
 
@@ -27,9 +26,8 @@ export default function HistoryListScreen() {
   const fontScale = useFontScale();
 
   const { userId } = useSession();
-  const { viewingPatientId } = useActivePatient();
 
-  const { readings, isLoading } = useReadings({ patientId: viewingPatientId });
+  const { readings, isLoading } = useReadings();
   // Pulling here also drains the queue, which the old wiring did not: this
   // screen called `fetchReadings` alone, so a user who came here to check on
   // a stuck reading refreshed everything except the thing they were watching.

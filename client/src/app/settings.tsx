@@ -46,7 +46,6 @@ import { ThemePicker } from '@/components/ui/theme-picker';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useDeleteMyData } from '@/modules/auth';
-import { useActivePatient } from '@/modules/caregivers';
 import { useReminderSettings } from '@/modules/notifications';
 import { ExportFormatSheet, useExportReadings, useReadings } from '@/modules/readings';
 import { palette } from '@/theme';
@@ -58,10 +57,10 @@ export default function SettingsScreen() {
   const { settings: reminders, isLoading: isLoadingReminders } = useReminderSettings();
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
-  // Scoped to whoever is being viewed, so a caregiver exporting from here
-  // gets the patient's readings — the same set the history tab shows them.
-  const { viewingPatientId } = useActivePatient();
-  const { readings } = useReadings({ patientId: viewingPatientId });
+  // Scoped to whoever is being viewed — `useReadings` reads the subject
+  // itself, so a caregiver exporting from here gets the patient's readings,
+  // the same set the history tab shows them.
+  const { readings } = useReadings();
   const { exportReadings, isExporting } = useExportReadings();
 
   /**

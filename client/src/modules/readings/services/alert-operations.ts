@@ -30,9 +30,14 @@ const ALERT_FIELDS = `
   }
 `;
 
+/**
+ * `patientId` mirrors `readings(patientId:)`, and exists for the same reason:
+ * without it a caregiver viewing a patient saw that patient's readings beside
+ * their own unread count. Null/omitted means "my own".
+ */
 export const GQL_ALERTS = `
-  query Alerts($limit: Int!, $offset: Int!, $unreadOnly: Boolean!) {
-    alerts(limit: $limit, offset: $offset, unreadOnly: $unreadOnly) { ${ALERT_FIELDS} }
+  query Alerts($limit: Int!, $offset: Int!, $unreadOnly: Boolean!, $patientId: ID) {
+    alerts(limit: $limit, offset: $offset, unreadOnly: $unreadOnly, patientId: $patientId) { ${ALERT_FIELDS} }
   }
 `;
 

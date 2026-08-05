@@ -66,14 +66,12 @@ export default function HomeScreen() {
   const { scheme } = useColorSchemePreference();
 
   const { user } = useSession();
-  const { patient, viewingPatientId, isViewingPatient } = useActivePatient();
+  const { patient, isViewingPatient } = useActivePatient();
 
   const isCaregiver = user?.role === 'caregiver';
   const mustPickPatient = isCaregiver && !isViewingPatient;
 
-  const { readings, latest, pendingCount, isLoading } = useReadings({
-    patientId: viewingPatientId,
-  });
+  const { readings, latest, pendingCount, isLoading } = useReadings();
   const { unreadCount } = useAlerts();
   // Push-then-pull, its triggers, and its throttle all live in the app-level
   // provider — see `modules/readings/hooks/use-readings-sync.tsx`. The screen

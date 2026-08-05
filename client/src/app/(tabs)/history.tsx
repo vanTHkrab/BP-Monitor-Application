@@ -71,14 +71,14 @@ export default function HistoryScreen() {
   const { scheme } = useColorSchemePreference();
 
   const { user, userId } = useSession();
-  const { viewingPatientId, isViewingPatient } = useActivePatient();
+  const { isViewingPatient } = useActivePatient();
 
   const isCaregiver = user?.role === 'caregiver';
   const mustPickPatient = isCaregiver && !isViewingPatient;
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>(DEFAULT_TIME_FILTER);
 
-  const { readings, isLoading } = useReadings({ patientId: viewingPatientId });
+  const { readings, isLoading } = useReadings();
   const { refresh, isRefreshing } = useReadingsSync();
 
   const { exportReadings, isExporting } = useExportReadings();

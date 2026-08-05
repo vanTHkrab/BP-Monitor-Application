@@ -12,6 +12,7 @@ export {
   useActivePatient,
   useActivePatientStore,
 } from './hooks/use-active-patient';
+export { useSubject, type Subject } from './hooks/use-subject';
 export {
   useCaregiverLinks,
   useInvitePatient,

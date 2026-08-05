@@ -313,8 +313,10 @@ type Query {
   """รายการความคิดเห็นของโพสต์"""
   postComments(postId: Int!, parentId: Int): [CommentType!]!
 
-  """รายการแจ้งเตือนของผู้ใช้"""
-  alerts(limit: Int! = 100, offset: Int! = 0, unreadOnly: Boolean! = false): [AlertType!]!
+  """
+  รายการแจ้งเตือนของผู้ใช้ (caregiver ระบุ patientId เพื่อดูของผู้ป่วยที่ดูแล)
+  """
+  alerts(limit: Int! = 100, offset: Int! = 0, unreadOnly: Boolean! = false, patientId: ID): [AlertType!]!
 
   """
   Dev-only: cross-tier media diff (DB ↔ S3) for the current user. Disabled in production.

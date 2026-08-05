@@ -147,9 +147,163 @@ together, with the reason in the PR body).
 
 ---
 
-## What is left
+## Audit — what a full sweep of the four layers found
 
-1. **The banner on pushed routes** (§2, "still open") — `reading/[id]` and
+Swept `client-old/`, `client/`, the gateway resolvers/services, and the Prisma
+schema. Two findings were not on any board.
+
+### Parity with client-old is complete, and better in one place
+
+Every caregiver surface client-old had exists here: the link screen, invite
+form and decision card, patient list, active patient, the banner, the camera's
+"บันทึกให้ คุณ X" line, entry points from menu and profile, and export
+attribution.
+
+**One thing is better than the original and was never written down:**
+client-old refused caregiver saves while offline —
+`camera.tsx:527`, *"Caregiver saves are online-only (no offline queue)"*. Here
+they queue like any other reading: `use-create-reading.ts` stores
+`recordedById`, and `lib/sync.ts` sends `patientId` back on the drain, so an
+on-behalf capture taken on a plane still files under the patient.
+
+### 🔴 The notification bell is not scoped to the patient — shipping today
+
+```
+useReadings({ patientId: viewingPatientId })   // scoped
+useAlerts()                                    // takes no argument at all
+```
+
+A caregiver viewing a patient sees **the patient's readings beside their own
+unread alert count**. Two people's data on one screen.
+
+The client cannot fix this alone: `alert.resolver.ts` exposes
+`alerts(limit, offset, unreadOnly)` and derives the user from
+`@CurrentUser()`. There is no `patientId` argument to pass, unlike
+`readings(patientId:)`.
+
+### 🔴 A caregiver is never told anything
+
+`reading.service.ts` creates alerts against the reading's owner, with a comment
+that is right as far as it goes:
+
+> *Alerts belong to the reading's owner (the patient) — a critical
+> caregiver-recorded value must alert the patient, not the caregiver.*
+
+But the consequence is that `Alert.userId` is **only ever** the patient. A
+linked caregiver receives nothing — not a push (there is no push at all), and
+not even the in-app bell.
+
+The entire premise of the role is that somebody else is watching. Today the
+only way to learn anything is to open the app, enter the patient, and look.
+There is no passive path.
+
+### Structural limits that block new features
+
+| Limit | What it blocks |
+| --- | --- |
+| `CaregiverPatient` has `relationship` + `status` and **no permission column** — accepted means full read *and* write-on-behalf | "this child may view, this nurse may record" is not expressible |
+| One active patient, and switching costs four taps (banner exit → menu → invitations → tap) | a professional caregiver with several patients |
+| `myPatients` returns summaries with **no latest reading** | any "all my patients at a glance" screen is N+1 queries |
+| No push infrastructure — no token column, no registration, no sender | every kind of real notification (C-001) |
+| No audit trail beyond `recordedBy` on a reading | who viewed whose data, who removed a link. For health data this is a real gap, not a nice-to-have |
+
+---
+
+## Improvement direction, and why
+
+### 1. Make "whose data am I acting on" one concept — **done**
+
+Shipped as `modules/caregivers/hooks/use-subject.ts`. `useReadings()` and
+`useAlerts()` both read it internally and neither takes a `patientId` any
+more, so a screen cannot put two subjects on one page. The query cache is
+keyed by subject too — a single `['alerts']` key would have served the
+caregiver's own alerts from cache the moment they entered a patient.
+
+**Found while wiring it:** `markAlertRead` on the gateway is scoped to the
+alert's *owner* (`where: { id, userId }`), so a caregiver's attempt matched no
+rows and returned false — a silent no-op the screen rendered as success. That
+scoping is correct: read state is the patient's, and letting a caregiver clear
+it would hide a critical alert from the person it is about. `useAlerts()` now
+exposes `canMarkRead`, and `app/alerts.tsx` hides the controls rather than
+offering something that does nothing. The real answer is §3.
+
+The original reasoning, kept because it is the argument for doing the same
+thing next time:
+
+**This is the root of the bell bug.** `useReadings` takes a `patientId` and
+`useAlerts` does not; nothing makes the two agree, so getting it right is a
+thing each screen author has to remember — and eventually does not.
+
+Worse, the parameter is ceremony: all five call sites pass exactly
+`viewingPatientId`. A parameter whose only correct value is one expression can
+only ever be passed wrongly.
+
+The fix is a single `useSubject()` — `{ subjectId, isSelf, patient }` — that
+the data hooks read *internally*, so screens stop passing anything. That makes
+the mismatch **unrepresentable** rather than merely discouraged, and every
+future hook inherits it.
+
+Do this before adding features, because each new feature otherwise re-decides
+the question and can re-introduce the same class of bug.
+
+### 2. Give `alerts` a `patientId` — **done**
+
+`alerts(limit, offset, unreadOnly, patientId)` guards with the same
+`assertCanActOnBehalfOf` call `readings(patientId:)` uses. No schema
+migration; `schema.gql` regenerated by booting the app, which is the only
+thing that regenerates it — `nest build` alone does not.
+
+The original reasoning:
+
+Cheapest possible fix for the bell, and it needs no new thinking about
+authorization: `assertCanActOnBehalfOf` already guards `readings(patientId:)`
+and applies unchanged. No schema migration.
+
+### 3. Fan alerts out to linked caregivers
+
+Two shapes, and the choice matters more than it looks:
+
+| Shape | Gains | Costs |
+| --- | --- | --- |
+| **A row per recipient** at alert creation | read queries stay as they are; each person owns their own read state | duplicate rows |
+| A `subjectUserId` column, read via a join | no duplication | read state is shared — a caregiver marking an alert read marks it read for the patient, which is simply wrong |
+
+**Take the first.** Per-person read state is a correctness requirement; row
+duplication is a storage cost, and much the cheaper of the two.
+
+### 4. Add a permission column to `CaregiverPatient` before anything assumes full access
+
+`permission: view | full` is one small migration today. Once several features
+are written on the assumption that "accepted" means "may do everything",
+introducing it becomes a rewrite of all of them.
+
+### 5. A quick-switcher in the banner
+
+Tap the banner → a sheet of linked patients → switch. `ExportFormatSheet` is
+the pattern to copy. Four taps become two, and it removes the only reason to
+leave the patient's context by hand.
+
+### 6. `myPatients` should carry the latest reading and its status
+
+Makes a caregiver landing screen one query instead of N+1, and is what makes
+§5 useful — a switcher that shows who needs attention beats one that lists
+names.
+
+---
+
+## What is left, in order
+
+1. ~~**`useSubject()` + `alerts(patientId:)`**~~ — done.
+2. **Alert fan-out** (§3) — turns the caregiver from "must go and look" into
+   "is told", which is the reason the role exists. Now also the fix for
+   read state: with an alert of their own, a caregiver has something they can
+   legitimately mark read.
+3. **The permission column** (§4) — cheap now, a rewrite later.
+4. **Quick-switcher + richer `myPatients`** (§5, §6) — UX and scale.
+5. **The banner on pushed routes** (§2, "still open") — `reading/[id]` and
    `history-list` show patient-scoped data with nothing saying whose.
-2. **A-005** (§6) — invite by email as well as phone. Cross-cutting.
-3. **C-001** (§4) — blocked on push infrastructure, not on UI work.
+6. **A-005** (§6 gateway) — invite by email as well as phone.
+7. **C-001** — blocked on push infrastructure, not on UI work.
+
+Items 2, 3, 4 and 6 are cross-cutting: gateway and client ship together with
+the reason in the PR body (root `CLAUDE.md` rule 1).

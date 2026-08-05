@@ -31,7 +31,6 @@ import { GradientBackground } from '@/components/gradient-background';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
-import { useActivePatient } from '@/modules/caregivers';
 import {
   statusColorFor,
   statusLabel,
@@ -49,9 +48,8 @@ export default function ReadingDetailScreen() {
   const colors = useTheme();
   const fontScale = useFontScale();
   const { userId } = useSession();
-  const { viewingPatientId } = useActivePatient();
 
-  const { readings, isLoading } = useReadings({ patientId: viewingPatientId });
+  const { readings, isLoading } = useReadings();
   const { deleteReading, isDeleting, error } = useDeleteReading();
 
   const reading = readings.find((item) => item.key === readingKey);

@@ -27,7 +27,7 @@ export { useAlerts, useMarkAlertRead, useMarkAllAlertsRead } from './hooks/use-a
 export { useCreateReading } from './hooks/use-create-reading';
 export { useDeleteReading } from './hooks/use-delete-reading';
 export { useExportReadings } from './hooks/use-export-readings';
-export { useReadings, type UseReadingsOptions } from './hooks/use-readings';
+export { useReadings } from './hooks/use-readings';
 export { useResolvedImageUri } from './hooks/use-resolved-image-uri';
 export {
   ReadingsSyncProvider,

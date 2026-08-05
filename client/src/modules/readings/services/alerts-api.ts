@@ -49,11 +49,15 @@ function alertFromGql(payload: AlertPayload): Alert {
   };
 }
 
-export async function fetchAlerts(): Promise<Alert[]> {
+export async function fetchAlerts(patientId?: string): Promise<Alert[]> {
   const data = await graphqlRequest<{ alerts: AlertPayload[] }>(GQL_ALERTS, {
     limit: ALERTS_PAGE_SIZE,
     offset: 0,
     unreadOnly: false,
+    // Omitted rather than sent as the caller's own id: the gateway takes a
+    // present `patientId` as "acting on behalf of" and runs the caregiver
+    // guard for it, which is work with no answer to give when it is yourself.
+    patientId: patientId ?? null,
   });
   return data.alerts.map(alertFromGql);
 }
