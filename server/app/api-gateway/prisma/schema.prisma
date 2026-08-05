@@ -349,6 +349,14 @@ model Alert {
   user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   reading BloodPressureReading @relation(fields: [bpReadingId], references: [id], onDelete: Cascade)
 
+  /// One alert per recipient per reading.
+  ///
+  /// `ReadingService.createAlertForReading` fans an abnormal reading out to
+  /// the patient's caregivers, so a retried or replayed creation could
+  /// otherwise put the same alert in one person's bell twice. `createMany`
+  /// passes `skipDuplicates`, which only means anything with this constraint
+  /// behind it.
+  @@unique([userId, bpReadingId])
   @@index([bpReadingId])
   @@index([userId, readAt, createdAt(sort: Desc)])
   @@map("alerts")

@@ -229,8 +229,39 @@ export class CaregiverService {
       orderBy: { patientId: 'asc' },
     });
 
+    if (links.length === 0) return [];
+
+    /*
+     * One grouped query for every patient's newest reading, rather than one
+     * per patient. `distinct` with the matching `orderBy` is Prisma's
+     * "first row per group" — it returns at most one reading per userId.
+     */
+    const latest = await this.prisma.bloodPressureReading.findMany({
+      where: { userId: { in: links.map((link) => link.patientId) } },
+      distinct: ['userId'],
+      orderBy: [{ userId: 'asc' }, { measuredAt: 'desc' }],
+      select: {
+        userId: true,
+        systolic: true,
+        diastolic: true,
+        pulse: true,
+        status: true,
+        measuredAt: true,
+      },
+    });
+    const latestByPatient = new Map(latest.map((row) => [row.userId, row]));
+
     return links.map((link) => ({
       permission: link.permission,
+      latestReading: latestByPatient.get(link.patientId)
+        ? {
+            systolic: latestByPatient.get(link.patientId)!.systolic,
+            diastolic: latestByPatient.get(link.patientId)!.diastolic,
+            pulse: latestByPatient.get(link.patientId)!.pulse,
+            status: latestByPatient.get(link.patientId)!.status,
+            measuredAt: latestByPatient.get(link.patientId)!.measuredAt,
+          }
+        : undefined,
       id: link.patient.id,
       firstname: link.patient.firstname,
       lastname: link.patient.lastname,

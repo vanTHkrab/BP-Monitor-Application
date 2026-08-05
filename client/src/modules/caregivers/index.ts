@@ -30,12 +30,18 @@ export {
 export { deriveSections, isEmpty, linkKey, type CaregiverSections } from './lib/sections';
 
 export { ActivePatientBanner } from './components/active-patient-banner';
+export {
+  PatientSwitcherSheet,
+  sortByAttention,
+} from './components/patient-switcher-sheet';
 export { InviteDecisionCard } from './components/invite-decision-card';
 export { InviteForm } from './components/invite-form';
 export { LinkGroup, LinkRow } from './components/link-row';
 export { RelationshipPicker } from './components/relationship-picker';
 
 export type {
+  CaregiverPermission,
+  PatientLatestReading,
   CaregiverLink,
   CaregiverLinkStatus,
   InvitePatientInput,

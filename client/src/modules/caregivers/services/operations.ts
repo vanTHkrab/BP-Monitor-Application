@@ -37,6 +37,13 @@ export const GQL_MY_PATIENTS = `
       dob
       relationship
       permission
+      latestReading {
+        systolic
+        diastolic
+        pulse
+        status
+        measuredAt
+      }
       weight
       height
     }

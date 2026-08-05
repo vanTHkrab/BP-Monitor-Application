@@ -1,4 +1,10 @@
-import { Field, Float, ObjectType, registerEnumType } from '@nestjs/graphql';
+import {
+  Field,
+  Float,
+  Int,
+  ObjectType,
+  registerEnumType,
+} from '@nestjs/graphql';
 
 export enum CaregiverLinkStatusGql {
   pending = 'pending',
@@ -24,6 +30,16 @@ export class CaregiverLinkType {
   @Field({ nullable: true }) respondedAt?: Date;
 }
 
+/** Just enough of a reading to sort and colour a patient row. */
+@ObjectType()
+export class PatientLatestReadingType {
+  @Field(() => Int) systolic: number;
+  @Field(() => Int) diastolic: number;
+  @Field(() => Int) pulse: number;
+  @Field() status: string;
+  @Field() measuredAt: Date;
+}
+
 @ObjectType()
 export class PatientSummaryType {
   @Field() id: string;
@@ -43,6 +59,18 @@ export class PatientSummaryType {
    * took.
    */
   @Field() permission: string;
+  /**
+   * The patient's most recent reading, or absent if they have never recorded
+   * one.
+   *
+   * Embedded rather than left to the caller because the alternative is one
+   * `readings(patientId:)` round trip per patient — a caregiver with five
+   * patients pays five requests to answer "who needs attention", which is the
+   * only question a patient list is opened to answer. One extra grouped query
+   * here replaces N.
+   */
+  @Field(() => PatientLatestReadingType, { nullable: true })
+  latestReading?: PatientLatestReadingType;
   @Field(() => Float, { nullable: true }) weight?: number;
   @Field(() => Float, { nullable: true }) height?: number;
 }

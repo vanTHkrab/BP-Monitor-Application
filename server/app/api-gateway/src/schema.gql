@@ -89,6 +89,14 @@ enum CaregiverLinkStatus {
   rejected
 }
 
+type PatientLatestReadingType {
+  systolic: Int!
+  diastolic: Int!
+  pulse: Int!
+  status: String!
+  measuredAt: DateTime!
+}
+
 type PatientSummaryType {
   id: String!
   firstname: String!
@@ -98,6 +106,7 @@ type PatientSummaryType {
   dob: DateTime
   relationship: String
   permission: String!
+  latestReading: PatientLatestReadingType
   weight: Float
   height: Float
 }

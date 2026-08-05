@@ -85,3 +85,28 @@ jest.mock('react-native-reanimated', () => {
     },
   };
 });
+
+/**
+ * Google sign-in is a TurboModule with nothing behind it under jest, and
+ * `@/modules/auth`'s barrel imports the hook that uses it — so *anything*
+ * reaching that barrel, however indirectly, fails to load without this.
+ *
+ * Mocked globally rather than per test because the indirection is the
+ * problem: a pure mapper in `modules/caregivers` ends up here through two
+ * barrels, and discovering that one file at a time is pure tax. The real fix
+ * is for the auth barrel not to pull a native module at import time — noted
+ * in docs/todo/CLIENT-caregiver.md.
+ */
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn().mockResolvedValue(true),
+    signIn: jest.fn(),
+    signOut: jest.fn(),
+  },
+  statusCodes: {
+    SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
+  },
+}));

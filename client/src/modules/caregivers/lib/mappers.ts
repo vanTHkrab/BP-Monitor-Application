@@ -5,6 +5,10 @@
  * nowhere else, and `null` becomes `undefined` so the rest of the module can
  * use plain optional chaining rather than checking two empty values.
  */
+// Aliased: this file already has a `parseStatus` for caregiver-link status,
+// and the two answer completely different questions. Deep import to avoid the
+// caregivers → readings → caregivers cycle the barrel would create.
+import { parseStatus as parseBpStatus } from '../../readings/lib/status';
 import { parseRelationship } from './relationship';
 import type { CaregiverLink, CaregiverLinkStatus, PatientSummary } from '../types';
 
@@ -30,6 +34,13 @@ export type PatientSummaryPayload = {
   relationship: string | null;
   /** Nullable so a gateway that predates the column still parses. */
   permission?: string | null;
+  latestReading?: {
+    systolic: number;
+    diastolic: number;
+    pulse: number;
+    status: string;
+    measuredAt: string;
+  } | null;
   weight: number | null;
   height: number | null;
 };
@@ -68,6 +79,15 @@ export function patientSummaryFromGql(payload: PatientSummaryPayload): PatientSu
     // gateway that omits the field must not lock every caregiver out of
     // recording, and the server refuses the write regardless.
     permission: payload.permission === 'view' ? 'view' : 'full',
+    latestReading: payload.latestReading
+      ? {
+          systolic: payload.latestReading.systolic,
+          diastolic: payload.latestReading.diastolic,
+          pulse: payload.latestReading.pulse,
+          status: parseBpStatus(payload.latestReading.status),
+          measuredAt: new Date(payload.latestReading.measuredAt),
+        }
+      : undefined,
     weight: payload.weight ?? undefined,
     height: payload.height ?? undefined,
   };

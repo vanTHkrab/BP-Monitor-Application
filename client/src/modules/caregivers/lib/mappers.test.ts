@@ -6,7 +6,17 @@
  * out) nor be trusted blindly. It falls to `full`, matching the column
  * default, and the gateway refuses the write regardless — the client gate is
  * a courtesy, never the enforcement.
+ *
+ * AsyncStorage is mocked because `mappers.ts` now reaches `@/modules/readings`
+ * for the BP-status parser, and that barrel pulls the auth module behind it.
+ * A pure mapper needing a native-module mock is a smell — see the barrel note
+ * in docs/todo/CLIENT-caregiver.md.
  */
+jest.mock(
+  '@react-native-async-storage/async-storage',
+  () => require('@react-native-async-storage/async-storage/jest/async-storage-mock') as unknown,
+);
+
 import { patientSummaryFromGql, type PatientSummaryPayload } from './mappers';
 
 const payload = (over: Partial<PatientSummaryPayload> = {}): PatientSummaryPayload => ({

@@ -6,6 +6,10 @@
  * contract — when it moves, this file moves with it in the same change.
  */
 
+// Deep import for the same cycle reason as `patient-switcher-sheet.tsx`:
+// the readings barrel reaches back into this module for `useSubject`.
+import type { BPStatus } from '../readings/types';
+
 /** Matches the gateway's `CaregiverLinkStatus`. */
 export type CaregiverLinkStatus = 'pending' | 'accepted' | 'rejected';
 
@@ -70,8 +74,23 @@ export type PatientSummary = {
    * every caregiver out of recording.
    */
   permission: CaregiverPermission;
+  /**
+   * The patient's most recent reading, absent when they have never recorded
+   * one. Comes down with the list so a switcher can show who needs attention
+   * without a request per patient.
+   */
+  latestReading?: PatientLatestReading;
   weight?: number;
   height?: number;
+};
+
+/** Just enough of a reading to sort and colour a patient row. */
+export type PatientLatestReading = {
+  systolic: number;
+  diastolic: number;
+  pulse: number;
+  status: BPStatus;
+  measuredAt: Date;
 };
 
 /** Mirrors the gateway's `CaregiverPermission` enum. */

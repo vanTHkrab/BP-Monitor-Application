@@ -263,6 +263,7 @@ export type AlertOrderByWithRelationInput = {
 
 export type AlertWhereUniqueInput = Prisma.AtLeast<{
   id?: number
+  userId_bpReadingId?: Prisma.AlertUserIdBpReadingIdCompoundUniqueInput
   AND?: Prisma.AlertWhereInput | Prisma.AlertWhereInput[]
   OR?: Prisma.AlertWhereInput[]
   NOT?: Prisma.AlertWhereInput | Prisma.AlertWhereInput[]
@@ -275,7 +276,7 @@ export type AlertWhereUniqueInput = Prisma.AtLeast<{
   updatedAt?: Prisma.DateTimeFilter<"Alert"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   reading?: Prisma.XOR<Prisma.BloodPressureReadingScalarRelationFilter, Prisma.BloodPressureReadingWhereInput>
-}, "id">
+}, "id" | "userId_bpReadingId">
 
 export type AlertOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -387,6 +388,11 @@ export type AlertListRelationFilter = {
 
 export type AlertOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
+}
+
+export type AlertUserIdBpReadingIdCompoundUniqueInput = {
+  userId: string
+  bpReadingId: number
 }
 
 export type AlertCountOrderByAggregateInput = {

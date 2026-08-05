@@ -32,6 +32,7 @@
  * not entered anyone — `isViewingPatient` is false in both cases.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -39,11 +40,19 @@ import { useFontScale } from '@/hooks/use-font-scale';
 import { palette } from '@/theme';
 
 import { useActivePatient } from '../hooks/use-active-patient';
+import { useMyPatients } from '../hooks/use-caregivers';
+import { PatientSwitcherSheet } from './patient-switcher-sheet';
 
 export function ActivePatientBanner() {
-  const { patient, isViewingPatient, clearActivePatient } = useActivePatient();
+  const { patient, isViewingPatient, clearActivePatient, setActivePatient } =
+    useActivePatient();
   const fontScale = useFontScale();
   const insets = useSafeAreaInsets();
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Already in the cache for any caregiver who reached this screen — the
+  // invitations screen fetched it. Cheap here, and it is what makes the
+  // switcher able to show who needs attention rather than just names.
+  const { patients } = useMyPatients();
 
   if (!isViewingPatient) return null;
 
@@ -64,13 +73,34 @@ export function ActivePatientBanner() {
       <View className="flex-row items-center px-4 pb-2.5 pt-2">
         <Ionicons name="eye-outline" size={18} color="#FFFFFF" />
 
-        <Text
-          className="ml-2 flex-1 font-semibold text-white"
-          numberOfLines={1}
-          style={{ fontSize: Math.round(14 * fontScale) }}
+        {/*
+          Tapping the banner switches patient. It is the one control already
+          on every screen naming the person, so it is where "and now someone
+          else" belongs — the alternative was exit, menu, invitations, tap.
+          Offered only when there is somebody to switch to.
+        */}
+        <Pressable
+          testID="active-patient-banner-switch"
+          onPress={() => setSwitcherOpen(true)}
+          disabled={patients.length < 2}
+          accessibilityRole="button"
+          accessibilityLabel={
+            patients.length < 2 ? `กำลังดูข้อมูลของ ${name}` : `เปลี่ยนผู้ป่วย ตอนนี้คือ ${name}`
+          }
+          className="ml-2 flex-1 flex-row items-center"
+          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
         >
-          {`กำลังดูข้อมูลของ ${name}`}
-        </Text>
+          <Text
+            className="font-semibold text-white"
+            numberOfLines={1}
+            style={{ fontSize: Math.round(14 * fontScale) }}
+          >
+            {`กำลังดูข้อมูลของ ${name}`}
+          </Text>
+          {patients.length > 1 ? (
+            <Ionicons name="chevron-down" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
+          ) : null}
+        </Pressable>
 
         {/*
           The only way out. `clearActivePatient` existed from the start and
@@ -94,6 +124,14 @@ export function ActivePatientBanner() {
           </Text>
         </Pressable>
       </View>
+
+      <PatientSwitcherSheet
+        open={switcherOpen}
+        onOpenChange={setSwitcherOpen}
+        patients={patients}
+        activePatientId={patient?.id}
+        onSelect={setActivePatient}
+      />
     </View>
   );
 }
