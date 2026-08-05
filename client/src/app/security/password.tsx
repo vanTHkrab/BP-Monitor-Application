@@ -88,7 +88,7 @@ export default function ChangePasswordScreen() {
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <SecurityHeader title="เปลี่ยนรหัสผ่าน" />
+        <SecurityHeader title="เปลี่ยนรหัสผ่าน" subject="self" />
 
         <ScrollView
           className="flex-1 px-4"

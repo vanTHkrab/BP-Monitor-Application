@@ -234,7 +234,7 @@ export default function InvitationsScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="ผู้ดูแลและผู้ป่วย" />
+        <SecurityHeader title="ผู้ดูแลและผู้ป่วย" subject="patient" />
 
         <View className="px-4 pb-1 pt-2">
           <TabButtons

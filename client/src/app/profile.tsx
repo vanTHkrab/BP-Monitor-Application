@@ -156,7 +156,7 @@ export default function ProfileScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="โปรไฟล์ของฉัน" />
+        <SecurityHeader title="โปรไฟล์ของฉัน" subject="self" />
 
         <ScrollView
           className="flex-1 px-4"

@@ -37,7 +37,7 @@ export default function AlertsScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="การแจ้งเตือน" />
+        <SecurityHeader title="การแจ้งเตือน" subject="patient" />
 
         {unreadCount > 0 ? (
           <View className="flex-row items-center justify-between px-5 pb-2">

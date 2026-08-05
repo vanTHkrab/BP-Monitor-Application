@@ -92,7 +92,7 @@ export default function PasskeysScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="Passkey" />
+        <SecurityHeader title="Passkey" subject="self" />
 
         <ScrollView
           className="flex-1 px-4"

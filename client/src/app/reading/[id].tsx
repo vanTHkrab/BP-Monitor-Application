@@ -86,7 +86,7 @@ export default function ReadingDetailScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="รายละเอียดการวัด" />
+        <SecurityHeader title="รายละเอียดการวัด" subject="patient" />
 
         {reading ? (
           <ScrollView

@@ -47,7 +47,11 @@ jest.mock('@/modules/readings', () => ({
   useExportReadings: () => ({ exportReadings: mockExportReadings, isExporting: false }),
 }));
 
+// Spread rather than replaced: this screen's `SecurityHeader` renders the
+// real `CompactPatientBanner`, and stubbing it would make the banner
+// assertions below pass whether or not it works.
 jest.mock('@/modules/caregivers', () => ({
+  ...jest.requireActual('@/modules/caregivers'),
   useActivePatient: () => ({ viewingPatientId: undefined }),
 }));
 

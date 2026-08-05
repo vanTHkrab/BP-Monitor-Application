@@ -121,7 +121,7 @@ export default function PostDetailScreen() {
   return (
     <GradientBackground safeArea={false}>
       <View className="flex-1" style={{ paddingTop: insets.top }}>
-        <SecurityHeader title="โพสต์" />
+        <SecurityHeader title="โพสต์" subject="self" />
 
         <KeyboardAvoidingView
           className="flex-1"

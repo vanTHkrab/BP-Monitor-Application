@@ -51,7 +51,7 @@ export default function DevicesScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="อุปกรณ์ที่เข้าสู่ระบบ" />
+        <SecurityHeader title="อุปกรณ์ที่เข้าสู่ระบบ" subject="self" />
 
         <ScrollView
           className="flex-1 px-4"

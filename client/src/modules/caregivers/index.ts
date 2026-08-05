@@ -30,6 +30,7 @@ export {
 export { deriveSections, isEmpty, linkKey, type CaregiverSections } from './lib/sections';
 
 export { ActivePatientBanner } from './components/active-patient-banner';
+export { CompactPatientBanner } from './components/compact-patient-banner';
 export {
   PatientSwitcherSheet,
   sortByAttention,

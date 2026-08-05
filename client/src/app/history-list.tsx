@@ -35,7 +35,7 @@ export default function HistoryListScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="ประวัติทั้งหมด" />
+        <SecurityHeader title="ประวัติทั้งหมด" subject="patient" />
 
         {readings.length > 0 ? (
           <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mb-2 px-5">

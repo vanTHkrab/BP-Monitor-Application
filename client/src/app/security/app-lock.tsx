@@ -78,7 +78,7 @@ export default function AppLockScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="ล็อกแอป" />
+        <SecurityHeader title="ล็อกแอป" subject="self" />
 
         <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
           <View className="mt-2 rounded-2xl p-5" style={{ backgroundColor: colors.surface }}>

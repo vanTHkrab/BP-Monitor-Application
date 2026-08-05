@@ -43,7 +43,7 @@ export default function SecurityScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="ความปลอดภัย" />
+        <SecurityHeader title="ความปลอดภัย" subject="self" />
 
         <ScrollView
           className="flex-1 px-4"

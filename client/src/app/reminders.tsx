@@ -94,7 +94,7 @@ export default function RemindersScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <SecurityHeader title="การแจ้งเตือน" />
+        <SecurityHeader title="การแจ้งเตือน" subject="self" />
 
         <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
           <Card>

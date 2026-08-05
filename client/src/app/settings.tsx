@@ -37,7 +37,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
@@ -48,6 +48,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useDeleteMyData } from '@/modules/auth';
 import { useReminderSettings } from '@/modules/notifications';
 import { ExportFormatSheet, useExportReadings, useReadings } from '@/modules/readings';
+import { SecurityHeader } from '@/modules/security';
 import { palette } from '@/theme';
 
 export default function SettingsScreen() {
@@ -113,21 +114,14 @@ export default function SettingsScreen() {
   return (
     <GradientBackground>
       <View className="flex-1">
-        <View className="flex-row items-center px-4 py-4">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="mr-4 items-center justify-center"
-            style={{ minWidth: 48, minHeight: 48 }}
-            accessibilityRole="button"
-            accessibilityLabel="ย้อนกลับ"
-          >
-            <Ionicons name="arrow-back" size={28} color={colors['text-primary']} />
-          </TouchableOpacity>
-          <ThemedText type="heading" weight="bold" numberOfLines={1} className="flex-1 text-center">
-            ตั้งค่าแอปพลิเคชั่น
-          </ThemedText>
-          <View style={{ width: 48 }} />
-        </View>
+        {/*
+          This screen carried a byte-for-byte copy of `SecurityHeader` rather
+          than the component. It is on the shared one now because that is
+          where the caregiver banner lives, and this is the screen that
+          exports a patient's whole history — the one place where not saying
+          whose data is on screen ends with a PDF filed under the wrong name.
+        */}
+        <SecurityHeader title="ตั้งค่าแอปพลิเคชั่น" subject="patient" />
 
         <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
           <SettingSection title="การแสดงผล" />

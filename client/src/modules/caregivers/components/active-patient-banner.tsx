@@ -22,11 +22,12 @@
  * fails: the screen someone forgets is the screen where the mistake happens.
  * One mount also means a new tab inherits it for free.
  *
- * **It does not cover the routes outside `(tabs)`** — `settings`,
- * `reading/[id]`, `history-list`, `invitations`. Those are pushed on top and
- * have their own headers. `reading/[id]` and `history-list` do read patient-
- * scoped data, so that is a real gap, listed in `docs/todo/CLIENT-caregiver.md`
- * rather than papered over here.
+ * **The routes outside `(tabs)` have their own.** `settings`, `reading/[id]`,
+ * `history-list`, `alerts`, and `invitations` are pushed on top of the
+ * navigator with their own headers, so this never reaches them;
+ * `CompactPatientBanner` covers them through `SecurityHeader`'s required
+ * `subject` prop. That one is informational only — the switcher and the exit
+ * live here, on the route they apply to.
  *
  * Renders nothing for a patient account, and nothing for a caregiver who has
  * not entered anyone — `isViewingPatient` is false in both cases.
