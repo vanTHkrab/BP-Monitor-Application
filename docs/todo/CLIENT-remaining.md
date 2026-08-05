@@ -63,29 +63,41 @@ server alert.
 Worth confirming there is a real caller before porting it. If there is not,
 this is a delete, not a port.
 
-## 3. The reminder timeline on the history tab
+## 3. The reminder timeline on the history tab — done
 
-**Where:** `app/(tabs)/history.tsx`, noted in its header comment.
+**Where:** `modules/notifications/lib/reminder-timeline.ts` (+ 21 tests),
+`modules/notifications/components/reminder-timeline-card.tsx`, joined against
+`useReadings()` in `app/(tabs)/history.tsx`.
 
-"เช็กรอบวัดของวันนี้" — the section showing which of today's scheduled
-measurement rounds have been taken. It needs
-`buildReminderTimelineForDate` from client-old's `utils/reminders.ts` (650
-lines, of which this is a small part), matched against the day's readings.
+"เช็กรอบวัดของวันนี้" — which of today's scheduled measurement rounds have been
+taken. Built as this file predicted: the pure part in
+`modules/notifications/lib/`, the screen owning the join, no device needed to
+test the decisions.
 
-The pure part — given a schedule and a list of readings, which rounds are
-done — is the whole feature and is unit-testable without a device. Put it in
-`modules/notifications/lib/` and let the screen join it against `useReadings`.
+**It derives rounds from `planReminders(settings)`, not from
+`settings.intervalHours`** — the one place it is not a copy of client-old's
+`buildReminderTimelineForDate`. This tree thins the schedule to fit the OS's
+64-notification ceiling, so the requested interval and the firing interval
+differ under load; reading the request would show a round the OS was never
+asked to send and then mark it missed. The reasoning and the two other
+decisions (an injected `now`, and hiding the card while a caregiver is viewing
+a patient) are in [CLIENT-history.md](./CLIENT-history.md).
+
+**One deliberate non-fix**, carried over from the original: a round reads
+"ค้างวัด" from the instant its hour arrives, including the round in progress.
+That is a copy and status decision, not a port — flagged in the function.
 
 ## 4. The caregiver role — moved to its own file, and largely done
 
 [CLIENT-caregiver.md](./CLIENT-caregiver.md) owns it. The role now works end
-to end: a caregiver can enter a patient, always sees whose data they are on,
-switches in two taps, is alerted about their patients, and is held to a
-read/write permission. Two database migrations for it are applied to Supabase.
+to end: a caregiver can enter a patient, sees whose data they are on **on
+every screen that shows it**, switches in two taps, is alerted about their
+patients, and is held to a read/write permission they can change after
+granting it. Two database migrations for it are applied to Supabase.
 
-What remains there is listed under "What is left, in order" — a permission UI,
-the banner on pushed routes, invite-by-email, and push delivery (still blocked
-on infrastructure that does not exist).
+What remains there is listed under "What is left, in order" — invite-by-email,
+an audit trail, and push delivery (still blocked on infrastructure that does
+not exist).
 
 ## 5. A reducer test for the capture state machine
 

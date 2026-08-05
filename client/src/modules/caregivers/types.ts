@@ -53,6 +53,17 @@ export type CaregiverLink = {
   status: CaregiverLinkStatus;
   /** When the patient accepted or rejected; absent while still pending. */
   respondedAt?: Date;
+  /**
+   * What this link permits. **Meaningful only once `status` is `accepted`** —
+   * a pending row carries the column default, not the patient's answer, so
+   * rendering it before then shows a grant nobody has made.
+   *
+   * The patient is the one who decides this and was the last to be able to
+   * see it: `PatientSummary.permission` tells a caregiver their own access,
+   * but that list is caregiver-only. Unknown values parse to `full`, matching
+   * the column default and `patientSummaryFromGql`.
+   */
+  permission: CaregiverPermission;
 };
 
 /** A patient a caregiver has an **accepted** link to. */

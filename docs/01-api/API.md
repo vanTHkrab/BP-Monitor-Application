@@ -553,6 +553,7 @@ doesn't need a follow-up query.
 | `myPatients` | Query | ✅ |
 | `addCaregiverPatient(patientPhone, relationship)` | Mutation | ✅ |
 | `respondToCaregiverInvite(caregiverId, accept, permission)` | Mutation | ✅ |
+| `updateCaregiverPermission(caregiverId, permission)` | Mutation | ✅ |
 | `removeCaregiverPatient(caregiverId, patientId)` | Mutation | ✅ |
 
 - Links are symmetric — the same query returns both the caregiver-side
@@ -579,6 +580,24 @@ doesn't need a follow-up query.
   `relationship` would here decide who may write into a medical record.
   The argument defaults to `full` so a client predating it grants exactly
   what it granted before, and is ignored when `accept: false`.
+- **The patient can change the grant afterwards**, via
+  `updateCaregiverPermission(caregiverId, permission)`. There is deliberately
+  no `patientId` argument — it comes from the session, which is what makes
+  the mutation patient-only: a caregiver calling it can only ever address a
+  link where *they* are the patient. It accepts **accepted links only**
+  (`NOT_FOUND` for no such link, `BAD_REQUEST` for one still pending or
+  rejected), and `permission` is required here rather than defaulted, unlike
+  on `respondToCaregiverInvite` — that default exists for clients written
+  before the argument did, while changing a grant to an unstated value is not
+  a request anyone makes. Before this, the only route from `full` back to
+  `view` was deleting the link and being re-invited.
+- `CaregiverLinkType` carries `permission` as well, so **both** sides can see
+  what was granted — the patient's link list had no other source, since
+  `myPatients` is caregiver-only. It is meaningful only once `status` is
+  `accepted`; a pending row holds the column default, not an answer. Typed as
+  the `CaregiverPermission` enum, whereas `PatientSummaryType.permission` is
+  still a `String!` that predates the enum being registered; both serialise
+  identically.
 - `myPatients` returns `PatientSummaryType`, which carries the link's
   `permission` and the patient's `latestReading` — one grouped query, so a
   caregiver's patient list is not N+1. Clients use `permission` to refuse a

@@ -38,6 +38,7 @@ const invite = (caregiverId: string, name = 'สมหญิง ใจงาม'
   relationship: 'child',
   caregiverName: name,
   caregiverPhone: '0898765432',
+  permission: 'full',
   patientName: 'สมชาย ใจดี',
   patientPhone: '0812345678',
   status: 'pending',

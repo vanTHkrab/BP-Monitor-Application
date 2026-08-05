@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CaregiverLinkStatusGql,
   CaregiverLinkType,
+  CaregiverPermissionGql,
   PatientSummaryType,
 } from './caregiver.types';
 
@@ -21,6 +22,7 @@ type CaregiverLinkWithUsers = {
   patientId: string;
   relationship: RelationshipType;
   status: 'pending' | 'accepted' | 'rejected';
+  permission: CaregiverPermission;
   respondedAt: Date | null;
   caregiver: {
     firstname: string;
@@ -276,6 +278,74 @@ export class CaregiverService {
   }
 
   /**
+   * ผู้ป่วยเปลี่ยนสิทธิ์ของผู้ดูแลที่ตอบรับไปแล้ว
+   * เรียกจากฝั่ง patient เท่านั้น
+   *
+   * Until this existed the only route from `full` back to `view` was removing
+   * the link and being re-invited — which drops the relationship, its history,
+   * and the caregiver's access all at once to change one column. A patient who
+   * wants to keep someone reading but stop them writing had to revoke
+   * everything and start over, so in practice nobody downgraded.
+   *
+   * **The patient id comes from the session, never from an argument.** That is
+   * what makes this patient-only: a caregiver calling it looks up a row where
+   * *they* are the patient, which is not the link they are trying to widen.
+   * There is no `patientId` parameter to get the authorization check wrong on.
+   *
+   * **Accepted links only.** A `pending` row's permission column holds the
+   * default, not a decision — writing to it would pre-answer a question the
+   * patient has not been asked, and `respondToInvite` would then overwrite it
+   * anyway. A `rejected` row grants nothing to change. Both raise rather than
+   * silently succeeding, because a client showing a permission control on a
+   * row where it does nothing is the bug this would hide.
+   */
+  async updatePermission(
+    patientId: string,
+    caregiverId: string,
+    permission: CaregiverPermission,
+  ): Promise<CaregiverLinkType> {
+    const link = await this.prisma.caregiverPatient.findUnique({
+      where: { caregiverId_patientId: { caregiverId, patientId } },
+      select: { status: true },
+    });
+
+    if (!link) {
+      throw new NotFoundException('ไม่พบผู้ดูแลรายนี้');
+    }
+
+    if (link.status !== 'accepted') {
+      throw new BadRequestException(
+        'เปลี่ยนสิทธิ์ได้เฉพาะผู้ดูแลที่ตอบรับคำเชิญแล้ว',
+      );
+    }
+
+    const updated = await this.prisma.caregiverPatient.update({
+      where: { caregiverId_patientId: { caregiverId, patientId } },
+      data: { permission },
+      include: {
+        caregiver: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
+        patient: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    return this.toType(updated);
+  }
+
+  /**
    * รายชื่อผู้ป่วยที่ caregiver ดูแลอยู่ (เฉพาะ accepted)
    */
   async myPatients(caregiverId: string): Promise<PatientSummaryType[]> {
@@ -411,6 +481,7 @@ export class CaregiverService {
       patientPhone: link.patient.phone,
       patientAvatar: link.patient.avatar ?? undefined,
       status: link.status as CaregiverLinkStatusGql,
+      permission: link.permission as CaregiverPermissionGql,
       respondedAt: link.respondedAt ?? undefined,
     };
   }

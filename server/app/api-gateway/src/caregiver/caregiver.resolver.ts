@@ -75,6 +75,34 @@ export class CaregiverResolver {
     );
   }
 
+  /**
+   * The patient is taken from the session, so there is no `patientId`
+   * argument: a caregiver invoking this can only ever address a link where
+   * *they* are the patient. `permission` has no default here, unlike
+   * `respondToCaregiverInvite` — that one defaults for the benefit of clients
+   * written before the argument existed, whereas changing a grant to an
+   * unstated value is not a request anyone makes.
+   */
+  @Mutation(() => CaregiverLinkType, {
+    description: 'ผู้ป่วยเปลี่ยนสิทธิ์ของผู้ดูแลที่ตอบรับแล้ว',
+  })
+  @UseGuards(GqlAuthGuard)
+  async updateCaregiverPermission(
+    @CurrentUser() user: { id: string },
+    @Args('caregiverId') caregiverId: string,
+    @Args('permission', {
+      type: () => CaregiverPermissionGql,
+      description: 'สิทธิ์ใหม่ — view: ดูอย่างเดียว, full: บันทึกแทนได้',
+    })
+    permission: CaregiverPermissionGql,
+  ): Promise<CaregiverLinkType> {
+    return this.caregiverService.updatePermission(
+      user.id,
+      caregiverId,
+      permission,
+    );
+  }
+
   @Mutation(() => Boolean, { description: 'ลบความสัมพันธ์ผู้ดูแล/ผู้ป่วย' })
   @UseGuards(GqlAuthGuard)
   async removeCaregiverPatient(

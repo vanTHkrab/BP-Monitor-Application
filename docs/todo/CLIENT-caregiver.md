@@ -3,9 +3,10 @@
 > **Status: the role works end to end and is instrumented.** A caregiver can
 > enter a patient, always sees whose data they are on, switches between
 > patients in two taps, is alerted about their patients, and is held to a
-> read/write permission the patient chooses when accepting the invite. What is
-> left is listed under "What is left, in order" — nothing there blocks the
-> role from being usable.
+> read/write permission the patient chooses when accepting the invite **and
+> can change afterwards**. Whose data is on screen is stated on every route
+> that shows it, inside the tabs and out. What is left is listed under "What
+> is left, in order" — nothing there blocks the role from being usable.
 >
 > **Both migrations are applied to the Supabase dev database**
 > (`prisma migrate status` → up to date). Nothing in this file has been
@@ -86,17 +87,7 @@ cannot know something is now above them, so `_layout.tsx` wraps the navigator
 in a `SafeAreaInsetsContext.Provider` reporting `top: 0` while a patient is
 being viewed. Without it every tab gains a second status-bar gap.
 
-### Still open: routes outside `(tabs)`
-
-The banner covers the five tabs. It does **not** cover `settings`,
-`reading/[id]`, `history-list`, or `invitations`, which are pushed on top of
-the navigator and have their own headers.
-
-`reading/[id]` and `history-list` both read patient-scoped data, so a
-caregiver can still be looking at someone else's reading with nothing saying
-so. Smaller than the original gap — you can only reach them from a tab that
-did show the banner — but real. The fix is probably a compact variant inside
-`SecurityHeader`, which those routes already share.
+### Routes outside `(tabs)` — done, see "What is left" §2
 
 ## 3. `activePatientId` is deliberately not persisted
 
@@ -426,7 +417,7 @@ names.
 Nothing below blocks the role from being usable. Each item says what it is,
 where it goes, and what makes it non-obvious.
 
-### ~~1. Nothing sets `permission`~~ — **done**, the patient grants it on accept
+### ~~1. Nothing sets `permission`~~ — **done**, and the patient can now change it
 
 `respondToCaregiverInvite(caregiverId, accept, permission)` now writes the
 column, and `InviteDecisionCard` is where the patient answers.
@@ -492,32 +483,99 @@ answer.
   Existing `border` usages were left alone; the two are not interchangeable
   and a blanket swap would thicken every divider in the app.
 
-Still not covered, and each is its own item rather than a leftover:
+~~Still not covered:~~ both follow-ups are **done**, and they were one change
+because the second is what makes the first reachable — you cannot offer to
+change a grant the patient has no way to see.
 
-- **A patient cannot change the grant after accepting.** The only route from
-  `full` to `view` today is remove the link and be re-invited. An
-  `updateCaregiverPermission` mutation plus a control on the accepted
-  `LinkRow` is the natural shape.
-- **Neither side can see what was granted.** `CaregiverLinkType` has no
-  `permission` field, so the patient's own link list cannot show it. The
-  caregiver sees theirs through `PatientSummaryType.permission`; the patient,
-  who made the decision, does not.
+- **`CaregiverLinkType` now carries `permission`.** The patient made the
+  decision and was the only one who could not read it back:
+  `PatientSummaryType.permission` shows a caregiver their own access, but that
+  query is caregiver-only. Meaningful only once `status` is `accepted` — a
+  pending row holds the column default, not an answer.
+- **`updateCaregiverPermission(caregiverId, permission)`** changes it
+  afterwards. Before this the only route from `full` to `view` was removing
+  the link and being re-invited, which drops the relationship and its history
+  to change one column; in practice that meant nobody downgraded.
 
-### 2. The banner does not cover routes outside `(tabs)`
+  **No `patientId` argument, and that is the authorization check.** It comes
+  from the session, so a caregiver calling this can only address a row where
+  *they* are the patient — there is no parameter to get wrong. There is a test
+  asserting both the lookup and the write are scoped to the composite key.
 
-`ActivePatientBanner` is mounted in `app/(tabs)/_layout.tsx`. `settings`,
-`reading/[id]`, `history-list`, and `invitations` are pushed on top and have
-their own headers, so a caregiver can be reading someone else's reading detail
-with nothing saying whose.
+  **Accepted links only.** A `pending` row's column holds the default rather
+  than a decision, so writing to it would pre-answer a question the patient
+  has not been asked — and `respondToInvite` would overwrite it anyway. A
+  `rejected` row grants nothing to change. Both raise, with *different*
+  messages from the missing-link case, since "not linked" and "not accepted
+  yet" have different fixes.
 
-Smaller than it was — you can only reach those from a tab that did show the
-banner — but real. `SecurityHeader` is shared by those routes and is the
-natural place for a compact variant.
+  **No migration.** The column has existed since
+  `20260805130000_add_caregiver_permission`; this only adds a second writer.
 
-**Watch the safe-area inset.** The tab banner owns `insets.top` and
-`_layout.tsx` compensates with a `SafeAreaInsetsContext.Provider` reporting
-`top: 0`. A second banner elsewhere needs the same treatment or those screens
-gain a double status-bar gap.
+- **The control is the chip that already states the grant.** `PersonCard`
+  chips take an optional `onPress`; the permission chip opens
+  `PermissionSheet`. That keeps the card at two visible actions rather than
+  three, and puts the control where someone would look for it.
+
+  **The sheet rebuilds its rows in Tamagui rather than reusing the invite
+  card's `PermissionOption`.** A Tamagui **modal** `Sheet` mounts its content
+  outside the app's provider tree, so `useTheme()` and `ThemedText` both throw
+  in there — and since the content stays mounted while closed, the throw is
+  not conditional on opening it. `ExportFormatSheet` and
+  `PatientSwitcherSheet` are Tamagui-only for the same reason; this was
+  learned again the hard way. What must not drift between the two surfaces is
+  the *wording* of each grant, and that is shared through
+  `modules/caregivers/lib/permission.ts`.
+
+### ~~2. The banner does not cover routes outside `(tabs)`~~ — **done**
+
+`CompactPatientBanner` (`modules/caregivers/components/`) is rendered by
+`SecurityHeader`, which now takes a **required** `subject: 'patient' | 'self'`.
+Five routes declare `'patient'` — `settings`, `reading/[id]`, `history-list`,
+`alerts`, `invitations` — and eight declare `'self'`.
+
+**Required, not defaulted, and that is the whole design.** These routes split
+into two groups with no safe value between them: some read patient-scoped data
+and must say whose, and the rest are firmly the caregiver's own account, where
+a banner over "เปลี่ยนรหัสผ่าน" would claim the password being changed is the
+patient's. A default picks wrong for one group silently. Making it required
+means a new route cannot mount the header without answering the question, and
+it is answered at the call site, next to the hooks that decide whose data the
+screen reads — the same reasoning as `respondToInvite`'s required `permission`.
+
+**Three things the plan above got wrong**, all found by reading the tree:
+
+- **`SecurityHeader` is not shared by those routes — it is shared by *twelve*,
+  and only three of the four named ones use it.** Dropping a banner into it
+  unconditionally, which is what this file recommended, would have put "กำลังดู
+  ข้อมูลของ คุณX" on `profile`, `reminders`, `post/[id]`, and all five
+  `security/*` screens.
+- **`settings` was not one of its users at all.** It carried a byte-for-byte
+  copy of the header inline. It is on the shared component now — and it is the
+  screen that exports a patient's *whole* history, so it was the worst omission
+  of the four.
+- **`alerts` was missing from the list.** `useAlerts()` reads through
+  `useSubject()`, so it is patient-scoped exactly like `readings`. It is
+  `subject="patient"` now.
+
+**The safe-area warning does not apply**, and the reason is worth keeping. The
+tab banner owns `insets.top` because it sits *above* the navigator, which is
+why `(tabs)/_layout.tsx` hands children a zeroed inset context. Every route
+here renders inside `GradientBackground`, which spends `insets.top` before its
+children mount — so the compact banner takes no inset, and adding one would
+have produced the double status-bar gap this file warned about rather than
+preventing it.
+
+**The compact variant carries no exit and no switcher**, unlike the tab one.
+Leaving a patient from inside `reading/[id]` strands the user on a detail
+screen for a reading they can no longer read, and switching patients under a
+route keyed by *this* patient's reading id is worse. Both controls stay one
+back-gesture away, on the tab banner, where the route they apply to is the one
+being displayed.
+
+Covered by `modules/security/components/security-header.test.tsx` — including
+the case that matters most, that `subject="self"` stays silent while a patient
+*is* active.
 
 ### 3. A-005 — invite by email as well as phone
 

@@ -21,6 +21,7 @@ jest.mock('@/modules/security', () => ({
   SecurityHeader: () => null,
 }));
 
+const mockUpdatePermission = jest.fn(() => Promise.resolve({}));
 const mockPatients = { current: [] as Record<string, unknown>[] };
 const mockLinks = { current: [] as Record<string, unknown>[] };
 
@@ -35,10 +36,14 @@ jest.mock('@/modules/caregivers', () => ({
   }),
   useRemoveCaregiverLink: () => ({ removeLink: jest.fn(), isPending: false }),
   useRespondToInvite: () => ({ respondToInvite: jest.fn(), isPending: false }),
+  useUpdateCaregiverPermission: () => ({
+    updatePermission: mockUpdatePermission,
+    isPending: false,
+  }),
 }));
 
 import InvitationsScreen from '@/app/invitations';
-import { useActivePatientStore } from '@/modules/caregivers';
+import { permissionLabel, useActivePatientStore } from '@/modules/caregivers';
 import { fireEvent, renderScreen } from '../test-utils';
 
 const patient = (over: Record<string, unknown> = {}) => ({
@@ -59,9 +64,24 @@ const link = (over: Record<string, unknown> = {}) => ({
   patientPhone: '0812345678',
   relationship: 'child',
   status: 'accepted',
+  permission: 'full',
   createdAt: new Date('2026-07-01T00:00:00.000Z'),
   ...over,
 });
+
+/**
+ * A link where the signed-in user is the *patient* — the side that granted
+ * the permission and is the only one allowed to change it. The sections are
+ * derived from the data rather than from the role, so this needs no separate
+ * session mock.
+ */
+const myCaregiver = (over: Record<string, unknown> = {}) =>
+  link({
+    caregiverId: 'c2',
+    patientId: 'c1',
+    caregiverName: 'สมศรี ใจงาม',
+    ...over,
+  });
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -158,5 +178,70 @@ describe('InvitationsScreen — tabs', () => {
     const view = await renderScreen(<InvitationsScreen />);
 
     expect(view.queryByTestId('pending-requests-hint')).toBeNull();
+  });
+});
+
+/**
+ * The patient can change a grant after accepting it. Before this the only
+ * route from `full` to `view` was removing the link and being re-invited,
+ * which drops the relationship to change one column — so in practice nobody
+ * downgraded.
+ */
+describe('InvitationsScreen — changing a caregiver permission', () => {
+  it('states the current grant on the caregiver card', async () => {
+    mockLinks.current = [myCaregiver({ permission: 'view' })];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    /*
+     * Read off the chip's own accessibility label rather than searching the
+     * screen for the text: Tamagui keeps `Sheet` content mounted while
+     * closed, so both option labels are in the tree at all times and a
+     * `getByText` finds two. Asserted against `lib/permission.ts` rather than
+     * a literal — the chip's job is to name the right *value*, and that file
+     * owns the wording.
+     */
+    const chip = view.getByTestId('caregiver-c2-permission');
+    expect(chip.props.accessibilityLabel).toContain(permissionLabel('view'));
+    expect(chip.props.accessibilityLabel).not.toContain(permissionLabel('full'));
+  });
+
+  it('sends the new grant when the patient picks the other option', async () => {
+    mockLinks.current = [myCaregiver({ permission: 'full' })];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    await fireEvent.press(view.getByTestId('caregiver-c2-permission'));
+    await fireEvent.press(view.getByTestId('permission-sheet-view'));
+
+    expect(mockUpdatePermission).toHaveBeenCalledWith({
+      caregiverId: 'c2',
+      permission: 'view',
+    });
+  });
+
+  // Picking what is already granted is how someone backs out of the sheet.
+  // Sending it would spend a round trip and an invalidation writing the value
+  // already in the row.
+  it('sends nothing when the patient picks the grant already in force', async () => {
+    mockLinks.current = [myCaregiver({ permission: 'full' })];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    await fireEvent.press(view.getByTestId('caregiver-c2-permission'));
+    await fireEvent.press(view.getByTestId('permission-sheet-full'));
+
+    expect(mockUpdatePermission).not.toHaveBeenCalled();
+  });
+
+  /*
+   * The chip sits inside the card, but the caregiver card has no `onOpen` —
+   * only the patient cards do. Asserted so that if one is ever added, the
+   * permission tap does not also fire it.
+   */
+  it('does not open anything else when the chip is tapped', async () => {
+    mockLinks.current = [myCaregiver()];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    await fireEvent.press(view.getByTestId('caregiver-c2-permission'));
+
+    expect(router.replace).not.toHaveBeenCalled();
   });
 });

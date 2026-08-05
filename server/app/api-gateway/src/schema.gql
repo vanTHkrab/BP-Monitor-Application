@@ -82,6 +82,7 @@ type CaregiverLinkType {
   patientAvatar: String
   status: CaregiverLinkStatus!
   respondedAt: DateTime
+  permission: CaregiverPermission!
 }
 
 """สถานะของคำเชิญ caregiver–patient"""
@@ -89,6 +90,12 @@ enum CaregiverLinkStatus {
   pending
   accepted
   rejected
+}
+
+"""สิทธิ์ที่ผู้ป่วยให้ผู้ดูแล — view: ดูอย่างเดียว, full: บันทึกแทนได้"""
+enum CaregiverPermission {
+  view
+  full
 }
 
 type PatientLatestReadingType {
@@ -400,6 +407,14 @@ type Mutation {
     permission: CaregiverPermission! = full
   ): CaregiverLinkType!
 
+  """ผู้ป่วยเปลี่ยนสิทธิ์ของผู้ดูแลที่ตอบรับแล้ว"""
+  updateCaregiverPermission(
+    caregiverId: String!
+
+    """สิทธิ์ใหม่ — view: ดูอย่างเดียว, full: บันทึกแทนได้"""
+    permission: CaregiverPermission!
+  ): CaregiverLinkType!
+
   """ลบความสัมพันธ์ผู้ดูแล/ผู้ป่วย"""
   removeCaregiverPatient(caregiverId: String!, patientId: String!): Boolean!
 
@@ -544,12 +559,6 @@ input CreateReadingInput {
   imageId: Int
   notes: String
   patientId: ID
-}
-
-"""สิทธิ์ที่ผู้ป่วยให้ผู้ดูแล — view: ดูอย่างเดียว, full: บันทึกแทนได้"""
-enum CaregiverPermission {
-  view
-  full
 }
 
 input CreatePostInput {

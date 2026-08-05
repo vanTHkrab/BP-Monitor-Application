@@ -126,6 +126,37 @@ export function useRespondToInvite() {
   };
 }
 
+/**
+ * The patient changes a grant they already made.
+ *
+ * Separate from `useRespondToInvite` even though both write the same column:
+ * that one answers a pending invite and this one edits a settled link, and
+ * the gateway refuses each other's rows. Sharing a hook would mean one
+ * `pendingCaregiverId` for two different spinners.
+ */
+export function useUpdateCaregiverPermission() {
+  const invalidate = useInvalidateCaregivers();
+
+  const mutation = useMutation({
+    mutationFn: ({
+      caregiverId,
+      permission,
+    }: {
+      caregiverId: string;
+      permission: CaregiverPermission;
+    }) => caregiversApi.updateCaregiverPermission(caregiverId, permission),
+    onSuccess: invalidate,
+  });
+
+  return {
+    updatePermission: mutation.mutateAsync,
+    isPending: mutation.isPending,
+    /** The link currently being changed, so one row can spin alone. */
+    pendingCaregiverId: mutation.isPending ? (mutation.variables?.caregiverId ?? null) : null,
+    error: mutation.error,
+  };
+}
+
 export function useRemoveCaregiverLink() {
   const invalidate = useInvalidateCaregivers();
 

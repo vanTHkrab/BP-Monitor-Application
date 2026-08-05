@@ -31,8 +31,22 @@ export type PersonCardProps = {
   avatarUri?: string;
   /** Phone, or whatever secondary identifier this side of the link has. */
   detail: string;
-  /** Relationship or permission, shown as chips under the name. */
-  chips?: { label: string; tone?: 'neutral' | 'accent' }[];
+  /**
+   * Relationship or permission, shown as chips under the name.
+   *
+   * A chip with `onPress` becomes its own control and gains a pencil — used
+   * by the permission chip, where the thing you would tap to change a grant
+   * is the chip already stating it. It sits inside the card's `onOpen`
+   * target, so it stops propagation the way the remove button avoids the
+   * problem by being outside it.
+   */
+  chips?: {
+    label: string;
+    tone?: 'neutral' | 'accent';
+    onPress?: () => void;
+    accessibilityLabel?: string;
+    testID?: string;
+  }[];
   /**
    * Opens this person's data. The whole card becomes tappable and gains a
    * chevron; the remove action keeps its own hit box so "view" and "unlink"
@@ -83,25 +97,56 @@ export function PersonCard({
 
         {chips.length > 0 ? (
           <View className="mt-2 flex-row flex-wrap gap-1.5">
-            {chips.map((chip) => (
-              <View
-                key={chip.label}
-                className="rounded-full px-2.5 py-1"
-                style={{
-                  backgroundColor:
-                    chip.tone === 'accent' ? colors.accent : colors['surface-muted'],
-                }}
-              >
-                <ThemedText
-                  type="caption"
-                  weight="semibold"
-                  themeColor="text-secondary"
-                  style={chip.tone === 'accent' ? { color: '#FFFFFF' } : undefined}
+            {chips.map((chip) => {
+              const inner = (
+                <>
+                  <ThemedText
+                    type="caption"
+                    weight="semibold"
+                    themeColor="text-secondary"
+                    style={chip.tone === 'accent' ? { color: '#FFFFFF' } : undefined}
+                  >
+                    {chip.label}
+                  </ThemedText>
+                  {chip.onPress ? (
+                    <Ionicons
+                      name="pencil"
+                      size={11}
+                      color={chip.tone === 'accent' ? '#FFFFFF' : colors['text-secondary']}
+                      style={{ marginLeft: 4 }}
+                    />
+                  ) : null}
+                </>
+              );
+
+              const fill = chip.tone === 'accent' ? colors.accent : colors['surface-muted'];
+
+              return chip.onPress ? (
+                <Pressable
+                  key={chip.label}
+                  testID={chip.testID}
+                  onPress={chip.onPress}
+                  accessibilityRole="button"
+                  accessibilityLabel={chip.accessibilityLabel ?? chip.label}
+                  className="flex-row items-center rounded-full border px-2.5 py-1"
+                  style={({ pressed }) => ({
+                    backgroundColor: fill,
+                    borderColor: colors['border-strong'],
+                    opacity: pressed ? 0.6 : 1,
+                  })}
                 >
-                  {chip.label}
-                </ThemedText>
-              </View>
-            ))}
+                  {inner}
+                </Pressable>
+              ) : (
+                <View
+                  key={chip.label}
+                  className="flex-row items-center rounded-full px-2.5 py-1"
+                  style={{ backgroundColor: fill }}
+                >
+                  {inner}
+                </View>
+              );
+            })}
           </View>
         ) : null}
       </View>

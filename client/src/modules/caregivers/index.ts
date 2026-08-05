@@ -19,6 +19,7 @@ export {
   useMyPatients,
   useRemoveCaregiverLink,
   useRespondToInvite,
+  useUpdateCaregiverPermission,
 } from './hooks/use-caregivers';
 
 export {
@@ -36,6 +37,8 @@ export {
   sortByAttention,
 } from './components/patient-switcher-sheet';
 export { InviteDecisionCard } from './components/invite-decision-card';
+export { PermissionSheet } from './components/permission-sheet';
+export { PERMISSION_OPTIONS, permissionLabel } from './lib/permission';
 export { InviteForm } from './components/invite-form';
 export { LinkGroup, LinkRow } from './components/link-row';
 export { PersonCard } from './components/person-card';

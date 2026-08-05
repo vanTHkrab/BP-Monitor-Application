@@ -8,6 +8,7 @@ const link = (over: Partial<CaregiverLink>): CaregiverLink => ({
   caregiverName: 'สมชาย ใจดี',
   caregiverPhone: '0812345678',
   patientName: 'สมหญิง ใจดี',
+  permission: 'full',
   patientPhone: '0898765432',
   status: 'pending',
   ...over,

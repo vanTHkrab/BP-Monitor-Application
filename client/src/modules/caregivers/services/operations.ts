@@ -24,6 +24,7 @@ export const GQL_CAREGIVER_LINKS = `
       patientAvatar
       status
       respondedAt
+      permission
     }
   }
 `;
@@ -66,6 +67,7 @@ export const GQL_ADD_CAREGIVER_PATIENT = `
       patientAvatar
       status
       respondedAt
+      permission
     }
   }
 `;
@@ -90,6 +92,7 @@ export const GQL_RESPOND_TO_CAREGIVER_INVITE = `
       patientAvatar
       status
       respondedAt
+      permission
     }
   }
 `;
@@ -97,5 +100,34 @@ export const GQL_RESPOND_TO_CAREGIVER_INVITE = `
 export const GQL_REMOVE_CAREGIVER_PATIENT = `
   mutation RemoveCaregiverPatient($caregiverId: String!, $patientId: String!) {
     removeCaregiverPatient(caregiverId: $caregiverId, patientId: $patientId)
+  }
+`;
+
+/**
+ * The patient changes a grant they already made.
+ *
+ * There is no `patientId` argument by design — the gateway takes it from the
+ * session, so this can only ever address a link where the caller is the
+ * patient. `$permission` is required here even though
+ * `respondToCaregiverInvite` defaults it: that default exists for clients
+ * written before the argument did, while changing a grant to an unstated
+ * value is not a request anyone makes.
+ */
+export const GQL_UPDATE_CAREGIVER_PERMISSION = `
+  mutation UpdateCaregiverPermission($caregiverId: String!, $permission: CaregiverPermission!) {
+    updateCaregiverPermission(caregiverId: $caregiverId, permission: $permission) {
+      caregiverId
+      patientId
+      relationship
+      caregiverName
+      caregiverPhone
+      caregiverAvatar
+      patientName
+      patientPhone
+      patientAvatar
+      status
+      respondedAt
+      permission
+    }
   }
 `;

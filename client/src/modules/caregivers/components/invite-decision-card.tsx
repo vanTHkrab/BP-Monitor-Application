@@ -43,6 +43,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { formatThaiPhone } from '@/utils/phone-format';
 
+import { PERMISSION_OPTIONS } from '../lib/permission';
 import { relationshipLabel } from '../lib/relationship';
 import type { CaregiverLink, CaregiverPermission } from '../types';
 
@@ -52,33 +53,6 @@ export type InviteDecisionCardProps = {
   isResponding?: boolean;
 };
 
-/**
- * What each grant lets the caregiver do, in the patient's words.
- *
- * `consequence` is a full sentence rather than a hint because it is the only
- * thing on the card that says what "อนุญาต" will actually do. Both are
- * rendered at once — the unchosen one is how a patient discovers the choice
- * exists.
- */
-const PERMISSION_OPTIONS: {
-  value: CaregiverPermission;
-  label: string;
-  consequence: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}[] = [
-  {
-    value: 'view',
-    label: 'ดูอย่างเดียว',
-    consequence: 'เห็นค่าความดันของคุณ แต่บันทึกค่าแทนคุณไม่ได้',
-    icon: 'eye-outline',
-  },
-  {
-    value: 'full',
-    label: 'บันทึกแทนได้',
-    consequence: 'เห็นค่าความดันของคุณ และบันทึกค่าความดันแทนคุณได้',
-    icon: 'create-outline',
-  },
-];
 
 export function InviteDecisionCard({
   link,

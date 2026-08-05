@@ -8,7 +8,11 @@
  * were a single check until `CaregiverPatient.permission` existed, which meant
  * every accepted link could write a reading into someone else's history.
  */
-import { ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 jest.mock('../prisma/prisma.service', () => ({
@@ -219,5 +223,123 @@ describe('CaregiverService.respondToInvite — the permission grant', () => {
 
     expect(writtenData()).toMatchObject({ status: 'rejected' });
     expect(writtenData()).not.toHaveProperty('permission');
+  });
+});
+
+describe('CaregiverService.updatePermission — changing a grant after the fact', () => {
+  let service: CaregiverService;
+  let prisma: {
+    caregiverPatient: { findUnique: jest.Mock; update: jest.Mock };
+  };
+
+  const users = {
+    caregiver: { firstname: 'ก', lastname: 'ข', phone: '0810000000' },
+    patient: { firstname: 'ค', lastname: 'ง', phone: '0820000000' },
+  };
+
+  const linkOn = (status: string) => ({
+    caregiverId: CAREGIVER_ID,
+    patientId: PATIENT_ID,
+    relationship: 'child',
+    status,
+    permission: 'full',
+    respondedAt: new Date(),
+    ...users,
+  });
+
+  beforeEach(async () => {
+    prisma = {
+      caregiverPatient: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'accepted' }),
+        update: jest.fn().mockResolvedValue(linkOn('accepted')),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CaregiverService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+
+    service = module.get<CaregiverService>(CaregiverService);
+  });
+
+  it('writes the new permission on an accepted link', async () => {
+    await service.updatePermission(PATIENT_ID, CAREGIVER_ID, 'view');
+
+    expect(prisma.caregiverPatient.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { permission: 'view' } }),
+    );
+  });
+
+  /**
+   * The authorization check *is* the composite key: the patient id comes from
+   * the session, so a row can only be found where the caller is the patient.
+   * A caregiver aiming this at their own link addresses a row that does not
+   * exist. If this ever grows a `patientId` argument, that property is gone.
+   */
+  it('scopes both the lookup and the write to the calling patient', async () => {
+    await service.updatePermission(PATIENT_ID, CAREGIVER_ID, 'view');
+
+    const key = {
+      caregiverId_patientId: {
+        caregiverId: CAREGIVER_ID,
+        patientId: PATIENT_ID,
+      },
+    };
+    expect(prisma.caregiverPatient.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: key }),
+    );
+    expect(prisma.caregiverPatient.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: key }),
+    );
+  });
+
+  it('refuses a link that does not exist', async () => {
+    prisma.caregiverPatient.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.updatePermission(PATIENT_ID, CAREGIVER_ID, 'view'),
+    ).rejects.toThrow(NotFoundException);
+    expect(prisma.caregiverPatient.update).not.toHaveBeenCalled();
+  });
+
+  // A pending row's column holds the default, not a decision. Writing to it
+  // would answer a question the patient has not been asked, and
+  // `respondToInvite` would overwrite it anyway.
+  it('refuses a pending link rather than pre-answering the invite', async () => {
+    prisma.caregiverPatient.findUnique.mockResolvedValue({ status: 'pending' });
+
+    await expect(
+      service.updatePermission(PATIENT_ID, CAREGIVER_ID, 'view'),
+    ).rejects.toThrow(BadRequestException);
+    expect(prisma.caregiverPatient.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses a rejected link, which grants nothing to change', async () => {
+    prisma.caregiverPatient.findUnique.mockResolvedValue({
+      status: 'rejected',
+    });
+
+    await expect(
+      service.updatePermission(PATIENT_ID, CAREGIVER_ID, 'view'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  // The two refusals have to be distinguishable: "not linked" and "not
+  // accepted yet" are different problems with different fixes.
+  it('says something different for missing than for not-yet-accepted', async () => {
+    prisma.caregiverPatient.findUnique.mockResolvedValue(null);
+    const missing = await service
+      .updatePermission(PATIENT_ID, CAREGIVER_ID, 'view')
+      .catch((error: Error) => error.message);
+
+    prisma.caregiverPatient.findUnique.mockResolvedValue({ status: 'pending' });
+    const pending = await service
+      .updatePermission(PATIENT_ID, CAREGIVER_ID, 'view')
+      .catch((error: Error) => error.message);
+
+    expect(missing).not.toEqual(pending);
   });
 });

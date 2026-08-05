@@ -50,7 +50,9 @@ import {
   InviteForm,
   LinkGroup,
   LinkRow,
+  PermissionSheet,
   PersonCard,
+  permissionLabel,
   deriveSections,
   linkKey,
   relationshipLabel,
@@ -60,6 +62,7 @@ import {
   useMyPatients,
   useRemoveCaregiverLink,
   useRespondToInvite,
+  useUpdateCaregiverPermission,
   type CaregiverLink,
   type CaregiverPermission,
   type PatientSummary,
@@ -77,6 +80,15 @@ export default function InvitationsScreen() {
   const { patients, refetch: refetchPatients } = useMyPatients({ enabled: isCaregiver });
   const { respondToInvite, pendingCaregiverId } = useRespondToInvite();
   const { removeCaregiverLink } = useRemoveCaregiverLink();
+
+  /**
+   * The caregiver whose permission is being changed, or `null`. Held as the
+   * whole link rather than an id so the sheet can name them and show the
+   * current grant without looking either back up.
+   */
+  const [permissionTarget, setPermissionTarget] = useState<CaregiverLink | null>(null);
+  const { updatePermission, isPending: isChangingPermission } =
+    useUpdateCaregiverPermission();
 
   const [error, setError] = useState<string | null>(null);
   /*
@@ -301,7 +313,23 @@ export default function InvitationsScreen() {
                       name={`คุณ${link.caregiverName}`}
                       avatarUri={link.caregiverAvatar}
                       detail={formatThaiPhone(link.caregiverPhone)}
-                      chips={[{ label: relationshipLabel(link.relationship) }]}
+                      chips={[
+                        { label: relationshipLabel(link.relationship) },
+                        /*
+                          Tappable, and the only route to changing a grant
+                          after accepting. The chip already states the answer,
+                          so it is where someone looks to change it — and it
+                          keeps the card at two visible actions rather than
+                          three.
+                        */
+                        {
+                          label: permissionLabel(link.permission),
+                          tone: 'accent',
+                          testID: `caregiver-${link.caregiverId}-permission`,
+                          accessibilityLabel: `สิทธิ์ของคุณ${link.caregiverName} ตอนนี้คือ ${permissionLabel(link.permission)} แตะเพื่อเปลี่ยน`,
+                          onPress: () => setPermissionTarget(link),
+                        },
+                      ]}
                       removeLabel="ยกเลิกการเชื่อมโยงกับ"
                       onRemove={() =>
                         confirmRemove(
@@ -427,6 +455,30 @@ export default function InvitationsScreen() {
           <View className="h-10" />
         </ScrollView>
       </View>
+
+      {/*
+        Mounted once outside the list rather than per row: Tamagui keeps a
+        sheet's content mounted while closed, so one per caregiver would build
+        the whole set on every render of this screen.
+      */}
+      <PermissionSheet
+        open={permissionTarget !== null}
+        onOpenChange={(open: boolean) => {
+          if (!open) setPermissionTarget(null);
+        }}
+        caregiverName={`คุณ${permissionTarget?.caregiverName ?? ''}`}
+        current={permissionTarget?.permission ?? 'full'}
+        isPending={isChangingPermission}
+        onSelect={(permission: CaregiverPermission) => {
+          const target = permissionTarget;
+          setPermissionTarget(null);
+          if (!target) return;
+          void updatePermission({ caregiverId: target.caregiverId, permission }).catch(
+            (cause: unknown) =>
+              setError(formatErrorMessage(cause, 'เปลี่ยนสิทธิ์ไม่สำเร็จ กรุณาลองใหม่')),
+          );
+        }}
+      />
     </GradientBackground>
   );
 }

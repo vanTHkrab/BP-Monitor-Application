@@ -63,6 +63,25 @@ export class CaregiverLinkType {
   @Field({ nullable: true }) patientAvatar?: string;
   @Field(() => CaregiverLinkStatusGql) status: CaregiverLinkStatusGql;
   @Field({ nullable: true }) respondedAt?: Date;
+  /**
+   * What this link permits — meaningful only once `status` is `accepted`.
+   *
+   * The patient is the one who grants it and was the one person who could not
+   * see it: `PatientSummaryType.permission` shows a caregiver their own
+   * access, but that query is caregiver-only, so the patient's link list had
+   * no way to display the decision they had made. A grant nobody can read is
+   * a grant nobody will revoke.
+   *
+   * A `pending` row carries the column default rather than a decision — the
+   * patient has not answered yet. Clients should not render it until the
+   * status is `accepted`.
+   *
+   * Typed as the enum, unlike `PatientSummaryType.permission`, which is a
+   * `String!` that predates `CaregiverPermission` being registered. Both
+   * serialise identically, so the client parses either; aligning that one is
+   * worth doing on its own rather than as a side effect here.
+   */
+  @Field(() => CaregiverPermissionGql) permission: CaregiverPermissionGql;
 }
 
 /** Just enough of a reading to sort and colour a patient row. */

@@ -17,7 +17,12 @@ jest.mock(
   () => require('@react-native-async-storage/async-storage/jest/async-storage-mock') as unknown,
 );
 
-import { patientSummaryFromGql, type PatientSummaryPayload } from './mappers';
+import {
+  caregiverLinkFromGql,
+  patientSummaryFromGql,
+  type CaregiverLinkPayload,
+  type PatientSummaryPayload,
+} from './mappers';
 
 const payload = (over: Partial<PatientSummaryPayload> = {}): PatientSummaryPayload => ({
   id: 'p1',
@@ -52,5 +57,46 @@ describe('patientSummaryFromGql — permission', () => {
     expect(
       patientSummaryFromGql(payload({ permission: permission as string | null })).permission,
     ).toBe('full');
+  });
+});
+
+/**
+ * The link carries the permission too, so the *patient* — who granted it and
+ * could previously not see it anywhere — can read and change their own
+ * decision. Same fallback and the same reason as the summary above.
+ */
+describe('caregiverLinkFromGql — permission', () => {
+  const linkPayload = (over: Partial<CaregiverLinkPayload> = {}): CaregiverLinkPayload => ({
+    caregiverId: 'c1',
+    patientId: 'p1',
+    relationship: 'child',
+    caregiverName: 'สมหญิง ใจงาม',
+    caregiverPhone: '0898765432',
+    patientName: 'สมชาย ใจดี',
+    patientPhone: '0812345678',
+    status: 'accepted',
+    respondedAt: null,
+    permission: 'full',
+    ...over,
+  });
+
+  it('carries view through', () => {
+    expect(caregiverLinkFromGql(linkPayload({ permission: 'view' })).permission).toBe('view');
+  });
+
+  it('carries full through', () => {
+    expect(caregiverLinkFromGql(linkPayload({ permission: 'full' })).permission).toBe('full');
+  });
+
+  // A gateway from before the field existed must not make every link look
+  // read-only — that would hide the record button from caregivers who have
+  // it, and the server is what actually enforces the grant.
+  it('falls back to full when the field is missing', () => {
+    expect(caregiverLinkFromGql(linkPayload({ permission: undefined })).permission).toBe('full');
+    expect(caregiverLinkFromGql(linkPayload({ permission: null })).permission).toBe('full');
+  });
+
+  it('falls back to full on a value it does not recognise', () => {
+    expect(caregiverLinkFromGql(linkPayload({ permission: 'admin' })).permission).toBe('full');
   });
 });

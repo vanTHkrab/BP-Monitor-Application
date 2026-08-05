@@ -25,6 +25,8 @@ export type CaregiverLinkPayload = {
   patientAvatar?: string | null;
   status: string;
   respondedAt: string | null;
+  /** Nullable so a gateway that predates the field still parses. */
+  permission?: string | null;
 };
 
 export type PatientSummaryPayload = {
@@ -68,6 +70,10 @@ export function caregiverLinkFromGql(payload: CaregiverLinkPayload): CaregiverLi
     patientAvatar: payload.patientAvatar ?? undefined,
     status: parseStatus(payload.status),
     respondedAt: payload.respondedAt ? new Date(payload.respondedAt) : undefined,
+    // Same fallback and same reason as `patientSummaryFromGql`: an older
+    // gateway that omits the field must not make every link look read-only,
+    // and the server is what actually enforces the grant.
+    permission: payload.permission === 'view' ? 'view' : 'full',
   };
 }
 

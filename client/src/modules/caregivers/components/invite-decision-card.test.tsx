@@ -27,6 +27,7 @@ const link: CaregiverLink = {
   caregiverName: 'สมชาย ใจดี',
   caregiverPhone: '0810000000',
   patientName: 'สมหญิง ใจดี',
+  permission: 'full',
   patientPhone: '0820000000',
   status: 'pending',
 };
