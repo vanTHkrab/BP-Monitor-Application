@@ -57,9 +57,25 @@ export type PatientSummary = {
   avatar?: string;
   dob?: Date;
   relationship?: RelationshipType;
+  /**
+   * What this caregiver's accepted link permits.
+   *
+   * `view` may read the patient's history and alerts; `full` may also record
+   * readings on their behalf. The gateway enforces it either way — this is
+   * here so the app can refuse a write *before* someone takes a measurement
+   * it was never going to be allowed to save.
+   *
+   * Defaults to `full` when the server omits it, matching the column default:
+   * a client built against an older gateway keeps working rather than locking
+   * every caregiver out of recording.
+   */
+  permission: CaregiverPermission;
   weight?: number;
   height?: number;
 };
+
+/** Mirrors the gateway's `CaregiverPermission` enum. */
+export type CaregiverPermission = 'view' | 'full';
 
 export type InvitePatientInput = {
   /** Digits only — the gateway looks this up as an exact `User.phone` match. */

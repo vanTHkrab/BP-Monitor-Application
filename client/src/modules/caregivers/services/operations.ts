@@ -36,6 +36,7 @@ export const GQL_MY_PATIENTS = `
       avatar
       dob
       relationship
+      permission
       weight
       height
     }

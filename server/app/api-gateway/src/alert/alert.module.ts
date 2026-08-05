@@ -6,7 +6,7 @@ import { AlertService } from './alert.service';
 
 @Module({
   // `CaregiverModule` exports `CaregiverService` for its
-  // `assertCanActOnBehalfOf` guard — the same one `readings(patientId:)` uses.
+  // `assertCanViewPatient` guard — the same one `readings(patientId:)` uses.
   imports: [StorageModule, CaregiverModule],
   providers: [AlertResolver, AlertService],
 })

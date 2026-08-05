@@ -44,6 +44,14 @@ export const CaregiverLinkStatus = {
 export type CaregiverLinkStatus = (typeof CaregiverLinkStatus)[keyof typeof CaregiverLinkStatus]
 
 
+export const CaregiverPermission = {
+  view: 'view',
+  full: 'full'
+} as const
+
+export type CaregiverPermission = (typeof CaregiverPermission)[keyof typeof CaregiverPermission]
+
+
 export const BpStatus = {
   low: 'low',
   normal: 'normal',

@@ -19,6 +19,7 @@ const patient = {
   firstname: 'สมชาย',
   lastname: 'ใจดี',
   phone: '0812345678',
+  permission: 'full' as const,
 };
 
 beforeEach(() => {

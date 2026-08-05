@@ -183,6 +183,7 @@ export const CaregiverPatientScalarFieldEnum = {
   patientId: 'patientId',
   relationship: 'relationship',
   status: 'status',
+  permission: 'permission',
   createdAt: 'createdAt',
   respondedAt: 'respondedAt'
 } as const

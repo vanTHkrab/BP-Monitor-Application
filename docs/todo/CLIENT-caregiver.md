@@ -304,7 +304,46 @@ Two shapes, and the choice matters more than it looks:
 **Take the first.** Per-person read state is a correctness requirement; row
 duplication is a storage cost, and much the cheaper of the two.
 
-### 4. Add a permission column to `CaregiverPatient` before anything assumes full access
+### 4. A permission column on `CaregiverPatient` — **done**
+
+`CaregiverPermission { view, full }`, defaulting to `full` so every existing
+row keeps exactly the behaviour it has. Nothing is taken away by the
+migration.
+
+**The guard split is the point.** `assertCanActOnBehalfOf` was one check used
+for both reading a patient's history and writing into it, which meant any
+accepted link could record a blood-pressure value in someone else's medical
+record. It is now two:
+
+| Guard | Accepts | Used by |
+| --- | --- | --- |
+| `assertCanViewPatient` | any accepted link | `readings(patientId:)`, `alerts(patientId:)` |
+| `assertCanRecordForPatient` | accepted **and** `full` | `createReading` |
+
+They raise **different messages** on purpose: "you are not linked" and "you
+are linked, read-only" are different problems with different fixes, and the
+client has to be able to tell them apart. There is a test asserting the two
+messages differ, and one asserting the write path never settles for the view
+guard.
+
+`PatientSummaryType.permission` is exposed so the camera can refuse *before*
+the measurement. The gateway refuses either way — the client gate is a
+courtesy, never the enforcement — but finding out after framing, capturing and
+confirming means the reading the patient just sat through is gone.
+
+Client-side the value parses with an unknown-to-`full` fallback matching the
+column default: a client running against an older gateway must not lock every
+caregiver out of recording.
+
+**Migration:** `20260805130000_add_caregiver_permission`. Generated with
+`prisma migrate diff` against a throwaway Postgres from `infra/`, not with
+`migrate dev` — the gateway's `.env` `DATABASE_URL` points at **Supabase**,
+and `migrate dev` offers to reset the database it is aimed at. Every migration
+in the directory was then replayed against that local Postgres to prove this
+one applies. **It has not been applied to Supabase**; that is a deploy
+decision (`prisma migrate deploy`), not a dev-machine one.
+
+The original reasoning:
 
 `permission: view | full` is one small migration today. Once several features
 are written on the assumption that "accepted" means "may do everything",
@@ -329,7 +368,10 @@ names.
 1. ~~**`useSubject()` + `alerts(patientId:)`**~~ — done.
 2. ~~**Alert fan-out**~~ — done. Follow-up: `@@unique([userId, bpReadingId])`
    when a migration can next be run.
-3. **The permission column** (§4) — cheap now, a rewrite later.
+3. ~~**The permission column**~~ — done. Still open on top of it: no UI sets
+   `permission`, so every link is `full` in practice. A patient-facing control
+   on the invite-decision card ("ให้ดูอย่างเดียว" / "ให้บันทึกแทนได้") is the
+   natural next step, plus `addCaregiverPatient` accepting it.
 4. **Quick-switcher + richer `myPatients`** (§5, §6) — UX and scale.
 5. **The banner on pushed routes** (§2, "still open") — `reading/[id]` and
    `history-list` show patient-scoped data with nothing saying whose.

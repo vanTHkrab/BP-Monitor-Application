@@ -317,6 +317,13 @@ export type EnumCaregiverLinkStatusFilter<$PrismaModel = never> = {
   not?: Prisma.NestedEnumCaregiverLinkStatusFilter<$PrismaModel> | $Enums.CaregiverLinkStatus
 }
 
+export type EnumCaregiverPermissionFilter<$PrismaModel = never> = {
+  equals?: $Enums.CaregiverPermission | Prisma.EnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  in?: $Enums.CaregiverPermission[] | Prisma.ListEnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  notIn?: $Enums.CaregiverPermission[] | Prisma.ListEnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumCaregiverPermissionFilter<$PrismaModel> | $Enums.CaregiverPermission
+}
+
 export type EnumRelationshipTypeWithAggregatesFilter<$PrismaModel = never> = {
   equals?: $Enums.RelationshipType | Prisma.EnumRelationshipTypeFieldRefInput<$PrismaModel>
   in?: $Enums.RelationshipType[] | Prisma.ListEnumRelationshipTypeFieldRefInput<$PrismaModel>
@@ -335,6 +342,16 @@ export type EnumCaregiverLinkStatusWithAggregatesFilter<$PrismaModel = never> = 
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumCaregiverLinkStatusFilter<$PrismaModel>
   _max?: Prisma.NestedEnumCaregiverLinkStatusFilter<$PrismaModel>
+}
+
+export type EnumCaregiverPermissionWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.CaregiverPermission | Prisma.EnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  in?: $Enums.CaregiverPermission[] | Prisma.ListEnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  notIn?: $Enums.CaregiverPermission[] | Prisma.ListEnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumCaregiverPermissionWithAggregatesFilter<$PrismaModel> | $Enums.CaregiverPermission
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumCaregiverPermissionFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumCaregiverPermissionFilter<$PrismaModel>
 }
 
 export type IntNullableFilter<$PrismaModel = never> = {
@@ -727,6 +744,13 @@ export type NestedEnumCaregiverLinkStatusFilter<$PrismaModel = never> = {
   not?: Prisma.NestedEnumCaregiverLinkStatusFilter<$PrismaModel> | $Enums.CaregiverLinkStatus
 }
 
+export type NestedEnumCaregiverPermissionFilter<$PrismaModel = never> = {
+  equals?: $Enums.CaregiverPermission | Prisma.EnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  in?: $Enums.CaregiverPermission[] | Prisma.ListEnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  notIn?: $Enums.CaregiverPermission[] | Prisma.ListEnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumCaregiverPermissionFilter<$PrismaModel> | $Enums.CaregiverPermission
+}
+
 export type NestedEnumRelationshipTypeWithAggregatesFilter<$PrismaModel = never> = {
   equals?: $Enums.RelationshipType | Prisma.EnumRelationshipTypeFieldRefInput<$PrismaModel>
   in?: $Enums.RelationshipType[] | Prisma.ListEnumRelationshipTypeFieldRefInput<$PrismaModel>
@@ -745,6 +769,16 @@ export type NestedEnumCaregiverLinkStatusWithAggregatesFilter<$PrismaModel = nev
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumCaregiverLinkStatusFilter<$PrismaModel>
   _max?: Prisma.NestedEnumCaregiverLinkStatusFilter<$PrismaModel>
+}
+
+export type NestedEnumCaregiverPermissionWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.CaregiverPermission | Prisma.EnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  in?: $Enums.CaregiverPermission[] | Prisma.ListEnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  notIn?: $Enums.CaregiverPermission[] | Prisma.ListEnumCaregiverPermissionFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumCaregiverPermissionWithAggregatesFilter<$PrismaModel> | $Enums.CaregiverPermission
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumCaregiverPermissionFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumCaregiverPermissionFilter<$PrismaModel>
 }
 
 export type NestedIntNullableWithAggregatesFilter<$PrismaModel = never> = {

@@ -130,7 +130,7 @@ export class ReadingResolver {
   ): Promise<ReadingType[]> {
     const targetUserId = patientId ?? user.id;
     if (targetUserId !== user.id) {
-      await this.caregiverService.assertCanActOnBehalfOf(user.id, targetUserId);
+      await this.caregiverService.assertCanViewPatient(user.id, targetUserId);
     }
     const rows = await this.readingService.listByUser(
       targetUserId,
@@ -149,11 +149,15 @@ export class ReadingResolver {
     @CurrentUser() user: { id: string },
     @Args('input') input: CreateReadingInput,
   ): Promise<ReadingType> {
-    // Same authorization gate as the readings(patientId:) query above —
-    // writing on behalf of a patient requires an accepted caregiver link.
+    // Stricter than the readings(patientId:) query above: reading someone's
+    // history needs any accepted link, writing into it needs `full`. A
+    // view-only caregiver is refused here with its own message.
     const targetUserId = input.patientId ?? user.id;
     if (targetUserId !== user.id) {
-      await this.caregiverService.assertCanActOnBehalfOf(user.id, targetUserId);
+      await this.caregiverService.assertCanRecordForPatient(
+        user.id,
+        targetUserId,
+      );
     }
     const r = await this.readingService.create(targetUserId, input, user.id);
     return this.toReadingType(r);

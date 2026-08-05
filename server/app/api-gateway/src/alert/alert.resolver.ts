@@ -37,7 +37,7 @@ export class AlertResolver {
   ): Promise<AlertType[]> {
     const targetUserId = patientId ?? user.id;
     if (targetUserId !== user.id) {
-      await this.caregiverService.assertCanActOnBehalfOf(user.id, targetUserId);
+      await this.caregiverService.assertCanViewPatient(user.id, targetUserId);
     }
     return this.alertService.list(targetUserId, limit, offset, unreadOnly);
   }

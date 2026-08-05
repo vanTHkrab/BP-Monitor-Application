@@ -28,6 +28,8 @@ export type PatientSummaryPayload = {
   avatar: string | null;
   dob: string | null;
   relationship: string | null;
+  /** Nullable so a gateway that predates the column still parses. */
+  permission?: string | null;
   weight: number | null;
   height: number | null;
 };
@@ -62,6 +64,10 @@ export function patientSummaryFromGql(payload: PatientSummaryPayload): PatientSu
     avatar: payload.avatar ?? undefined,
     dob: payload.dob ? new Date(payload.dob) : undefined,
     relationship: payload.relationship ? parseRelationship(payload.relationship) : undefined,
+    // Unknown values fall to `full`, matching the column default — an older
+    // gateway that omits the field must not lock every caregiver out of
+    // recording, and the server refuses the write regardless.
+    permission: payload.permission === 'view' ? 'view' : 'full',
     weight: payload.weight ?? undefined,
     height: payload.height ?? undefined,
   };

@@ -36,6 +36,23 @@ enum CaregiverLinkStatus {
   rejected
 }
 
+/// What an accepted caregiver link permits.
+///
+/// Added before any feature needed it, on purpose. Every caregiver feature so
+/// far assumes "accepted" means "may do everything" — read the history, record
+/// on the patient's behalf, export a report under their name. Introducing the
+/// distinction later means revisiting each of those; introducing it now is one
+/// column and one default.
+///
+/// `full` is the default so existing rows keep exactly the behaviour they have
+/// today. Nothing is taken away by this migration.
+enum CaregiverPermission {
+  /// Read the patient's readings and alerts. Cannot write anything.
+  view
+  /// Everything `view` allows, plus recording readings on the patient's behalf.
+  full
+}
+
 enum BpStatus {
   low
   normal
@@ -289,6 +306,7 @@ model CaregiverPatient {
   patientId    String              @map("patient_id") @db.Uuid
   relationship RelationshipType
   status       CaregiverLinkStatus @default(pending)
+  permission   CaregiverPermission @default(full)
   createdAt    DateTime            @default(now()) @map("created_at")
   respondedAt  DateTime?           @map("responded_at")
 

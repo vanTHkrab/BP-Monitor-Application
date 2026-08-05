@@ -624,6 +624,53 @@ export default function CameraScreen() {
     );
   }
 
+  /*
+   * A view-only caregiver is stopped here, not at save time.
+   *
+   * The gateway refuses the write either way (`assertCanRecordForPatient`),
+   * but finding out after framing, capturing, and confirming means the one
+   * measurement the patient just sat through is gone. This is the same screen
+   * as "pick a patient" for the same reason — both are "you cannot record
+   * right now", and both are answerable before the camera opens.
+   */
+  if (isCaregiver && activePatient?.permission === 'view') {
+    return (
+      <GradientBackground>
+        <View className="flex-1 items-center justify-center px-8">
+          <View
+            testID="camera-view-only"
+            className="mb-6 h-[120px] w-[120px] items-center justify-center rounded-full"
+            style={{
+              backgroundColor: isDark ? colors.surface : '#EDE7F6',
+              borderWidth: isDark ? 1 : 0,
+              borderColor: colors.border,
+            }}
+          >
+            <Ionicons name="eye-outline" size={56} color={palette.purple} />
+          </View>
+          <Text
+            className="mb-3 text-center font-bold"
+            style={{ color: colors['text-primary'], fontSize: Math.round(20 * fontScale) }}
+          >
+            คุณดูข้อมูลได้อย่างเดียว
+          </Text>
+          <Text
+            className="mb-8 text-center leading-6"
+            style={{ color: colors['text-secondary'], fontSize: body }}
+          >
+            {`คุณ${activePatient.firstname} ให้สิทธิ์คุณดูข้อมูลเท่านั้น ` +
+              'หากต้องการบันทึกค่าความดันแทน กรุณาขอให้ผู้ป่วยเปลี่ยนสิทธิ์ให้'}
+          </Text>
+          <GradientButton
+            title="ดูประวัติแทน"
+            onPress={() => router.push('/(tabs)/history')}
+            icon={<Ionicons name="stats-chart-outline" size={18} color="white" />}
+          />
+        </View>
+      </GradientBackground>
+    );
+  }
+
   // ── Permission gates ──────────────────────────────────────────────────────
 
   if (!permission) {

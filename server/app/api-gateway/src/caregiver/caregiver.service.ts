@@ -230,6 +230,7 @@ export class CaregiverService {
     });
 
     return links.map((link) => ({
+      permission: link.permission,
       id: link.patient.id,
       firstname: link.patient.firstname,
       lastname: link.patient.lastname,
@@ -243,27 +244,57 @@ export class CaregiverService {
   }
 
   /**
-   * ตรวจว่า actor มีสิทธิ์ดู/บันทึกข้อมูลของ patient หรือไม่
-   * ผ่านถ้า actor === patient เอง หรือมี link `accepted`
+   * The accepted link, or `null`. Acting on yourself is not a link and is
+   * handled by the callers below.
    */
-  async assertCanActOnBehalfOf(
+  private async findAcceptedLink(actorId: string, patientId: string) {
+    const link = await this.prisma.caregiverPatient.findUnique({
+      where: { caregiverId_patientId: { caregiverId: actorId, patientId } },
+      select: { status: true, permission: true },
+    });
+    return link && link.status === 'accepted' ? link : null;
+  }
+
+  /**
+   * ตรวจว่า actor มีสิทธิ์**ดู**ข้อมูลของ patient หรือไม่
+   *
+   * Any accepted link may read — `view` and `full` differ only on writes.
+   */
+  async assertCanViewPatient(
     actorId: string,
     patientId: string,
   ): Promise<void> {
     if (actorId === patientId) return;
 
-    const link = await this.prisma.caregiverPatient.findUnique({
-      where: {
-        caregiverId_patientId: {
-          caregiverId: actorId,
-          patientId,
-        },
-      },
-      select: { status: true },
-    });
-
-    if (!link || link.status !== 'accepted') {
+    if (!(await this.findAcceptedLink(actorId, patientId))) {
       throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลของผู้ป่วยรายนี้');
+    }
+  }
+
+  /**
+   * ตรวจว่า actor มีสิทธิ์**บันทึก**ข้อมูลแทน patient หรือไม่
+   *
+   * Stricter than viewing: a `view` link is refused. The two were one check
+   * until the permission column existed, which meant every accepted link
+   * could write a blood-pressure reading into someone else's medical history.
+   * Splitting them is the entire point of that column — a distinct message so
+   * the client can tell "you are not linked" from "you are linked, read-only",
+   * which are different problems with different fixes.
+   */
+  async assertCanRecordForPatient(
+    actorId: string,
+    patientId: string,
+  ): Promise<void> {
+    if (actorId === patientId) return;
+
+    const link = await this.findAcceptedLink(actorId, patientId);
+    if (!link) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลของผู้ป่วยรายนี้');
+    }
+    if (link.permission !== 'full') {
+      throw new ForbiddenException(
+        'คุณดูข้อมูลของผู้ป่วยรายนี้ได้อย่างเดียว ไม่สามารถบันทึกแทนได้',
+      );
     }
   }
 

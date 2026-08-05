@@ -52,7 +52,10 @@ describe('ReadingResolver', () => {
     listByUser: jest.Mock;
     delete: jest.Mock;
   };
-  let caregiverService: { assertCanActOnBehalfOf: jest.Mock };
+  let caregiverService: {
+    assertCanViewPatient: jest.Mock;
+    assertCanRecordForPatient: jest.Mock;
+  };
   let storage: { signImageKey: jest.Mock };
 
   beforeEach(async () => {
@@ -62,7 +65,8 @@ describe('ReadingResolver', () => {
       delete: jest.fn(),
     };
     caregiverService = {
-      assertCanActOnBehalfOf: jest.fn().mockResolvedValue(undefined),
+      assertCanViewPatient: jest.fn().mockResolvedValue(undefined),
+      assertCanRecordForPatient: jest.fn().mockResolvedValue(undefined),
     };
     storage = { signImageKey: jest.fn().mockResolvedValue(null) };
 
@@ -82,7 +86,7 @@ describe('ReadingResolver', () => {
     it('self-create skips the caregiver-link check and targets the caller', async () => {
       await resolver.createReading({ id: PATIENT_ID }, input());
 
-      expect(caregiverService.assertCanActOnBehalfOf).not.toHaveBeenCalled();
+      expect(caregiverService.assertCanRecordForPatient).not.toHaveBeenCalled();
       expect(readingService.create).toHaveBeenCalledWith(
         PATIENT_ID,
         expect.anything(),
@@ -96,7 +100,7 @@ describe('ReadingResolver', () => {
         input({ patientId: PATIENT_ID }),
       );
 
-      expect(caregiverService.assertCanActOnBehalfOf).not.toHaveBeenCalled();
+      expect(caregiverService.assertCanRecordForPatient).not.toHaveBeenCalled();
       expect(readingService.create).toHaveBeenCalledWith(
         PATIENT_ID,
         expect.anything(),
@@ -110,7 +114,7 @@ describe('ReadingResolver', () => {
         input({ patientId: PATIENT_ID }),
       );
 
-      expect(caregiverService.assertCanActOnBehalfOf).toHaveBeenCalledWith(
+      expect(caregiverService.assertCanRecordForPatient).toHaveBeenCalledWith(
         CAREGIVER_ID,
         PATIENT_ID,
       );
@@ -121,8 +125,19 @@ describe('ReadingResolver', () => {
       );
     });
 
+    // The read guard is a different, weaker check — a write must never fall
+    // back to it.
+    it('does not settle for the view-level check when writing', async () => {
+      await resolver.createReading(
+        { id: CAREGIVER_ID },
+        input({ patientId: PATIENT_ID }),
+      );
+
+      expect(caregiverService.assertCanViewPatient).not.toHaveBeenCalled();
+    });
+
     it('non-linked caregiver is rejected before anything is created', async () => {
-      caregiverService.assertCanActOnBehalfOf.mockRejectedValue(
+      caregiverService.assertCanRecordForPatient.mockRejectedValue(
         new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลของผู้ป่วยรายนี้'),
       );
 

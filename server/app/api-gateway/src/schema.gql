@@ -97,6 +97,7 @@ type PatientSummaryType {
   avatar: String
   dob: DateTime
   relationship: String
+  permission: String!
   weight: Float
   height: Float
 }

@@ -33,6 +33,16 @@ export class PatientSummaryType {
   @Field({ nullable: true }) avatar?: string;
   @Field({ nullable: true }) dob?: Date;
   @Field({ nullable: true }) relationship?: string;
+  /**
+   * `view` or `full` — what this caregiver's accepted link permits.
+   *
+   * Exposed so the client can refuse a write before making it. The gateway
+   * refuses it either way (`assertCanRecordForPatient`), but a camera that
+   * lets someone frame, capture, and confirm a reading before telling them
+   * they were never allowed to save it has wasted the one measurement they
+   * took.
+   */
+  @Field() permission: string;
   @Field(() => Float, { nullable: true }) weight?: number;
   @Field(() => Float, { nullable: true }) height?: number;
 }
