@@ -58,21 +58,36 @@ implementation.
 
 ## Project design system
 
-Read `client/constants/colors.ts` before designing any screen.
-These tokens are the source of truth. Do not introduce new raw hex values.
+Read `client/src/theme/tokens.js` before designing any screen — it is the
+single source three systems read (NativeWind utilities, Tamagui, and typed JS
+access via `client/src/theme/index.ts`), and its header comment explains why
+they must never disagree. Do not introduce new raw hex values.
 
 ### Palette identity
 
-| Role | Light | Dark |
+Token names matter — several do not mean what their colour suggests. `accent`
+is **orange**, not the brand purple; the purple is `primary`.
+
+| Token | Light | Dark |
 |------|-------|------|
-| Background (gradient) | `#BFE8F0 → #90D2DF` (cyan) | `#0E0B1E → #1C1840` (deep purple) |
-| Surface | `#FFFFFF` | `#1A1632` |
-| Surface muted | `#EBF5FB` | `#231C42` |
-| Border | `rgba(255,255,255,0.8)` | `#2D2654` |
-| Text primary | `#2C3E50` | `#E8E4F5` |
-| Text secondary | `#7F8C8D` | `#9C95C2` |
-| Accent (purple) | `#7E57C2` | `#9C7BD9` |
-| Danger | `#F88B7E` | `#E97A6F` |
+| `background` (gradient) | `#BFE8F0 → #A8DEE8 → #90D2DF` (cyan) | `#0E0B1E → #15112E → #1C1840` (deep purple) |
+| `surface` | `#FFFFFF` | `#1A1632` |
+| `surface-muted` | `#EBF5FB` | `#231C42` |
+| `border` (hairline divider) | `#BFE8F0` | `#2D2654` |
+| `border-strong` (control outline) | `#4A8FA5` | `#6B5FA8` |
+| `text-primary` | `#2C3E50` | `#E8E4F5` |
+| `text-secondary` | `#7F8C8D` | `#9C95C2` |
+| `icon-neutral` | `#374151` | `#E2E8F0` |
+| `primary` (purple — primary actions) | `#7E57C2` | `#9575CD` |
+| `secondary` (blue) | `#35B8E8` | `#35B8E8` |
+| `accent` (orange — attention, not actions) | `#FF8A45` | `#FF8A45` |
+| `danger` | `#F88B7E` | `#E97A6F` |
+
+Gradients are separate from the semantic tokens (neither NativeWind nor
+Tamagui renders one) and are read through `gradientFor(scheme, name)`:
+`background`, `header`, `accent`, `danger`, `cta`. The `cta` gradient is
+**identical in both modes on purpose** — the capture button is the one control
+that must stay findable when a user switches theme.
 
 **Color strategy: Committed.** The cyan/blue-to-purple arc is the brand
 identity. The background carries it; surfaces stay neutral. Accent purple
@@ -80,29 +95,55 @@ is used for primary actions and selected states only.
 
 ### Theme rules (project-specific)
 
-- Dark vs. light is driven by `s.themePreference` from the Zustand store.
-  **Never** call `useColorScheme()` from `react-native`. Read the store.
-- Use the `isDark` pattern:
+- **Colours come from `useTheme()`**, which resolves the semantic tokens for the
+  active scheme. There is no `isDark` branching in components:
   ```tsx
-  const isDark = useAppStore(s => s.themePreference === 'dark');
+  const colors = useTheme();          // src/hooks/use-theme.ts
+  <View style={{ backgroundColor: colors.surface, borderColor: colors['border-strong'] }} />
   ```
-- Apply tokens conditionally: `isDark ? Theme.dark.surface : Theme.light.surface`.
-- For NativeWind conditional classes, use the `dark:` prefix with the
-  `NativeWindStyleSheet.setOutput({ type: 'native' })` dark mode setup.
+- **Never** call `useColorScheme()` from `react-native`. The user's stored
+  preference can override the system, and `useColorScheme` does not see it —
+  `src/theme/color-scheme.tsx` owns the resolution.
+- Tokens live in `src/theme/tokens.js` and are the single source for three
+  systems at once (NativeWind utilities, Tamagui, and typed JS access). Adding a
+  colour means adding it there, not in a component.
+- `border` vs `border-strong` is a real distinction, not a style preference:
+  `border` is a hairline divider between things already visually separate (in
+  light mode it *is* the background colour), `border-strong` is the outline of
+  something touchable and must stay visible against `surface`. A control drawn
+  with `border` in light mode has no visible edge.
+- NativeWind `className` carries layout, spacing and radii; colour goes through
+  `style` with a token. Mixing the two for colour is what produced hardcoded hex.
 
 ### Typography rules (project-specific)
 
-- Font size scales with `fontSizePreference` from the store.
-  Use `getFontClass(preference, { small, medium, large, xlarge })` from
-  `utils/font-scale.ts` for all user-facing text. Never hardcode `text-sm`
-  on copy a patient will read.
+- Font size scales with the user's stored preference through
+  **`useFontScale()`** (`src/hooks/use-font-scale.ts`), which returns a
+  *multiplier* (`1.0` at `medium`). A component applies it to its own literal:
+  ```tsx
+  const fontScale = useFontScale();
+  <Text style={{ fontSize: Math.round(16 * fontScale) }} />
+  ```
+  A multiplier rather than a per-role scale table because the app has no shared
+  typography scale yet. Never hardcode a `text-sm` class on copy a patient reads.
+- Mind the elderly-first readability floor (~11px body). This audience is the
+  reason the preference exists; a scale that makes a control unreadable at the
+  largest rung is a defect, not a trade-off.
 - System fonts via NativeWind (`font-sans` / `font-mono`). No custom font
   loading unless the design explicitly requires it.
 
 ### BP-status semantic colors
 
-These are defined in `constants/colors.ts`. Use them for reading status
-indicators — never invent new status colors.
+These are the `status` export in `src/theme/tokens.js` (`normal` / `elevated` /
+`high` / `low` / `critical`), reachable as `status` from `@/theme`. They are
+**mode-independent by design** — a "high" reading must read as the same red in
+both themes. Use them for reading-status indicators only, and never invent new
+status colours.
+
+They are also not a general palette: `status.normal` means "this blood-pressure
+reading is fine", so borrowing it for a confirm button overloads it (and white
+on that green is ~2.9:1, under the bar for a button label). Primary actions use
+`colors.primary`.
 
 | Status | Use case |
 |--------|----------|
@@ -193,8 +234,8 @@ clarification is the default; two rounds only if the first leaves material gaps.
 
 Apply:
 - Project color tokens (no raw hex).
-- `getFontClass` for user-facing text.
-- `isDark` pattern for conditional styling.
+- `useFontScale()` multiplier for user-facing text.
+- `useTheme()` tokens for every colour — no conditional `isDark` branching.
 - NativeWind `className` as the primary styling tool.
 - 44 dp minimum touch targets.
 - `SafeAreaView` + `KeyboardAvoidingView` where needed.
@@ -211,8 +252,10 @@ Before presenting the design, run this checklist internally:
 - [ ] `accessibilityLabel` present on every Pressable.
 - [ ] Motion respects `isReduceMotionEnabled`.
 - [ ] `SafeAreaView` present where edges are visible.
-- [ ] Font sizes use `getFontClass`, not hardcoded classes.
-- [ ] No new raw hex values — all colors come from `constants/colors.ts`.
+- [ ] Font sizes scale via `useFontScale()`, not hardcoded classes, and stay
+      readable at the largest rung.
+- [ ] No new raw hex values — every colour comes from `useTheme()` or `@/theme`.
+- [ ] Interactive outlines use `border-strong`, dividers use `border`.
 - [ ] No impeccable absolute bans present.
 
 ### 4 — Present

@@ -310,8 +310,13 @@ For every load-bearing finding, read the actual source — a `Grep` hit on a sta
    does not change the answer.
 
 3. Cross-reference wire contracts. When a finding involves:
-   - GraphQL operations → check both `constants/api.ts` (client) /
-     `src/lib/gateway.ts` (web) AND the resolver in `server/app/api-gateway/`.
+   - GraphQL operations → check the client's per-module
+     `client/src/modules/<domain>/services/operations.ts` (there is no central
+     operations file) / `web/src/lib/gateway.ts` AND the resolver in
+     `server/app/api-gateway/`. Note that `client/src/schema.gql` is not a
+     thing — the schema lives at `server/app/api-gateway/src/schema.gql` and is
+     regenerated only when the gateway boots, so a committed copy can lag the
+     resolvers it claims to describe.
    - Redis channels (`analyze_bp_image` / `analyze_bp_image.reply`) → check
      both `server/app/api-gateway/src/ai/` AND
      `server/app/ai-service/src/ai_service/handlers.py`.

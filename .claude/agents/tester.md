@@ -32,7 +32,7 @@ file under its root.
 
 | Prefix | Sub-project | Required suites |
 |--------|-------------|-----------------|
-| `client/` | mobile (Expo / RN) | `client-typecheck` · `client-lint` · `client-test` · `client-expo-doctor` · `client-yolo-verify` |
+| `client/` | mobile (Expo / RN) | `client-typecheck` · `client-lint` · `client-graphql` · `client-test` · `client-expo-doctor` · `client-models-verify` |
 | `web/` | web dashboard (Next.js) | `web-typecheck` · `web-lint` · `web-build` |
 | `server/app/api-gateway/` | NestJS gateway | `gateway-typecheck` · `gateway-lint` · `gateway-test` |
 | `server/app/ai-service/` | FastAPI ai-service | `ai-pytest` |
@@ -60,16 +60,25 @@ final report covers the full picture.
 
 ```bash
 cd client
-pnpm verify-yolo-model          # client-yolo-verify — SHA256 match with ai-service copy
+pnpm verify-models          # SHA256 of yolo11n.onnx AND crnn.onnx vs EXPECTED_HASHES.json
 pnpm exec tsc --noEmit -p .     # client-typecheck
-pnpm lint                       # client-lint
+pnpm lint                       # client-lint (--max-warnings 0; a warning fails)
+pnpm verify-graphql             # client-graphql — every GQL_* against schema.gql
 pnpm test -- --watchAll=false   # client-test (jest-expo, single run)
 npx --yes expo-doctor           # client-expo-doctor
 ```
 
 > ⚠️ Never run `pnpm start` / `pnpm android` / `pnpm ios` — those start an
-> interactive Metro server. The prestart YOLO check is wired separately as
-> `pnpm verify-yolo-model`.
+> interactive Metro server. The prestart model check is wired separately as
+> `pnpm verify-models`.
+>
+> These five are what `pnpm check` runs (minus expo-doctor), listed separately
+> so one failure does not hide the others. **`verify-graphql` is not optional
+> and is not covered by the other steps** — TypeScript sees a template string
+> and jest mocks the transport, so an operation the gateway would reject is
+> invisible to both. It validates against the *committed* `schema.gql`, which
+> means it can still pass against a schema nobody regenerated; report that
+> caveat if a client change accompanies a gateway change.
 
 ### web (`web/`)
 
@@ -123,6 +132,7 @@ Suites skipped: <comma-separated suite IDs with reason, or "none">
 |-------|---------|--------|
 | client-typecheck | pnpm exec tsc --noEmit -p . | ✅ passed |
 | client-lint | pnpm lint | ✅ passed |
+| client-graphql | pnpm verify-graphql | ✅ passed |
 | ... | | |
 
 Passing artifact to `pr-write` (or back to the user) to proceed.
@@ -186,7 +196,7 @@ clearly saves a round trip.
 |---------|--------------|---------------------------|
 | `pnpm: command not found` | corepack not enabled | run `corepack enable` once on the dev machine; do **not** install pnpm globally |
 | `uv: command not found` | uv not installed | run `pip install uv` or `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| `verify-yolo-model` SHA mismatch | client and ai-service copies of `yolo11n.onnx` diverged | run `cd client && pnpm sync-yolo-model`, then re-run tester |
+| `verify-models` SHA mismatch | a bundled model (`yolo11n.onnx` or `crnn.onnx`) diverged from `server/app/ai-service/models/EXPECTED_HASHES.json` | run `cd client && pnpm sync-yolo-model`, then re-run tester |
 | `expo-doctor` warns about a bundled-pkg version mismatch | a dep was added with `pnpm add` instead of `pnpm expo install` | switch to `pnpm expo install <pkg>` and commit the updated lockfile |
 | `tsc` errors only in `web/` after a Next.js bump | Next.js 16 internals changed | read the relevant guide under `web/node_modules/next/dist/docs/` before patching |
 | `pytest` collection error mentioning a missing import | `uv sync` has not been run since the last `pyproject.toml` change | run `uv sync` and re-run tester |

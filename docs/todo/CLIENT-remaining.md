@@ -190,15 +190,35 @@ rewritten while the file was open:
   paths" is no longer true: writing needs `permission: full`. The catalogue
   was also missing `myPatients` and `respondToCaregiverInvite` entirely.
 
-### Still drifting: `.claude/agents/`
+### `.claude/agents/` — done, and it was the worst of it
 
-`expo-dev.md` (6 references) and `deep-research.md` (1) still instruct an
-agent to put GraphQL operations in `constants/api.ts` and state in
-`store/slices/`. Left alone deliberately — agent definitions are owned by
-whoever wrote them, and a sweep that silently rewrites another agent's
-instructions is the same class of change this rule exists to prevent. Worth
-a separate, deliberate pass; it is the highest-leverage of the lot, because
-these files are read *as instructions* rather than as reference.
+Six agent definitions, not the two the narrow grep found. These are read *as
+instructions*, so a stale path here does not merely mislead a reader — it
+makes an agent create the wrong file.
+
+- **`expo-dev.md`** described an architecture that no longer exists: one
+  Zustand store with a slice registry, `constants/api.ts` as the operations
+  file, `lib/graphql-client.ts` as a second transport, `getFontClass`,
+  `logWarn`, `utils/app-notifications.ts`. Rewritten around
+  `src/modules/<domain>/` as the unit of ownership, its `index.ts` as a real
+  boundary, TanStack Query for server state versus two small Zustand stores
+  for device state, and the queue-first two-table offline path.
+- **`ux-ui-designer.md`** taught `useAppStore(s => s.themePreference === 'dark')`
+  and `getFontClass` — neither exists. Now `useTheme()` and `useFontScale()`.
+  Its palette table also carried a wrong light `border` value and called the
+  purple "accent" when `accent` is **orange**; an agent following it would
+  have reached for the wrong token by name. Corrected against `tokens.js`,
+  with `border` vs `border-strong` spelled out.
+- **`tester.md`** was missing `verify-graphql` from the client gate — the one
+  step that catches an operation the gateway would reject, which TypeScript
+  and jest both cannot see.
+- **`tester` / `ocr-dev` / `devops`** all invoked `pnpm verify-yolo-model`,
+  which is not a script. It is `pnpm verify-models`, and it covers `crnn.onnx`
+  as well as the detector.
+- **`deep-research.md`** pointed at a central client operations file.
+
+Every replacement path and script name was checked against the tree before
+committing.
 
 ## 10. Board items to reconcile
 

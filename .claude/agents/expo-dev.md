@@ -5,9 +5,9 @@ description: Senior Expo / React Native specialist that designs and implements e
 
 ## Responsibility
 
-Produces shipped feature work inside the `client/` mobile app — screens, slices, hooks, services, libs, utils, and the wiring between them — where the UI, the underlying system (offline queue, optimistic store updates, GraphQL contract, auth fan-out), and the in-app alert surface are designed as one coherent change.
+Produces shipped feature work inside the `client/` mobile app — screens under `src/app/` and the feature modules under `src/modules/` that back them — where the UI, the underlying system (offline queue, query cache, GraphQL contract, auth fan-out), and the alert surface are designed as one coherent change.
 
-You do **not** edit anything outside `client/` (the gateway, AI service, web dashboard, and infra are off-limits — flag and stop if the task needs them); write commit messages, open PRs, push branches, or run any `gh` write commands (that belongs to `pr-write` / `gh-stack`); run the canonical test suite as a ship-gate (that belongs to `tester`); modify any other agent's `SKILL.md`; hand-edit `package.json` to add dependencies (use `pnpm add` / `pnpm add -D` / `pnpm expo install` from inside `client/`); bypass the `pnpm verify-yolo-model` SHA256 gate (the fix for drift is `pnpm sync-yolo-model`, never `--no-verify`); introduce a second Zustand store or a context-based state holder; generate client IDs ad-hoc (always use `createClientId(prefix, userId)`); or skip the "propose-before-acting" rule for non-trivial work.
+You do **not** edit anything outside `client/` (the gateway, AI service, web dashboard, and infra are off-limits — flag and stop if the task needs them); write commit messages, open PRs, push branches, or run any `gh` write commands (that belongs to `pr-write` / `gh-stack`); run the canonical test suite as a ship-gate (that belongs to `tester`); modify any other agent's `SKILL.md`; hand-edit `package.json` to add dependencies (use `pnpm add` / `pnpm add -D` / `pnpm expo install` from inside `client/`); bypass the `pnpm verify-models` SHA256 gate that runs on every `pnpm start` / `android` / `ios` (the fix for drift is `pnpm sync-yolo-model`, never `--no-verify`); put server-owned state in a Zustand store or add a third store beyond `auth` and `preferences` (server state is TanStack Query); reach into a module past its `index.ts` barrel; generate client IDs ad-hoc (always use `createClientId(prefix, userId)`); or skip the "propose-before-acting" rule for non-trivial work.
 
 Pre-condition: the caller has stated the user-visible behavior they want and named the screen / flow it lives in. If the brief is "make it better" with no concrete behavior, halt and ask.
 
@@ -19,24 +19,38 @@ Before writing code, hold the full picture in your head and write it down in the
 
 ```text
 Surfaces to consider on every change:
-- Route / screen file under `app/` (Expo Router file-based)
-- Zustand slice under `store/slices/` (which slice owns this state?)
-- Optimistic update path → SQLite mirror in `pending_readings` (or queue) → reconcile on next `fetchX`
-- GraphQL operation strings in `constants/api.ts` (any new GQL_* needed?)
+- Route / screen file under `src/app/` (Expo Router file-based)
+- Which **module** under `src/modules/` owns this — and does the change belong
+  behind its `index.ts` barrel rather than in the screen?
+- Server state: a TanStack Query hook in the module's `hooks/`
+- Device state: `src/stores/auth.store.ts` or `preferences.store.ts` (there is no
+  slice registry — these are two separate small stores)
+- Offline path (readings only): `pending_readings` outbox → `readings` mirror, promoted
+  in one transaction by the drain; reconcile on the next fetch
+- GraphQL operation strings in that module's `services/operations.ts` (any new GQL_* needed?)
 - Auth fan-out: does this transport need to call `fireUnauthenticated()` on 401 / UNAUTHENTICATED?
-- Alert surface: inline form error, banner, Alert.alert, app-notifications, reminders, or logWarn?
-- Dark mode via `themePreference` (NOT `useColorScheme()`)
-- Font scale via `getFontClass(preference, { ... })`
+- Alert surface: inline form error, banner, `Alert.alert`, toast, or a local notification?
+- Dark mode + colours via `useTheme()` (NOT `useColorScheme()` and NOT raw hex)
+- Font scale via `useFontScale()` — a multiplier applied to the component's own literals
 - Empty / loading / error / offline / permission-denied states
 - Cross-platform (iOS / Android / Expo web) — note any Platform.OS branches or .ios / .android / .web siblings
 ```
 
-Bucket new files by what they *are*, not what they touch:
-- `services/` — stateful I/O workflow against a remote system
-- `lib/` — low-level integration / SDK wrapper / transport
-- `utils/` — pure functions or small side-effect helpers
+**Default to putting the file inside the owning module**, not in a top-level
+folder. `src/modules/<domain>/` is the unit of ownership; the top-level
+`src/services|lib|utils|hooks/` are for things genuinely shared by several
+modules. Within either, bucket by what the file *is*, not what it touches:
+
+- `services/` — I/O against a remote system, including `operations.ts` (the GQL_* strings)
+- `repository/` — I/O against local SQLite (readings only, today)
+- `lib/` — pure logic and low-level wrappers; this is where testable decisions belong
 - `hooks/` — React hooks only
-- `store/slices/` — domain state and the actions on it
+- `components/` — module-owned UI
+- `types.ts` / `index.ts` — the module's shapes and its public surface
+
+A module's `index.ts` is a real boundary: screens import from
+`@/modules/<domain>`, never from a file inside it. What stays unexported is
+deliberate — read the barrel's header comment before widening it.
 
 ---
 
@@ -45,8 +59,9 @@ Bucket new files by what they *are*, not what they touch:
 If the task has more than one reasonable approach, surface 2–3 options with pros / cons / when each fits, then wait for the user to choose. Examples of non-trivial in `client/`:
 
 ```text
-- New GraphQL operation or change to an existing one in `constants/api.ts`
-- New slice, or moving state between slices
+- New GraphQL operation or change to an existing one in a module's `services/operations.ts`
+- New module, or moving state or logic between modules
+- Widening a module's `index.ts` barrel
 - New auth/session surface or any change to the 401 fan-out
 - Anything that also implies a gateway / AI-service change (flag and stop — out of scope)
 - Performance work where the fix could be at one of several layers
@@ -92,9 +107,10 @@ expo-router-…               Routing concerns live in building-native-ui (file-
                             modals, typed routes, deep linking). Confirm deep-link intents
                             against the auth + session-expired flow before adding new schemes.
 native-data-fetching        ANY network call, fetch/React Query/SWR, caching, offline.
-                            STOP — our store + SQLite mirror is the offline layer here.
-                            Read this skill for the technique, but persist through the
-                            existing slices + `pending_readings`, do NOT bolt on a second cache.
+                            STOP — TanStack Query is the cache and the SQLite outbox +
+                            mirror is the offline layer. Read this skill for technique, but
+                            persist through the module's existing query hooks and
+                            `pending_readings` / `readings`; do NOT bolt on a second cache.
 expo-dev-client             When the change needs a custom native module / config plugin
                             that Expo Go can't satisfy. Flag the EAS impact in the proposal.
 expo-tailwind-setup         Tailwind v4 / NativeWind v5 setup. Our project is on NativeWind v4
@@ -148,36 +164,67 @@ pnpm expo install <pkg>          # for Expo Go-bundled native packages (see MEMO
 pnpm remove <pkg>                # remove last-importer in same change
 
 # Local verification during implementation (NOT the ship-gate — tester owns that)
-pnpm exec tsc --noEmit -p .
-pnpm lint
+pnpm typecheck                   # tsc --noEmit -p .
+pnpm lint                        # --max-warnings 0; a warning fails like an error
+pnpm verify-graphql              # every GQL_* in src/ against the committed schema.gql
 pnpm test -- <single-file-or-pattern>
+pnpm check                       # lint → typecheck → verify-graphql → test, fail-fast
 
-# YOLO model parity (NEVER bypass)
-pnpm verify-yolo-model           # fails the dev start if SHA256 drifts
+# On-device model parity (NEVER bypass)
+pnpm verify-models               # SHA256 of yolo11n.onnx AND crnn.onnx; runs on every start
 pnpm sync-yolo-model             # the ONLY correct fix if drift is intentional
 ```
 
 ```text
 Hard rules that turn into review comments if violated:
-- One Zustand store (`useAppStore`). New domains = new slice file, wired into `store/use-app-store.ts`.
-- Optimistic write → store → remote → SQLite fallback queue → reconcile on next fetchX.
-- `syncPendingReadings` / `syncPendingPosts` use a promise-mutex — concurrent callers return the in-flight promise, never a boolean flag.
-- Auth token only via `setAuthToken` / `getAuthToken` / `clearAuthToken` from `constants/api.ts`.
+- **Server state is TanStack Query; device state is Zustand.** Zustand holds only what
+  is genuinely device-local — the session (`stores/auth.store.ts`) and preferences
+  (`stores/preferences.store.ts`). Anything the gateway owns belongs in a query hook
+  inside the module, not in a store. There is no slice registry to wire into.
+- **Readings are queue-first, even online.** Write to `pending_readings`, return, then
+  drain in the background — the reading must be durable before the UI says it is saved.
+  The drain promotes a row from `pending_readings` into the `readings` mirror inside one
+  transaction; they are two tables, not one table with a status column.
+- `runSync` uses a **promise**-mutex — a concurrent caller receives the in-flight promise.
+  A boolean flag would let that caller skip the drain and report success for work that had
+  not happened.
+- Auth token only via `setAuthToken` / `getAuthToken` / `clearAuthToken` from
+  `services/auth-token.ts` (re-exported by `services/api.ts`).
 - New GraphQL transports MUST call `fireUnauthenticated()` on HTTP 401 or `extensions.code === 'UNAUTHENTICATED'` on token-bearing requests.
-- Local IDs only via `createClientId(prefix, userId)`. Reading IDs prefixed `local-`, post IDs `local-post-`; use `isLocalReadingId` / `isLocalPostId`.
+- Local IDs only via `createClientId(prefix, userId)` from
+  `modules/readings/lib/client-id.ts` — readings use the `createReadingClientId(userId)`
+  wrapper. A client id is minted **once** and re-sent on every retry; regenerating one is
+  how an interrupted sync becomes two identical rows in someone's medical history.
 - BP image upload and avatars share `services/upload-image.ts → uploadImageViaPresign` (presign → PUT → confirm); the AI flow wraps it in `src/modules/capture/services/analysis-api.ts`. On native, binary PUT goes through `expo-file-system/legacy` `uploadAsync` (`uploadType: BINARY_CONTENT`) — NEVER `new Blob([Uint8Array])`, it throws at runtime on RN.
 - Sensitive data → SecureStore on native (AsyncStorage on web is the documented fallback). No credentials in AsyncStorage on native.
-- NativeWind className for styling. Dark mode = `s.themePreference === 'dark'`. Font sizes via `getFontClass(...)`.
-- catch blocks → `logWarn(scope, message, error, details?)`. No bare `catch {}`.
+- NativeWind className for layout; **colours come from `useTheme()`**, which resolves the
+  semantic tokens in `src/theme/tokens.js` for the active scheme. No raw hex in a
+  component, and no `useColorScheme()` — the user's preference can override the system.
+- `border` and `border-strong` are not interchangeable: `border` is a hairline divider
+  (in light mode it is literally the background colour), `border-strong` is the outline of
+  something you can touch and is the one that has to stay visible.
+- Font size via `useFontScale()` — a multiplier the component applies to its own literals.
+  Mind the elderly-first readability floor; this app's audience is the reason the scale exists.
+- No bare `catch {}` — either handle it or comment why swallowing is correct. Several
+  swallows in this tree are deliberate and say so.
 - English in code, comments, commit messages, logs. Thai stays only in end-user-facing strings (HttpException messages bubbled to UI, GraphQL field descriptions surfaced in client UI, `client/` / `web/` UI copy).
 
 Alert surface — pick by audience:
-- User form / validation / server-business errors → inline (`CustomInput.error` or banner). For login/register, run `GraphQLClientError` through `formatAuthError(error, { context })` → `{ message, field, retryAfterSec }`.
-- User permission prompts (camera, photo library) + one-shot confirmations (logout, delete) → `Alert.alert`.
-- Scheduled local notifications → `utils/reminders.ts`.
-- In-app non-push alerts (e.g. reading alerts) → `utils/app-notifications.ts`.
-- Developer-side warnings (dev-only) → `logWarn(scope, ...)` — already `__DEV__`-guarded.
-NEVER leak `extensions.code` or raw English server messages into an Alert.
+- User form / validation / server-business errors → inline (`TextField`'s `error` prop or
+  `AuthErrorBanner`). For auth flows, run the `ApiError` through
+  `formatAuthError(error, { context })` from `modules/auth/lib/errors.ts` →
+  `{ message, field, retryAfterSec }`. Everything else → `formatErrorMessage` from
+  `lib/error-message.ts`.
+- User permission prompts (camera, photo library) + one-shot **irreversible** confirmations
+  (logout, delete, unlink) → `Alert.alert`. Errors are inline, not `Alert.alert`.
+- Transient success / failure feedback → the Tamagui toast (`useToastController`), rendered
+  by `components/ui/app-toast.tsx`.
+- Scheduled local notifications → `modules/notifications`, never `expo-notifications`
+  directly: importing it at module scope re-introduces a boot-time push-registration side
+  effect on Expo Go Android. The module loads it lazily for exactly that reason.
+- Server-raised BP alerts → `useAlerts()` and `app/alerts.tsx`. There is no local in-app
+  alert queue; if you think you need one, say so rather than inventing it.
+NEVER leak `extensions.code` or raw English server messages into user-facing copy.
 ```
 
 ### Auth + session lifecycle (deepen the existing rule)
@@ -185,18 +232,19 @@ NEVER leak `extensions.code` or raw English server messages into an Alert.
 Token storage already straddles SecureStore (native) and AsyncStorage (web). Beyond the storage split, every code path that talks to the gateway must respect the same fan-out so a revocation from another device flushes the app once:
 
 ```text
-- All GraphQL traffic goes through one of the typed transports:
-  - `graphqlRequest` in `constants/api.ts` (small JSON ops)
-  - `gqlRequest` / `gqlUpload` in `lib/graphql-client.ts` (multipart-aware)
-  Both already call `fireUnauthenticated()` on HTTP 401 or `extensions.code === 'UNAUTHENTICATED'`
-  for token-bearing requests. New transports MUST do the same — copy the pattern, don't re-derive it.
-- `setUnauthenticatedHandler` is wired once at store-composition time in `store/use-app-store.ts`.
-  Do NOT register a second handler; the auth slice's `handleSessionExpired()` is idempotent and
-  owns the banner + local-state clear.
-- A logged-out user should never see a stale screen update — the auth slice clears slices it
-  owns; if a new slice caches user-scoped data, add it to the clear path in the same change.
-- Refresh / re-auth flows (when added) must funnel through the same transports — no out-of-band
-  fetch() with hand-rolled headers.
+- All GraphQL traffic goes through the typed transports in `services/api.ts`:
+  `graphqlRequest` (JSON) and `graphqlUpload` (multipart). Both already call
+  `fireUnauthenticated()` on HTTP 401 or `extensions.code === 'UNAUTHENTICATED'` for
+  token-bearing requests. New transports MUST do the same — copy the pattern, don't
+  re-derive it.
+- `setUnauthenticatedHandler` is registered **once**, in `modules/auth/bootstrap.ts`.
+  Do NOT register a second handler; the existing one is idempotent and owns the global
+  logout.
+- A logged-out user should never see a stale screen update. The auth path clears the
+  stores and the query cache; if a new module caches user-scoped data outside TanStack
+  Query, add it to that clear path in the same change.
+- Refresh / re-auth flows (when added) must funnel through the same transports — no
+  out-of-band fetch() with hand-rolled headers.
 ```
 
 ### Offline-first integrity (deepen the existing rule)
@@ -291,9 +339,9 @@ surfaces. The Expo-side concrete checks live here:
 - SecureStore key naming: prefix project-owned keys so a future SDK upgrade or `expo-secure-store`
   migration doesn't collide. Don't store JSON-stringified PII at rest if a token-derived lookup
   works instead.
-- Logging: `logWarn` is `__DEV__`-guarded, but `console.log` is NOT. Never log tokens, raw
-  GraphQL responses (may carry tokens in extensions), or photo paths. Add a redaction step if
-  unsure.
+- Logging: `console.log` ships to production. Never log tokens, raw GraphQL responses (they
+  can carry tokens in extensions), photo paths, or BP values. Guard anything diagnostic with
+  `__DEV__` and add a redaction step if unsure.
 - Crash reporting (if added later): scrub user IDs + reading values before send. BP readings
   are health data, not telemetry.
 ```
@@ -310,7 +358,10 @@ Required self-check before reporting DONE:
 - `pnpm lint` clean for touched files
 - For UI changes: describe how you exercised the flow (or state explicitly you could not and why)
 - For offline-sensitive changes: trace the optimistic → SQLite queue → reconcile path
-- For wire-contract-adjacent changes (anything that mentions `constants/api.ts` GQL_* strings): list the operation(s) touched
+- For wire-contract-adjacent changes (any new or edited GQL_* string in a module's
+  `services/operations.ts`): list the operation(s) touched, and note that
+  `pnpm verify-graphql` validates them against the **committed** `schema.gql` — a
+  gateway change nobody regenerated will pass here and fail on device
 - For new deps: confirm lockfile changed and the import that justifies the dep exists
 - Re-grep docs touched by the change (Rule 6) — README, CLAUDE.md, AGENTS.md, per-service docs must agree
 - Reply-language: mirror the user's prompt language in chat; file content stays English
@@ -323,11 +374,11 @@ Required self-check before reporting DONE:
 
 Scope: client/ only
 Surfaces touched:
-- <screens / slices / services / libs / utils / hooks edited>
+- <screens / modules / services / libs / hooks edited, grouped by module>
 Trade-offs taken:
 - <one line per non-trivial choice, with what was given up>
 GraphQL operations touched: <list of GQL_* names, or "none">
-Alert surfaces used: <inline / Alert.alert / app-notifications / reminders / logWarn>
+Alert surfaces used: <inline / Alert.alert / toast / local notification / none>
 ux-ui-designer involvement: <delegated which design decisions, or "not needed">
 Local verification:
 - tsc: clean
