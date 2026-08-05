@@ -62,8 +62,7 @@ Two details that were easy to lose in the port, both now covered by tests:
 
 - **The reminder timeline** ("เช็กรอบวัดของวันนี้"). Blocked on
   `buildReminderTimelineForDate`, which `modules/notifications` does not have.
-- **Signed-URL image resolution.** `app/reading/[id].tsx` renders a local
-  `imageUri` but can only *say* that a server-side photo exists when all it
-  has is an `s3Key` — client-old resolved those through a 7-day file cache
-  (`utils/image-cache.ts`), which is not ported. Ships with the camera work:
-  see [CLIENT-camera-models.md](./CLIENT-camera-models.md).
+- ~~**Signed-URL image resolution.**~~ Done. `app/reading/[id].tsx` resolves a
+  server photo through `modules/readings/lib/image-cache.ts`, a 7-day file
+  cache keyed on the object path inside the signed URL. See
+  [CLIENT-remaining.md](./CLIENT-remaining.md) §1.

@@ -28,6 +28,7 @@ export { useCreateReading } from './hooks/use-create-reading';
 export { useDeleteReading } from './hooks/use-delete-reading';
 export { useExportReadings } from './hooks/use-export-readings';
 export { useReadings, type UseReadingsOptions } from './hooks/use-readings';
+export { useResolvedImageUri } from './hooks/use-resolved-image-uri';
 export {
   ReadingsSyncProvider,
   useReadingsSync,
@@ -41,6 +42,7 @@ export { GuidanceCard, EMERGENCY_NUMBER } from './components/guidance-card';
 export { LatestReadingCard } from './components/latest-reading-card';
 
 export { createReadingClientId } from './lib/client-id';
+export { cleanupExpiredImages } from './lib/image-cache';
 export { cleanupOrphanedPendingImages } from './lib/pending-image-store';
 export {
   BP_THRESHOLDS,

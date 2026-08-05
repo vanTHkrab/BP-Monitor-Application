@@ -22,7 +22,11 @@ import {
   initReminderNotifications,
   stopReminderNotifications,
 } from '@/modules/notifications';
-import { ReadingsSyncProvider, cleanupOrphanedPendingImages } from '@/modules/readings';
+import {
+  ReadingsSyncProvider,
+  cleanupExpiredImages,
+  cleanupOrphanedPendingImages,
+} from '@/modules/readings';
 import { AppLockGate } from '@/modules/security';
 import { createQueryClient } from '@/services/query-client';
 import { usePreferencesStore } from '@/stores';
@@ -105,6 +109,20 @@ function usePendingImageSweep(ready: boolean) {
 }
 
 /**
+ * Drops downloaded reading photos past their 7-day TTL, once per launch.
+ *
+ * Unlike the sweep above this needs no database and so no migrations gate:
+ * the image cache keys off the file system alone, with each file's
+ * modification time standing in for the `cached_images` row client-old kept.
+ * See `modules/readings/lib/image-cache.ts`.
+ */
+function useImageCacheSweep() {
+  useEffect(() => {
+    void cleanupExpiredImages();
+  }, []);
+}
+
+/**
  * Split from the provider so it can read the resolved scheme back out.
  * NativeWind owns the light/dark/system resolution; Tamagui and React
  * Navigation follow it. See src/theme/color-scheme.tsx.
@@ -119,6 +137,7 @@ function ThemedApp() {
   useNotificationBootstrap();
   usePreferencesBootstrap();
   usePendingImageSweep(migrations.success);
+  useImageCacheSweep();
 
   if (migrations.error) throw migrations.error;
 

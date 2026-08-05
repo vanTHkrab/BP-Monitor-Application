@@ -2,7 +2,10 @@
 
 Every screen client-old had now exists here for real, except `app/debug.tsx`.
 What remains is smaller than a screen each: features that live *inside* ported
-screens, and two pieces of infrastructure the ports worked around.
+screens, and the infrastructure the ports worked around.
+
+Sections marked *(done)* are kept as the record of what was decided, not as
+open work.
 
 Bigger items have their own files — [CLIENT-export.md](./CLIENT-export.md),
 [CLIENT-debug-tools.md](./CLIENT-debug-tools.md). This is the rest, roughly in
@@ -10,28 +13,38 @@ the order the user would notice it missing.
 
 ---
 
-## 1. Signed-URL images do not render — only a placeholder
+## 1. Signed-URL images (done)
 
-**Where:** `app/reading/[id].tsx`, and anywhere else a fetched reading's photo
-should appear.
+**Where:** `modules/readings/lib/image-cache.ts`,
+`hooks/use-resolved-image-uri.ts`, `app/reading/[id].tsx`.
 
-A reading fetched from the server carries an `s3Key`, not bytes. The detail
-screen currently renders the local `imageUri` when there is one and an icon
-plus "the photo is on the server" when there is not — which is every reading
-taken on another device, and every reading after a reinstall.
+The detail screen rendered a placeholder for every reading it had not taken
+itself — anything from another device, and everything after a reinstall.
 
-client-old solved this with `utils/image-cache.ts` (153 lines) and
-`hooks/use-resolved-image-uri.ts` (41): the remote URI renders immediately,
-and a `file://` copy swaps in once the download lands, keyed by the extracted
-S3 path with a 7-day TTL. The cache is what makes history images work offline
-at all; the swap is what stops the signed URL's rotation from breaking an
-image mid-view.
+**The field name was the trap.** `ReadingType.s3Key` is not a key: the gateway
+signs it per request (`reading.resolver.ts → signImageKey`), so the same photo
+arrives under a different URL on every fetch, and that URL expires. Caching by
+URL caches nothing; rendering it directly goes blank minutes later and never
+works offline. So the cache keys off the stable object path extracted from the
+URL, and there is a test asserting two signatures of one object collapse to
+one key.
 
-**The table for it already exists in the schema** — client-old's
-`cached_images`. It is *not* in `database/schema.ts` here, so this needs a
-drizzle migration as well as the module. Put it in `modules/readings`
-(`repository/image-cache.ts` + `hooks/use-resolved-image-uri.ts`): the cache
-is keyed by reading images and nothing else reads it.
+**No `cached_images` table, and no migration.** This file previously planned
+to port client-old's table. It is not needed: `File.modificationTime` is the
+fetch time, so the file *is* its own TTL record. That also removes the failure
+mode client-old wrote code for — a row pointing at a file the OS had already
+evicted, two sources of truth disagreeing. The cost is that expiry lists a
+directory instead of running an indexed query, which for tens of photos on a
+launch-time sweep is not worth a schema change.
+
+The sweep (`cleanupExpiredImages`) is wired in `app/_layout.tsx` next to the
+pending-image sweep, but **outside the migrations gate** — it touches no
+database.
+
+Not covered by tests: the download path itself (`resolveImageUri`'s I/O half)
+and `cleanupExpiredImages`. Mocking `File.downloadFileAsync` would assert only
+that a mock was called; the decisions worth guarding are the pure ones, and
+those have 21 tests.
 
 ## 2. In-app notifications have nowhere to land
 

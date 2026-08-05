@@ -14,6 +14,13 @@
  * The route param is the reading's `key`, not its server id. A queued reading
  * has no server id yet and is exactly the one someone is most likely to open
  * (they just saved it) — keying on `remoteId` would make it unopenable.
+ *
+ * **The photo comes from `useResolvedImageUri`, not from a raw field.** A
+ * reading taken here has a local `imageUri`; one fetched from the server has
+ * only `s3Key`, which despite the name is a short-lived *signed URL* the
+ * gateway re-signs on every request. Rendering that directly goes blank when
+ * the signature expires and shows nothing at all offline, so it goes through
+ * the 7-day file cache in `modules/readings/lib/image-cache.ts`.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -30,6 +37,7 @@ import {
   statusLabel,
   useDeleteReading,
   useReadings,
+  useResolvedImageUri,
   type Reading,
 } from '@/modules/readings';
 import { SecurityHeader } from '@/modules/security';
@@ -47,6 +55,16 @@ export default function ReadingDetailScreen() {
   const { deleteReading, isDeleting, error } = useDeleteReading();
 
   const reading = readings.find((item) => item.key === readingKey);
+
+  /*
+   * `imageUri` is the local file for a photo taken on this device; `s3Key` is
+   * a short-lived *signed URL* for one stored on the server (the field name
+   * predates the gateway signing it). Prefer the local file — it needs no
+   * network and never expires — and fall back to resolving the signed URL
+   * through the cache, which is what makes a reading taken on another device,
+   * or any reading after a reinstall, show its photo at all.
+   */
+  const imageUri = useResolvedImageUri(reading?.imageUri ?? reading?.s3Key);
 
   const confirmDelete = (target: Reading) => {
     Alert.alert(
@@ -286,20 +304,22 @@ export default function ReadingDetailScreen() {
                 รูปเครื่องวัดความดัน
               </Text>
 
-              {reading.imageUri ? (
+              {imageUri ? (
                 <Image
-                  source={{ uri: reading.imageUri }}
+                  testID="reading-image"
+                  source={{ uri: imageUri }}
                   style={{ width: '100%', height: 224, borderRadius: 16 }}
                   contentFit="cover"
                   accessibilityLabel="รูปหน้าจอเครื่องวัดความดัน"
                 />
               ) : (
                 <View
+                  testID="reading-image-placeholder"
                   className="h-44 items-center justify-center rounded-2xl px-4"
                   style={{ backgroundColor: colors['surface-muted'] }}
                 >
                   <Ionicons
-                    name={reading.s3Key ? 'image-outline' : 'camera-outline'}
+                    name={reading.s3Key ? 'cloud-offline-outline' : 'camera-outline'}
                     size={34}
                     color={colors['text-secondary']}
                   />
@@ -311,12 +331,14 @@ export default function ReadingDetailScreen() {
                       color: colors['text-secondary'],
                     }}
                   >
-                    {/* An `s3Key` with no local file means the photo is on the
-                        server but this device has never downloaded it. Signed
-                        -URL resolution is not ported yet — see
-                        docs/todo/CLIENT-camera-models.md. */}
+                    {/* Reaching here with an `s3Key` no longer means "not
+                        ported" — `useResolvedImageUri` tried and came back
+                        empty, which is a failed download of a signed URL that
+                        had already expired, or being offline with nothing
+                        cached. Both are "try again when connected", not
+                        "there is no photo". */}
                     {reading.s3Key
-                      ? 'รูปอยู่บนเซิร์ฟเวอร์ แต่ยังโหลดมาแสดงในเครื่องนี้ไม่ได้'
+                      ? 'ยังโหลดรูปไม่ได้ ลองใหม่อีกครั้งเมื่อเชื่อมต่ออินเทอร์เน็ต'
                       : 'รายการนี้ยังไม่มีรูปเครื่องวัดความดัน'}
                   </Text>
                 </View>
