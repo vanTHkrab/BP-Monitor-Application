@@ -153,20 +153,52 @@ exercised for real. Recorded so the gap is not mistaken for coverage.
 Neither is worth a unit test — mocking `File.downloadFileAsync` asserts only
 that a mock was called. They want one manual pass each.
 
-## 9. Doc drift from the earlier ports
+## 9. Doc drift from the earlier ports — done
 
-`client/constants/api.ts` and `client/store/slices/` are referenced by
-`docs/01-api/API.md`, `infra/README.md`, and the api-gateway docs. Neither
-path exists in this tree — GraphQL operations live per-module in
-`services/*-api.ts`, and there are no Zustand slices.
+`client/constants/api.ts`, `client/lib/graphql-error.ts`,
+`client/store/shared/error-format.ts`, and `client/store/slices/` were
+referenced across six files and exist in none of them. Reconciled to the
+paths that do:
 
-The root `CLAUDE.md` has been reconciled (both the "engineering posture"
-path and the "offline-first integrity" paragraph, which still described the
-old single-table `pending_readings` + `syncStatus` design). The remaining
-files have not.
+| Referenced as | Actually |
+| --- | --- |
+| `constants/api.ts` (`graphqlRequest`, endpoint) | `src/services/api.ts`, `src/services/endpoint.ts` |
+| `constants/api.ts` (token helpers) | `src/services/auth-token.ts` (re-exported from `api.ts`) |
+| `constants/api.ts` (`GQL_*`) | per-module `services/operations.ts` — no central file |
+| `lib/graphql-error.ts` → `GraphQLClientError` | `src/services/api-error.ts` → `ApiError` |
+| `store/shared/error-format.ts` | `src/modules/auth/lib/errors.ts` |
+| `lib/error-message.ts` → `formatError` | `src/lib/error-message.ts` → `formatErrorMessage` |
+| `constants/colors.ts` (status classification) | `src/modules/readings/lib/status.ts` |
+| `types/graphql.ts` | per-module `types.ts` + `lib/mappers.ts` |
 
-Mechanical, but it is the kind of thing that sends the next contributor (or
-agent) looking for a file that has not existed for four commits.
+Files touched: `docs/01-api/API.md`, `infra/README.md`,
+`server/app/api-gateway/{CLAUDE,README,PLAN}.md`,
+`server/app/ai-service/PLAN.md`. The root `CLAUDE.md` was already
+reconciled in an earlier pass.
+
+`CLIENT-auth-structure.md`'s old-to-new table still names the old paths and
+is **correct** — it is describing `client-old`. A future sweep should not
+"fix" it.
+
+Two API.md sections were not just stale paths but stale *contract*, and were
+rewritten while the file was open:
+
+- `alerts` gained `patientId`, and the fan-out means a caregiver owns their
+  own row — so `markAlertRead` is per-recipient and returns `false` for a
+  row fetched through `alerts(patientId:)`. None of that was documented.
+- "An accepted link is the authorization for both caregiver data access
+  paths" is no longer true: writing needs `permission: full`. The catalogue
+  was also missing `myPatients` and `respondToCaregiverInvite` entirely.
+
+### Still drifting: `.claude/agents/`
+
+`expo-dev.md` (6 references) and `deep-research.md` (1) still instruct an
+agent to put GraphQL operations in `constants/api.ts` and state in
+`store/slices/`. Left alone deliberately — agent definitions are owned by
+whoever wrote them, and a sweep that silently rewrites another agent's
+instructions is the same class of change this rule exists to prevent. Worth
+a separate, deliberate pass; it is the highest-leverage of the lot, because
+these files are read *as instructions* rather than as reference.
 
 ## 10. Board items to reconcile
 

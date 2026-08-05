@@ -23,8 +23,9 @@ schema is generated at
 | GraphiQL | `GET /graphiql` (dev only) |
 
 The mobile client resolves the URL via
-[`client/constants/api.ts`](../client/constants/api.ts) →
-`getGraphQLEndpoint()`. The web dashboard calls the gateway from server
+[`client/src/services/endpoint.ts`](../client/src/services/endpoint.ts) →
+`getGraphqlEndpoint()`, re-exported from
+[`client/src/services/api.ts`](../client/src/services/api.ts). The web dashboard calls the gateway from server
 actions under [`web/src/actions/`](../web/src/actions/).
 
 ---
@@ -42,7 +43,8 @@ Authorization: Bearer <jwt>
 - The mobile client stores the token via `expo-secure-store`
   (`AsyncStorage` on the web preview). Don't read storage directly — use
   `setAuthToken` / `getAuthToken` / `clearAuthToken` from
-  `client/constants/api.ts`.
+  [`client/src/services/auth-token.ts`](../client/src/services/auth-token.ts),
+  also re-exported from `client/src/services/api.ts`.
 - Token validity is set by `JWT_EXPIRES_IN`; see
   [`auth.config.ts`](../server/app/api-gateway/src/auth/auth.config.ts).
 - Every authenticated request is guarded: the JWT must verify **and** the
@@ -147,12 +149,13 @@ Login throttle: 5 attempts per 15 minutes per phone number. See
 
 ### 3.3 Client-side mapping
 
-- **Mobile**: `graphqlRequest` throws `GraphQLClientError` carrying
+- **Mobile**: `graphqlRequest` throws
+  [`ApiError`](../client/src/services/api-error.ts) carrying
   `{ code, httpStatus, retryAfterSec }`. The login / register flow
   dispatches via
-  [`formatAuthError`](../client/store/shared/error-format.ts); every
+  [`formatAuthError`](../client/src/modules/auth/lib/errors.ts); every
   other flow goes through
-  [`formatError`](../client/lib/error-message.ts).
+  [`formatErrorMessage`](../client/src/lib/error-message.ts).
 - Never render the raw `message` in production — translate via the
   formatter first.
 
@@ -398,16 +401,21 @@ mutation CreateReading($input: CreateReadingInput!) {
 
 - `status` is the BP category (`normal` / `elevated` / `high-stage-1` /
   …). The client computes it before submitting; see
-  `client/constants/colors.ts`.
+  [`client/src/modules/readings/lib/status.ts`](../client/src/modules/readings/lib/status.ts)
+  (the colours for each category live in `client/src/theme/tokens.js`).
 - `s3Key` is optional and only set when the reading came from the image
   flow (after `analyzeBPImage` returns). The gateway enforces that the
   key is owned by the calling user.
 - **Caregiver on-behalf writes** — `CreateReadingInput.patientId: ID`
   (nullable) creates the reading for that patient instead of the caller.
-  Requires an **accepted** `CaregiverPatient` link, the same rule as the
-  `readings(patientId:)` query; otherwise 403 `FORBIDDEN`
-  ("ไม่มีสิทธิ์เข้าถึงข้อมูลของผู้ป่วยรายนี้"). Omitting `patientId`
-  (or passing your own id) is a normal self-entry.
+  Requires an accepted `CaregiverPatient` link **whose `permission` is
+  `full`** — stricter than the `readings(patientId:)` query, which any
+  accepted link may run. The two guards raise different messages on
+  purpose, because "you are not linked" and "you are linked, read-only"
+  have different fixes: 403 `FORBIDDEN`
+  ("ไม่มีสิทธิ์เข้าถึงข้อมูลของผู้ป่วยรายนี้") versus the read-only
+  refusal from `assertCanRecordForPatient`. Omitting `patientId` (or
+  passing your own id) is a normal self-entry.
 - **Attribution** — `ReadingType.recordedBy` (nullable
   `ReadingRecordedByType { id firstname lastname }`) is set only when
   someone other than the reading's owner entered it (caregiver flow).
@@ -517,7 +525,7 @@ mints inline via `StorageService.signImageKey`. Default TTL is 10 minutes.
 
 | Op | Type | Auth |
 | --- | --- | --- |
-| `alerts(limit, offset, unreadOnly)` | Query | ✅ |
+| `alerts(limit, offset, unreadOnly, patientId)` | Query | ✅ |
 | `markAlertRead(id)` | Mutation | ✅ |
 | `markAllAlertsRead` | Mutation | ✅ |
 
@@ -525,23 +533,56 @@ mints inline via `StorageService.signImageKey`. Default TTL is 10 minutes.
 the alert (`AlertReadingType`, a subset of `ReadingType`) so the client
 doesn't need a follow-up query.
 
+- **`patientId`** scopes the query to a patient the caller has an accepted
+  link to, guarded by the same check as `readings(patientId:)`. Without it
+  a caregiver viewing a patient sees that patient's readings beside their
+  own unread count — two people's data on one screen.
+- **An abnormal reading fans out.** The patient always gets a row; each of
+  their accepted caregivers gets their own, worded to lead with the
+  patient's name. Read state is therefore per person — `markAlertRead` is
+  scoped to the alert's owner, so a caregiver clearing their copy cannot
+  hide anything from the patient it is about. That also means
+  `markAlertRead` on a row fetched through `alerts(patientId:)` matches
+  nothing and returns `false`.
+
 ### 5.6 Caregiver links
 
 | Op | Type | Auth |
 | --- | --- | --- |
 | `caregiverLinks` | Query | ✅ |
+| `myPatients` | Query | ✅ |
 | `addCaregiverPatient(patientPhone, relationship)` | Mutation | ✅ |
+| `respondToCaregiverInvite(caregiverId, accept, permission)` | Mutation | ✅ |
 | `removeCaregiverPatient(caregiverId, patientId)` | Mutation | ✅ |
 
 - Links are symmetric — the same query returns both the caregiver-side
   and patient-side view. Compare `caregiverId === me.id` to know which
-  role the caller plays.
+  role the caller plays. `CaregiverLinkType` carries **both**
+  `caregiverAvatar` and `patientAvatar` for the same reason: the resolver
+  cannot know which side of the row the caller is on.
 - `relationship` defaults to `"caregiver"` and can be overridden (e.g.
-  `"spouse"`, `"child"`).
-- An **accepted** link is the authorization for both caregiver data
-  access paths: reading the patient's data (`readings(patientId:)`) and
-  writing on their behalf (`createReading(input: { patientId })` — see
-  §5.2). Pending/rejected links grant nothing.
+  `"spouse"`, `"child"`). An unrecognised value is stored as `other`
+  rather than rejected, so send one the server knows.
+- **An accepted link is no longer a single level of access.**
+  `CaregiverPatient.permission` is `view` or `full`, defaulting to `full`:
+
+  | Guard | Accepts | Used by |
+  | --- | --- | --- |
+  | `assertCanViewPatient` | any accepted link | `readings(patientId:)`, `alerts(patientId:)` |
+  | `assertCanRecordForPatient` | accepted **and** `full` | `createReading` |
+
+  Pending and rejected links grant nothing either way.
+- **The patient chooses the permission when accepting**, via
+  `respondToCaregiverInvite(permission: CaregiverPermission)`. It is an
+  enum, not a String — an unrecognised value fails validation before the
+  resolver runs, because the fallback that is acceptable for
+  `relationship` would here decide who may write into a medical record.
+  The argument defaults to `full` so a client predating it grants exactly
+  what it granted before, and is ignored when `accept: false`.
+- `myPatients` returns `PatientSummaryType`, which carries the link's
+  `permission` and the patient's `latestReading` — one grouped query, so a
+  caregiver's patient list is not N+1. Clients use `permission` to refuse a
+  write before the measurement is taken; the gateway refuses it either way.
 
 ---
 

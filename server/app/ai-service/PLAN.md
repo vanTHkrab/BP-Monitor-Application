@@ -965,7 +965,7 @@ reinstall wipes it — fine for research phase.
 - [ ] Conditional `OcrEngineSelector` on Camera screen
 - [ ] Mutation includes `ocrEngine` when `devMode`
 - [ ] `DevMetricsChip` on result surface
-- [ ] Update GQL operation strings in `constants/api.ts`
+- [ ] Update GQL operation strings in `client/src/modules/capture/services/analysis-api.ts`
 
 #### Post-research (when committing to a single engine)
 

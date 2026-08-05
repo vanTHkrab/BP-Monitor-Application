@@ -148,12 +148,12 @@ traps, in the order people hit them:
 ## Cross-cutting concerns
 
 - The Expo client reads error `extensions.code` to localize messages.
-  `graphqlRequest` ([client/constants/api.ts](../../../client/constants/api.ts))
-  throws [`GraphQLClientError`](../../../client/lib/graphql-error.ts)
-  carrying `code`, `httpStatus`, and `retryAfterSec` — login/register
-  dispatch those via [`formatAuthError`](../../../client/store/shared/error-format.ts)
+  `graphqlRequest` ([client/src/services/api.ts](../../../client/src/services/api.ts))
+  throws [`ApiError`](../../../client/src/services/api-error.ts)
+  carrying `code`, `httpStatus`, and `retryAfterSec` — auth flows dispatch
+  those via [`formatAuthError`](../../../client/src/modules/auth/lib/errors.ts)
   to inline form errors and a throttle countdown; other flows fall back
-  to the legacy string-based [`formatError`](../../../client/lib/error-message.ts).
+  to the string-based [`formatErrorMessage`](../../../client/src/lib/error-message.ts).
   When you throw a new exception type, make sure its HTTP status maps to
   the code the client expects, or extend the mapping in both places.
 - The mobile client also reads the standard `Retry-After` response header
