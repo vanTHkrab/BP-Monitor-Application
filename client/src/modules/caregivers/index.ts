@@ -28,6 +28,7 @@ export {
 } from './lib/relationship';
 export { deriveSections, isEmpty, linkKey, type CaregiverSections } from './lib/sections';
 
+export { ActivePatientBanner } from './components/active-patient-banner';
 export { InviteDecisionCard } from './components/invite-decision-card';
 export { InviteForm } from './components/invite-form';
 export { LinkGroup, LinkRow } from './components/link-row';

@@ -31,12 +31,29 @@ type CaregiverLinkWithUsers = {
   };
 };
 
+/**
+ * Relationship values `addCaregiverPatient` accepts on the way in.
+ *
+ * **`caregiver` is in this set because the GraphQL default is `"caregiver"`.**
+ * It was omitted, so the schema's own default failed the check and every
+ * invite that relied on it was silently stored as `other` — the caller got a
+ * 200 and the wrong row. Widening the set rather than changing the default
+ * keeps existing clients working and makes the two agree.
+ *
+ * `patient` stays out. Prisma's enum has it, but this column describes the
+ * caregiver's relationship *to* the patient, so "patient" is not an answer to
+ * that question — it would only ever arrive from a caller confusing this
+ * field with a role. Rows written before this rule can still come back as
+ * either, which is why `modules/caregivers/lib/relationship.ts` on the client
+ * carries a label for both.
+ */
 const VALID_RELATIONSHIPS: ReadonlySet<RelationshipType> = new Set([
   'parent',
   'child',
   'spouse',
   'sibling',
   'friend',
+  'caregiver',
   'caregiver_professional',
   'other',
 ]);
@@ -223,22 +240,6 @@ export class CaregiverService {
       weight: link.patient.weight ?? undefined,
       height: link.patient.height ?? undefined,
     }));
-  }
-
-  /**
-   * คำเชิญที่ผู้ป่วยรอตอบ
-   */
-  async myPendingInvites(patientId: string): Promise<CaregiverLinkType[]> {
-    const links = await this.prisma.caregiverPatient.findMany({
-      where: { patientId, status: 'pending' },
-      include: {
-        caregiver: { select: { firstname: true, lastname: true, phone: true } },
-        patient: { select: { firstname: true, lastname: true, phone: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return links.map((link) => this.toType(link));
   }
 
   /**

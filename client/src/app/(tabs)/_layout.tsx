@@ -19,9 +19,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router/js-tabs';
 import { cssInterop } from 'nativewind';
 import { Platform, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { ActivePatientBanner, useActivePatient } from '@/modules/caregivers';
 import { useTheme } from '@/hooks/use-theme';
 import { gradientFor } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
@@ -56,13 +57,24 @@ export default function TabLayout() {
   const { scheme } = useColorSchemePreference();
   const colors = useTheme();
   const insets = useSafeAreaInsets();
+  const { isViewingPatient } = useActivePatient();
   const isDark = scheme === 'dark';
   const cta = gradientFor(scheme, 'cta');
 
   const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
   const tabBarPaddingBottom = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
 
-  return (
+  /*
+   * The banner owns the top inset, so the screens under it must stop adding
+   * their own — several apply `paddingTop: insets.top` directly, and they
+   * cannot know something is now above them. Overriding the inset context is
+   * how that is communicated: children below this point are told the top
+   * inset is already spent.
+   *
+   * Only while a patient is being viewed. With no banner the tree is exactly
+   * what it was.
+   */
+  const tabs = (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#FFFFFF',
@@ -182,5 +194,18 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+  );
+
+  return (
+    <View className="flex-1">
+      <ActivePatientBanner />
+      {isViewingPatient ? (
+        <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}>
+          {tabs}
+        </SafeAreaInsetsContext.Provider>
+      ) : (
+        tabs
+      )}
+    </View>
   );
 }

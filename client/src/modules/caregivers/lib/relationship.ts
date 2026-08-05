@@ -3,10 +3,16 @@
  *
  * client-old asked for this as free text ("ความสัมพันธ์ เช่น family, nurse").
  * The gateway does not store free text: `caregiver.service.ts` normalises the
- * string against a seven-value allow-list and falls back to `other`, so
- * "family" and "nurse" both landed as `other` and the patient saw "อื่น ๆ" on
- * an invite they were being asked to trust. A picker over the values the
- * server actually keeps is the same number of taps and cannot lie.
+ * string against an allow-list and falls back to `other`, so "family" and
+ * "nurse" both landed as `other` and the patient saw "อื่น ๆ" on an invite
+ * they were being asked to trust. A picker over the values the server
+ * actually keeps is the same number of taps and cannot lie.
+ *
+ * **This list must stay in step with `VALID_RELATIONSHIPS`** in
+ * `server/app/api-gateway/src/caregiver/caregiver.service.ts`. Offering a
+ * value the server rejects is not a validation error — the server stores
+ * `other` and returns 200, so the invite the patient sees says something the
+ * caregiver never chose.
  *
  * The relationship reads caregiver → patient: `child` means the caregiver is
  * the patient's child.
@@ -19,12 +25,14 @@ const LABELS: Record<RelationshipType, string> = {
   spouse: 'คู่สมรส',
   sibling: 'พี่/น้อง',
   friend: 'เพื่อน',
+  caregiver: 'ผู้ดูแล',
   caregiver_professional: 'ผู้ดูแลวิชาชีพ',
   other: 'อื่น ๆ',
-  // Not selectable — the gateway rejects both on the way in. Present only so
-  // rows written before that rule still render as words.
+  // Not selectable. The gateway rejects it on the way in — this column says
+  // how the caregiver relates *to* the patient, and "patient" is not an
+  // answer to that. Kept so a row written before that rule still renders as
+  // a word rather than a blank.
   patient: 'ผู้ป่วย',
-  caregiver: 'ผู้ดูแล',
 };
 
 /**
@@ -38,6 +46,10 @@ export const RELATIONSHIP_OPTIONS: readonly RelationshipType[] = [
   'parent',
   'sibling',
   'friend',
+  // Newly accepted by the gateway. It was already the GraphQL default and was
+  // *not* in the allow-list, so any invite that fell back to the default was
+  // stored as `other` — see the A-004 note in caregiver.service.ts.
+  'caregiver',
   'caregiver_professional',
   'other',
 ];

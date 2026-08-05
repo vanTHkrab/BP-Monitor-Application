@@ -22,18 +22,20 @@
  *      `other`, so "family" and "nurse" both arrived as "อื่น ๆ" on the
  *      patient's consent card.
  *
- * Not ported: the caregiver's "ดูข้อมูล" jump into a patient's readings. It
- * set `activePatientId` and replaced the route with `/(tabs)`. It was blocked
- * on the home and history tabs, which have since landed and do read
- * `useActivePatient()` — so the button now has somewhere real to go and is
- * unblocked work rather than a dependency.
+ * **This screen is the only way into caregiver mode** (C-005). Tapping a
+ * patient row sets the viewing context and replaces the route with `/(tabs)`;
+ * home and history both gate on that context, so before this they rendered a
+ * picker for a mode no user could enter.
  *
- * **Its absence is why caregiver mode is currently unreachable**: home and
- * history both gate on an active patient and nothing else can set one. Ship
- * it together with the "whose data is this" banner — without that, a
- * caregiver can record a reading or export a report under the wrong person's
- * name. Tracked as C-005; see docs/todo/CLIENT-caregiver.md.
+ * A row is only openable once `myPatients` has resolved. The link fallback
+ * used while it loads carries no `PatientSummary`, and storing a patient the
+ * app cannot name would render the banner as an accusation about nobody.
+ *
+ * The "you are in someone else's account" banner ships with it and is not
+ * optional — see `modules/caregivers/components/active-patient-banner.tsx`
+ * for why. docs/todo/CLIENT-caregiver.md has the whole picture.
  */
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
 
@@ -50,11 +52,13 @@ import {
   isEmpty,
   linkKey,
   relationshipLabel,
+  useActivePatient,
   useCaregiverLinks,
   useMyPatients,
   useRemoveCaregiverLink,
   useRespondToInvite,
   type CaregiverLink,
+  type PatientSummary,
 } from '@/modules/caregivers';
 import { formatErrorMessage } from '@/lib/error-message';
 import { SecurityHeader } from '@/modules/security';
@@ -72,6 +76,8 @@ export default function InvitationsScreen() {
   const { removeCaregiverLink } = useRemoveCaregiverLink();
 
   const [error, setError] = useState<string | null>(null);
+
+  const { setActivePatient } = useActivePatient();
 
   const sections = useMemo(() => deriveSections(links, userId), [links, userId]);
 
@@ -139,6 +145,7 @@ export default function InvitationsScreen() {
         name: `คุณ${patient.firstname} ${patient.lastname}`.trim(),
         avatarUri: patient.avatar,
         detail: `${formatThaiPhone(patient.phone)} · ${relationshipLabel(patient.relationship)}`,
+        patient,
       }));
     }
 
@@ -151,8 +158,37 @@ export default function InvitationsScreen() {
       name: `คุณ${link.patientName}`,
       avatarUri: undefined,
       detail: `${formatThaiPhone(link.patientPhone)} · ${relationshipLabel(link.relationship)}`,
+      /**
+       * No `PatientSummary` on this path — it is the fallback for when
+       * `myPatients` has not resolved, and the store keeps the whole record so
+       * the banner can name the patient without a second query. Rows here are
+       * not openable; they become openable a moment later when `myPatients`
+       * lands. Better than opening with a half-populated patient the banner
+       * would render as blank.
+       */
+      patient: undefined,
     }));
   }, [patients, sections.myPatientLinks, userId]);
+
+  /**
+   * C-005: enter the patient's data.
+   *
+   * `router.replace`, not `push`. The tabs are the destination, not a screen
+   * stacked on top of this one — a back gesture landing on the picker while
+   * the tabs behind it show someone else's readings is the confusing half of
+   * a modal that should have been a mode switch.
+   *
+   * The store is set first so the tabs mount already scoped; setting it after
+   * navigating renders one frame of the caregiver's own (empty) history.
+   *
+   * This grants nothing. `readings(patientId:)` needs an accepted link on the
+   * gateway, so the worst a tampered client achieves is asking for data it
+   * will not receive.
+   */
+  const openPatient = (patient: PatientSummary) => {
+    setActivePatient(patient);
+    router.replace('/(tabs)');
+  };
 
   const showEmptyState = !isLoading && isEmpty(sections) && !isCaregiver;
 
@@ -206,6 +242,7 @@ export default function InvitationsScreen() {
                     name={row.name}
                     avatarUri={row.avatarUri}
                     detail={row.detail}
+                    onOpen={row.patient ? () => openPatient(row.patient) : undefined}
                     removeLabel="ยกเลิกการเชื่อมโยงกับ"
                     onRemove={() =>
                       confirmRemove(row.caregiverId, row.patientId, row.name)

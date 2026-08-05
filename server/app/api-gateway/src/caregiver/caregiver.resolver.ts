@@ -29,16 +29,6 @@ export class CaregiverResolver {
     return this.caregiverService.myPatients(user.id);
   }
 
-  @Query(() => [CaregiverLinkType], {
-    description: 'คำเชิญ caregiver ที่ผู้ป่วยรอตอบ',
-  })
-  @UseGuards(GqlAuthGuard)
-  async myPendingInvites(
-    @CurrentUser() user: { id: string },
-  ): Promise<CaregiverLinkType[]> {
-    return this.caregiverService.myPendingInvites(user.id);
-  }
-
   @Mutation(() => CaregiverLinkType, {
     description:
       'ส่งคำเชิญผู้ป่วยด้วยเบอร์โทรศัพท์ (สถานะ pending รอผู้ป่วยตอบรับ)',

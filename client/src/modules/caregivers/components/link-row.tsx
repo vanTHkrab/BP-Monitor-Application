@@ -26,6 +26,14 @@ export type LinkRowProps = {
   detail: string;
   /** Dimmed treatment for rows that are not active yet (sent invites). */
   muted?: boolean;
+  /**
+   * Opens this person's data. When set, the name/detail area becomes the
+   * tappable target and gains a chevron — the destructive action keeps its
+   * own separate hit box so "view" and "unlink" can never be one mis-tap
+   * apart.
+   */
+  onOpen?: () => void;
+  openLabel?: string;
   /** Trailing destructive action. */
   onRemove?: () => void;
   removeLabel?: string;
@@ -41,6 +49,8 @@ export function LinkRow({
   avatarUri,
   detail,
   muted = false,
+  onOpen,
+  openLabel = 'ดูข้อมูลของ',
   onRemove,
   removeLabel = 'ลบ',
   removeIcon = 'trash-outline',
@@ -72,20 +82,51 @@ export function LinkRow({
           )}
         </View>
 
-        <View className="flex-1 py-3 pr-3">
-          <Text
-            className="font-medium"
-            style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
+        {onOpen ? (
+          <Pressable
+            testID={testID ? `${testID}-open` : undefined}
+            onPress={onOpen}
+            accessibilityRole="button"
+            accessibilityLabel={`${openLabel} ${name}`}
+            className="flex-1 flex-row items-center py-3 pr-2"
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
-            {name}
-          </Text>
-          <Text
-            className="mt-0.5"
-            style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
-          >
-            {detail}
-          </Text>
-        </View>
+            <View className="flex-1">
+              <Text
+                className="font-medium"
+                style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
+              >
+                {name}
+              </Text>
+              <Text
+                className="mt-0.5"
+                style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
+              >
+                {detail}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={colors['text-secondary']}
+            />
+          </Pressable>
+        ) : (
+          <View className="flex-1 py-3 pr-3">
+            <Text
+              className="font-medium"
+              style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
+            >
+              {name}
+            </Text>
+            <Text
+              className="mt-0.5"
+              style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
+            >
+              {detail}
+            </Text>
+          </View>
+        )}
 
         {onRemove ? (
           <Pressable

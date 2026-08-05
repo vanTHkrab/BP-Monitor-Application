@@ -1,9 +1,9 @@
 # Client: the caregiver role
 
-> **Status: the plumbing shipped, the way *in* did not.** A caregiver can be
-> linked to a patient, and every screen already scopes its data to whoever is
-> being viewed — but nothing in the app *sets* who that is, and only one screen
-> tells the user whose data is on it.
+> **Status: the role works end to end.** C-005 and the banner shipped
+> together; A-004 is fixed; `myPendingInvites` is gone. What is left is one
+> real gap (routes outside the tab navigator), one deferred feature (C-001,
+> blocked on infrastructure that does not exist), and A-005.
 
 Scope of this file: everything about acting as, or being seen by, a caregiver.
 The module layout it sits on is in
@@ -27,46 +27,67 @@ Verified against the tree, not inferred from the earlier docs:
 | **Recording on a patient's behalf** | `app/(tabs)/camera.tsx:495` passes `patientId` when a caregiver is viewing; `lib/sync.ts` carries it through the offline queue |
 | Export attributed to the patient | `resolveExportSubjectName` — see [CLIENT-export.md](./CLIENT-export.md) |
 
-Five of the gateway's six caregiver operations are wired. The gateway remains
-the real authorization gate: `readings(patientId:)` needs an **accepted** link,
+| The way into a patient's data | `app/invitations.tsx` → `setActivePatient` + `router.replace('/(tabs)')` |
+| "you are in someone else's account" | `components/active-patient-banner.tsx`, mounted in `app/(tabs)/_layout.tsx` |
+
+Every caregiver operation the gateway exposes is now wired — the one that was
+not (`myPendingInvites`) was deleted rather than adopted, see §5. The gateway
+remains the real authorization gate: `readings(patientId:)` needs an **accepted** link,
 so the client's viewing context only decides what to ask for, never what is
 allowed.
 
 ---
 
-## 1. The way in does not exist — **C-005**
+## 1. The way in — **C-005, done**
 
-**Where:** `app/invitations.tsx` (its header still says "Not ported").
+`app/invitations.tsx` — tapping a patient calls `setActivePatient(patient)`
+then `router.replace('/(tabs)')`. Store first, so the tabs mount already
+scoped; `replace` rather than `push`, because the tabs are the destination and
+a back gesture landing on the picker while someone else's readings sit behind
+it is the confusing half of a modal that should have been a mode switch.
 
-Tapping a linked patient should set the viewing context and land on their
-data. It is now pure wiring — `setActivePatient(patient)` plus
-`router.replace('/(tabs)')` — because home and history already read
-`useActivePatient()` and both render a "pick a patient" gate until one is set.
+The row stores the **whole `PatientSummary`**, not just the id — the banner
+names the patient from it without a second query. The link fallback that
+renders before `myPatients` resolves carries no such record, so those rows are
+not openable; they become openable a moment later. Opening from them would put
+an unnamed patient in the store and render a banner accusing the user of being
+in nobody's account.
 
-Until this lands, **caregiver mode is unreachable from the UI**: every screen
-is built for it and no user can enter it.
+Grants nothing: `readings(patientId:)` still needs an accepted link on the
+gateway, so a tampered client only asks for data it will not receive.
 
-## 2. Nothing says whose data is on screen
+## 2. The banner — **done, and it shipped in the same change**
 
-**Where:** every screen except home.
+`modules/caregivers/components/active-patient-banner.tsx`, mounted once in
+`app/(tabs)/_layout.tsx` above the navigator.
 
-`app/(tabs)/index.tsx` renders one line — "กำลังดูข้อมูลของคุณ …". History,
-camera, settings, history-list, and reading detail all scope their queries to
-`viewingPatientId` and show nothing at all.
+It is a correctness control rather than a nicety, which is why it was not
+allowed to land later: while it is on screen the camera records readings
+against `viewingPatientId` and export signs documents with that patient's
+name. Both are things nothing downstream can detect as wrong, because both are
+exactly what the app was told to do.
 
-client-old had an `ActivePatientBanner` above every screen. This tree has no
-equivalent, and **this is now a data-correctness problem rather than a polish
-one**: export attributes the document to the active patient
-([CLIENT-export.md](./CLIENT-export.md)), and the camera records readings
-against them. A caregiver who has forgotten they are inside someone else's
-account can file a measurement, or hand a doctor a PDF, under the wrong name.
+**`clearActivePatient` finally has a caller.** It shipped with the store and
+nothing used it, so before this a caregiver who entered a patient could only
+leave by restarting the app.
 
-Ship this **with C-005**, not after it. The moment the jump exists, so does the
-failure mode.
+One implementation note worth keeping: the banner owns the top safe-area
+inset, and several screens apply `paddingTop: insets.top` themselves. They
+cannot know something is now above them, so `_layout.tsx` wraps the navigator
+in a `SafeAreaInsetsContext.Provider` reporting `top: 0` while a patient is
+being viewed. Without it every tab gains a second status-bar gap.
 
-Worth deciding while building it: what the tab bar says while a caregiver is
-inside someone else's history, and how they get *out*. `clearActivePatient`
-exists and nothing calls it.
+### Still open: routes outside `(tabs)`
+
+The banner covers the five tabs. It does **not** cover `settings`,
+`reading/[id]`, `history-list`, or `invitations`, which are pushed on top of
+the navigator and have their own headers.
+
+`reading/[id]` and `history-list` both read patient-scoped data, so a
+caregiver can still be looking at someone else's reading with nothing saying
+so. Smaller than the original gap — you can only reach them from a tab that
+did show the banner — but real. The fix is probably a compact variant inside
+`SecurityHeader`, which those routes already share.
 
 ## 3. `activePatientId` is deliberately not persisted
 
@@ -75,34 +96,50 @@ rather than silently inside someone else's medical history. Documented here so
 nobody "fixes" it later. It does mean the banner in §2 can never be the only
 exit: a cold start already clears the context.
 
-## 4. Caregiver push-notification preference — **C-001**
+## 4. Caregiver push notifications — **C-001, deferred on purpose**
 
-On the board, unstarted. Nothing in `modules/notifications` distinguishes a
-reminder for yourself from an alert about someone you care for.
+**The gateway has no push infrastructure at all.** No push-token column, no
+device registration, nothing that sends. Searching `server/app/api-gateway/src`
+for `expoPushToken` / `pushToken` returns nothing.
 
-## 5. `myPendingInvites` is unused server surface
+So the board item as written — "wire the caregiver push-notification
+preference screen to the store" — cannot be built honestly today. A preference
+screen with nothing behind it is a switch that persists a value no system
+reads, which is exactly what `app/settings.tsx` refused to port client-old's
+"สำรองข้อมูลอัตโนมัติ" toggle for: it claimed to control something that was
+not optional and not happening.
 
-The gateway exposes three caregiver queries; the client uses two.
-`caregiverLinks` plus `deriveSections` already produces the "waiting on you"
-group that `myPendingInvites` was presumably for.
+The order is gateway first: token storage, a registration mutation, and
+something that actually sends on an alert. The client preference is the small
+last step, not the first.
 
-Decide rather than leave it: either the client should use it (one query instead
-of client-side derivation) or it is dead surface on the gateway. Both are fine;
-the current state — a resolver nobody calls — is the one that is not.
+`modules/notifications` today schedules **local** reminders only, which is a
+different feature and works.
 
-## 6. Two gateway bugs that surface here — **A-004**, **A-005**
+## 5. `myPendingInvites` — **deleted**
+
+Removed from the resolver and the service. `caregiverLinks` plus
+`deriveSections` already produce the "waiting on you" group, with a test.
+
+`src/schema.gql` is generated from the resolvers at boot (`autoSchemaFile` in
+`app.module.ts`), so it regenerated itself on the next `nest build` / test run
+and the query is gone from it too. Nothing hand-edits that file; if a resolver
+change ever seems not to reach the schema, run the app rather than editing it.
+
+## 6. Gateway — **A-004 done**, A-005 open
 
 Both are cross-cutting (root `CLAUDE.md` rule 1: gateway and client ship
 together, with the reason in the PR body).
 
-- **A-004 — the invite default is unusable.** `schema.gql:380` defaults
-  `relationship` to `"caregiver"`, which is **not** in `VALID_RELATIONSHIPS`
-  (`caregiver.service.ts:34`), so `parseRelationship` silently stores `other`.
-  Prisma's `RelationshipType` has both `caregiver` and `patient`; the schema
-  default and the accepted set have to agree on one authoritative list.
-  The client works around it today by making relationship a picker rather than
-  free text, so the default is rarely hit — which is exactly why it has
-  survived.
+- **A-004 — done.** `schema.gql:380` defaults `relationship` to
+  `"caregiver"`, which was **not** in `VALID_RELATIONSHIPS`, so every invite
+  relying on the default was silently stored as `other` — a 200 and the wrong
+  row. Fixed by widening the set rather than changing the default: no schema
+  change, so no regeneration and nothing breaks for an existing caller.
+  `caregiver` is now a selectable relationship on the client too, since
+  offering a value the server rejects is the same class of silent-wrong-row
+  bug in the other direction. `patient` stays out — this column says how the
+  caregiver relates *to* the patient, and "patient" is not an answer to that.
 - **A-005 — invite by phone only.** `addCaregiverPatient` looks a patient up by
   phone. Email would need an input object accepting either, the resolver /
   service lookup, and then the form in
@@ -110,11 +147,9 @@ together, with the reason in the PR body).
 
 ---
 
-## Order worth doing it in
+## What is left
 
-1. **C-005 + the banner together** (§1 + §2). One is unreachable without the
-   other; the second is what stops the first from being dangerous.
-2. **§5**, five minutes of deciding, then either a small client change or a
-   gateway deletion.
-3. **A-004** (§6) — a real correctness bug, cheap, and independent of the UI.
-4. **C-001** (§4) and **A-005** (§6) — features, not debt.
+1. **The banner on pushed routes** (§2, "still open") — `reading/[id]` and
+   `history-list` show patient-scoped data with nothing saying whose.
+2. **A-005** (§6) — invite by email as well as phone. Cross-cutting.
+3. **C-001** (§4) — blocked on push infrastructure, not on UI work.

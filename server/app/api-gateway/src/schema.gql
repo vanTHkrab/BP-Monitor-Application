@@ -306,9 +306,6 @@ type Query {
   """ผู้ป่วยที่ caregiver ดูแลอยู่ (accepted เท่านั้น)"""
   myPatients: [PatientSummaryType!]!
 
-  """คำเชิญ caregiver ที่ผู้ป่วยรอตอบ"""
-  myPendingInvites: [CaregiverLinkType!]!
-
   """รายการโพสต์ชุมชน (สาธารณะ)"""
   posts(category: String, limit: Int! = 100, offset: Int! = 0): [PostType!]!
   analysisJob(jobId: String!): AnalysisJob!
