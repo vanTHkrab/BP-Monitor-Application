@@ -58,6 +58,27 @@ jest.mock('@/modules/readings', () => ({
   useExportReadings: () => ({ exportReadings: mockExportReadings, isExporting: false }),
 }));
 
+// Same shape as the readings mock: only the hook that reads AsyncStorage and
+// the OS notification queue is replaced. `ReminderTimelineCard` and the pure
+// timeline underneath it are the real ones, so these assertions exercise the
+// join the screen actually performs.
+const remindersOff = {
+  enabled: false,
+  intervalHours: 4,
+  startHour: 7,
+  endHour: 19,
+  selectedDays: [0, 1, 2, 3, 4, 5, 6],
+  soundId: 'voice1' as const,
+};
+const mockReminders = {
+  settings: { ...remindersOff },
+  isLoading: false,
+};
+jest.mock('@/modules/notifications', () => ({
+  ...jest.requireActual('@/modules/notifications'),
+  useReminderSettings: () => mockReminders,
+}));
+
 import HistoryScreen from '@/app/(tabs)/history';
 import { fireEvent, renderScreen, waitFor } from '../test-utils';
 
@@ -95,6 +116,8 @@ beforeEach(() => {
   mockActivePatient.current = { viewingPatientId: undefined, isViewingPatient: false };
   mockReadings.readings = [];
   mockReadings.isLoading = false;
+  mockReminders.settings = { ...remindersOff };
+  mockReminders.isLoading = false;
 });
 
 describe('HistoryScreen', () => {
@@ -252,6 +275,58 @@ describe('HistoryScreen', () => {
       const view = await renderScreen(<HistoryScreen />);
 
       expect(view.queryByTestId('history-pick-patient')).toBeNull();
+    });
+  });
+
+  /**
+   * Which rounds land in which state is covered against an injected clock in
+   * `modules/notifications/lib/reminder-timeline.test.ts`. What is left here
+   * is the join: does the screen hand the card the right settings and the
+   * right readings, and does it know when not to render it at all.
+   */
+  describe('the reminder timeline', () => {
+    const remindersOn = { ...remindersOff, enabled: true };
+
+    it('offers the settings screen instead of an empty strip when reminders are off', async () => {
+      const view = await renderScreen(<HistoryScreen />);
+
+      expect(view.getByTestId('reminder-timeline')).toBeTruthy();
+      expect(view.getByTestId('reminder-timeline-empty')).toBeTruthy();
+      expect(view.getByTestId('reminder-timeline-progress')).toHaveTextContent('สำเร็จ 0/0');
+    });
+
+    it('renders one card per round of the configured schedule', async () => {
+      mockReminders.settings = remindersOn;
+      const view = await renderScreen(<HistoryScreen />);
+
+      ['07:00', '11:00', '15:00', '19:00'].forEach((label) => {
+        expect(view.getByText(label)).toBeTruthy();
+      });
+      expect(view.queryByTestId('reminder-timeline-empty')).toBeNull();
+      expect(view.getByTestId('reminder-timeline-progress')).toHaveTextContent('สำเร็จ 0/4');
+    });
+
+    it('does not render while the settings are still being read', async () => {
+      // The stored value arrives from AsyncStorage a tick after mount.
+      // Rendering through that shows "วันนี้ยังไม่มีรอบแจ้งเตือน" to someone
+      // who does have rounds today, then swaps it out.
+      mockReminders.isLoading = true;
+      const view = await renderScreen(<HistoryScreen />);
+
+      expect(view.queryByTestId('reminder-timeline')).toBeNull();
+    });
+
+    it('hides itself when a caregiver is viewing a patient', async () => {
+      // The settings are the caregiver's own and the readings are the
+      // patient's. Rendering both would put two people on one card.
+      mockUser.current = { firstname: 'สมหญิง', lastname: 'ใจงาม', role: 'caregiver' };
+      mockActivePatient.current = { viewingPatientId: 'p1', isViewingPatient: true };
+      mockReminders.settings = remindersOn;
+      mockReadings.readings = [reading(0)];
+      const view = await renderScreen(<HistoryScreen />);
+
+      expect(view.getByTestId('reading-k0')).toBeTruthy();
+      expect(view.queryByTestId('reminder-timeline')).toBeNull();
     });
   });
 });

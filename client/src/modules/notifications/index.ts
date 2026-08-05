@@ -14,6 +14,15 @@ export { useReminderSettings } from './hooks/use-reminder-settings';
 export { SCHEDULED_NOTIFICATION_BUDGET, planReminders } from './lib/schedule-plan';
 export type { ReminderPlan, ReminderSlot } from './lib/schedule-plan';
 
+export { ReminderTimelineCard } from './components/reminder-timeline-card';
+export { buildReminderTimeline, summariseTimeline } from './lib/reminder-timeline';
+export type {
+  ReminderRound,
+  ReminderRoundStatus,
+  ReminderTimelineSummary,
+  TimelineReading,
+} from './lib/reminder-timeline';
+
 export {
   DAY_OPTIONS,
   DEFAULT_REMINDER_SETTINGS,

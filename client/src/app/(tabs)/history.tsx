@@ -16,10 +16,12 @@
  * and the list with a "ยังไม่ได้ซิงก์" line, not missing until the next sync.
  * client-old fetched on focus and rendered from a Zustand array.
  *
- * One section of the original is still not here, because what it depends on
- * is not ported: **"เช็กรอบวัดของวันนี้"**, the reminder timeline. It needs
- * `buildReminderTimelineForDate`, which lives in client-old's
- * `utils/reminders.ts` and has no equivalent in `modules/notifications`.
+ * **"เช็กรอบวัดของวันนี้" is back**, as `ReminderTimelineCard` from
+ * `modules/notifications`. It renders only for a user looking at their own
+ * data: reminder settings are device-local and belong to whoever is signed
+ * in, so drawing them over a patient's readings would put the caregiver's
+ * schedule and the patient's measurements on one card — the same two-subjects
+ * -on-one-screen bug `useSubject` exists to make unrepresentable.
  *
  * **The export button exports `filtered`, not `readings`** — what the user is
  * looking at, not everything they have. The time filter above it is the
@@ -43,6 +45,7 @@ import { TabButtons } from '@/components/ui/tab-buttons';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import { useActivePatient } from '@/modules/caregivers';
+import { ReminderTimelineCard, useReminderSettings } from '@/modules/notifications';
 import {
   BPReadingCard,
   BPTrendChart,
@@ -79,6 +82,15 @@ export default function HistoryScreen() {
 
   const { readings, isLoading } = useReadings();
   const { refresh, isRefreshing } = useReadingsSync();
+
+  /**
+   * The reminder timeline's own inputs. `settings` is device-local and keyed
+   * by the signed-in user, so it is only meaningful against that user's own
+   * readings — hence `!isViewingPatient` below. `isLoading` is the hook
+   * reading AsyncStorage; rendering through it would flash the "no rounds
+   * today" empty state at someone who has rounds today.
+   */
+  const { settings: reminderSettings, isLoading: isLoadingReminders } = useReminderSettings();
 
   const { exportReadings, isExporting } = useExportReadings();
 
@@ -134,6 +146,10 @@ export default function HistoryScreen() {
                 onTabChange={setTimeFilter}
               />
             </View>
+
+            {!isViewingPatient && !isLoadingReminders ? (
+              <ReminderTimelineCard settings={reminderSettings} readings={readings} />
+            ) : null}
 
             {series.length > 0 ? (
               <BPTrendChart readings={series} />
