@@ -1,9 +1,14 @@
 # Client: the caregiver role
 
-> **Status: the role works end to end.** C-005 and the banner shipped
-> together; A-004 is fixed; `myPendingInvites` is gone. What is left is one
-> real gap (routes outside the tab navigator), one deferred feature (C-001,
-> blocked on infrastructure that does not exist), and A-005.
+> **Status: the role works end to end and is instrumented.** A caregiver can
+> enter a patient, always sees whose data they are on, switches between
+> patients in two taps, is alerted about their patients, and is held to a
+> read/write permission. What is left is listed under "What is left, in
+> order" — nothing there blocks the role from being usable.
+>
+> **Both migrations are applied to the Supabase dev database**
+> (`prisma migrate status` → up to date). Nothing in this file has been
+> exercised on a physical device.
 
 Scope of this file: everything about acting as, or being seen by, a caregiver.
 The module layout it sits on is in
@@ -166,7 +171,7 @@ they queue like any other reading: `use-create-reading.ts` stores
 `recordedById`, and `lib/sync.ts` sends `patientId` back on the drain, so an
 on-behalf capture taken on a plane still files under the patient.
 
-### 🔴 The notification bell is not scoped to the patient — shipping today
+### ~~🔴 The notification bell is not scoped to the patient~~ — fixed, see §1/§2 below
 
 ```
 useReadings({ patientId: viewingPatientId })   // scoped
@@ -181,7 +186,7 @@ The client cannot fix this alone: `alert.resolver.ts` exposes
 `@CurrentUser()`. There is no `patientId` argument to pass, unlike
 `readings(patientId:)`.
 
-### 🔴 A caregiver is never told anything
+### ~~🔴 A caregiver is never told anything~~ — fixed by the fan-out, §3 below
 
 `reading.service.ts` creates alerts against the reading's owner, with a comment
 that is right as far as it goes:
@@ -197,15 +202,18 @@ The entire premise of the role is that somebody else is watching. Today the
 only way to learn anything is to open the app, enter the patient, and look.
 There is no passive path.
 
-### Structural limits that block new features
+### Structural limits that blocked new features
 
-| Limit | What it blocks |
-| --- | --- |
-| `CaregiverPatient` has `relationship` + `status` and **no permission column** — accepted means full read *and* write-on-behalf | "this child may view, this nurse may record" is not expressible |
-| One active patient, and switching costs four taps (banner exit → menu → invitations → tap) | a professional caregiver with several patients |
-| `myPatients` returns summaries with **no latest reading** | any "all my patients at a glance" screen is N+1 queries |
-| No push infrastructure — no token column, no registration, no sender | every kind of real notification (C-001) |
-| No audit trail beyond `recordedBy` on a reading | who viewed whose data, who removed a link. For health data this is a real gap, not a nice-to-have |
+Recorded as found. Four of five have since been removed; the table is kept so
+the reasoning behind each fix stays attached to the problem it solved.
+
+| Limit | What it blocked | Now |
+| --- | --- | --- |
+| `CaregiverPatient` had `relationship` + `status` and **no permission column** | "this child may view, this nurse may record" | **Fixed** (§4) — column, split guards, client gate. No UI writes it yet. |
+| One active patient, switching cost four taps | a caregiver with several patients | **Fixed** (§5) — two taps from the banner |
+| `myPatients` returned summaries with **no latest reading** | "all my patients at a glance" was N+1 | **Fixed** (§6) — one grouped query |
+| No push infrastructure | every kind of real notification (C-001) | **Still true.** In-app alerts now reach the caregiver (§3); delivery when the app is closed does not exist. |
+| No audit trail beyond `recordedBy` on a reading | who viewed whose data, who removed a link | **Still true**, and untracked elsewhere. For health data this is a real gap, not a nice-to-have. |
 
 ---
 
@@ -349,13 +357,30 @@ The original reasoning:
 are written on the assumption that "accepted" means "may do everything",
 introducing it becomes a rewrite of all of them.
 
-### 5. A quick-switcher in the banner
+### 5. A quick-switcher in the banner — **done**
+
+`components/patient-switcher-sheet.tsx`, opened by tapping the banner. Two
+taps from anywhere in the tabs, against exit → menu → invitations → tap.
+
+Rows lead with the patient's latest reading and sort worst-first. `sortByAttention`
+puts a patient with **no** readings above `normal` but below anything
+concerning — unknown is not the same as fine. Read-only links are labelled
+here too, because finding out you cannot record after switching is a wasted
+switch. Both the chevron and the sheet are suppressed for a caregiver with one
+patient.
+
+The original reasoning:
 
 Tap the banner → a sheet of linked patients → switch. `ExportFormatSheet` is
 the pattern to copy. Four taps become two, and it removes the only reason to
 leave the patient's context by hand.
 
-### 6. `myPatients` should carry the latest reading and its status
+### 6. `myPatients` carries the latest reading — **done**
+
+One grouped `findMany` with `distinct: ['userId']` and a matching `orderBy`,
+which is Prisma's "first row per group". Replaces N round trips with one.
+
+The original reasoning:
 
 Makes a caregiver landing screen one query instead of N+1, and is what makes
 §5 useful — a switcher that shows who needs attention beats one that lists
@@ -365,18 +390,111 @@ names.
 
 ## What is left, in order
 
-1. ~~**`useSubject()` + `alerts(patientId:)`**~~ — done.
-2. ~~**Alert fan-out**~~ — done. Follow-up: `@@unique([userId, bpReadingId])`
-   when a migration can next be run.
-3. ~~**The permission column**~~ — done. Still open on top of it: no UI sets
-   `permission`, so every link is `full` in practice. A patient-facing control
-   on the invite-decision card ("ให้ดูอย่างเดียว" / "ให้บันทึกแทนได้") is the
-   natural next step, plus `addCaregiverPatient` accepting it.
-4. **Quick-switcher + richer `myPatients`** (§5, §6) — UX and scale.
-5. **The banner on pushed routes** (§2, "still open") — `reading/[id]` and
-   `history-list` show patient-scoped data with nothing saying whose.
-6. **A-005** (§6 gateway) — invite by email as well as phone.
-7. **C-001** — blocked on push infrastructure, not on UI work.
+Nothing below blocks the role from being usable. Each item says what it is,
+where it goes, and what makes it non-obvious.
 
-Items 2, 3, 4 and 6 are cross-cutting: gateway and client ship together with
-the reason in the PR body (root `CLAUDE.md` rule 1).
+### 1. Nothing sets `permission` — every link is `full` in practice
+
+The column, the guards, and the client gate all exist; no UI writes it. Two
+parts:
+
+- **`addCaregiverPatient` should accept it**, so a caregiver can ask for
+  view-only, and
+- **the patient should choose on accept.** `InviteDecisionCard` is where —
+  "ให้ดูอย่างเดียว" / "ให้บันทึกแทนได้" next to accept. That is the honest
+  place for it: the permission is the patient's grant, not the caregiver's
+  request.
+
+`respondToCaregiverInvite` currently takes `accept: boolean`; it would take
+the permission alongside. Note `parseRelationship`'s lesson (A-004) — a value
+the server does not recognise must not silently become something else.
+
+### 2. The banner does not cover routes outside `(tabs)`
+
+`ActivePatientBanner` is mounted in `app/(tabs)/_layout.tsx`. `settings`,
+`reading/[id]`, `history-list`, and `invitations` are pushed on top and have
+their own headers, so a caregiver can be reading someone else's reading detail
+with nothing saying whose.
+
+Smaller than it was — you can only reach those from a tab that did show the
+banner — but real. `SecurityHeader` is shared by those routes and is the
+natural place for a compact variant.
+
+**Watch the safe-area inset.** The tab banner owns `insets.top` and
+`_layout.tsx` compensates with a `SafeAreaInsetsContext.Provider` reporting
+`top: 0`. A second banner elsewhere needs the same treatment or those screens
+gain a double status-bar gap.
+
+### 3. A-005 — invite by email as well as phone
+
+`addCaregiverPatient(patientPhone:)` only. Needs an input object accepting
+either, the service lookup, and then
+`modules/caregivers/components/invite-form.tsx`. Cross-cutting.
+
+### 4. C-001 — caregiver push notifications, still blocked
+
+Unchanged: **the gateway has no push infrastructure at all.** No token
+column, no device registration, nothing that sends. `grep -r "expoPushToken\|pushToken" server/app/api-gateway/src` returns nothing.
+
+The in-app half now works — the fan-out in §3 puts a real alert in the
+caregiver's own bell. What is missing is delivery when the app is closed, and
+that is gateway work first: token storage, a registration mutation, and a
+sender on the alert path. The client preference screen is the small last step.
+
+A preference screen before any of that persists a value no system reads —
+which is exactly what `app/settings.tsx` refused to port client-old's
+"สำรองข้อมูลอัตโนมัติ" switch for.
+
+### 5. Two structural smells worth fixing before they bite again
+
+- **`@/modules/auth`'s barrel imports a native module at import time**
+  (`use-google-sign-in` → `@react-native-google-signin`). Anything reaching
+  that barrel, however indirectly, cannot load under jest — a pure mapper in
+  `modules/caregivers` hit it through two barrels. Worked around with a global
+  mock in `jest.setup.js`; the fix is a lazy `require` inside the hook, the
+  same shape as the `getDb()` fix in `@/database`.
+- **`modules/caregivers` ⇄ `modules/readings` is a cycle** through
+  `use-export-readings` → `useSubject`. Three files deep-import
+  `readings/lib/status` and `readings/types` to dodge it, each with a comment.
+  The cleaner fix is to move `useSubject` somewhere neither module owns —
+  it is about "who is the app acting for", which is arguably session state
+  rather than caregiver state.
+
+### 6. Nothing here has run on a device
+
+Everything in this file is verified by `pnpm check` and the gateway suite
+only. The paths most likely to behave differently on hardware:
+
+- the banner's inset override (visible only on a notched device),
+- the switcher and format sheets (Tamagui `Sheet` over a native share sheet),
+- the alert fan-out (never run against a real database with real links).
+
+---
+
+## Verification state at handoff
+
+| | |
+| --- | --- |
+| client `pnpm check` | 41 suites / 499 tests |
+| gateway `pnpm test` | 17 suites / 137 tests |
+| `verify-graphql` | 45 operations, 0 invalid |
+| gateway `pnpm lint` | 7 errors — **pre-existing**, in `auth/android-origin.spec.ts` and `security/dto/passkey-register-verify.input.ts`, untouched by this work |
+| Supabase | both migrations applied, schema up to date |
+
+## Things a fresh session should know
+
+- **`src/schema.gql` regenerates only when the app boots.** `nest build`
+  compiles without emitting it. `timeout 22 pnpm start` is enough.
+- **The gateway's `.env` `DATABASE_URL` points at Supabase.** `prisma migrate
+  dev` offers to reset whatever it is aimed at, so migrations here were
+  generated with `prisma migrate diff` against a throwaway Postgres from
+  `infra/docker-compose` and applied with `migrate deploy`. Host port 5432 was
+  already occupied by something outside the project; 55432 was used instead.
+- **RNTL v14 `render`, `renderHook`, and `fireEvent` are all async.** A
+  missing `await` fails far from the mistake.
+- **Tamagui v2 renamed things**: style props are Tailwind-style (`bg`, `px`,
+  `items`, `rounded`), `animation` is now `transition`, and colour props take
+  theme tokens rather than hex — see `tamagui.config.ts`.
+- **Tamagui keeps `Sheet` content mounted while closed.** Asserting a sheet is
+  shut by querying for its contents passes for the wrong reason; assert on the
+  trigger instead.

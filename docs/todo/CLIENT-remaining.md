@@ -75,14 +75,16 @@ The pure part — given a schedule and a list of readings, which rounds are
 done — is the whole feature and is unit-testable without a device. Put it in
 `modules/notifications/lib/` and let the screen join it against `useReadings`.
 
-## 4. The caregiver role — moved to its own file
+## 4. The caregiver role — moved to its own file, and largely done
 
-C-005 and everything around it now live in
-[CLIENT-caregiver.md](./CLIENT-caregiver.md): the jump exists nowhere, so
-caregiver mode is unreachable from the UI even though every screen is built
-for it, and no screen but home says whose data is on it — which became a
-correctness problem the moment export started attributing documents to the
-active patient.
+[CLIENT-caregiver.md](./CLIENT-caregiver.md) owns it. The role now works end
+to end: a caregiver can enter a patient, always sees whose data they are on,
+switches in two taps, is alerted about their patients, and is held to a
+read/write permission. Two database migrations for it are applied to Supabase.
+
+What remains there is listed under "What is left, in order" — a permission UI,
+the banner on pushed routes, invite-by-email, and push delivery (still blocked
+on infrastructure that does not exist).
 
 ## 5. A reducer test for the capture state machine
 
