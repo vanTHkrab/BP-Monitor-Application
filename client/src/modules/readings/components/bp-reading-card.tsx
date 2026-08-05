@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import { Pressable, Text, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
@@ -77,8 +78,15 @@ export function BPReadingCard({
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
 
+  /*
+   * The reading itself stays a literal, not a variant. The same figure renders
+   * at 38 here, 44 on the detail screen and 48 on the home card — three
+   * contextual display sizes for one number, which is a composition decision
+   * per surface rather than a typography role. Folding them into one variant
+   * would either flatten the hierarchy between list, detail and hero or mint
+   * three single-use steps.
+   */
   const valueSize = Math.round(38 * fontScale);
-  const metaSize = Math.round(14 * fontScale);
   const statusTint = statusColorFor(reading.status);
 
   // One failed attempt is ordinary — the phone was in a lift. Two is a
@@ -110,12 +118,9 @@ export function BPReadingCard({
       >
         <View className="flex-row items-start justify-between">
           <View className="flex-1">
-            <Text
-              className="mb-1.5 font-medium"
-              style={{ fontSize: metaSize, color: colors['text-secondary'] }}
-            >
+            <ThemedText type="small" themeColor="text-secondary" className="mb-1.5">
               {showFullDate ? formatFullDate(reading.measuredAt) : relativeTime(reading.measuredAt)}
-            </Text>
+            </ThemedText>
 
             <View className="flex-row items-baseline">
               <Text
@@ -136,37 +141,30 @@ export function BPReadingCard({
               >
                 {reading.diastolic}
               </Text>
-              <Text
-                className="ml-2 font-medium"
-                style={{ fontSize: metaSize, color: colors['text-secondary'] }}
-              >
+              <ThemedText type="small" themeColor="text-secondary" className="ml-2">
                 mmHg
-              </Text>
+              </ThemedText>
             </View>
 
             <View className="mt-2 flex-row items-center">
               <Ionicons name="heart" size={18} color={PULSE_TINT} />
-              <Text
-                className="ml-1.5 font-medium"
-                style={{ fontSize: metaSize, color: colors['text-secondary'] }}
-              >
+              <ThemedText type="small" themeColor="text-secondary" className="ml-1.5">
                 {`${reading.pulse} bpm`}
-              </Text>
+              </ThemedText>
             </View>
 
             {attribution ? (
               <View className="mt-1.5 flex-row items-center">
                 <Ionicons name="person-outline" size={13} color={colors['text-secondary']} />
-                <Text
+                <ThemedText
+                  type="label"
+                  weight="regular"
+                  themeColor="text-secondary"
                   className="ml-1"
                   numberOfLines={1}
-                  style={{
-                    fontSize: Math.round(13 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
                 >
                   {attribution}
-                </Text>
+                </ThemedText>
               </View>
             ) : null}
 
@@ -177,13 +175,15 @@ export function BPReadingCard({
                   size={13}
                   color={isStuck ? statusColorFor('high') : colors['text-secondary']}
                 />
-                <Text
+                <ThemedText
                   testID={`reading-${reading.key}-pending`}
+                  type="label"
+                  weight="regular"
+                  themeColor="text-secondary"
                   className="ml-1"
-                  style={{
-                    fontSize: Math.round(13 * fontScale),
-                    color: isStuck ? statusColorFor('high') : colors['text-secondary'],
-                  }}
+                  // `status.high` is a BP-severity colour, outside the
+                  // semantic set `themeColor` can name.
+                  style={isStuck ? { color: statusColorFor('high') } : undefined}
                 >
                   {/* A reading that has failed repeatedly is a different
                       situation from one waiting for a signal, and the patient
@@ -191,7 +191,7 @@ export function BPReadingCard({
                       said "ยังไม่ได้ซิงก์" forever and the reason was written
                       to a column no screen read. */}
                   {isStuck ? `ส่งไม่สำเร็จ · ลองแล้ว ${reading.attempts} ครั้ง` : 'ยังไม่ได้ซิงก์'}
-                </Text>
+                </ThemedText>
               </View>
             ) : null}
           </View>

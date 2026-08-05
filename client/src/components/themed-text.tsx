@@ -59,6 +59,17 @@ type Variant = {
 /**
  * Base sizes in px, before the preference and before the OS scale.
  *
+ * Line heights sit at roughly 1.45–1.5× on purpose. Thai stacks diacritics two
+ * levels (สระบน plus วรรณยุกต์), so the ratio that reads as generous in Latin
+ * is merely adequate here. `small` and `link` were the outliers at 1.43 and
+ * are now 21 — a paragraph in `guidance-card` had independently reached for
+ * 22 at the same size, which is the same observation arrived at by eye.
+ *
+ * **A `lineHeight` or `fontSize` passed through `style` is NOT scaled.** The
+ * variant's numbers go through the multiplier; a literal in `style` does not,
+ * so it silently stops tracking the user's preference. That is the second
+ * reason sizing belongs to the variant and not to the call site.
+ *
  * `default` is 16 because that is the baseline `useFontScale()` is defined
  * against, so it renders at exactly the px the setup screen previews.
  *
@@ -75,11 +86,11 @@ const VARIANTS: Record<ThemedTextType, Variant> = {
   bodyLarge: { fontSize: 17, lineHeight: 25, weight: 'medium' },
   default: { fontSize: 16, lineHeight: 24, weight: 'medium' },
   body: { fontSize: 15, lineHeight: 22, weight: 'medium' },
-  small: { fontSize: 14, lineHeight: 20, weight: 'medium' },
-  smallBold: { fontSize: 14, lineHeight: 20, weight: 'bold' },
+  small: { fontSize: 14, lineHeight: 21, weight: 'medium' },
+  smallBold: { fontSize: 14, lineHeight: 21, weight: 'bold' },
   label: { fontSize: 13, lineHeight: 19, weight: 'semibold' },
   caption: { fontSize: 12, lineHeight: 18, weight: 'regular' },
-  link: { fontSize: 14, lineHeight: 20, weight: 'medium' },
+  link: { fontSize: 14, lineHeight: 21, weight: 'medium' },
   code: { fontSize: 12, lineHeight: 18, weight: 'bold' },
 };
 

@@ -169,6 +169,16 @@ top-level screens.
   of those accumulate, that is the signal to design a real scale rather than to
   keep adding steps.
 
+  **The clearest instance of that signal so far, surfaced by the `readings`
+  sweep: the blood-pressure figure renders at three sizes.** 48 on the home
+  hero card, 44 on the reading detail screen, 38 in a history row — the same
+  number, the same meaning, three arbitrary steps. Each is defensible in
+  isolation (hero / detail / list item) and the set is not: nobody chose 38 as
+  "one step below 44". They stay literal, annotated, and unconverted because
+  picking one would flatten a hierarchy that is doing real work, and minting
+  `displayHero` / `displayDetail` / `displayRow` would encode the accident.
+  This wants deciding as a set, with the three surfaces side by side.
+
 - **The typeface is Noto Sans Thai, and it is applied through `ThemedText`.**
   Four weights are loaded in `app/_layout.tsx` (400 / 500 / 600 / 700) because
   the app uses four: `font-bold` 78 times, `font-semibold` 76, `font-medium`

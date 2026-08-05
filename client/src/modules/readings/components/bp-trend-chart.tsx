@@ -20,6 +20,7 @@ import { cssInterop } from 'nativewind';
 import { Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 
+import { ThemedText } from '@/components/themed-text';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { palette, status as statusColor } from '@/theme';
@@ -49,7 +50,6 @@ export function BPTrendChart({ readings }: BPTrendChartProps) {
   if (readings.length === 0) return null;
 
   const axisFontSize = Math.round(12 * fontScale);
-  const labelSize = Math.round(14 * fontScale);
   const latest = readings.at(-1);
 
   const systolic = readings.map((reading) => ({
@@ -83,23 +83,15 @@ export function BPTrendChart({ readings }: BPTrendChartProps) {
             }}
           >
             <View className="flex-1 pr-3">
-              <Text
-                className="font-medium"
-                style={{ fontSize: labelSize, color: colors['text-primary'] }}
-              >
-                ค่าล่าสุด
-              </Text>
-              <Text style={{ fontSize: labelSize, color: colors['text-secondary'] }}>
+              <ThemedText type="small">ค่าล่าสุด</ThemedText>
+              <ThemedText type="small" weight="regular" themeColor="text-secondary">
                 อัปเดตจากการวัดครั้งล่าสุด
-              </Text>
+              </ThemedText>
             </View>
             <View className="rounded-full px-4 py-2" style={{ backgroundColor: SYS_COLOR }}>
-              <Text
-                className="font-bold text-white"
-                style={{ fontSize: labelSize }}
-              >
+              <ThemedText type="smallBold" style={{ color: '#FFFFFF' }}>
                 {`${latest.systolic}/${latest.diastolic}`}
-              </Text>
+              </ThemedText>
             </View>
           </View>
         ) : null}
@@ -163,6 +155,13 @@ export function BPTrendChart({ readings }: BPTrendChartProps) {
                   className="rounded-2xl border px-3 py-2"
                   style={{ backgroundColor: colors.surface, borderColor: colors.border }}
                 >
+                  {/*
+                    * Stays literal: this size is deliberately one px above
+                    * `axisFontSize`, which is a prop handed to the chart
+                    * library. A variant would break that relationship, and
+                    * the pointer label reading larger than the axis it floats
+                    * over is the point.
+                    */}
                   <Text
                     className="font-bold"
                     style={{ fontSize: axisFontSize + 1, color: colors['text-primary'] }}
@@ -180,18 +179,13 @@ export function BPTrendChart({ readings }: BPTrendChartProps) {
 }
 
 function LegendDot({ color, label }: { color: string; label: string }) {
-  const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="flex-row items-center">
       <View className="mr-1.5 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-      <Text
-        className="font-medium"
-        style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
-      >
+      <ThemedText type="small" themeColor="text-secondary">
         {label}
-      </Text>
+      </ThemedText>
     </View>
   );
 }

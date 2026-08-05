@@ -24,6 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import { Text, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
@@ -48,6 +49,13 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
 
+  /*
+   * Stays a literal for the same reason as `bp-reading-card`'s 38: the same
+   * blood-pressure figure renders at three sizes across the app — 48 here on
+   * the hero card, 44 on the detail screen, 38 in a history row. That is a
+   * per-surface composition decision, not one typography role. Worth
+   * revisiting as a set; not worth flattening one at a time.
+   */
   const valueSize = Math.round(48 * fontScale);
   const statusTint = reading ? statusColorFor(reading.status) : colors['text-secondary'];
 
@@ -62,13 +70,15 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
         className="rounded-3xl border p-5"
         style={{ borderColor: colors.border }}
       >
-        <Text
+        <ThemedText
           testID="home-latest-caption"
-          className="mb-3 text-center font-medium"
-          style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
+          type="label"
+          weight="medium"
+          themeColor="text-secondary"
+          className="mb-3 text-center"
         >
           {`ผลการวัดล่าสุด ${reading ? formatThaiDateTime(reading.measuredAt) : '-'}`}
-        </Text>
+        </ThemedText>
 
         {reading ? (
           <>
@@ -93,12 +103,14 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
               >
                 {reading.diastolic}
               </Text>
-              <Text
-                className="ml-2 font-semibold"
-                style={{ fontSize: Math.round(16 * fontScale), color: colors['text-secondary'] }}
+              <ThemedText
+                type="default"
+                weight="semibold"
+                themeColor="text-secondary"
+                className="ml-2"
               >
                 mmHg
-              </Text>
+              </ThemedText>
             </View>
 
             <View
@@ -111,12 +123,9 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
                 accessibilityLabel={`ชีพจร ${reading.pulse} ครั้งต่อนาที`}
               >
                 <Ionicons name="heart" size={18} color={PULSE_TINT} />
-                <Text
-                  className="ml-1.5 font-semibold"
-                  style={{ fontSize: Math.round(13 * fontScale), color: PULSE_TINT }}
-                >
+                <ThemedText type="label" className="ml-1.5" style={{ color: PULSE_TINT }}>
                   {`${reading.pulse} bpm`}
-                </Text>
+                </ThemedText>
               </View>
 
               {/* The status is spelled out next to its colour, not encoded in
@@ -132,12 +141,9 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
                   className="mr-1.5 h-2 w-2 rounded-full"
                   style={{ backgroundColor: statusTint }}
                 />
-                <Text
-                  className="font-semibold"
-                  style={{ fontSize: Math.round(13 * fontScale), color: statusTint }}
-                >
+                <ThemedText type="label" style={{ color: statusTint }}>
                   {`สถานะ: ${statusLabel(reading.status)}`}
-                </Text>
+                </ThemedText>
               </View>
 
               {reading.syncState === 'queued' ? (
@@ -152,40 +158,34 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
                     size={15}
                     color={colors['text-secondary']}
                   />
-                  <Text
-                    className="ml-1.5 font-semibold"
-                    style={{
-                      fontSize: Math.round(13 * fontScale),
-                      color: colors['text-secondary'],
-                    }}
-                  >
+                  <ThemedText type="label" themeColor="text-secondary" className="ml-1.5">
                     ยังไม่ได้ซิงก์
-                  </Text>
+                  </ThemedText>
                 </View>
               ) : null}
             </View>
 
             {reading.recordedByName ? (
-              <Text
+              <ThemedText
+                type="label"
+                weight="regular"
+                themeColor="text-secondary"
                 className="mt-3 text-center"
-                style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
               >
                 {`บันทึกโดยคุณ${reading.recordedByName}`}
-              </Text>
+              </ThemedText>
             ) : null}
           </>
         ) : (
-          <Text
+          <ThemedText
             testID="home-no-readings"
+            type="body"
+            weight="regular"
+            themeColor="text-secondary"
             className="text-center"
-            style={{
-              fontSize: Math.round(15 * fontScale),
-              lineHeight: Math.round(22 * fontScale),
-              color: colors['text-secondary'],
-            }}
           >
             {isLoading ? 'กำลังโหลด...' : 'ยังไม่มีข้อมูล'}
-          </Text>
+          </ThemedText>
         )}
       </LinearGradient>
     </View>

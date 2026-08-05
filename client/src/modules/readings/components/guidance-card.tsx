@@ -17,9 +17,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
-import { Alert, Linking, Pressable, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 import type { BPStatus } from '../types';
@@ -79,7 +79,6 @@ export type GuidanceCardProps = {
 
 export function GuidanceCard({ status, onOpenHelp }: GuidanceCardProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const guidance = GUIDANCE[status];
   const showEmergency = status === 'high' || status === 'critical';
@@ -114,22 +113,17 @@ export function GuidanceCard({ status, onOpenHelp }: GuidanceCardProps) {
           </View>
 
           <View className="flex-1">
-            <Text
-              className="font-bold"
-              style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-            >
+            <ThemedText type="default" weight="bold">
               {guidance.title}
-            </Text>
-            <Text
+            </ThemedText>
+            <ThemedText
+              type="small"
+              weight="regular"
+              themeColor="text-secondary"
               className="mt-1"
-              style={{
-                fontSize: Math.round(14 * fontScale),
-                lineHeight: Math.round(22 * fontScale),
-                color: colors['text-secondary'],
-              }}
             >
               {guidance.description}
-            </Text>
+            </ThemedText>
           </View>
         </View>
 
@@ -147,12 +141,9 @@ export function GuidanceCard({ status, onOpenHelp }: GuidanceCardProps) {
                 colors={EMERGENCY_GRADIENT}
                 className="items-center justify-center rounded-2xl py-3.5"
               >
-                <Text
-                  className="font-bold text-white"
-                  style={{ fontSize: Math.round(16 * fontScale) }}
-                >
+                <ThemedText type="default" weight="bold" style={{ color: '#FFFFFF' }}>
                   {`โทร ${EMERGENCY_NUMBER}`}
-                </Text>
+                </ThemedText>
               </LinearGradient>
             </Pressable>
 
@@ -167,12 +158,9 @@ export function GuidanceCard({ status, onOpenHelp }: GuidanceCardProps) {
                 opacity: pressed ? 0.85 : 1,
               })}
             >
-              <Text
-                className="font-semibold"
-                style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-              >
+              <ThemedText type="default" weight="semibold">
                 เปิดคำแนะนำ
-              </Text>
+              </ThemedText>
             </Pressable>
           </View>
         ) : null}
