@@ -8,6 +8,7 @@ import {
 } from './sync';
 import type { Reading } from '../types';
 import type { PendingReading } from '@/database/schema';
+import { ApiError } from '@/services/api-error';
 
 const USER = 'user-1';
 
@@ -52,6 +53,7 @@ function makePorts(over: Partial<SyncPorts> = {}) {
     createReading: jest.fn(async () => created()),
     promote: jest.fn(async () => {}),
     recordImageUploaded: jest.fn(async () => {}),
+    forgetImage: jest.fn(async () => {}),
     recordFailure: jest.fn(async () => {}),
     releaseImage: jest.fn(async () => {}),
     now: () => new Date('2026-07-29T10:00:00.000Z'),
@@ -397,5 +399,79 @@ describe('runSync', () => {
     await expect(runSync(ports, USER)).rejects.toThrow('database gone');
     // If the mutex leaked, this would return the settled rejected promise.
     await expect(runSync(makePorts(), USER)).resolves.toEqual({ synced: 1, failed: 0 });
+  });
+});
+
+/**
+ * Rule 6 — an `imageId` the server refuses.
+ *
+ * `Image.userId` is whoever uploaded, and the gateway rejects an id that is
+ * not the caller's own. Rule 3 makes a recorded id sticky, so without this the
+ * row is rejected identically on every pass forever and the numbers never
+ * arrive. This is the exact state a caregiver's capture reaches when it drains
+ * from a session other than the one that uploaded the photo.
+ */
+describe('drainQueue — an imageId the server will not accept', () => {
+  const badInput = () =>
+    new ApiError('imageId ไม่ถูกต้องหรือไม่ใช่ของคุณ', { code: 'BAD_USER_INPUT' });
+
+  it('clears the stored id so the next pass re-uploads', async () => {
+    const row = queuedRow({ imageId: 77, imageUri: 'file:///photo.jpg' });
+    const ports = makePorts({
+      listQueued: jest.fn(async () => [row]),
+      createReading: jest.fn(async () => {
+        throw badInput();
+      }),
+    });
+
+    await drainQueue(ports, USER);
+
+    expect(ports.forgetImage).toHaveBeenCalledWith(row.clientId);
+    // Still a failure: the row stays queued for the next attempt.
+    expect(ports.recordFailure).toHaveBeenCalled();
+    expect(ports.promote).not.toHaveBeenCalled();
+  });
+
+  // The local file is the only thing the re-upload can read from. Clearing it
+  // alongside the id would turn a recoverable rejection into a lost photo.
+  it('does not touch the durable local copy', async () => {
+    const ports = makePorts({
+      listQueued: jest.fn(async () => [queuedRow({ imageId: 77, imageUri: 'file:///p.jpg' })]),
+      createReading: jest.fn(async () => {
+        throw badInput();
+      }),
+    });
+
+    await drainQueue(ports, USER);
+
+    expect(ports.releaseImage).not.toHaveBeenCalled();
+  });
+
+  it('leaves a row with no image alone', async () => {
+    const ports = makePorts({
+      listQueued: jest.fn(async () => [queuedRow({ imageId: null, imageUri: null })]),
+      createReading: jest.fn(async () => {
+        throw badInput();
+      }),
+    });
+
+    await drainQueue(ports, USER);
+
+    expect(ports.forgetImage).not.toHaveBeenCalled();
+  });
+
+  // Everything else — a dropped socket, a 500, an expired token — must keep
+  // the uploaded id, or every flaky network costs a second Image row.
+  it('keeps the id for a failure that is not the server rejecting it', async () => {
+    const ports = makePorts({
+      listQueued: jest.fn(async () => [queuedRow({ imageId: 77, imageUri: 'file:///p.jpg' })]),
+      createReading: jest.fn(async () => {
+        throw new Error('network went away');
+      }),
+    });
+
+    await drainQueue(ports, USER);
+
+    expect(ports.forgetImage).not.toHaveBeenCalled();
   });
 });

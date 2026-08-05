@@ -37,7 +37,9 @@ export {
 export { InviteDecisionCard } from './components/invite-decision-card';
 export { InviteForm } from './components/invite-form';
 export { LinkGroup, LinkRow } from './components/link-row';
+export { PersonCard } from './components/person-card';
 export { RelationshipPicker } from './components/relationship-picker';
+export { useInviteAlerts } from './hooks/use-invite-alerts';
 
 export type {
   CaregiverPermission,

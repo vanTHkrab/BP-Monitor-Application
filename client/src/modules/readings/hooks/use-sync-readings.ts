@@ -23,6 +23,7 @@ import { releasePendingImage } from '../lib/pending-image-store';
 import { LocalImageMissing, runSync, type SyncPorts, type SyncResult } from '../lib/sync';
 import { promoteToMirror } from '../repository/mirror';
 import {
+  forgetQueuedImage,
   listQueuedReadings,
   markQueuedImageUploaded,
   recordQueueFailure,
@@ -51,6 +52,7 @@ function createPorts(): SyncPorts {
     createReading: (input) => readingsApi.createReading(input),
     promote: (clientId, row) => promoteToMirror(getDb(), clientId, row),
     recordImageUploaded: (clientId, imageId) => markQueuedImageUploaded(getDb(), clientId, imageId),
+    forgetImage: (clientId) => forgetQueuedImage(getDb(), clientId),
     recordFailure: (clientId, attempts, message) =>
       recordQueueFailure(getDb(), clientId, attempts, message),
 

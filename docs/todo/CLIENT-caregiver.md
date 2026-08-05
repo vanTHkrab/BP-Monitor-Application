@@ -3,8 +3,9 @@
 > **Status: the role works end to end and is instrumented.** A caregiver can
 > enter a patient, always sees whose data they are on, switches between
 > patients in two taps, is alerted about their patients, and is held to a
-> read/write permission. What is left is listed under "What is left, in
-> order" — nothing there blocks the role from being usable.
+> read/write permission the patient chooses when accepting the invite. What is
+> left is listed under "What is left, in order" — nothing there blocks the
+> role from being usable.
 >
 > **Both migrations are applied to the Supabase dev database**
 > (`prisma migrate status` → up to date). Nothing in this file has been
@@ -34,6 +35,9 @@ Verified against the tree, not inferred from the earlier docs:
 
 | The way into a patient's data | `app/invitations.tsx` → `setActivePatient` + `router.replace('/(tabs)')` |
 | "you are in someone else's account" | `components/active-patient-banner.tsx`, mounted in `app/(tabs)/_layout.tsx` |
+| People vs. requests, as two tabs | `app/invitations.tsx` — `TabButtons`, plus a pointer banner so a waiting request is never only behind a tab |
+| A person as a card, with their real face | `components/person-card.tsx`; avatars ride on `CaregiverLinkType.caregiverAvatar` / `patientAvatar` |
+| "someone asked to be your caregiver" | `hooks/use-invite-alerts.ts` → `modules/notifications` — **local**, not push (§4) |
 
 Every caregiver operation the gateway exposes is now wired — the one that was
 not (`myPendingInvites`) was deleted rather than adopted, see §5. The gateway
@@ -171,7 +175,31 @@ they queue like any other reading: `use-create-reading.ts` stores
 `recordedById`, and `lib/sync.ts` sends `patientId` back on the drain, so an
 on-behalf capture taken on a plane still files under the patient.
 
-### ~~🔴 The notification bell is not scoped to the patient~~ — fixed, see §1/§2 below
+> **This was written before it was true.** The queue and the drain were both
+> right; the *listing* between them was not. `listQueuedReadings` matched on
+> `pendingReadings.userId`, which for an on-behalf row is the **patient** —
+> so the drain, which runs for the signed-in user, never returned the
+> caregiver's own captures to them. The reading sat showing "รอซิงก์" forever
+> on a device that was online the whole time, and the caregiver is the only
+> one holding the photo. Fixed by matching `userId` **or** `recordedById`;
+> it has to stay an either/or, because a patient's own readings have
+> `recordedById` NULL by design and matching only the actor would strand
+> every ordinary reading instead. Three tests in
+> `repository/repository.test.ts` pin all three cases.
+>
+> The reported symptom was the *second* failure behind it:
+> `BAD_USER_INPUT — imageId ไม่ถูกต้องหรือไม่ใช่ของคุณ`. `Image.userId` is
+> whoever uploaded, the gateway refuses an `imageId` that is not the
+> caller's own, and rule 3 in `lib/sync.ts` makes a recorded id sticky — so
+> a row carrying an id minted under a different account was rejected
+> identically on every pass, permanently, with the numbers held hostage to
+> the photo. `lib/sync.ts` now has a **rule 6**: a `BAD_USER_INPUT` on a row
+> that has an `imageId` clears the id so the next pass re-uploads under the
+> current account. The local file is deliberately *not* cleared with it —
+> that is what the re-upload reads from, and dropping both would turn a
+> recoverable rejection into a permanently lost photo.
+
+### ~~🔴 The notification bell is not scoped to the patient~~ — fixed, see "Improvement direction" §1 and §2
 
 ```
 useReadings({ patientId: viewingPatientId })   // scoped
@@ -186,7 +214,7 @@ The client cannot fix this alone: `alert.resolver.ts` exposes
 `@CurrentUser()`. There is no `patientId` argument to pass, unlike
 `readings(patientId:)`.
 
-### ~~🔴 A caregiver is never told anything~~ — fixed by the fan-out, §3 below
+### ~~🔴 A caregiver is never told anything~~ — fixed by the fan-out, see "Improvement direction" §3
 
 `reading.service.ts` creates alerts against the reading's owner, with a comment
 that is right as far as it goes:
@@ -209,11 +237,11 @@ the reasoning behind each fix stays attached to the problem it solved.
 
 | Limit | What it blocked | Now |
 | --- | --- | --- |
-| `CaregiverPatient` had `relationship` + `status` and **no permission column** | "this child may view, this nurse may record" | **Fixed** (§4) — column, split guards, client gate. No UI writes it yet. |
-| One active patient, switching cost four taps | a caregiver with several patients | **Fixed** (§5) — two taps from the banner |
-| `myPatients` returned summaries with **no latest reading** | "all my patients at a glance" was N+1 | **Fixed** (§6) — one grouped query |
-| No push infrastructure | every kind of real notification (C-001) | **Still true.** In-app alerts now reach the caregiver (§3); delivery when the app is closed does not exist. |
-| No audit trail beyond `recordedBy` on a reading | who viewed whose data, who removed a link | **Still true**, and untracked elsewhere. For health data this is a real gap, not a nice-to-have. |
+| `CaregiverPatient` had `relationship` + `status` and **no permission column** | "this child may view, this nurse may record" | **Fixed** — Improvement §4: column, split guards, client gate; the patient chooses it on accept (see "What is left" §1, now done). |
+| One active patient, switching cost four taps | a caregiver with several patients | **Fixed** — Improvement §5: two taps from the banner |
+| `myPatients` returned summaries with **no latest reading** | "all my patients at a glance" was N+1 | **Fixed** — Improvement §6: one grouped query |
+| No push infrastructure | every kind of real notification (C-001) | **Still true.** In-app alerts now reach the caregiver (Improvement §3); delivery when the app is closed does not exist. |
+| No audit trail beyond `recordedBy` on a reading | who viewed whose data, who removed a link | **Still true**, and untracked elsewhere. For health data this is a real gap, not a nice-to-have — now on the list below as item 6. |
 
 ---
 
@@ -293,12 +321,13 @@ Two consequences worth knowing:
   *other* case — reading a patient's own list through `alerts(patientId:)`,
   where the rows belong to the patient.
 
-**No migration.** `Alert.userId` was already per-row, so fan-out is just more
-inserts. A `@@unique([userId, bpReadingId])` would be the natural hardening
-and is deliberately **not** here: no database was reachable to run
-`prisma migrate dev`, and the repo forbids hand-writing migrations. It is
-defensive rather than urgent — a reading is created once, so there is no live
-duplicate path — but it should land with the next migration that runs.
+**The fan-out itself needed no migration** — `Alert.userId` was already
+per-row, so it is just more inserts. The hardening it wanted did get one:
+`20260805140000_unique_alert_per_recipient` adds
+`@@unique([userId, bpReadingId])`, which is what makes the
+`skipDuplicates: true` above actually mean something. It was written after the
+fan-out, once a database was reachable — it is defensive rather than urgent,
+since a reading is created once and there is no live duplicate path.
 
 The original reasoning:
 
@@ -334,6 +363,10 @@ client has to be able to tell them apart. There is a test asserting the two
 messages differ, and one asserting the write path never settles for the view
 guard.
 
+Since this landed, the patient chooses the value on accept — see "What is
+left" §1. Until then every row sat on the default, which made
+`assertCanRecordForPatient` a guard that could only ever say yes.
+
 `PatientSummaryType.permission` is exposed so the camera can refuse *before*
 the measurement. The gateway refuses either way — the client gate is a
 courtesy, never the enforcement — but finding out after framing, capturing and
@@ -348,8 +381,8 @@ caregiver out of recording.
 `migrate dev` — the gateway's `.env` `DATABASE_URL` points at **Supabase**,
 and `migrate dev` offers to reset the database it is aimed at. Every migration
 in the directory was then replayed against that local Postgres to prove this
-one applies. **It has not been applied to Supabase**; that is a deploy
-decision (`prisma migrate deploy`), not a dev-machine one.
+one applies, and it has since been applied to Supabase with
+`prisma migrate deploy` (see the status table at the end of this file).
 
 The original reasoning:
 
@@ -393,21 +426,82 @@ names.
 Nothing below blocks the role from being usable. Each item says what it is,
 where it goes, and what makes it non-obvious.
 
-### 1. Nothing sets `permission` — every link is `full` in practice
+### ~~1. Nothing sets `permission`~~ — **done**, the patient grants it on accept
 
-The column, the guards, and the client gate all exist; no UI writes it. Two
-parts:
+`respondToCaregiverInvite(caregiverId, accept, permission)` now writes the
+column, and `InviteDecisionCard` is where the patient answers.
 
-- **`addCaregiverPatient` should accept it**, so a caregiver can ask for
-  view-only, and
-- **the patient should choose on accept.** `InviteDecisionCard` is where —
-  "ให้ดูอย่างเดียว" / "ให้บันทึกแทนได้" next to accept. That is the honest
-  place for it: the permission is the patient's grant, not the caregiver's
-  request.
+**`addCaregiverPatient` deliberately stayed out of it.** The permission is the
+patient's grant, not the caregiver's request — a "requested" permission the
+patient then overrides is a value with no consequence, and storing it on the
+`pending` row would mean two permissions in one column with only the accept
+order to say which is real.
 
-`respondToCaregiverInvite` currently takes `accept: boolean`; it would take
-the permission alongside. Note `parseRelationship`'s lesson (A-004) — a value
-the server does not recognise must not silently become something else.
+**A GraphQL enum, not a String.** `relationship` takes a String and parses an
+unknown value down to `other` (A-004); that is tolerable for a label and not
+for this, where the silent fallback would decide who may write into a medical
+record. As `CaregiverPermission` the wrong value fails validation before the
+resolver runs, so there is no fallback to get wrong. The client's operation
+declares `$permission: CaregiverPermission!`, so `verify-graphql` catches a
+typo at the gate rather than at runtime.
+
+`permission` defaults to `full` on the argument, matching the column default:
+a client from before this change grants exactly what it granted before. It is
+written **only on accept** — a rejected row holding a permission nobody
+granted is a claim the next accept would have to remember to overwrite.
+
+Client-side, `respondToInvite` makes the argument **required** even though the
+gateway defaults it. The gateway's default is for old clients; a current
+caller that forgets it would silently grant write access, so the decision is
+forced to the call site where the patient's answer actually is.
+
+**The card's copy was load-bearing and had to change with it.** It said
+"จะเห็นค่าความดันของคุณ และบันทึกค่าแทนคุณได้" unconditionally, which becomes
+a lie the moment a view-only grant is possible.
+
+The card now asks two questions and its layout says so: a tinted identity
+header, a titled block of **stacked permission rows**, a divider, then the
+yes/no. Each row carries an icon, a label, and a full sentence of what it
+grants, with a radio dot on the right — so **both** consequences are on
+screen at once, and there is a test asserting it. A control that only
+describes the selected option (a segmented control, the first shape this
+took) hides the weaker grant from anyone who never taps, which is exactly the
+patient this defaults-to-`full` design has to protect.
+
+"ปฏิเสธ" and "อนุญาต" sit on **opposite sides and are different kinds of
+button** — outlined versus filled, 1 : 1.6 in width. Two identical buttons in
+a row read as "pick either"; this card has a recommended answer and the
+weight is what says so. Neither is destructive-red: declining is normal and
+reversible by being re-invited, and colouring it as damage pressures the
+answer.
+
+**Two contrast fixes came out of this and are not local to the card:**
+
+- **"อนุญาต" was `status.normal`.** White on that green is ~2.9:1, under the
+  4.5:1 a button label needs, and it read as washed out in light mode. It is
+  `colors.primary` now — which is also what every other primary action in the
+  app uses, and stops a colour that means "this BP reading is fine" from
+  doubling as "yes".
+- **`border-strong` is a new semantic token** (`theme/tokens.js`, both
+  modes). The light-mode `border` value *is* the `background` value, which is
+  right for a hairline divider and far too faint for the outline of a
+  control. `TextField` was worse still: an unfocused field drew
+  `colors.surface` — a white border on a white card — so on this very screen
+  the phone-number field had no visible edge until it was focused. Both the
+  field and this card's unselected option rows now use `border-strong`.
+  Existing `border` usages were left alone; the two are not interchangeable
+  and a blanket swap would thicken every divider in the app.
+
+Still not covered, and each is its own item rather than a leftover:
+
+- **A patient cannot change the grant after accepting.** The only route from
+  `full` to `view` today is remove the link and be re-invited. An
+  `updateCaregiverPermission` mutation plus a control on the accepted
+  `LinkRow` is the natural shape.
+- **Neither side can see what was granted.** `CaregiverLinkType` has no
+  `permission` field, so the patient's own link list cannot show it. The
+  caregiver sees theirs through `PatientSummaryType.permission`; the patient,
+  who made the decision, does not.
 
 ### 2. The banner does not cover routes outside `(tabs)`
 
@@ -441,11 +535,81 @@ caregiver's own bell. What is missing is delivery when the app is closed, and
 that is gateway work first: token storage, a registration mutation, and a
 sender on the alert path. The client preference screen is the small last step.
 
+**A patient-side local notification now exists and is not the same thing.**
+`modules/notifications/services/invite-notification.ts` posts a banner when
+*this device* first learns of a caregiver request, driven by
+`modules/caregivers/hooks/use-invite-alerts.ts`. It fires on a foreground
+fetch, so a phone that is asleep learns nothing until the app is opened —
+which is precisely the case push exists for. The two look identical when they
+work and differ only when the app is closed, so the distinction is worth
+keeping in mind when C-001 lands: this becomes the offline path, not the
+thing that gets deleted.
+
+Two design points in it that are easy to undo by accident:
+
+- **The announced set is persisted, keyed by user.** Without it every refetch
+  of a still-pending request is indistinguishable from a new one, and a
+  patient who does not answer immediately is re-notified on every launch and
+  every pull-to-refresh.
+- **The first list a device sees is a silent baseline**, and the `seeded`
+  flag for that is *stored* rather than inferred from an empty set. Inferring
+  it means a patient whose first list is empty — the common case on a new
+  account — never hears about their first request. There is a test named for
+  exactly that.
+
+It deliberately does **not** request notification permission. Asking at the
+moment a request happens to arrive is a prompt the user cannot connect to
+anything they did, and on Android 13+ a denial there is permanent.
+
 A preference screen before any of that persists a value no system reads —
 which is exactly what `app/settings.tsx` refused to port client-old's
 "สำรองข้อมูลอัตโนมัติ" switch for.
 
-### 5. Two structural smells worth fixing before they bite again
+### 5. An on-behalf row outlives the caregiver's session
+
+Found while fixing the drain, not fixed with it. `clearQueue(db, userId)`
+deletes by `userId`, which for a caregiver's on-behalf capture is the
+**patient** — so signing the caregiver out leaves the patient's reading, and
+the photo it points at, on the caregiver's device with nobody able to send
+it. Draining now works for whoever signs in next, which is the right
+behaviour when that is the patient and the wrong one when it is a third
+account on a shared phone.
+
+Not urgent (the row is inert and the app is single-account at a time) but it
+is other people's health data sitting past the session that created it, which
+is the category this project treats as load-bearing. The fix mirrors the
+listing one: clear on `userId` **or** `recordedById`.
+
+### 6. No audit trail for caregiver access
+
+The only record that anyone acted on a patient's behalf is `recordedBy` on a
+reading. Nothing records **who viewed whose history**, who accepted or revoked
+a link, or who changed a permission. A caregiver can read a full medical
+history and leave no trace, and a revoked link leaves no evidence it ever
+existed.
+
+For health data that is a real gap rather than a nice-to-have, and it is the
+one item here with no partial implementation to build on. It is also the only
+one that gets *worse* with time: an audit log added later cannot reconstruct
+what happened before it existed.
+
+Where it goes: the gateway, next to the guards that already know the answer.
+`assertCanViewPatient` and `assertCanRecordForPatient` are the single choke
+point through which every on-behalf-of access passes — that is what makes this
+tractable, and it is an argument for writing it while that is still true.
+
+Non-obvious parts:
+
+- **Writing a log row must not fail the read.** Same reasoning as the alert
+  fan-out (Improvement §3) — best-effort and swallowed, or a logging outage
+  becomes an outage of the feature it observes.
+- **A per-view row is a lot of rows.** `readings(patientId:)` is called on
+  every screen mount. Decide up front whether the unit is a *view event* or a
+  *session*, and give the table a retention policy in the same change.
+- **The log is itself patient data.** Whatever reads it needs its own
+  authorization story; do not expose it through the caregiver surfaces.
+
+### 7. Two structural smells worth fixing before they bite again
 
 - **`@/modules/auth`'s barrel imports a native module at import time**
   (`use-google-sign-in` → `@react-native-google-signin`). Anything reaching
@@ -460,7 +624,7 @@ which is exactly what `app/settings.tsx` refused to port client-old's
   it is about "who is the app acting for", which is arguably session state
   rather than caregiver state.
 
-### 6. Nothing here has run on a device
+### 8. Nothing here has run on a device
 
 Everything in this file is verified by `pnpm check` and the gateway suite
 only. The paths most likely to behave differently on hardware:
@@ -475,8 +639,8 @@ only. The paths most likely to behave differently on hardware:
 
 | | |
 | --- | --- |
-| client `pnpm check` | 41 suites / 499 tests |
-| gateway `pnpm test` | 17 suites / 137 tests |
+| client `pnpm check` | 43 suites / 520 tests |
+| gateway `pnpm test` | 17 suites / 140 tests |
 | `verify-graphql` | 45 operations, 0 invalid |
 | gateway `pnpm lint` | 7 errors — **pre-existing**, in `auth/android-origin.spec.ts` and `security/dto/passkey-register-verify.input.ts`, untouched by this work |
 | Supabase | both migrations applied, schema up to date |

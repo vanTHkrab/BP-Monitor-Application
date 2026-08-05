@@ -7,6 +7,7 @@ export type SemanticColorName =
   | 'surface'
   | 'surface-muted'
   | 'border'
+  | 'border-strong'
   | 'text-primary'
   | 'text-secondary'
   | 'icon-neutral'

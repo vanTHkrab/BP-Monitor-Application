@@ -11,7 +11,12 @@ import {
   type CaregiverLinkPayload,
   type PatientSummaryPayload,
 } from '../lib/mappers';
-import type { CaregiverLink, InvitePatientInput, PatientSummary } from '../types';
+import type {
+  CaregiverLink,
+  CaregiverPermission,
+  InvitePatientInput,
+  PatientSummary,
+} from '../types';
 import {
   GQL_ADD_CAREGIVER_PATIENT,
   GQL_CAREGIVER_LINKS,
@@ -51,13 +56,23 @@ export async function invitePatient(input: InvitePatientInput): Promise<Caregive
   return caregiverLinkFromGql(data.addCaregiverPatient);
 }
 
+/**
+ * `permission` is what the patient grants, and it is required here rather
+ * than defaulted: the gateway defaults it to `full` for older clients, so a
+ * caller that forgets to pass it would silently grant write access to
+ * someone's medical record. Making it explicit puts that decision at the
+ * call site where the patient's answer is.
+ *
+ * The gateway ignores it when `accept` is false.
+ */
 export async function respondToInvite(
   caregiverId: string,
   accept: boolean,
+  permission: CaregiverPermission,
 ): Promise<CaregiverLink> {
   const data = await graphqlRequest<{ respondToCaregiverInvite: CaregiverLinkPayload }>(
     GQL_RESPOND_TO_CAREGIVER_INVITE,
-    { caregiverId, accept },
+    { caregiverId, accept, permission },
   );
   return caregiverLinkFromGql(data.respondToCaregiverInvite);
 }

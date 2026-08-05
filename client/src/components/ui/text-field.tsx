@@ -58,13 +58,19 @@ export function TextField({
   const hasError = typeof error === 'string';
   const showErrorText = hasError && error.length > 0;
 
+  /*
+   * Unfocused fields use `border-strong`, not `border` and not the surface
+   * colour. In light mode this drew `colors.surface` — a white border on a
+   * white card — so a field the user had not yet touched had no visible edge
+   * and read as text rather than as something to tap. `border` would not have
+   * fixed it either: in light mode that token is the background colour, which
+   * is right for a divider and far too faint for the outline of a control.
+   */
   const borderColor = hasError
     ? status.high
     : isFocused
       ? colors.primary
-      : isDark
-        ? colors.border
-        : colors.surface;
+      : colors['border-strong'];
 
   const iconColor = hasError
     ? status.high

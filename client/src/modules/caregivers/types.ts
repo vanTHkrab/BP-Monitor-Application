@@ -45,8 +45,11 @@ export type CaregiverLink = {
   relationship: RelationshipType;
   caregiverName: string;
   caregiverPhone: string;
+  /** Profile photo of each side, absent when they have not set one. */
+  caregiverAvatar?: string;
   patientName: string;
   patientPhone: string;
+  patientAvatar?: string;
   status: CaregiverLinkStatus;
   /** When the patient accepted or rejected; absent while still pending. */
   respondedAt?: Date;

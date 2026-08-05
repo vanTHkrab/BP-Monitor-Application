@@ -5,7 +5,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { RelationshipType } from '../prisma/generated/enums';
+import {
+  CaregiverPermission,
+  RelationshipType,
+} from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CaregiverLinkStatusGql,
@@ -23,11 +26,13 @@ type CaregiverLinkWithUsers = {
     firstname: string;
     lastname: string;
     phone: string;
+    avatar: string | null;
   };
   patient: {
     firstname: string;
     lastname: string;
     phone: string;
+    avatar: string | null;
   };
 };
 
@@ -79,8 +84,22 @@ export class CaregiverService {
         OR: [{ caregiverId: userId }, { patientId: userId }],
       },
       include: {
-        caregiver: { select: { firstname: true, lastname: true, phone: true } },
-        patient: { select: { firstname: true, lastname: true, phone: true } },
+        caregiver: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
+        patient: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
       },
       orderBy: [{ caregiverId: 'asc' }, { patientId: 'asc' }],
     });
@@ -135,8 +154,22 @@ export class CaregiverService {
         status: 'pending',
       },
       include: {
-        caregiver: { select: { firstname: true, lastname: true, phone: true } },
-        patient: { select: { firstname: true, lastname: true, phone: true } },
+        caregiver: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
+        patient: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
       },
     });
 
@@ -169,17 +202,38 @@ export class CaregiverService {
   /**
    * ผู้ป่วยตอบรับ/ปฏิเสธคำเชิญจาก caregiver
    * เรียกจากฝั่ง patient เท่านั้น
+   *
+   * `permission` is written **only on accept**, and only here: the grant is
+   * the patient's to make, so `addCaregiverPatient` has no say in it and the
+   * column keeps its `full` default until this runs. Writing it on a reject
+   * as well would leave a rejected row claiming a permission nobody granted,
+   * which the next accept would then have to remember to overwrite.
    */
   async respondToInvite(
     patientId: string,
     caregiverId: string,
     accept: boolean,
+    permission: CaregiverPermission = 'full',
   ): Promise<CaregiverLinkType> {
     const link = await this.prisma.caregiverPatient.findUnique({
       where: { caregiverId_patientId: { caregiverId, patientId } },
       include: {
-        caregiver: { select: { firstname: true, lastname: true, phone: true } },
-        patient: { select: { firstname: true, lastname: true, phone: true } },
+        caregiver: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
+        patient: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
       },
     });
 
@@ -196,10 +250,25 @@ export class CaregiverService {
       data: {
         status: accept ? 'accepted' : 'rejected',
         respondedAt: new Date(),
+        ...(accept ? { permission } : {}),
       },
       include: {
-        caregiver: { select: { firstname: true, lastname: true, phone: true } },
-        patient: { select: { firstname: true, lastname: true, phone: true } },
+        caregiver: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
+        patient: {
+          select: {
+            firstname: true,
+            lastname: true,
+            phone: true,
+            avatar: true,
+          },
+        },
       },
     });
 
@@ -337,8 +406,10 @@ export class CaregiverService {
       caregiverName:
         `${link.caregiver.firstname} ${link.caregiver.lastname}`.trim(),
       caregiverPhone: link.caregiver.phone,
+      caregiverAvatar: link.caregiver.avatar ?? undefined,
       patientName: `${link.patient.firstname} ${link.patient.lastname}`.trim(),
       patientPhone: link.patient.phone,
+      patientAvatar: link.patient.avatar ?? undefined,
       status: link.status as CaregiverLinkStatusGql,
       respondedAt: link.respondedAt ?? undefined,
     };

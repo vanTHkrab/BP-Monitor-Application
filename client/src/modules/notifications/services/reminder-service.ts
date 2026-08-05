@@ -1,27 +1,24 @@
 /**
- * Everything that touches expo-notifications. I/O only — the decisions about
- * *what* to schedule live in `lib/schedule-plan.ts`, which is pure and tested.
+ * Everything reminder-shaped that touches expo-notifications. I/O only — the
+ * decisions about *what* to schedule live in `lib/schedule-plan.ts`, which is
+ * pure and tested.
  *
- * The module is imported lazily rather than at the top of the file. Expo Go on
- * Android dropped remote-push support in SDK 53, and merely importing
- * expo-notifications there fires an auto push-token registration side effect
- * that prints a warning on every launch — even for an app that only ever
- * schedules local notifications. Loading it on demand keeps that out of the
- * boot path and gives the UI something honest to say instead
- * (`permission: 'unsupported'`).
+ * The package itself is loaded through `notifications-module.ts`, never
+ * imported at the top of this file; the reason is written there.
  */
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { planReminders, type ReminderPlan } from '../lib/schedule-plan';
+import {
+  loadNotifications,
+  type NotificationsModule,
+} from './notifications-module';
 import {
   getReminderSoundOption,
   type ReminderDiagnostics,
   type ReminderPermissionState,
   type ReminderSettings,
 } from '../types';
-
-type NotificationsModule = typeof import('expo-notifications');
 
 /** Marks our own notifications so a reschedule cannot cancel someone else's. */
 export const REMINDER_KIND = 'bp_reminder';
@@ -35,29 +32,6 @@ export const REMINDER_SNOOZE_ACTION_ID = 'bp_reminder_snooze_5';
 const FOLLOW_UP_DELAY_MINUTES = 15;
 const SNOOZE_MINUTES = 5;
 
-const isExpoGoAndroid =
-  Constants.executionEnvironment === ExecutionEnvironment.StoreClient &&
-  Platform.OS === 'android';
-
-let cached: NotificationsModule | null | undefined;
-
-async function loadNotifications(): Promise<NotificationsModule | null> {
-  if (cached !== undefined) return cached;
-  if (isExpoGoAndroid) {
-    cached = null;
-    return null;
-  }
-  try {
-    cached = await import('expo-notifications');
-  } catch {
-    cached = null;
-  }
-  return cached;
-}
-
-export function isNotificationSupported(): boolean {
-  return !isExpoGoAndroid;
-}
 
 /**
  * Asks for notification permission.

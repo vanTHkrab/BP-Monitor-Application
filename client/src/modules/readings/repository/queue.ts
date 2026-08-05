@@ -13,7 +13,7 @@
  * is the reason "stale mirror drift" is a named failure mode in the root
  * CLAUDE.md.
  */
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, or } from 'drizzle-orm';
 
 import {
   pendingReadings,
@@ -31,9 +31,24 @@ export async function enqueueReading(
 }
 
 /**
- * Oldest first. The queue is drained in the order things were measured, so a
- * backlog syncs in the order the patient created it — a history that fills in
- * out of order while they watch is alarming for no reason.
+ * Everything this signed-in user is responsible for sending, oldest first.
+ *
+ * **Two owners, not one.** `userId` on a queued row is the *subject* — the
+ * person the reading is about — so a caregiver's on-behalf capture is stored
+ * under the patient's id. Matching on `userId` alone therefore never returned
+ * those rows to the caregiver who took them, and the caregiver is the only
+ * one holding the photo: the reading sat in the queue showing "รอซิงก์"
+ * forever, on a device that was online the whole time. `recordedById` is the
+ * actor, set only for on-behalf rows, so the drain has to accept either.
+ *
+ * It must stay an either/or rather than becoming "match `recordedById`": a
+ * patient's own readings have `recordedById` NULL by design (see
+ * `ReadingService.create`'s attribution rule), and matching only the actor
+ * would strand every ordinary reading instead.
+ *
+ * Oldest first, because a backlog should fill in a history in the order it
+ * was measured — one that appears out of order while the patient watches is
+ * alarming for no reason.
  */
 export async function listQueuedReadings(
   db: ReadingsDatabase,
@@ -42,7 +57,9 @@ export async function listQueuedReadings(
   return db
     .select()
     .from(pendingReadings)
-    .where(eq(pendingReadings.userId, userId))
+    .where(
+      or(eq(pendingReadings.userId, userId), eq(pendingReadings.recordedById, userId)),
+    )
     .orderBy(asc(pendingReadings.measuredAt));
 }
 
@@ -74,6 +91,23 @@ export async function markQueuedImageUploaded(
   await db
     .update(pendingReadings)
     .set({ imageId })
+    .where(eq(pendingReadings.clientId, clientId));
+}
+
+/**
+ * Undoes the above for an id the server refused — see rule 6 in `lib/sync.ts`.
+ *
+ * `imageUri` is untouched on purpose: the local copy is what the next pass
+ * re-uploads from, and clearing both would turn a recoverable rejection into
+ * a reading that permanently lost its photo.
+ */
+export async function forgetQueuedImage(
+  db: ReadingsDatabase,
+  clientId: string,
+): Promise<void> {
+  await db
+    .update(pendingReadings)
+    .set({ imageId: null })
     .where(eq(pendingReadings.clientId, clientId));
 }
 

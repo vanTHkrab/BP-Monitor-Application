@@ -18,8 +18,11 @@ export type CaregiverLinkPayload = {
   relationship: string;
   caregiverName: string;
   caregiverPhone: string;
+  /** Nullable so a gateway that predates the field still parses. */
+  caregiverAvatar?: string | null;
   patientName: string;
   patientPhone: string;
+  patientAvatar?: string | null;
   status: string;
   respondedAt: string | null;
 };
@@ -59,8 +62,10 @@ export function caregiverLinkFromGql(payload: CaregiverLinkPayload): CaregiverLi
     relationship: parseRelationship(payload.relationship),
     caregiverName: payload.caregiverName,
     caregiverPhone: payload.caregiverPhone,
+    caregiverAvatar: payload.caregiverAvatar ?? undefined,
     patientName: payload.patientName,
     patientPhone: payload.patientPhone,
+    patientAvatar: payload.patientAvatar ?? undefined,
     status: parseStatus(payload.status),
     respondedAt: payload.respondedAt ? new Date(payload.respondedAt) : undefined,
   };

@@ -13,7 +13,7 @@
  * the two writes) are things you hope never happen instead of things you have
  * proven are handled.
  *
- * ## The five rules
+ * ## The six rules
  *
  * 1. **One drain at a time, and concurrent callers share it.** The mutex is a
  *    promise, not a boolean — `runSync` returns the in-flight promise to a
@@ -42,8 +42,20 @@
  * 5. **One row's failure never stops the queue.** Each is attempted
  *    independently, failures are recorded on the row, and the drain moves on.
  *    A single poison reading must not block every measurement behind it.
+ *
+ * 6. **A recorded `imageId` the server refuses is dropped, not retried.**
+ *    Rule 3 makes an uploaded image sticky, which is right while the uploader
+ *    stays the same — but `Image.userId` is whoever uploaded, and the gateway
+ *    rejects an `imageId` that is not the caller's own. A row carrying an id
+ *    minted under a different account (a caregiver's capture that drains from
+ *    the patient's session, or anything left by an older build) is otherwise
+ *    rejected identically forever, with the numbers held hostage to it. So a
+ *    `BAD_USER_INPUT` on a row that has an `imageId` clears the id: the next
+ *    pass re-uploads under the current account, and rule 4's budget still
+ *    bounds how long that can go on.
  */
 import type { PendingReading, Reading as ReadingRow } from '@/database/schema';
+import { errorCode } from '@/services/api-error';
 
 import type { CreateReadingPayload } from '../services/readings-api';
 import type { Reading } from '../types';
@@ -57,6 +69,8 @@ export type SyncPorts = {
   /** Insert into the mirror and delete from the queue, in one transaction. */
   promote: (clientId: string, row: ReadingRow) => Promise<void>;
   recordImageUploaded: (clientId: string, imageId: number) => Promise<void>;
+  /** Drops a recorded `imageId` the server will not accept — see rule 6. */
+  forgetImage: (clientId: string) => Promise<void>;
   recordFailure: (clientId: string, attempts: number, message: string) => Promise<void>;
   /** Best-effort cleanup of the durable photo copy. Must never throw. */
   releaseImage?: (clientId: string) => Promise<void>;
@@ -143,6 +157,12 @@ export async function drainQueue(ports: SyncPorts, userId: string): Promise<Sync
         }
       }
     } catch (error) {
+      // Rule 6. An id the server will not accept cannot become acceptable by
+      // being sent again, so drop it before recording the failure.
+      if (row.imageId != null && errorCode(error) === 'BAD_USER_INPUT') {
+        await ports.forgetImage(row.clientId);
+      }
+
       // Rule 5. Record and continue — the next row may be perfectly fine.
       result.failed += 1;
       await ports.recordFailure(row.clientId, row.attempts + 1, messageOf(error));

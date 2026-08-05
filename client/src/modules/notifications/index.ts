@@ -8,6 +8,7 @@
  * queue and the saved settings describing different schedules.
  */
 export { initReminderNotifications, stopReminderNotifications } from './bootstrap';
+export { notifyNewInvites } from './services/invite-notification';
 export { useReminderSettings } from './hooks/use-reminder-settings';
 
 export { SCHEDULED_NOTIFICATION_BUDGET, planReminders } from './lib/schedule-plan';

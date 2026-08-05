@@ -76,8 +76,10 @@ type CaregiverLinkType {
   relationship: String!
   caregiverName: String!
   caregiverPhone: String!
+  caregiverAvatar: String
   patientName: String!
   patientPhone: String!
+  patientAvatar: String
   status: CaregiverLinkStatus!
   respondedAt: DateTime
 }
@@ -390,7 +392,13 @@ type Mutation {
   addCaregiverPatient(patientPhone: String!, relationship: String! = "caregiver"): CaregiverLinkType!
 
   """ผู้ป่วยตอบรับ/ปฏิเสธคำเชิญจาก caregiver"""
-  respondToCaregiverInvite(caregiverId: String!, accept: Boolean!): CaregiverLinkType!
+  respondToCaregiverInvite(
+    caregiverId: String!
+    accept: Boolean!
+
+    """สิทธิ์ที่ให้ผู้ดูแล เมื่อ accept เป็น true"""
+    permission: CaregiverPermission! = full
+  ): CaregiverLinkType!
 
   """ลบความสัมพันธ์ผู้ดูแล/ผู้ป่วย"""
   removeCaregiverPatient(caregiverId: String!, patientId: String!): Boolean!
@@ -536,6 +544,12 @@ input CreateReadingInput {
   imageId: Int
   notes: String
   patientId: ID
+}
+
+"""สิทธิ์ที่ผู้ป่วยให้ผู้ดูแล — view: ดูอย่างเดียว, full: บันทึกแทนได้"""
+enum CaregiverPermission {
+  view
+  full
 }
 
 input CreatePostInput {

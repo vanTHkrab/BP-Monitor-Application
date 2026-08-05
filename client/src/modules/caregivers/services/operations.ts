@@ -18,8 +18,10 @@ export const GQL_CAREGIVER_LINKS = `
       relationship
       caregiverName
       caregiverPhone
+      caregiverAvatar
       patientName
       patientPhone
+      patientAvatar
       status
       respondedAt
     }
@@ -58,24 +60,34 @@ export const GQL_ADD_CAREGIVER_PATIENT = `
       relationship
       caregiverName
       caregiverPhone
+      caregiverAvatar
       patientName
       patientPhone
+      patientAvatar
       status
       respondedAt
     }
   }
 `;
 
+/**
+ * `$permission` is a `CaregiverPermission` enum, not a String — an
+ * unrecognised value fails validation at the gateway's door rather than
+ * being parsed down to something plausible. It is only meaningful when
+ * `$accept` is true.
+ */
 export const GQL_RESPOND_TO_CAREGIVER_INVITE = `
-  mutation RespondToCaregiverInvite($caregiverId: String!, $accept: Boolean!) {
-    respondToCaregiverInvite(caregiverId: $caregiverId, accept: $accept) {
+  mutation RespondToCaregiverInvite($caregiverId: String!, $accept: Boolean!, $permission: CaregiverPermission!) {
+    respondToCaregiverInvite(caregiverId: $caregiverId, accept: $accept, permission: $permission) {
       caregiverId
       patientId
       relationship
       caregiverName
       caregiverPhone
+      caregiverAvatar
       patientName
       patientPhone
+      patientAvatar
       status
       respondedAt
     }

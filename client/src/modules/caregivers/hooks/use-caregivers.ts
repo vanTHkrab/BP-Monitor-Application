@@ -17,7 +17,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/modules/auth';
 
 import * as caregiversApi from '../services/caregivers-api';
-import type { CaregiverLink, InvitePatientInput, PatientSummary } from '../types';
+import type {
+  CaregiverLink,
+  CaregiverPermission,
+  InvitePatientInput,
+  PatientSummary,
+} from '../types';
 
 const LINKS_KEY = ['caregiver-links'];
 const PATIENTS_KEY = ['my-patients'];
@@ -99,8 +104,16 @@ export function useRespondToInvite() {
   const invalidate = useInvalidateCaregivers();
 
   const mutation = useMutation({
-    mutationFn: ({ caregiverId, accept }: { caregiverId: string; accept: boolean }) =>
-      caregiversApi.respondToInvite(caregiverId, accept),
+    mutationFn: ({
+      caregiverId,
+      accept,
+      permission,
+    }: {
+      caregiverId: string;
+      accept: boolean;
+      /** Ignored by the gateway when `accept` is false. */
+      permission: CaregiverPermission;
+    }) => caregiversApi.respondToInvite(caregiverId, accept, permission),
     onSuccess: invalidate,
   });
 

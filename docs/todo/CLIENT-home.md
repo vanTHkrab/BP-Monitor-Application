@@ -113,10 +113,13 @@ section-for-section — greeting header with bell, caregiver picker or reading
 card, gradient camera CTA, guidance card, "แนวโน้มและรายงาน",
 "สุขภาพและการดูแลตัวเอง" — with copy, gradients, radii, and per-status accents
 unchanged. Colours resolve through `useTheme()` rather than the hexes the old
-screen hardcoded; `theme/tokens.js` is a verbatim port of client-old's
+screen hardcoded; `theme/tokens.js` started as a verbatim port of client-old's
 `Theme`, so that renders the same palette while dropping the drift (the old
 file used slate `#0F172A` / `#111827` for dark surfaces, which appear nowhere
-in `Theme.dark`).
+in `Theme.dark`). It has since gained one semantic colour the old theme had no
+equivalent for — `border-strong`, the outline of a control you can touch, as
+opposed to `border`, the hairline between things already visually separate.
+The reason is written in `tokens.js`.
 
 Inventory, and what happened to each part:
 

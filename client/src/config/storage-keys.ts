@@ -57,6 +57,16 @@ export const STORAGE_KEYS = {
 export const reminderSettingsKey = (userId?: string): string =>
   `bp.reminder_settings.${userId ?? 'guest'}`;
 
+/**
+ * Which caregiver invites this device has already announced, per user.
+ *
+ * Per user for the same reason as the reminder key, and more sharply: two
+ * accounts on one phone must not silence each other's invites, and an invite
+ * announced to the previous user must not be treated as seen by the next.
+ */
+export const announcedInvitesKey = (userId?: string): string =>
+  `bp.announced_invites.${userId ?? 'guest'}`;
+
 /** What a key used to be called. Read once, then deleted. */
 export const LEGACY_STORAGE_KEYS = {
   authToken: 'bp:auth-token',

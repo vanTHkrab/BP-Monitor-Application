@@ -217,7 +217,21 @@ export default function ReadingDetailScreen() {
               style={{ backgroundColor: colors.surface, borderColor: colors.border }}
             >
               <InfoRow label="วัดเมื่อ" value={formatFullDateTime(reading.measuredAt)} />
-              <InfoRow label="บันทึกเข้าแอป" value={formatFullDateTime(reading.createdAt)} />
+              <InfoRow
+                label="บันทึกเข้าแอป"
+                value={formatFullDateTime(reading.createdAt)}
+                // Last row whenever nobody recorded this on the patient's
+                // behalf — otherwise the card ends on a divider to nothing.
+                isLast={!reading.recordedById}
+              />
+              {/*
+                * No "รหัสรายการ" row. `clientId` is a uuid the queue mints for
+                * de-duplication and `remoteId` is a database key — neither
+                * means anything to a patient, and printing an identifier next
+                * to their medical data invites them to quote it to someone.
+                * If a support flow ever needs one, it belongs behind a
+                * long-press-to-copy, not in the middle of the reading.
+                */}
               {reading.recordedById ? (
                 <InfoRow
                   label="บันทึกโดย"
@@ -226,13 +240,9 @@ export default function ReadingDetailScreen() {
                       ? 'คุณบันทึกให้'
                       : (reading.recordedByName ?? 'ผู้ดูแล')
                   }
+                  isLast
                 />
               ) : null}
-              <InfoRow
-                label="รหัสรายการ"
-                value={reading.clientId ?? String(reading.remoteId ?? '-')}
-                isLast
-              />
             </View>
 
             {/* The queue records why a row failed and how often. Nothing

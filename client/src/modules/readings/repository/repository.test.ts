@@ -91,6 +91,45 @@ describe('readings repository', () => {
       expect(await listQueuedReadings(db, USER)).toHaveLength(1);
     });
 
+    /*
+     * The caregiver case, and it was broken.
+     *
+     * A row's `userId` is the *subject*, so an on-behalf capture is stored
+     * under the patient. Matching on `userId` alone never handed those rows
+     * back to the caregiver who took them — and the caregiver is the only one
+     * holding the photo — so the reading sat showing "รอซิงก์" forever on a
+     * device that was online the whole time.
+     */
+    it('drains a caregiver’s on-behalf row for the caregiver', async () => {
+      await enqueueReading(
+        db,
+        queued('on-behalf', { userId: 'patient-9', recordedById: USER }),
+      );
+
+      const rows = await listQueuedReadings(db, USER);
+
+      expect(rows.map((r) => r.clientId)).toEqual(['on-behalf']);
+    });
+
+    // ...and for the patient too: whichever of the two signs in next is the
+    // one that can get it to the server.
+    it('drains the same row for the patient it is about', async () => {
+      await enqueueReading(
+        db,
+        queued('on-behalf', { userId: 'patient-9', recordedById: USER }),
+      );
+
+      expect(await listQueuedReadings(db, 'patient-9')).toHaveLength(1);
+    });
+
+    // `recordedById` is NULL for a patient's own readings by design, so a
+    // filter that matched only the actor would strand every ordinary row.
+    it('still drains an ordinary self-recorded row', async () => {
+      await enqueueReading(db, queued('mine', { recordedById: null }));
+
+      expect(await listQueuedReadings(db, USER)).toHaveLength(1);
+    });
+
     // The resume case. If the create fails after a successful upload, the next
     // pass must see `imageId` and skip re-uploading — otherwise it mints a
     // second Image row and orphans the first object in the bucket.

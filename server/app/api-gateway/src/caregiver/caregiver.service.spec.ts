@@ -133,3 +133,91 @@ describe('CaregiverService — authorization', () => {
     });
   });
 });
+
+/**
+ * The other half of the permission column: something has to write it.
+ *
+ * Until this, every link was `full` in practice — the column, the guards and
+ * the client gate all existed while nothing ever set the value, so
+ * `assertCanRecordForPatient` could only ever say yes. These assert that the
+ * patient's answer is what lands in the row.
+ */
+describe('CaregiverService.respondToInvite — the permission grant', () => {
+  let service: CaregiverService;
+  let prisma: {
+    caregiverPatient: { findUnique: jest.Mock; update: jest.Mock };
+  };
+
+  const users = {
+    caregiver: { firstname: 'ก', lastname: 'ข', phone: '0810000000' },
+    patient: { firstname: 'ค', lastname: 'ง', phone: '0820000000' },
+  };
+
+  /** What `update` was asked to write, whatever else it returned. */
+  const writtenData = () =>
+    prisma.caregiverPatient.update.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+
+  beforeEach(async () => {
+    prisma = {
+      caregiverPatient: {
+        findUnique: jest.fn().mockResolvedValue({
+          caregiverId: CAREGIVER_ID,
+          patientId: PATIENT_ID,
+          relationship: 'child',
+          status: 'pending',
+          respondedAt: null,
+          ...users,
+        }),
+        update: jest.fn().mockResolvedValue({
+          caregiverId: CAREGIVER_ID,
+          patientId: PATIENT_ID,
+          relationship: 'child',
+          status: 'accepted',
+          respondedAt: new Date(),
+          ...users,
+        }),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CaregiverService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+
+    service = module.get<CaregiverService>(CaregiverService);
+  });
+
+  it('writes the permission the patient chose', async () => {
+    await service.respondToInvite(PATIENT_ID, CAREGIVER_ID, true, 'view');
+
+    expect(writtenData()).toMatchObject({
+      status: 'accepted',
+      permission: 'view',
+    });
+  });
+
+  // A caller from before the argument existed must keep granting what it
+  // used to grant, which is the column default.
+  it('defaults to full when the caller omits it', async () => {
+    await service.respondToInvite(PATIENT_ID, CAREGIVER_ID, true);
+
+    expect(writtenData()).toMatchObject({
+      status: 'accepted',
+      permission: 'full',
+    });
+  });
+
+  // A rejected row holds no permission — writing one would leave a claim
+  // nobody granted for a later accept to have to overwrite.
+  it('writes no permission at all on a reject', async () => {
+    await service.respondToInvite(PATIENT_ID, CAREGIVER_ID, false, 'full');
+
+    expect(writtenData()).toMatchObject({ status: 'rejected' });
+    expect(writtenData()).not.toHaveProperty('permission');
+  });
+});

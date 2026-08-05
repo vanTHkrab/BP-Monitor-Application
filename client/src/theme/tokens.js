@@ -50,6 +50,20 @@ const status = {
  * Semantic colours that flip between modes. These become CSS variables, so
  * a single utility (`bg-surface`) is correct in both themes.
  *
+ * **`border` and `border-strong` are not interchangeable.** `border` is a
+ * hairline divider between things that already read as separate — it is
+ * deliberately near-invisible (in light mode it is literally the `background`
+ * value) and nothing depends on seeing it. `border-strong` is the outline of
+ * a thing you can *touch*: a text field, an unselected option, a secondary
+ * button. Those have to clear roughly 3:1 against the surface behind them or
+ * the control stops looking like a control, which is what happened to
+ * `TextField` in light mode — an unfocused field drew a white border on a
+ * white card and had no visible edge at all until it was focused.
+ *
+ * Both `border-strong` values are picked against their own `surface`
+ * (#4A8FA5 on white ≈ 3.6:1; #6B5FA8 on #1A1632 ≈ 3.2:1) rather than against
+ * `background`, because that is what a card-mounted control actually sits on.
+ *
  * `background` is the flat fallback — the real app background is the
  * `background` gradient below. Anything painting a full screen should use
  * the gradient; `bg-background` is for the cases that cannot.
@@ -60,6 +74,7 @@ const semantic = {
     surface: '#FFFFFF',
     'surface-muted': '#EBF5FB',
     border: '#BFE8F0',
+    'border-strong': '#4A8FA5',
     'text-primary': '#2C3E50',
     'text-secondary': '#7F8C8D',
     'icon-neutral': '#374151',
@@ -73,6 +88,7 @@ const semantic = {
     surface: '#1A1632',
     'surface-muted': '#231C42',
     border: '#2D2654',
+    'border-strong': '#6B5FA8',
     'text-primary': '#E8E4F5',
     'text-secondary': '#9C95C2',
     'icon-neutral': '#E2E8F0',

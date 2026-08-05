@@ -116,3 +116,47 @@ describe('InvitationsScreen — entering a patient', () => {
     expect(view.getByTestId('patient-p1-remove')).toBeOnTheScreen();
   });
 });
+
+/**
+ * The two-tab split.
+ *
+ * People and requests are different jobs — one is "who has access", the other
+ * is "what is waiting on me" — and before this they were one scroll where a
+ * request could sit below three groups of rows. What matters is that the
+ * split does not *hide* a request: the count rides on the tab and a banner on
+ * the people tab points at it.
+ */
+describe('InvitationsScreen — tabs', () => {
+  const pendingInvite = () =>
+    link({ caregiverId: 'c9', patientId: 'c1', status: 'pending' });
+
+  it('opens on the people tab, with requests one tap away', async () => {
+    mockLinks.current = [link(), pendingInvite()];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    expect(view.getByTestId('patient-p1')).toBeOnTheScreen();
+    expect(view.queryByTestId('invite-c9')).toBeNull();
+
+    await fireEvent.press(view.getByTestId('invitations-tab-requests'));
+
+    expect(view.getByTestId('invite-c9')).toBeOnTheScreen();
+  });
+
+  // A request the patient never sees is the failure mode this whole screen
+  // exists to avoid, and a tab is a place to not look.
+  it('points at a waiting request from the people tab', async () => {
+    mockLinks.current = [link(), pendingInvite()];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    await fireEvent.press(view.getByTestId('pending-requests-hint'));
+
+    expect(view.getByTestId('invite-c9')).toBeOnTheScreen();
+  });
+
+  it('shows no pointer when nothing is waiting', async () => {
+    mockLinks.current = [link()];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    expect(view.queryByTestId('pending-requests-hint')).toBeNull();
+  });
+});

@@ -17,9 +17,10 @@
  */
 import { router } from 'expo-router';
 
+import { INVITE_KIND } from './services/invite-notification';
+import { isNotificationSupported } from './services/notifications-module';
 import {
   cancelPendingFollowUps,
-  isNotificationSupported,
   scheduleFollowUp,
   snoozeReminder,
   FOLLOW_UP_KIND,
@@ -46,6 +47,9 @@ let teardown: Unsubscribe | null = null;
  * this constant is the one thing to repoint.
  */
 const RECORD_ROUTE = '/(tabs)/camera' as const;
+
+/** Where a caregiver-invite notification lands: the screen that answers it. */
+const INVITE_ROUTE = '/invitations' as const;
 
 export async function initReminderNotifications(): Promise<void> {
   if (!isNotificationSupported()) return;
@@ -77,6 +81,15 @@ export async function initReminderNotifications(): Promise<void> {
     (response) => {
       const { actionIdentifier } = response;
       const kind = response.notification.request.content.data?.kind;
+
+      // A caregiver invite. Routed here rather than from the caregivers module
+      // because this is the app's only notification-response listener, and a
+      // second one would double-handle every reminder tap.
+      if (kind === INVITE_KIND) {
+        router.push(INVITE_ROUTE);
+        return;
+      }
+
       if (kind !== REMINDER_KIND && kind !== FOLLOW_UP_KIND) return;
 
       if (actionIdentifier === REMINDER_DONE_ACTION_ID) {
