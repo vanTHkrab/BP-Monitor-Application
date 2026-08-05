@@ -8,12 +8,12 @@
  * most likely to mistype a password twice are the ones this app is for.
  */
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { formatAuthError, useChangePassword } from '@/modules/auth';
 import { SecurityHeader } from '@/modules/security';
@@ -29,7 +29,6 @@ type Errors = {
 
 export default function ChangePasswordScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { changePassword, isPending } = useChangePassword();
 
   const [current, setCurrent] = useState('');
@@ -96,18 +95,11 @@ export default function ChangePasswordScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text
-            className="mb-5 mt-1"
-            style={{
-              fontSize: Math.round(15 * fontScale),
-              lineHeight: Math.round(22 * fontScale),
-              color: colors['text-secondary'],
-            }}
-          >
+          <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-5 mt-1">
             ตั้งรหัสผ่านใหม่อย่างน้อย {MIN_PASSWORD_LENGTH} ตัวอักษร
             เมื่อเปลี่ยนแล้วอุปกรณ์เครื่องอื่นจะถูกออกจากระบบ
             แต่เครื่องนี้จะยังใช้งานต่อได้
-          </Text>
+          </ThemedText>
 
           {banner ? (
             <View
@@ -115,15 +107,9 @@ export default function ChangePasswordScreen() {
               style={{ backgroundColor: colors.surface }}
               accessibilityLiveRegion="polite"
             >
-              <Text
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  lineHeight: Math.round(22 * fontScale),
-                  color: banner.tone === 'ok' ? colors['text-primary'] : colors.danger,
-                }}
-              >
+              <ThemedText type="body" weight="regular" style={{ color: banner.tone === 'ok' ? colors['text-primary'] : colors.danger }}>
                 {banner.text}
-              </Text>
+              </ThemedText>
             </View>
           ) : null}
 

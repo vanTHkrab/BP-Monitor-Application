@@ -11,10 +11,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { palette } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
@@ -51,7 +51,6 @@ const LINKS: {
 
 export default function AboutScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
 
@@ -71,15 +70,9 @@ export default function AboutScreen() {
               color={colors['text-primary']}
             />
           </Pressable>
-          <Text
-            className="flex-1 text-center font-bold"
-            style={{
-              fontSize: Math.round(19 * fontScale),
-              color: colors['text-primary'],
-            }}
-          >
+          <ThemedText size={19} weight="bold" className="flex-1 text-center">
             เกี่ยวกับ
-          </Text>
+          </ThemedText>
           <View className="w-7" />
         </View>
 
@@ -99,23 +92,12 @@ export default function AboutScreen() {
           >
             <Ionicons name="heart-circle" size={56} color="#E91E63" />
           </View>
-          <Text
-            className="font-bold"
-            style={{
-              fontSize: Math.round(19 * fontScale),
-              color: colors['text-primary'],
-            }}
-          >
+          <ThemedText size={19} weight="bold">
             BP Monitor
-          </Text>
-          <Text
-            style={{
-              fontSize: Math.round(15 * fontScale),
-              color: colors['text-secondary'],
-            }}
-          >
+          </ThemedText>
+          <ThemedText type="body" weight="regular" themeColor="text-secondary">
             เวอร์ชัน 1.0.0
-          </Text>
+          </ThemedText>
         </View>
 
         {/* Description */}
@@ -127,31 +109,19 @@ export default function AboutScreen() {
               borderColor: colors.border,
             }}
           >
-            <Text
-              style={{
-                fontSize: Math.round(15 * fontScale),
-                lineHeight: Math.round(15 * fontScale * 1.6),
-                color: colors['text-primary'],
-              }}
-            >
+            <ThemedText type="body" weight="regular" lineHeight={24}>
               แอปพลิเคชั่นสำหรับบันทึกและติดตามค่าความดันโลหิตของคุณ
               ช่วยให้คุณดูแลสุขภาพได้อย่างมีประสิทธิภาพด้วยการวิเคราะห์แนวโน้ม
               และรายงานที่เข้าใจง่าย
-            </Text>
+            </ThemedText>
           </View>
         </View>
 
         {/* Features */}
         <View className="mb-6 px-4">
-          <Text
-            className="mb-3 font-bold"
-            style={{
-              fontSize: Math.round(17 * fontScale),
-              color: colors['text-primary'],
-            }}
-          >
+          <ThemedText type="bodyLarge" weight="bold" className="mb-3">
             ฟีเจอร์หลัก
-          </Text>
+          </ThemedText>
           <View
             className="rounded-xl border p-4"
             style={{
@@ -165,15 +135,9 @@ export default function AboutScreen() {
                 className={`flex-row items-center ${index < FEATURES.length - 1 ? 'mb-3' : ''}`}
               >
                 <Ionicons name={feature.icon} size={20} color={palette.blue} />
-                <Text
-                  className="ml-3"
-                  style={{
-                    fontSize: Math.round(15 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                <ThemedText type="body" weight="regular" className="ml-3">
                   {feature.label}
-                </Text>
+                </ThemedText>
               </View>
             ))}
           </View>
@@ -181,15 +145,9 @@ export default function AboutScreen() {
 
         {/* Links */}
         <View className="mb-6 px-4">
-          <Text
-            className="mb-3 font-bold"
-            style={{
-              fontSize: Math.round(17 * fontScale),
-              color: colors['text-primary'],
-            }}
-          >
+          <ThemedText type="bodyLarge" weight="bold" className="mb-3">
             ข้อมูลเพิ่มเติม
-          </Text>
+          </ThemedText>
           {LINKS.map((link, index) => (
             <Pressable
               key={link.label}
@@ -201,15 +159,9 @@ export default function AboutScreen() {
               }}
             >
               <Ionicons name={link.icon} size={22} color={palette.blue} />
-              <Text
-                className="ml-3 flex-1"
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  color: colors['text-primary'],
-                }}
-              >
+              <ThemedText type="body" weight="regular" className="ml-3 flex-1">
                 {link.label}
-              </Text>
+              </ThemedText>
               <Ionicons
                 name="chevron-forward"
                 size={20}
@@ -228,24 +180,12 @@ export default function AboutScreen() {
               borderColor: isDark ? '#3730A3' : '#DDD6FE',
             }}
           >
-            <Text
-              className="text-center font-medium"
-              style={{
-                fontSize: Math.round(15 * fontScale),
-                color: isDark ? '#E0E7FF' : '#6D28D9',
-              }}
-            >
+            <ThemedText type="body" className="text-center" style={{ color: isDark ? '#E0E7FF' : '#6D28D9' }}>
               พัฒนาโดย ทีมพัฒนา BP Monitor
-            </Text>
-            <Text
-              className="mt-1 text-center"
-              style={{
-                fontSize: Math.round(15 * fontScale),
-                color: isDark ? '#C7D2FE' : '#7C3AED',
-              }}
-            >
+            </ThemedText>
+            <ThemedText type="body" weight="regular" className="mt-1 text-center" style={{ color: isDark ? '#C7D2FE' : '#7C3AED' }}>
               © 2025 All Rights Reserved
-            </Text>
+            </ThemedText>
           </View>
         </View>
       </ScrollView>

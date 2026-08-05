@@ -12,10 +12,10 @@
  * see `services/alert-operations.ts`.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import {
   statusColorFor,
@@ -29,7 +29,6 @@ import { SecurityHeader } from '@/modules/security';
 
 export default function AlertsScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const { alerts, unreadCount, isLoading, isRefetching, refetch, canMarkRead } = useAlerts();
   const { markAlertRead } = useMarkAlertRead();
@@ -42,13 +41,11 @@ export default function AlertsScreen() {
 
         {unreadCount > 0 ? (
           <View className="flex-row items-center justify-between px-5 pb-2">
-            <Text
-              style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
-            >
+            <ThemedText type="small" weight="regular" themeColor="text-secondary">
               {canMarkRead
                 ? `ยังไม่ได้อ่าน ${unreadCount} รายการ`
                 : `ยังไม่ได้อ่าน ${unreadCount} รายการ · ผู้ป่วยเป็นผู้อ่านเอง`}
-            </Text>
+            </ThemedText>
             {/*
               Hidden while viewing a patient. Marking read is the patient's own
               state — the gateway scopes it to the alert's owner, so the button
@@ -65,12 +62,9 @@ export default function AlertsScreen() {
               className="items-center justify-center px-2"
               style={{ minHeight: 44, opacity: isPending ? 0.5 : 1 }}
             >
-              <Text
-                className="font-semibold"
-                style={{ fontSize: Math.round(14 * fontScale), color: colors.primary }}
-              >
+              <ThemedText type="small" weight="semibold" themeColor="primary">
                 อ่านทั้งหมด
-              </Text>
+              </ThemedText>
             </Pressable>
             ) : null}
           </View>
@@ -87,18 +81,11 @@ export default function AlertsScreen() {
           }
           ListEmptyComponent={
             <View className="mt-4 rounded-2xl p-5" style={{ backgroundColor: colors.surface }}>
-              <Text
-                testID="alerts-empty"
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  lineHeight: Math.round(22 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="body" weight="regular" themeColor="text-secondary" testID="alerts-empty">
                 {isLoading
                   ? 'กำลังโหลดการแจ้งเตือน…'
                   : 'ยังไม่มีการแจ้งเตือน ระบบจะแจ้งเมื่อพบค่าความดันที่ควรสังเกต'}
-              </Text>
+              </ThemedText>
             </View>
           }
           renderItem={({ item }) => (
@@ -122,7 +109,6 @@ export default function AlertsScreen() {
  */
 function AlertRow({ alert, onPress }: { alert: Alert; onPress?: () => void }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const accent = alert.reading ? statusColorFor(alert.reading.status) : colors['text-secondary'];
 
@@ -162,26 +148,16 @@ function AlertRow({ alert, onPress }: { alert: Alert; onPress?: () => void }) {
       </View>
 
       <View className="flex-1">
-        <Text
-          className={alert.isRead ? 'font-medium' : 'font-bold'}
-          style={{
-            fontSize: Math.round(15 * fontScale),
-            lineHeight: Math.round(22 * fontScale),
-            color: colors['text-primary'],
-          }}
-        >
+        <ThemedText type="body" weight="regular">
           {alert.message}
-        </Text>
+        </ThemedText>
 
         {alert.reading ? (
-          <Text
-            className="mt-1"
-            style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-1">
             {`${alert.reading.systolic}/${alert.reading.diastolic} mmHg · ${statusLabel(
               alert.reading.status,
             )}`}
-          </Text>
+          </ThemedText>
         ) : null}
       </View>
 

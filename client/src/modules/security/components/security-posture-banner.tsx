@@ -12,9 +12,9 @@
  * surface and structure, and the one accent is spent on the one judgement.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { status as statusColor } from '@/theme';
 import type { PostureTone, SecurityPosture } from '../lib/security-posture';
@@ -33,7 +33,6 @@ export function SecurityPostureBanner({
   onAction: () => void;
 }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const accent =
     posture.tone === 'good'
@@ -55,22 +54,12 @@ export function SecurityPostureBanner({
         <Ionicons name={TONE_ICON[posture.tone]} size={28} color={accent} />
 
         <View className="ml-3.5 flex-1">
-          <Text
-            className="font-bold"
-            style={{ fontSize: Math.round(18 * fontScale), color: colors['text-primary'] }}
-          >
+          <ThemedText size={18} weight="bold">
             {posture.headline}
-          </Text>
-          <Text
-            className="mt-1.5"
-            style={{
-              fontSize: Math.round(15 * fontScale),
-              lineHeight: Math.round(22 * fontScale),
-              color: colors['text-secondary'],
-            }}
-          >
+          </ThemedText>
+          <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-1.5">
             {posture.detail}
-          </Text>
+          </ThemedText>
         </View>
       </View>
 
@@ -84,12 +73,9 @@ export function SecurityPostureBanner({
           className="flex-row items-center justify-center border-t px-5"
           style={{ borderTopColor: colors.border, minHeight: 56 }}
         >
-          <Text
-            className="font-semibold"
-            style={{ fontSize: Math.round(16 * fontScale), color: accent }}
-          >
+          <ThemedText type="default" weight="semibold" style={{ color: accent }}>
             {posture.actionLabel}
-          </Text>
+          </ThemedText>
           <Ionicons
             name="arrow-forward"
             size={18}

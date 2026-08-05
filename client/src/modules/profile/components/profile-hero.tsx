@@ -7,10 +7,10 @@
  * most steps.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { Avatar } from '@/components/ui/avatar';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import type { UserRole } from '@/modules/auth';
 
@@ -38,7 +38,6 @@ export function ProfileHero({
   onChangeAvatar,
 }: ProfileHeroProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const fullName = `${firstname} ${lastname}`.trim();
 
@@ -74,24 +73,18 @@ export function ProfileHero({
         </View>
       </Pressable>
 
-      <Text
-        className="mt-3 text-center font-bold"
-        style={{ fontSize: Math.round(20 * fontScale), color: colors['text-primary'] }}
-      >
+      <ThemedText type="heading" weight="bold" className="mt-3 text-center">
         {fullName || 'ยังไม่ได้ตั้งชื่อ'}
-      </Text>
+      </ThemedText>
 
       {role ? (
         <View
           className="mt-2 rounded-full px-3 py-1"
           style={{ backgroundColor: colors['surface-muted'] }}
         >
-          <Text
-            className="font-semibold"
-            style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="label" themeColor="text-secondary">
             {ROLE_LABEL[role]}
-          </Text>
+          </ThemedText>
         </View>
       ) : null}
     </View>

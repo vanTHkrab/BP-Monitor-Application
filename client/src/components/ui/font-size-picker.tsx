@@ -16,6 +16,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { FONT_SIZE_STEPS, useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { usePreferencesStore, type FontSizePreference } from '@/stores';
@@ -103,12 +104,9 @@ export function FontSizePicker() {
         className="mt-1 rounded-2xl px-4 py-3"
         style={{ backgroundColor: colors['surface-muted'] }}
       >
-        <Text
-          className="font-bold"
-          style={{ fontSize: Math.round(14 * fontScale), color: colors.primary }}
-        >
+        <ThemedText type="small" weight="bold" themeColor="primary">
           ตัวอย่างข้อความ
-        </Text>
+        </ThemedText>
         <Text
           className="mt-1"
           style={{

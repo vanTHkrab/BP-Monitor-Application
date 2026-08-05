@@ -37,8 +37,9 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { ScrollView, TextInput, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { OptionRow } from '@/components/ui/option-row';
@@ -172,13 +173,9 @@ export default function ProfileScreen() {
           />
 
           {avatar.error ? (
-            <Text
-              className="mt-1 px-2 text-center"
-              accessibilityLiveRegion="polite"
-              style={{ fontSize: Math.round(14 * fontScale), color: colors.danger }}
-            >
+            <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-1 px-2 text-center">
               {avatar.error}
-            </Text>
+            </ThemedText>
           ) : null}
 
           <ProfileGroup title="ข้อมูลส่วนตัว">
@@ -230,16 +227,9 @@ export default function ProfileScreen() {
                 />
 
                 {phoneChanged ? (
-                  <Text
-                    className="-mt-2 mb-3 ml-1"
-                    style={{
-                      fontSize: Math.round(13 * fontScale),
-                      lineHeight: Math.round(19 * fontScale),
-                      color: colors['text-secondary'],
-                    }}
-                  >
+                  <ThemedText type="label" weight="regular" themeColor="text-secondary" className="-mt-2 mb-3 ml-1">
                     ผู้ดูแลค้นหาคุณด้วยเบอร์นี้ — คำเชิญที่ส่งไปยังเบอร์เดิมจะหาคุณไม่พบ
-                  </Text>
+                  </ThemedText>
                 ) : null}
               </View>
             </ProfileField>
@@ -332,12 +322,9 @@ export default function ProfileScreen() {
                 />
 
                 {errors.congenitalDisease ? (
-                  <Text
-                    className="ml-1 mt-1.5 font-semibold"
-                    style={{ fontSize: Math.round(13 * fontScale), color: statusColor.high }}
-                  >
+                  <ThemedText type="label" className="ml-1 mt-1.5" style={{ color: statusColor.high }}>
                     {errors.congenitalDisease}
-                  </Text>
+                  </ThemedText>
                 ) : null}
               </View>
             </ProfileField>
@@ -363,16 +350,9 @@ export default function ProfileScreen() {
           )}
 
           {banner ? (
-            <Text
-              className="mt-4 px-2"
-              accessibilityLiveRegion="polite"
-              style={{
-                fontSize: Math.round(15 * fontScale),
-                color: banner.tone === 'ok' ? statusColor.normal : colors.danger,
-              }}
-            >
+            <ThemedText type="body" weight="regular" accessibilityLiveRegion="polite" className="mt-4 px-2" style={{ color: banner.tone === 'ok' ? statusColor.normal : colors.danger }}>
               {banner.text}
-            </Text>
+            </ThemedText>
           ) : null}
 
           <View className="mt-6" style={{ gap: 10 }}>

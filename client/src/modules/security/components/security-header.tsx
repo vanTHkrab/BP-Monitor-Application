@@ -7,14 +7,13 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 export function SecurityHeader({ title }: { title: string }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="flex-row items-center px-4 py-4">
@@ -29,13 +28,9 @@ export function SecurityHeader({ title }: { title: string }) {
         <Ionicons name="arrow-back" size={28} color={colors['text-primary']} />
       </TouchableOpacity>
 
-      <Text
-        className="flex-1 text-center font-bold"
-        numberOfLines={1}
-        style={{ fontSize: Math.round(20 * fontScale), color: colors['text-primary'] }}
-      >
+      <ThemedText type="heading" weight="bold" numberOfLines={1} className="flex-1 text-center">
         {title}
-      </Text>
+      </ThemedText>
 
       {/* Balances the back button so the title stays optically centred. */}
       <View style={{ width: 48 }} />

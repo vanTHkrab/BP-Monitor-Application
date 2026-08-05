@@ -9,10 +9,10 @@
  * itself away in a dialog.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { Avatar } from '@/components/ui/avatar';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 
 import { formatRelativeTimeTH } from '../lib/relative-time';
@@ -37,9 +37,7 @@ export function CommentRow({
   isPending = false,
 }: CommentRowProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
-  const bodySize = Math.round(15 * fontScale);
 
   return (
     <View
@@ -52,13 +50,9 @@ export function CommentRow({
       <View className="ml-2.5 flex-1">
         <View className="rounded-2xl px-3.5 py-2.5" style={{ backgroundColor: colors.surface }}>
           <View className="flex-row items-center">
-            <Text
-              className="flex-1 font-semibold"
-              numberOfLines={1}
-              style={{ fontSize: Math.round(14 * fontScale), color: colors['text-primary'] }}
-            >
+            <ThemedText type="small" weight="semibold" numberOfLines={1} className="flex-1">
               {comment.userName}
-            </Text>
+            </ThemedText>
 
             {isOwner && onMore ? (
               <Pressable
@@ -81,25 +75,16 @@ export function CommentRow({
             ) : null}
           </View>
 
-          <Text
-            className="mt-1"
-            style={{
-              fontSize: bodySize,
-              lineHeight: bodySize + 7,
-              color: colors['text-primary'],
-            }}
-          >
+          <ThemedText type="body" weight="regular" className="mt-1">
             {comment.content}
-          </Text>
+          </ThemedText>
         </View>
 
         <View className="mt-1 flex-row items-center pl-1">
-          <Text
-            style={{ fontSize: Math.round(12 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="caption" themeColor="text-secondary">
             {formatRelativeTimeTH(comment.createdAt)}
             {comment.updatedAt ? ' · แก้ไขแล้ว' : ''}
-          </Text>
+          </ThemedText>
 
           <Pressable
             testID={`comment-${comment.id}-like`}
@@ -117,15 +102,9 @@ export function CommentRow({
               color={comment.isLiked ? LIKED_COLOR : colors['text-secondary']}
             />
             {comment.likes > 0 ? (
-              <Text
-                className="ml-1 font-medium"
-                style={{
-                  fontSize: Math.round(12 * fontScale),
-                  color: comment.isLiked ? LIKED_COLOR : colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="caption" weight="medium" className="ml-1" style={{ color: comment.isLiked ? LIKED_COLOR : colors['text-secondary'] }}>
                 {comment.likes}
-              </Text>
+              </ThemedText>
             ) : null}
           </Pressable>
         </View>

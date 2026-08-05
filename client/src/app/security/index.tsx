@@ -12,10 +12,10 @@
  * it has room to explain itself.
  */
 import { router } from 'expo-router';
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useLoginSessions, useSession } from '@/modules/auth';
 import {
@@ -30,8 +30,6 @@ import {
 } from '@/modules/security';
 
 export default function SecurityScreen() {
-  const colors = useTheme();
-  const fontScale = useFontScale();
   const { user } = useSession();
   const { overview, isLoading, refetch } = useSecurityOverview();
   const { sessions } = useLoginSessions();
@@ -141,13 +139,10 @@ export default function SecurityScreen() {
             </SecurityGroup>
           ) : null}
 
-          <Text
-            className="mb-8 mt-8 px-2 text-center"
-            style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mb-8 mt-8 px-2 text-center">
             การเปลี่ยนรหัสผ่านจะทำให้อุปกรณ์เครื่องอื่นออกจากระบบทั้งหมด
             แต่เครื่องนี้จะยังใช้งานต่อได้
-          </Text>
+          </ThemedText>
         </ScrollView>
       </View>
     </GradientBackground>
@@ -160,16 +155,15 @@ export default function SecurityScreen() {
  */
 function LoadingBanner() {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View
       className="mt-2 justify-center rounded-2xl px-5"
       style={{ backgroundColor: colors.surface, minHeight: 116 }}
     >
-      <Text style={{ fontSize: Math.round(15 * fontScale), color: colors['text-secondary'] }}>
+      <ThemedText type="body" weight="regular" themeColor="text-secondary">
         กำลังตรวจสอบสถานะความปลอดภัย…
-      </Text>
+      </ThemedText>
     </View>
   );
 }

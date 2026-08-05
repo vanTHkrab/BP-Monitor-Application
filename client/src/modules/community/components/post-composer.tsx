@@ -14,9 +14,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
@@ -106,12 +107,9 @@ export function PostComposer({
             <Ionicons name="close" size={26} color={colors['text-primary']} />
           </Pressable>
 
-          <Text
-            className="flex-1 text-center font-bold"
-            style={{ fontSize: Math.round(18 * fontScale), color: colors['text-primary'] }}
-          >
+          <ThemedText size={18} weight="bold" className="flex-1 text-center">
             {mode === 'edit' ? 'แก้ไขโพสต์' : 'เขียนโพสต์'}
-          </Text>
+          </ThemedText>
 
           <View style={{ width: 44 }} />
         </View>
@@ -119,12 +117,9 @@ export function PostComposer({
         <View className="flex-1 px-0">
           <CategoryTabs value={category} onChange={setCategory} />
 
-          <Text
-            className="mb-2 px-5"
-            style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mb-2 px-5">
             {categoryHint(category)}
-          </Text>
+          </ThemedText>
 
           <View className="flex-1 px-4">
             <TextInput
@@ -151,25 +146,15 @@ export function PostComposer({
             />
 
             {content.length >= COUNTER_VISIBLE_FROM ? (
-              <Text
-                className="mt-1.5 text-right"
-                style={{
-                  fontSize: Math.round(12 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="caption" themeColor="text-secondary" className="mt-1.5 text-right">
                 {`${content.length} / ${POST_MAX_LENGTH}`}
-              </Text>
+              </ThemedText>
             ) : null}
 
             {error ? (
-              <Text
-                className="mt-2 px-1"
-                accessibilityLiveRegion="polite"
-                style={{ fontSize: Math.round(14 * fontScale), color: colors.danger }}
-              >
+              <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-2 px-1">
                 {error}
-              </Text>
+              </ThemedText>
             ) : null}
           </View>
 

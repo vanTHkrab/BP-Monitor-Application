@@ -9,11 +9,11 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { formatAuthError } from '@/modules/auth';
 import {
@@ -30,7 +30,6 @@ import type { Passkey } from '@/modules/security';
 
 export default function PasskeysScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { overview } = useSecurityOverview();
   const { passkeys, isLoading, refetch } = usePasskeys();
   const { registerPasskey, isPending: isRegistering } = useRegisterPasskey();
@@ -110,15 +109,9 @@ export default function PasskeysScreen() {
               style={{ backgroundColor: colors.surface }}
               accessibilityLiveRegion="polite"
             >
-              <Text
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  lineHeight: Math.round(22 * fontScale),
-                  color: colors.danger,
-                }}
-              >
+              <ThemedText type="body" weight="regular" themeColor="danger">
                 {error}
-              </Text>
+              </ThemedText>
             </View>
           ) : null}
 
@@ -161,18 +154,11 @@ export default function PasskeysScreen() {
           {/* Says which side is missing. "ไม่รองรับ" alone leaves the user
               trying to fix a phone that is fine. */}
           {!deviceSupported || !serverSupported ? (
-            <Text
-              className="mt-3 px-2 text-center"
-              style={{
-                fontSize: Math.round(14 * fontScale),
-                lineHeight: Math.round(21 * fontScale),
-                color: colors['text-secondary'],
-              }}
-            >
+            <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-3 px-2 text-center">
               {!deviceSupported
                 ? 'เครื่องนี้ยังใช้ Passkey ไม่ได้ ลองตั้งค่าการปลดล็อกหน้าจอ (PIN, ลายนิ้วมือ หรือใบหน้า) ในการตั้งค่าของเครื่องก่อน'
                 : 'ระบบยังไม่เปิดใช้งาน Passkey สำหรับเซิร์ฟเวอร์นี้'}
-            </Text>
+            </ThemedText>
           ) : null}
 
           <View className="h-10" />
@@ -184,27 +170,16 @@ export default function PasskeysScreen() {
 
 function Explainer() {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mt-2 rounded-2xl p-5" style={{ backgroundColor: colors.surface }}>
-      <Text
-        className="font-bold"
-        style={{ fontSize: Math.round(17 * fontScale), color: colors['text-primary'] }}
-      >
+      <ThemedText type="bodyLarge" weight="bold">
         เข้าสู่ระบบด้วยลายนิ้วมือหรือใบหน้า
-      </Text>
-      <Text
-        className="mt-2"
-        style={{
-          fontSize: Math.round(15 * fontScale),
-          lineHeight: Math.round(23 * fontScale),
-          color: colors['text-secondary'],
-        }}
-      >
+      </ThemedText>
+      <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-2">
         Passkey ใช้การปลดล็อกของเครื่องแทนรหัสผ่าน ไม่ต้องจำ ไม่ต้องพิมพ์
         และเอาไปใช้บนเครื่องอื่นไม่ได้ถึงจะรู้รหัสผ่านของคุณ
-      </Text>
+      </ThemedText>
     </View>
   );
 }

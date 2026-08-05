@@ -15,9 +15,9 @@
  * subtree on every keystroke elsewhere on the page.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Switch, Text, View } from 'react-native';
+import { Pressable, Switch, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { palette } from '@/theme';
 
@@ -48,7 +48,6 @@ export function SettingItem({
   testID,
 }: SettingItemProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const accentColor = accent === 'purple' ? palette.purple : palette.blue;
   const hasSwitch = typeof value === 'boolean' && Boolean(onValueChange);
@@ -74,23 +73,13 @@ export function SettingItem({
       </View>
 
       <View className="flex-1 pr-3">
-        <Text
-          className="font-medium"
-          style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText type="default">
           {title}
-        </Text>
+        </ThemedText>
         {subtitle ? (
-          <Text
-            className="mt-0.5"
-            style={{
-              fontSize: Math.round(13 * fontScale),
-              lineHeight: Math.round(19 * fontScale),
-              color: colors['text-secondary'],
-            }}
-          >
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
             {subtitle}
-          </Text>
+          </ThemedText>
         ) : null}
       </View>
 
@@ -127,15 +116,10 @@ export function SettingItem({
 
 /** The bold label above a run of cards. client-old repeated this markup inline. */
 export function SettingSection({ title }: { title: string }) {
-  const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
-    <Text
-      className="mb-3 mt-4 font-bold"
-      style={{ fontSize: Math.round(17 * fontScale), color: colors['text-primary'] }}
-    >
+    <ThemedText type="bodyLarge" weight="bold" className="mb-3 mt-4">
       {title}
-    </Text>
+    </ThemedText>
   );
 }

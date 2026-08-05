@@ -17,19 +17,11 @@
  */
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  RefreshControl,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { formatErrorMessage } from '@/lib/error-message';
 import { useSession } from '@/modules/auth';
@@ -52,8 +44,6 @@ export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const postId = Number(id);
 
-  const colors = useTheme();
-  const fontScale = useFontScale();
   const insets = useSafeAreaInsets();
   const { userId } = useSession();
 
@@ -164,39 +154,21 @@ export default function PostDetailScreen() {
                   <MissingPost isLoading={isLoadingPost} isMissing={isMissing} />
                 )}
 
-                <Text
-                  className="mb-3 ml-1 mt-2 font-semibold uppercase"
-                  style={{
-                    fontSize: Math.round(12 * fontScale),
-                    color: colors['text-secondary'],
-                    letterSpacing: 0.5,
-                  }}
-                >
+                <ThemedText type="caption" weight="semibold" themeColor="text-secondary" className="mb-3 ml-1 mt-2 uppercase" style={{ letterSpacing: 0.5 }}>
                   {`ความคิดเห็น · ${comments.length}`}
-                </Text>
+                </ThemedText>
 
                 {error ? (
-                  <Text
-                    className="mb-3 px-1"
-                    accessibilityLiveRegion="polite"
-                    style={{ fontSize: Math.round(14 * fontScale), color: colors.danger }}
-                  >
+                  <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-3 px-1">
                     {error}
-                  </Text>
+                  </ThemedText>
                 ) : null}
               </View>
             }
             ListEmptyComponent={
-              <Text
-                className="px-1 pb-4"
-                style={{
-                  fontSize: Math.round(14 * fontScale),
-                  lineHeight: Math.round(21 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="small" weight="regular" themeColor="text-secondary" className="px-1 pb-4">
                 {isLoading ? 'กำลังโหลดความคิดเห็น…' : 'ยังไม่มีความคิดเห็น เริ่มเป็นคนแรกได้เลย'}
-              </Text>
+              </ThemedText>
             }
             renderItem={({ item }) => (
               <CommentRow
@@ -235,23 +207,16 @@ export default function PostDetailScreen() {
  */
 function MissingPost({ isLoading, isMissing }: { isLoading: boolean; isMissing: boolean }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mb-3 rounded-2xl p-5" style={{ backgroundColor: colors.surface }}>
-      <Text
-        style={{
-          fontSize: Math.round(15 * fontScale),
-          lineHeight: Math.round(22 * fontScale),
-          color: colors['text-secondary'],
-        }}
-      >
+      <ThemedText type="body" weight="regular" themeColor="text-secondary">
         {isLoading
           ? 'กำลังโหลดโพสต์…'
           : isMissing
             ? 'โพสต์นี้ถูกลบไปแล้ว หรือไม่มีอยู่'
             : 'โหลดโพสต์ไม่สำเร็จ ลองดึงหน้าจอลงเพื่อโหลดใหม่'}
-      </Text>
+      </ThemedText>
     </View>
   );
 }

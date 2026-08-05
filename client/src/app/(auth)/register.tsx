@@ -18,8 +18,9 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
 import { useTheme } from '@/hooks/use-theme';
@@ -188,11 +189,9 @@ export default function RegisterScreen() {
         error={errorFor('email')}
       />
 
-      <Text
-        className="mb-3 ml-1 font-semibold"
-        style={{ fontSize: 13, color: colors['text-secondary'] }}>
+      <ThemedText type="label" themeColor="text-secondary" className="mb-3 ml-1">
         ข้อมูลสุขภาพ (ไม่บังคับ)
-      </Text>
+      </ThemedText>
 
       <Pressable
         onPress={() => setShowDobPicker(true)}
@@ -201,14 +200,9 @@ export default function RegisterScreen() {
         className="mb-4 flex-row items-center rounded-[14px] border-2 px-[14px] py-4"
         style={{ borderColor: colors.border, backgroundColor: colors.surface }}>
         <Ionicons name="calendar-outline" size={20} color={colors['text-secondary']} />
-        <Text
-          className="ml-3 flex-1 font-semibold"
-          style={{
-            fontSize: 15,
-            color: dob ? colors['text-primary'] : colors['text-secondary'],
-          }}>
+        <ThemedText type="body" weight="semibold" className="ml-3 flex-1" style={{ color: dob ? colors['text-primary'] : colors['text-secondary'] }}>
           {dob || 'วันเกิด'}
-        </Text>
+        </ThemedText>
       </Pressable>
 
       {showDobPicker ? (
@@ -254,11 +248,9 @@ export default function RegisterScreen() {
         autoCapitalize="sentences"
       />
 
-      <Text
-        className="mb-3 ml-1 font-semibold"
-        style={{ fontSize: 13, color: colors['text-secondary'] }}>
+      <ThemedText type="label" themeColor="text-secondary" className="mb-3 ml-1">
         ตั้งรหัสผ่าน
-      </Text>
+      </ThemedText>
 
       <TextField
         testID="register-password"

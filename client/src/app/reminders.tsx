@@ -16,11 +16,11 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import {
   DAY_OPTIONS,
@@ -35,7 +35,6 @@ import { palette, status as statusColor } from '@/theme';
 
 export default function RemindersScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { settings, plan, diagnostics, isLoading, isSaving, update, sendTest } =
     useReminderSettings();
   const [notice, setNotice] = useState<string | null>(null);
@@ -116,19 +115,11 @@ export default function RemindersScreen() {
             />
 
             {diagnostics ? (
-              <Text
-                className="mt-3"
-                style={{
-                  fontSize: Math.round(13 * fontScale),
-                  lineHeight: Math.round(20 * fontScale),
-                  color:
-                    diagnostics.permission === 'granted'
+              <ThemedText type="label" weight="regular" className="mt-3" style={{ color: diagnostics.permission === 'granted'
                       ? colors['text-secondary']
-                      : statusColor.elevated,
-                }}
-              >
+                      : statusColor.elevated }}>
                 {diagnostics.reason}
-              </Text>
+              </ThemedText>
             ) : null}
           </Card>
 
@@ -138,15 +129,9 @@ export default function RemindersScreen() {
               accessibilityLiveRegion="polite"
               style={{ backgroundColor: colors.surface, borderColor: colors.border }}
             >
-              <Text
-                style={{
-                  fontSize: Math.round(14 * fontScale),
-                  lineHeight: Math.round(21 * fontScale),
-                  color: colors['text-primary'],
-                }}
-              >
+              <ThemedText type="small" weight="regular">
                 {notice}
-              </Text>
+              </ThemedText>
             </View>
           ) : null}
 
@@ -160,17 +145,10 @@ export default function RemindersScreen() {
                 style={{ backgroundColor: colors.surface }}
               >
                 <View style={{ height: 3, backgroundColor: statusColor.elevated }} />
-                <Text
-                  className="p-4"
-                  style={{
-                    fontSize: Math.round(14 * fontScale),
-                    lineHeight: Math.round(21 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                <ThemedText type="small" weight="regular" className="p-4">
                   เครื่องรับการเตือนล่วงหน้าได้จำกัด ระบบจึงปรับเป็นทุก{' '}
                   {plan.effectiveIntervalHours} ชั่วโมง เพื่อให้ยังเตือนครบทุกวันที่เลือกไว้
-                </Text>
+                </ThemedText>
               </View>
             ) : null}
 
@@ -253,15 +231,9 @@ export default function RemindersScreen() {
                         backgroundColor: selected ? colors.primary : colors['surface-muted'],
                       }}
                     >
-                      <Text
-                        className="font-semibold"
-                        style={{
-                          fontSize: Math.round(14 * fontScale),
-                          color: selected ? '#FFFFFF' : colors['text-primary'],
-                        }}
-                      >
+                      <ThemedText type="small" weight="semibold" style={{ color: selected ? '#FFFFFF' : colors['text-primary'] }}>
                         {day.label}
-                      </Text>
+                      </ThemedText>
                     </Pressable>
                   );
                 })}
@@ -292,23 +264,12 @@ export default function RemindersScreen() {
                     }}
                   >
                     <View className="flex-1">
-                      <Text
-                        className="font-semibold"
-                        style={{
-                          fontSize: Math.round(15 * fontScale),
-                          color: colors['text-primary'],
-                        }}
-                      >
+                      <ThemedText type="body" weight="semibold">
                         {sound.label}
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: Math.round(13 * fontScale),
-                          color: colors['text-secondary'],
-                        }}
-                      >
+                      </ThemedText>
+                      <ThemedText type="label" weight="regular" themeColor="text-secondary">
                         {sound.description}
-                      </Text>
+                      </ThemedText>
                     </View>
                     <Ionicons
                       name={selected ? 'checkmark-circle' : 'ellipse-outline'}
@@ -331,17 +292,10 @@ export default function RemindersScreen() {
             </View>
           </View>
 
-          <Text
-            className="mb-10 mt-4 px-2 text-center"
-            style={{
-              fontSize: Math.round(13 * fontScale),
-              lineHeight: Math.round(20 * fontScale),
-              color: colors['text-secondary'],
-            }}
-          >
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mb-10 mt-4 px-2 text-center">
             เมื่อการเตือนเด้งขึ้น กดที่ตัวแจ้งเตือนเพื่อเข้าหน้าบันทึกได้ทันที
             หรือกด &ldquo;เตือนอีก 5 นาที&rdquo; ถ้ายังไม่สะดวก
-          </Text>
+          </ThemedText>
         </ScrollView>
       </View>
     </GradientBackground>
@@ -374,7 +328,6 @@ function RowHeader({
   accessory?: React.ReactNode;
 }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="flex-row items-center">
@@ -385,19 +338,13 @@ function RowHeader({
         <Ionicons name={icon} size={22} color={palette.blue} />
       </View>
       <View className="flex-1 pr-2">
-        <Text
-          className="font-medium"
-          style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText type="default">
           {title}
-        </Text>
+        </ThemedText>
         {subtitle ? (
-          <Text
-            className="mt-0.5"
-            style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
             {subtitle}
-          </Text>
+          </ThemedText>
         ) : null}
       </View>
       {accessory}
@@ -406,15 +353,10 @@ function RowHeader({
 }
 
 function Label({ text }: { text: string }) {
-  const colors = useTheme();
-  const fontScale = useFontScale();
   return (
-    <Text
-      className="mb-2 ml-0.5 mt-3.5 font-semibold"
-      style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-    >
+    <ThemedText type="label" themeColor="text-secondary" className="mb-2 ml-0.5 mt-3.5">
       {text}
-    </Text>
+    </ThemedText>
   );
 }
 
@@ -429,7 +371,6 @@ function ChipRow({
   items: { key: string; label: string; selected: boolean; onPress: () => void }[];
 }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <ScrollView
@@ -454,15 +395,9 @@ function ChipRow({
             backgroundColor: item.selected ? colors.primary : colors['surface-muted'],
           }}
         >
-          <Text
-            className="font-semibold"
-            style={{
-              fontSize: Math.round(14 * fontScale),
-              color: item.selected ? '#FFFFFF' : colors['text-primary'],
-            }}
-          >
+          <ThemedText type="small" weight="semibold" style={{ color: item.selected ? '#FFFFFF' : colors['text-primary'] }}>
             {item.label}
-          </Text>
+          </ThemedText>
         </Pressable>
       ))}
     </ScrollView>

@@ -36,13 +36,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GradientBackground } from '@/components/gradient-background';
 import { ThemedText } from '@/components/themed-text';
 import { Avatar } from '@/components/ui/avatar';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import { useActivePatient } from '@/modules/caregivers';
@@ -61,7 +60,6 @@ cssInterop(LinearGradient, { className: 'style' });
 
 export default function HomeScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const insets = useSafeAreaInsets();
   const { scheme } = useColorSchemePreference();
 
@@ -121,16 +119,9 @@ export default function HomeScreen() {
               </ThemedText>
 
               {isViewingPatient ? (
-                <Text
-                  testID="home-viewing-patient"
-                  numberOfLines={1}
-                  style={{
-                    fontSize: Math.round(13 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                <ThemedText type="label" weight="regular" themeColor="text-secondary" testID="home-viewing-patient" numberOfLines={1}>
                   {`กำลังดูข้อมูลของคุณ ${patient?.firstname ?? 'ผู้ป่วย'}`}
-                </Text>
+                </ThemedText>
               ) : null}
             </View>
           </View>
@@ -157,12 +148,9 @@ export default function HomeScreen() {
                 className="absolute -right-1 -top-1 h-5 min-w-[20px] items-center justify-center rounded-full px-1"
                 style={{ backgroundColor: '#EF4444' }}
               >
-                <Text
-                  className="font-bold text-white"
-                  style={{ fontSize: Math.round(11 * fontScale) }}
-                >
+                <ThemedText size={11} weight="bold" style={{ color: '#FFFFFF' }}>
                   {unreadCount > 9 ? '9+' : unreadCount}
-                </Text>
+                </ThemedText>
               </View>
             ) : null}
           </Pressable>
@@ -194,12 +182,9 @@ export default function HomeScreen() {
                 >
                   <Ionicons name="camera" size={26} color={palette.purple} />
                 </View>
-                <Text
-                  className="font-semibold text-white"
-                  style={{ fontSize: Math.round(16 * fontScale) }}
-                >
+                <ThemedText type="default" weight="semibold" style={{ color: '#FFFFFF' }}>
                   คลิกที่นี่ เพื่อ ถ่ายภาพวัดความดัน
-                </Text>
+                </ThemedText>
               </LinearGradient>
             </Pressable>
 
@@ -208,18 +193,9 @@ export default function HomeScreen() {
             ) : null}
 
             {pendingCount > 0 ? (
-              <Text
-                testID="home-pending-count"
-                className="mt-3 px-5"
-                accessibilityLiveRegion="polite"
-                style={{
-                  fontSize: Math.round(13 * fontScale),
-                  lineHeight: Math.round(20 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="label" weight="regular" themeColor="text-secondary" testID="home-pending-count" accessibilityLiveRegion="polite" className="mt-3 px-5">
                 {`มี ${pendingCount} ค่าที่บันทึกไว้ในเครื่องและรอส่งขึ้นเซิร์ฟเวอร์`}
-              </Text>
+              </ThemedText>
             ) : null}
 
             <View className="mt-6 px-4">
@@ -248,15 +224,9 @@ export default function HomeScreen() {
                       <Ionicons name="trending-up" size={32} color={palette.blue} />
                     </View>
                     <View className="mt-0.5 flex-row items-center justify-center">
-                      <Text
-                        className="mb-1"
-                        style={{
-                          fontSize: Math.round(14 * fontScale),
-                          color: colors['text-secondary'],
-                        }}
-                      >
+                      <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mb-1">
                         ดูประวัติทั้งหมด
-                      </Text>
+                      </ThemedText>
                       <Ionicons
                         name="chevron-forward"
                         size={16}
@@ -282,33 +252,18 @@ export default function HomeScreen() {
                     className="min-h-[170px] items-center rounded-2xl border p-[18px] shadow-md"
                     style={{ backgroundColor: colors.surface, borderColor: colors.border }}
                   >
-                    <Text
-                      className="mb-1"
-                      style={{
-                        fontSize: Math.round(12 * fontScale),
-                        color: colors['text-secondary'],
-                      }}
-                    >
+                    <ThemedText type="caption" themeColor="text-secondary" className="mb-1">
                       สร้างรายงานสุขภาพ
-                    </Text>
+                    </ThemedText>
                     <LinearGradient
                       colors={gradientFor(scheme, 'accent')}
                       className="mb-2 h-[72px] w-[72px] items-center justify-center rounded-2xl"
                     >
-                      <Text
-                        className="font-bold text-white"
-                        style={{ fontSize: Math.round(12 * fontScale) }}
-                      >
+                      <ThemedText type="caption" weight="bold" style={{ color: '#FFFFFF' }}>
                         PDF
-                      </Text>
+                      </ThemedText>
                     </LinearGradient>
-                    <Text
-                      className="mb-1 text-center"
-                      style={{
-                        fontSize: Math.round(14 * fontScale),
-                        color: colors['text-secondary'],
-                      }}
-                    >
+                    <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mb-1 text-center">
                       {/* No format sheet here, unlike settings and history.
                           The card says PDF on its face; asking again would be
                           asking the user to confirm what they just read. */}
@@ -317,7 +272,7 @@ export default function HomeScreen() {
                         : readings.length === 0
                           ? 'ยังไม่มีข้อมูลให้ส่งออก'
                           : 'กดเพื่อสร้าง'}
-                    </Text>
+                    </ThemedText>
                   </View>
                 </Pressable>
               </View>
@@ -345,24 +300,12 @@ export default function HomeScreen() {
                     <Ionicons name="leaf" size={22} color={status.normal} />
                   </View>
                   <View className="flex-1">
-                    <Text
-                      className="font-semibold"
-                      style={{
-                        fontSize: Math.round(16 * fontScale),
-                        color: colors['text-primary'],
-                      }}
-                    >
+                    <ThemedText type="default" weight="semibold">
                       เคล็ดลับการดูแลสุขภาพ
-                    </Text>
-                    <Text
-                      className="mt-0.5"
-                      style={{
-                        fontSize: Math.round(14 * fontScale),
-                        color: colors['text-secondary'],
-                      }}
-                    >
+                    </ThemedText>
+                    <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-0.5">
                       อ่านบทความเกี่ยวกับการดูแลความดันโลหิต
-                    </Text>
+                    </ThemedText>
                   </View>
                   <Ionicons
                     name="chevron-forward"
@@ -389,18 +332,12 @@ export default function HomeScreen() {
                     <Ionicons name="calendar" size={22} color="white" />
                   </View>
                   <View className="flex-1">
-                    <Text
-                      className="font-semibold text-white"
-                      style={{ fontSize: Math.round(16 * fontScale) }}
-                    >
+                    <ThemedText type="default" weight="semibold" style={{ color: '#FFFFFF' }}>
                       ตั้งการแจ้งเตือน
-                    </Text>
-                    <Text
-                      className="mt-0.5 text-white/80"
-                      style={{ fontSize: Math.round(14 * fontScale) }}
-                    >
+                    </ThemedText>
+                    <ThemedText type="small" weight="regular" className="mt-0.5" style={{ color: 'rgba(255,255,255,0.8)' }}>
                       เตือนให้วัดความดันเป็นประจำ
-                    </Text>
+                    </ThemedText>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="white" />
                 </LinearGradient>
@@ -414,16 +351,11 @@ export default function HomeScreen() {
 }
 
 function SectionTitle({ children }: { children: string }) {
-  const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
-    <Text
-      className="mb-4 font-bold"
-      style={{ fontSize: Math.round(18 * fontScale), color: colors['text-primary'] }}
-    >
+    <ThemedText size={18} weight="bold" className="mb-4">
       {children}
-    </Text>
+    </ThemedText>
   );
 }
 
@@ -436,7 +368,6 @@ function SectionTitle({ children }: { children: string }) {
  */
 function PickPatientPrompt() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { scheme } = useColorSchemePreference();
 
   return (
@@ -453,22 +384,12 @@ function PickPatientPrompt() {
           <Ionicons name="people" size={32} color={palette.purple} />
         </View>
 
-        <Text
-          className="text-center font-bold"
-          style={{ fontSize: Math.round(18 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText size={18} weight="bold" className="text-center">
           เลือกผู้ป่วยที่ต้องการดู
-        </Text>
-        <Text
-          className="mt-2 text-center"
-          style={{
-            fontSize: Math.round(14 * fontScale),
-            lineHeight: Math.round(22 * fontScale),
-            color: colors['text-secondary'],
-          }}
-        >
+        </ThemedText>
+        <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-2 text-center">
           คุณกำลังใช้โหมดผู้ดูแล กรุณาเลือกผู้ป่วยจากรายชื่อก่อนเริ่มดูข้อมูลความดัน
-        </Text>
+        </ThemedText>
 
         <Pressable
           testID="home-pick-patient-action"
@@ -485,12 +406,9 @@ function PickPatientPrompt() {
             className="flex-row items-center rounded-2xl px-5 py-3"
           >
             <Ionicons name="people-outline" size={18} color="white" />
-            <Text
-              className="ml-2 font-bold text-white"
-              style={{ fontSize: Math.round(15 * fontScale) }}
-            >
+            <ThemedText type="body" weight="bold" className="ml-2" style={{ color: '#FFFFFF' }}>
               จัดการผู้ป่วย
-            </Text>
+            </ThemedText>
           </LinearGradient>
         </Pressable>
       </View>

@@ -34,12 +34,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/ui/tab-buttons';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import { useActivePatient } from '@/modules/caregivers';
@@ -66,7 +66,6 @@ const PREVIEW_COUNT = 3;
 
 export default function HistoryScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const insets = useSafeAreaInsets();
   const { scheme } = useColorSchemePreference();
 
@@ -117,12 +116,9 @@ export default function HistoryScreen() {
             end={{ x: 1, y: 0 }}
             className="rounded-xl px-6 py-2.5"
           >
-            <Text
-              className="font-bold text-white"
-              style={{ fontSize: Math.round(18 * fontScale) }}
-            >
+            <ThemedText size={18} weight="bold" style={{ color: '#FFFFFF' }}>
               ประวัติความดัน
-            </Text>
+            </ThemedText>
           </LinearGradient>
         </View>
 
@@ -147,30 +143,20 @@ export default function HistoryScreen() {
                 className="mx-4 mb-5 rounded-3xl border p-5"
                 style={{ backgroundColor: colors.surface, borderColor: colors.border }}
               >
-                <Text
-                  className="text-center"
-                  style={{
-                    fontSize: Math.round(15 * fontScale),
-                    lineHeight: Math.round(22 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                <ThemedText type="body" weight="regular" themeColor="text-secondary" className="text-center">
                   {isLoading
                     ? 'กำลังโหลดประวัติ...'
                     : readings.length === 0
                       ? 'ยังไม่มีการวัด เริ่มจากถ่ายภาพเครื่องวัดในหน้าหลัก'
                       : 'ไม่มีการวัดในช่วงเวลานี้ ลองเลือกช่วงที่กว้างขึ้น'}
-                </Text>
+                </ThemedText>
               </View>
             )}
 
             <View className="px-4">
-              <Text
-                className="mb-3 font-bold"
-                style={{ fontSize: Math.round(18 * fontScale), color: colors['text-primary'] }}
-              >
+              <ThemedText size={18} weight="bold" className="mb-3">
                 รายการล่าสุด
-              </Text>
+              </ThemedText>
 
               {filtered.slice(0, PREVIEW_COUNT).map((reading) => (
                 <BPReadingCard
@@ -197,12 +183,9 @@ export default function HistoryScreen() {
                     style={{ backgroundColor: colors['surface-muted'] }}
                   >
                     <Ionicons name="list" size={20} color={palette.purple} />
-                    <Text
-                      className="ml-2 font-semibold"
-                      style={{ fontSize: Math.round(15 * fontScale), color: palette.purple }}
-                    >
+                    <ThemedText type="body" weight="semibold" className="ml-2" style={{ color: palette.purple }}>
                       {`ดูทั้งหมด (${filtered.length} รายการ)`}
-                    </Text>
+                    </ThemedText>
                   </View>
                 </Pressable>
               </View>
@@ -230,12 +213,9 @@ export default function HistoryScreen() {
                   className="flex-row items-center justify-center gap-2 rounded-2xl py-4"
                 >
                   <Ionicons name="download-outline" size={22} color="#FFFFFF" />
-                  <Text
-                    className="font-semibold text-white"
-                    style={{ fontSize: Math.round(15 * fontScale) }}
-                  >
+                  <ThemedText type="body" weight="semibold" style={{ color: '#FFFFFF' }}>
                     {isExporting ? 'กำลังส่งออก...' : 'ส่งออกรายงาน PDF/CSV'}
-                  </Text>
+                  </ThemedText>
                 </LinearGradient>
               </Pressable>
             </View>
@@ -256,7 +236,6 @@ export default function HistoryScreen() {
 /** client-old's caregiver gate on this screen, with its own shorter copy. */
 function PickPatientPrompt() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { scheme } = useColorSchemePreference();
 
   return (
@@ -273,22 +252,12 @@ function PickPatientPrompt() {
           <Ionicons name="people" size={32} color={palette.purple} />
         </View>
 
-        <Text
-          className="text-center font-bold"
-          style={{ fontSize: Math.round(18 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText size={18} weight="bold" className="text-center">
           เลือกผู้ป่วยที่ต้องการดู
-        </Text>
-        <Text
-          className="mt-2 text-center"
-          style={{
-            fontSize: Math.round(13 * fontScale),
-            lineHeight: Math.round(20 * fontScale),
-            color: colors['text-secondary'],
-          }}
-        >
+        </ThemedText>
+        <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-2 text-center">
           ผู้ดูแลต้องเลือกผู้ป่วยก่อนถึงจะเห็นประวัติ
-        </Text>
+        </ThemedText>
 
         <Pressable
           testID="history-pick-patient-action"
@@ -305,12 +274,9 @@ function PickPatientPrompt() {
             className="flex-row items-center rounded-2xl px-5 py-3"
           >
             <Ionicons name="people-outline" size={18} color="white" />
-            <Text
-              className="ml-2 font-bold text-white"
-              style={{ fontSize: Math.round(15 * fontScale) }}
-            >
+            <ThemedText type="body" weight="bold" className="ml-2" style={{ color: '#FFFFFF' }}>
               จัดการผู้ป่วย
-            </Text>
+            </ThemedText>
           </LinearGradient>
         </Pressable>
       </View>

@@ -10,10 +10,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { palette } from '@/theme';
 
@@ -42,7 +42,6 @@ const FAQ_ITEMS = [
 
 export default function HelpScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const contactDeveloper = () =>
     Linking.openURL(
@@ -70,29 +69,17 @@ export default function HelpScreen() {
               color={colors['text-primary']}
             />
           </Pressable>
-          <Text
-            className="flex-1 text-center font-bold"
-            style={{
-              fontSize: Math.round(19 * fontScale),
-              color: colors['text-primary'],
-            }}
-          >
+          <ThemedText size={19} weight="bold" className="flex-1 text-center">
             ช่วยเหลือและคำแนะนำ
-          </Text>
+          </ThemedText>
           <View className="w-7" />
         </View>
 
         {/* Contact */}
         <View className="mb-6 px-4">
-          <Text
-            className="mb-3 font-bold"
-            style={{
-              fontSize: Math.round(17 * fontScale),
-              color: colors['text-primary'],
-            }}
-          >
+          <ThemedText type="bodyLarge" weight="bold" className="mb-3">
             ติดต่อเรา
-          </Text>
+          </ThemedText>
 
           <Pressable
             onPress={contactDeveloper}
@@ -109,23 +96,12 @@ export default function HelpScreen() {
               <Ionicons name="mail-outline" size={22} color={palette.blue} />
             </View>
             <View className="flex-1">
-              <Text
-                className="font-medium"
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  color: colors['text-primary'],
-                }}
-              >
+              <ThemedText type="body">
                 อีเมล
-              </Text>
-              <Text
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              </ThemedText>
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 support@bpapp.com
-              </Text>
+              </ThemedText>
             </View>
           </Pressable>
 
@@ -144,23 +120,12 @@ export default function HelpScreen() {
               <Ionicons name="call-outline" size={22} color={palette.blue} />
             </View>
             <View className="flex-1">
-              <Text
-                className="font-medium"
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  color: colors['text-primary'],
-                }}
-              >
+              <ThemedText type="body">
                 โทรศัพท์
-              </Text>
-              <Text
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              </ThemedText>
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 02-123-4567
-              </Text>
+              </ThemedText>
             </View>
           </Pressable>
 
@@ -175,38 +140,21 @@ export default function HelpScreen() {
               <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
             </View>
             <View className="flex-1">
-              <Text
-                className="font-medium"
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  color: colors['text-primary'],
-                }}
-              >
+              <ThemedText type="body">
                 Line Official
-              </Text>
-              <Text
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              </ThemedText>
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 @bpapp
-              </Text>
+              </ThemedText>
             </View>
           </View>
         </View>
 
         {/* FAQ */}
         <View className="px-4">
-          <Text
-            className="mb-3 font-bold"
-            style={{
-              fontSize: Math.round(17 * fontScale),
-              color: colors['text-primary'],
-            }}
-          >
+          <ThemedText type="bodyLarge" weight="bold" className="mb-3">
             คำถามที่พบบ่อย
-          </Text>
+          </ThemedText>
 
           {FAQ_ITEMS.map((item) => (
             <View
@@ -219,26 +167,13 @@ export default function HelpScreen() {
             >
               <View className="mb-2 flex-row items-start">
                 <Ionicons name="help-circle" size={20} color={palette.blue} />
-                <Text
-                  className="ml-2 flex-1 font-medium"
-                  style={{
-                    fontSize: Math.round(15 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                <ThemedText type="body" className="ml-2 flex-1">
                   {item.question}
-                </Text>
+                </ThemedText>
               </View>
-              <Text
-                className="ml-7"
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  lineHeight: Math.round(15 * fontScale * 1.6),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="body" weight="regular" lineHeight={24} themeColor="text-secondary" className="ml-7">
                 {item.answer}
-              </Text>
+              </ThemedText>
             </View>
           ))}
         </View>
@@ -252,12 +187,9 @@ export default function HelpScreen() {
             >
               <View className="min-h-[140px] items-center justify-center bg-teal-700 p-6">
                 <Ionicons name="mail-outline" size={40} color="#FFFFFF" />
-                <Text
-                  className="mt-3 text-center font-bold text-white"
-                  style={{ fontSize: Math.round(17 * fontScale) }}
-                >
+                <ThemedText type="bodyLarge" weight="bold" className="mt-3 text-center" style={{ color: '#FFFFFF' }}>
                   ติดต่อผู้พัฒนา
-                </Text>
+                </ThemedText>
               </View>
             </Pressable>
 
@@ -267,26 +199,16 @@ export default function HelpScreen() {
             >
               <View className="min-h-[140px] items-center justify-center bg-cyan-700 p-6">
                 <Ionicons name="megaphone-outline" size={40} color="#FFFFFF" />
-                <Text
-                  className="mt-3 text-center font-bold text-white"
-                  style={{ fontSize: Math.round(17 * fontScale) }}
-                >
+                <ThemedText type="bodyLarge" weight="bold" className="mt-3 text-center" style={{ color: '#FFFFFF' }}>
                   ส่งรายงานปัญหา
-                </Text>
+                </ThemedText>
               </View>
             </Pressable>
           </View>
 
-          <Text
-            className="mt-3"
-            style={{
-              fontSize: Math.round(15 * fontScale),
-              lineHeight: Math.round(15 * fontScale * 1.6),
-              color: colors['text-secondary'],
-            }}
-          >
+          <ThemedText type="body" weight="regular" lineHeight={24} themeColor="text-secondary" className="mt-3">
             หากพบปัญหาในการใช้งาน สามารถส่งอีเมลถึงผู้พัฒนาได้
-          </Text>
+          </ThemedText>
         </View>
 
         {/* Tutorial */}
@@ -297,18 +219,12 @@ export default function HelpScreen() {
           >
             <Ionicons name="play-circle" size={32} color="#FFFFFF" />
             <View className="ml-3 flex-1">
-              <Text
-                className="font-bold text-white"
-                style={{ fontSize: Math.round(15 * fontScale) }}
-              >
+              <ThemedText type="body" weight="bold" style={{ color: '#FFFFFF' }}>
                 ดูวิดีโอสอนการใช้งาน
-              </Text>
-              <Text
-                className="text-white/80"
-                style={{ fontSize: Math.round(12 * fontScale) }}
-              >
+              </ThemedText>
+              <ThemedText type="caption" style={{ color: 'rgba(255,255,255,0.8)' }}>
                 เรียนรู้วิธีใช้แอปอย่างละเอียด
-              </Text>
+              </ThemedText>
             </View>
             <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
           </View>

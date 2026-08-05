@@ -38,18 +38,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { TabButtons } from '@/components/ui/tab-buttons';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import {
@@ -77,7 +70,6 @@ import { formatThaiPhone } from '@/utils/phone-format';
 
 export default function InvitationsScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { user, userId } = useSession();
   const isCaregiver = user?.role === 'caregiver';
 
@@ -288,15 +280,9 @@ export default function InvitationsScreen() {
                   })}
                 >
                   <Ionicons name="mail-unread-outline" size={20} color={colors.accent} />
-                  <Text
-                    className="ml-2.5 flex-1 font-semibold"
-                    style={{
-                      fontSize: Math.round(14 * fontScale),
-                      color: colors['text-primary'],
-                    }}
-                  >
+                  <ThemedText type="small" weight="semibold" className="ml-2.5 flex-1">
                     {`มี ${pendingCount} คำขอรอคุณตอบรับ`}
-                  </Text>
+                  </ThemedText>
                   <Ionicons
                     name="chevron-forward"
                     size={18}
@@ -433,13 +419,9 @@ export default function InvitationsScreen() {
           )}
 
           {error ? (
-            <Text
-              className="mt-4 px-2"
-              accessibilityLiveRegion="polite"
-              style={{ fontSize: Math.round(15 * fontScale), color: colors.danger }}
-            >
+            <ThemedText type="body" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-4 px-2">
               {error}
-            </Text>
+            </ThemedText>
           ) : null}
 
           <View className="h-10" />
@@ -450,26 +432,16 @@ export default function InvitationsScreen() {
 }
 
 function SectionTitle({ text }: { text: string }) {
-  const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
-    <Text
-      className="mb-2.5 ml-1 mt-2 font-semibold uppercase"
-      style={{
-        fontSize: Math.round(12 * fontScale),
-        color: colors['text-secondary'],
-        letterSpacing: 0.5,
-      }}
-    >
+    <ThemedText type="caption" weight="semibold" themeColor="text-secondary" className="mb-2.5 ml-1 mt-2 uppercase" style={{ letterSpacing: 0.5 }}>
       {text}
-    </Text>
+    </ThemedText>
   );
 }
 
 function EmptyCard({ title, text }: { title?: string; text: string }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View
@@ -477,22 +449,13 @@ function EmptyCard({ title, text }: { title?: string; text: string }) {
       style={{ backgroundColor: colors.surface, borderColor: colors['border-strong'] }}
     >
       {title ? (
-        <Text
-          className="mb-2 font-bold"
-          style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText type="default" weight="bold" className="mb-2">
           {title}
-        </Text>
+        </ThemedText>
       ) : null}
-      <Text
-        style={{
-          fontSize: Math.round(14 * fontScale),
-          lineHeight: Math.round(21 * fontScale),
-          color: colors['text-secondary'],
-        }}
-      >
+      <ThemedText type="small" weight="regular" themeColor="text-secondary">
         {text}
-      </Text>
+      </ThemedText>
     </View>
   );
 }

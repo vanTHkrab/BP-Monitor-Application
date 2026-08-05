@@ -5,9 +5,9 @@
  * there will not be more without a schema change, so they all fit and the
  * user never has to discover a tab by scrolling sideways.
  */
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 import { POST_CATEGORIES, categoryLabel } from '../lib/categories';
@@ -20,7 +20,6 @@ export type CategoryTabsProps = {
 
 export function CategoryTabs({ value, onChange }: CategoryTabsProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View
@@ -44,16 +43,9 @@ export function CategoryTabs({ value, onChange }: CategoryTabsProps) {
               backgroundColor: isSelected ? colors.surface : 'transparent',
             }}
           >
-            <Text
-              numberOfLines={1}
-              className={isSelected ? 'font-bold' : 'font-medium'}
-              style={{
-                fontSize: Math.round(14 * fontScale),
-                color: isSelected ? colors.primary : colors['text-secondary'],
-              }}
-            >
+            <ThemedText type="small" weight="regular" numberOfLines={1} style={{ color: isSelected ? colors.primary : colors['text-secondary'] }}>
               {categoryLabel(category)}
-            </Text>
+            </ThemedText>
           </Pressable>
         );
       })}

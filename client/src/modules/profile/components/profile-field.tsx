@@ -12,9 +12,9 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ProfileFieldProps = {
@@ -37,17 +37,13 @@ export function ProfileField({
   testID,
 }: ProfileFieldProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   if (isEditing) {
     return (
       <View className="px-4 pt-3" testID={testID}>
-        <Text
-          className="mb-1.5 ml-1 font-semibold"
-          style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-        >
+        <ThemedText type="label" themeColor="text-secondary" className="mb-1.5 ml-1">
           {label}
-        </Text>
+        </ThemedText>
         {children}
       </View>
     );
@@ -56,18 +52,12 @@ export function ProfileField({
   return (
     <View testID={testID}>
       <View className="flex-row items-center justify-between px-4" style={{ minHeight: 56 }}>
-        <Text
-          className="mr-4 py-3"
-          style={{ fontSize: Math.round(15 * fontScale), color: colors['text-secondary'] }}
-        >
+        <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mr-4 py-3">
           {label}
-        </Text>
-        <Text
-          className="flex-1 py-3 text-right font-medium"
-          style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
-        >
+        </ThemedText>
+        <ThemedText type="body" className="flex-1 py-3 text-right">
           {value?.trim() ? value : '—'}
-        </Text>
+        </ThemedText>
       </View>
 
       {isLast ? null : <View className="ml-4 h-px" style={{ backgroundColor: colors.border }} />}
@@ -97,7 +87,6 @@ export function ProfileLinkRow({
   testID?: string;
 }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View>
@@ -110,20 +99,14 @@ export function ProfileLinkRow({
         className="flex-row items-center px-4"
         style={{ minHeight: 56 }}
       >
-        <Text
-          className="flex-1 py-3 font-medium"
-          style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText type="body" className="flex-1 py-3">
           {label}
-        </Text>
+        </ThemedText>
 
         {value ? (
-          <Text
-            className="mr-2 py-3"
-            style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mr-2 py-3">
             {value}
-          </Text>
+          </ThemedText>
         ) : null}
 
         <Ionicons name="chevron-forward" size={20} color={colors['text-secondary']} />
@@ -137,20 +120,12 @@ export function ProfileLinkRow({
 /** The surface the fields sit in. Mirrors `SecurityGroup` / `LinkGroup`. */
 export function ProfileGroup({ title, children }: { title: string; children: ReactNode }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mb-2 mt-6">
-      <Text
-        className="mb-2.5 ml-1 font-semibold uppercase"
-        style={{
-          fontSize: Math.round(12 * fontScale),
-          color: colors['text-secondary'],
-          letterSpacing: 0.5,
-        }}
-      >
+      <ThemedText type="caption" weight="semibold" themeColor="text-secondary" className="mb-2.5 ml-1 uppercase" style={{ letterSpacing: 0.5 }}>
         {title}
-      </Text>
+      </ThemedText>
 
       <View
         className="overflow-hidden rounded-2xl pb-1"

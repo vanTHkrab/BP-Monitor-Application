@@ -16,9 +16,9 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { status as statusColor } from '@/theme';
 
@@ -45,7 +45,6 @@ export function DateField({
   testID,
 }: DateFieldProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const [isPickerOpen, setPickerOpen] = useState(false);
 
   const isWeb = Platform.OS === 'web';
@@ -79,15 +78,9 @@ export function DateField({
           size={20}
           color={error ? statusColor.high : colors['text-secondary']}
         />
-        <Text
-          className="ml-3 flex-1 font-semibold"
-          style={{
-            fontSize: Math.round(15 * fontScale),
-            color: displayValue ? colors['text-primary'] : colors['text-secondary'],
-          }}
-        >
+        <ThemedText type="body" weight="semibold" className="ml-3 flex-1" style={{ color: displayValue ? colors['text-primary'] : colors['text-secondary'] }}>
           {displayValue || placeholder}
-        </Text>
+        </ThemedText>
 
         {value && !isWeb ? (
           <Pressable
@@ -103,21 +96,15 @@ export function DateField({
       </Pressable>
 
       {isWeb ? (
-        <Text
-          className="ml-1 mt-1.5"
-          style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-        >
+        <ThemedText type="label" weight="regular" themeColor="text-secondary" className="ml-1 mt-1.5">
           แก้ไขวันเกิดได้จากแอปบนมือถือ
-        </Text>
+        </ThemedText>
       ) : null}
 
       {error ? (
-        <Text
-          className="ml-1 mt-1.5 font-semibold"
-          style={{ fontSize: Math.round(13 * fontScale), color: statusColor.high }}
-        >
+        <ThemedText type="label" className="ml-1 mt-1.5" style={{ color: statusColor.high }}>
           {error}
-        </Text>
+        </ThemedText>
       ) : null}
 
       {isPickerOpen && !isWeb ? (
@@ -138,12 +125,9 @@ export function DateField({
           className="mt-2 items-center justify-center rounded-xl"
           style={{ minHeight: 44, backgroundColor: colors['surface-muted'] }}
         >
-          <Text
-            className="font-semibold"
-            style={{ fontSize: Math.round(15 * fontScale), color: colors.primary }}
-          >
+          <ThemedText type="body" weight="semibold" themeColor="primary">
             เสร็จสิ้น
-          </Text>
+          </ThemedText>
         </Pressable>
       ) : null}
     </View>

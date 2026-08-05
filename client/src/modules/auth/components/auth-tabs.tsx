@@ -13,10 +13,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
-import { cn } from '@/lib/cn';
 import { gradientFor } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -58,15 +58,13 @@ export function AuthTabs({ active }: { active: AuthTab }) {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 className="flex-1 items-center justify-center rounded-xl">
-                <Text className={cn('text-[15px] font-bold text-white')}>{tab.label}</Text>
+                <ThemedText type="body" weight="bold" style={{ color: '#FFFFFF' }}>{tab.label}</ThemedText>
               </LinearGradient>
             ) : (
               <View className="flex-1 items-center justify-center rounded-xl">
-                <Text
-                  className={cn('text-[15px] font-semibold')}
-                  style={{ color: colors['text-secondary'] }}>
+                <ThemedText type="body" weight="semibold" themeColor="text-secondary">
                   {tab.label}
-                </Text>
+                </ThemedText>
               </View>
             )}
           </Pressable>

@@ -7,8 +7,9 @@
  * needs room to be read.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ChoiceCardProps = {
@@ -49,16 +50,12 @@ export function ChoiceCard({
       </View>
 
       <View className="flex-1">
-        <Text
-          className="text-[17px] font-bold"
-          style={{ color: colors['text-primary'] }}>
+        <ThemedText type="bodyLarge" weight="bold">
           {title}
-        </Text>
-        <Text
-          className="mt-1 text-[14px]"
-          style={{ color: colors['text-secondary'] }}>
+        </ThemedText>
+        <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-1">
           {description}
-        </Text>
+        </ThemedText>
       </View>
 
       {selected ? (

@@ -37,13 +37,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, TouchableOpacity, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { FontSizePicker } from '@/components/ui/font-size-picker';
 import { SettingItem, SettingSection } from '@/components/ui/setting-item';
 import { ThemePicker } from '@/components/ui/theme-picker';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useDeleteMyData } from '@/modules/auth';
 import { useReminderSettings } from '@/modules/notifications';
@@ -52,7 +52,6 @@ import { palette } from '@/theme';
 
 export default function SettingsScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { deleteMyData, isPending: isDeleting } = useDeleteMyData();
   const { settings: reminders, isLoading: isLoadingReminders } = useReminderSettings();
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
@@ -124,13 +123,9 @@ export default function SettingsScreen() {
           >
             <Ionicons name="arrow-back" size={28} color={colors['text-primary']} />
           </TouchableOpacity>
-          <Text
-            className="flex-1 text-center font-bold"
-            numberOfLines={1}
-            style={{ fontSize: Math.round(20 * fontScale), color: colors['text-primary'] }}
-          >
+          <ThemedText type="heading" weight="bold" numberOfLines={1} className="flex-1 text-center">
             ตั้งค่าแอปพลิเคชั่น
-          </Text>
+          </ThemedText>
           <View style={{ width: 48 }} />
         </View>
 
@@ -149,24 +144,12 @@ export default function SettingsScreen() {
                 <Ionicons name="color-palette-outline" size={22} color={palette.blue} />
               </View>
               <View className="flex-1">
-                <Text
-                  className="font-medium"
-                  style={{
-                    fontSize: Math.round(16 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                <ThemedText type="default">
                   ธีม
-                </Text>
-                <Text
-                  className="mt-0.5"
-                  style={{
-                    fontSize: Math.round(13 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                </ThemedText>
+                <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
                   เลือกโหมดสว่าง มืด หรือให้เปลี่ยนตามเครื่อง
-                </Text>
+                </ThemedText>
               </View>
             </View>
 
@@ -185,24 +168,12 @@ export default function SettingsScreen() {
                 <Ionicons name="text-outline" size={22} color={palette.purple} />
               </View>
               <View className="flex-1">
-                <Text
-                  className="font-medium"
-                  style={{
-                    fontSize: Math.round(16 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                <ThemedText type="default">
                   ขนาดตัวหนังสือ
-                </Text>
-                <Text
-                  className="mt-0.5"
-                  style={{
-                    fontSize: Math.round(13 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                </ThemedText>
+                <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
                   ปรับจากหน้านี้แล้วให้หน้าหลักของแอปเปลี่ยนตาม
-                </Text>
+                </ThemedText>
               </View>
             </View>
 
@@ -264,17 +235,9 @@ export default function SettingsScreen() {
           />
 
           {deleteNotice ? (
-            <Text
-              className="mb-2 px-2"
-              accessibilityLiveRegion="polite"
-              style={{
-                fontSize: Math.round(14 * fontScale),
-                lineHeight: Math.round(21 * fontScale),
-                color: colors['text-secondary'],
-              }}
-            >
+            <ThemedText type="small" weight="regular" themeColor="text-secondary" accessibilityLiveRegion="polite" className="mb-2 px-2">
               {deleteNotice}
-            </Text>
+            </ThemedText>
           ) : null}
 
           <View className="h-10" />

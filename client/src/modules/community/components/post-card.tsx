@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, Share, Text, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { Avatar } from '@/components/ui/avatar';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
@@ -68,20 +69,13 @@ export function PostCard({ post, isOwner, onPress, onLike, onComment, onMore }: 
         <Avatar uri={post.userAvatar} firstname={post.userName} size="sm" />
 
         <View className="ml-2.5 flex-1">
-          <Text
-            className="font-semibold"
-            numberOfLines={1}
-            style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
-          >
+          <ThemedText type="body" weight="semibold" numberOfLines={1}>
             {post.userName}
-          </Text>
-          <Text
-            className="mt-0.5"
-            style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-          >
+          </ThemedText>
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
             {formatRelativeTimeTH(post.createdAt)}
             {post.updatedAt ? ' · แก้ไขแล้ว' : ''}
-          </Text>
+          </ThemedText>
         </View>
 
         {isOwner && onMore ? (
@@ -123,12 +117,9 @@ export function PostCard({ post, isOwner, onPress, onLike, onComment, onMore }: 
           accessibilityRole="button"
           className="self-start py-2"
         >
-          <Text
-            className="font-bold"
-            style={{ fontSize: Math.round(14 * fontScale), color: colors.primary }}
-          >
+          <ThemedText type="small" weight="bold" themeColor="primary">
             {isExpanded ? 'ย่อข้อความ' : 'อ่านต่อ'}
-          </Text>
+          </ThemedText>
         </Pressable>
       ) : null}
 
@@ -185,7 +176,6 @@ function CardAction({
   accessibilityLabel: string;
   testID?: string;
 }) {
-  const fontScale = useFontScale();
 
   return (
     <Pressable
@@ -201,12 +191,9 @@ function CardAction({
     >
       <Ionicons name={icon} size={19} color={tint} />
       {label ? (
-        <Text
-          className="ml-1.5 font-medium"
-          style={{ fontSize: Math.round(14 * fontScale), color: tint }}
-        >
+        <ThemedText type="small" className="ml-1.5" style={{ color: tint }}>
           {label}
-        </Text>
+        </ThemedText>
       ) : null}
     </Pressable>
   );

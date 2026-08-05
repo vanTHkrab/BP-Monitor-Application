@@ -14,10 +14,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState, Pressable, Text, View, type AppStateStatus } from 'react-native';
+import { AppState, Pressable, View, type AppStateStatus } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useAppLockStore } from '../hooks/use-app-lock';
 import { biometricErrorMessage, promptDeviceUnlock } from '../lib/app-lock';
@@ -97,7 +97,6 @@ function LockScreen({
   label?: string;
 }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <GradientBackground>
@@ -109,19 +108,13 @@ function LockScreen({
           <Ionicons name="lock-closed" size={44} color={colors.primary} />
         </View>
 
-        <Text
-          className="mb-2 text-center font-bold"
-          style={{ fontSize: Math.round(22 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText size={22} weight="bold" className="mb-2 text-center">
           แอปถูกล็อกอยู่
-        </Text>
+        </ThemedText>
 
-        <Text
-          className="mb-8 text-center"
-          style={{ fontSize: Math.round(16 * fontScale), color: colors['text-secondary'] }}
-        >
+        <ThemedText type="default" weight="regular" themeColor="text-secondary" className="mb-8 text-center">
           {message ?? `ยืนยันตัวตนด้วย${label ?? 'ระบบล็อกหน้าจอ'}เพื่อเข้าใช้งาน`}
-        </Text>
+        </ThemedText>
 
         <Pressable
           onPress={onUnlock}
@@ -134,12 +127,9 @@ function LockScreen({
           style={{ backgroundColor: colors.primary, minHeight: 64 }}
         >
           <Ionicons name="finger-print" size={24} color="#FFFFFF" />
-          <Text
-            className="ml-2 font-bold"
-            style={{ fontSize: Math.round(17 * fontScale), color: '#FFFFFF' }}
-          >
+          <ThemedText type="bodyLarge" weight="bold" className="ml-2" style={{ color: '#FFFFFF' }}>
             ปลดล็อก
-          </Text>
+          </ThemedText>
         </Pressable>
       </View>
     </GradientBackground>

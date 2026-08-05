@@ -9,18 +9,16 @@
  * conclusion of reading it, not the first thing to offer.
  */
 import { useState } from 'react';
-import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useLoginSessions, useLogoutAllDevices } from '@/modules/auth';
 import { SecurityGroup, SecurityHeader, SecurityRow } from '@/modules/security';
 
 export default function DevicesScreen() {
-  const colors = useTheme();
-  const fontScale = useFontScale();
   const { sessions, isLoading, refetch } = useLoginSessions();
   const { logoutAllDevices, isPending } = useLogoutAllDevices();
   const [error, setError] = useState<string | null>(null);
@@ -99,13 +97,9 @@ export default function DevicesScreen() {
           ) : null}
 
           {error ? (
-            <Text
-              className="mt-4 px-2"
-              accessibilityLiveRegion="polite"
-              style={{ fontSize: Math.round(15 * fontScale), color: colors.danger }}
-            >
+            <ThemedText type="body" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-4 px-2">
               {error}
-            </Text>
+            </ThemedText>
           ) : null}
 
           {active.length > 1 ? (
@@ -117,15 +111,9 @@ export default function DevicesScreen() {
                 onPress={confirmLogoutAll}
                 loading={isPending}
               />
-              <Text
-                className="mt-3 px-2 text-center"
-                style={{
-                  fontSize: Math.round(13 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-3 px-2 text-center">
                 เครื่องนี้จะยังใช้งานต่อได้ตามปกติ
-              </Text>
+              </ThemedText>
             </View>
           ) : null}
 
@@ -138,21 +126,14 @@ export default function DevicesScreen() {
 
 function EmptyState({ isLoading }: { isLoading: boolean }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mt-2 rounded-2xl p-5" style={{ backgroundColor: colors.surface }}>
-      <Text
-        style={{
-          fontSize: Math.round(15 * fontScale),
-          lineHeight: Math.round(22 * fontScale),
-          color: colors['text-secondary'],
-        }}
-      >
+      <ThemedText type="body" weight="regular" themeColor="text-secondary">
         {isLoading
           ? 'กำลังโหลดรายการอุปกรณ์…'
           : 'ยังไม่มีข้อมูลอุปกรณ์ ลองดึงหน้าจอลงเพื่อโหลดใหม่'}
-      </Text>
+      </ThemedText>
     </View>
   );
 }

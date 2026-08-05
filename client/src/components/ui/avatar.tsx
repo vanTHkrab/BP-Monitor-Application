@@ -6,9 +6,9 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 export type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -33,7 +33,6 @@ export type AvatarProps = {
 
 export function Avatar({ uri, firstname, lastname, size = 'md' }: AvatarProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const boxSize = SIZE_PX[size];
   const initials = initialsOf(firstname, lastname);
 
@@ -65,15 +64,9 @@ export function Avatar({ uri, firstname, lastname, size = 'md' }: AvatarProps) {
       }
     >
       {initials ? (
-        <Text
-          style={{
-            fontSize: Math.round(INITIALS_FONT[size] * fontScale),
-            fontWeight: '700',
-            color: colors['text-secondary'],
-          }}
-        >
+        <ThemedText size={INITIALS_FONT[size]} themeColor="text-secondary" style={{ fontWeight: '700' }}>
           {initials}
-        </Text>
+        </ThemedText>
       ) : (
         <Ionicons
           name="person"

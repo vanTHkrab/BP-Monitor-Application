@@ -9,9 +9,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { gradientFor, type GradientName } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -70,7 +70,6 @@ export function GradientButton({
   testID,
 }: GradientButtonProps) {
   const { scheme } = useColorSchemePreference();
-  const fontScale = useFontScale();
   // A press while loading would fire a second mutation against the same
   // form — the spinner is feedback, not a guard.
   const isBlocked = disabled || loading;
@@ -96,12 +95,9 @@ export function GradientButton({
         ) : (
           <>
             {icon ? <View className="mr-2">{icon}</View> : null}
-            <Text
-              className="font-bold text-white"
-              style={{ fontSize: Math.round(SIZE_FONT[size] * fontScale) }}
-              numberOfLines={1}>
+            <ThemedText size={SIZE_FONT[size]} weight="bold" numberOfLines={1} style={{ color: '#FFFFFF' }}>
               {title}
-            </Text>
+            </ThemedText>
           </>
         )}
       </LinearGradient>

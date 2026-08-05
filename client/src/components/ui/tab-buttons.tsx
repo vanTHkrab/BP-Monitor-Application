@@ -15,8 +15,9 @@
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { gradientFor } from '@/theme';
@@ -43,7 +44,6 @@ export function TabButtons<T extends string>({
   const fontScale = useFontScale();
   const { scheme } = useColorSchemePreference();
 
-  const labelSize = Math.round(12 * fontScale);
   // 44dp floor, and taller as the type grows — see the header.
   const minHeight = Math.max(44, Math.round(44 * fontScale));
   const activeGradient = gradientFor(scheme, scheme === 'dark' ? 'accent' : 'cta');
@@ -74,27 +74,29 @@ export function TabButtons<T extends string>({
                 end={{ x: 1, y: 1 }}
                 className="flex-1 items-center justify-center rounded-xl px-1"
               >
-                <Text
+                <ThemedText
                   numberOfLines={2}
-                  className="text-center font-bold text-white"
-                  style={{ fontSize: labelSize, lineHeight: labelSize + 4 }}
+                  type="caption"
+                  weight="bold"
+                  lineHeight={16}
+                  className="text-center"
+                  style={{ color: '#FFFFFF' }}
                 >
                   {tab.label}
-                </Text>
+                </ThemedText>
               </LinearGradient>
             ) : (
               <View className="flex-1 items-center justify-center rounded-xl px-1">
-                <Text
+                <ThemedText
                   numberOfLines={2}
-                  className="text-center font-semibold"
-                  style={{
-                    fontSize: labelSize,
-                    lineHeight: labelSize + 4,
-                    color: colors['text-secondary'],
-                  }}
+                  type="caption"
+                  weight="semibold"
+                  lineHeight={16}
+                  themeColor="text-secondary"
+                  className="text-center"
                 >
                   {tab.label}
-                </Text>
+                </ThemedText>
               </View>
             )}
           </Pressable>

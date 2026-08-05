@@ -19,10 +19,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -74,7 +73,6 @@ export function BPReadingCard({
   showFullDate = false,
 }: BPReadingCardProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
 
@@ -86,7 +84,6 @@ export function BPReadingCard({
    * would either flatten the hierarchy between list, detail and hero or mint
    * three single-use steps.
    */
-  const valueSize = Math.round(38 * fontScale);
   const statusTint = statusColorFor(reading.status);
 
   // One failed attempt is ordinary — the phone was in a lift. Two is a
@@ -123,24 +120,15 @@ export function BPReadingCard({
             </ThemedText>
 
             <View className="flex-row items-baseline">
-              <Text
-                className="font-bold"
-                style={{ fontSize: valueSize, color: colors['text-primary'] }}
-              >
+              <ThemedText size={38} weight="bold">
                 {reading.systolic}
-              </Text>
-              <Text
-                className="mx-0.5 font-bold"
-                style={{ fontSize: valueSize, color: colors['text-primary'] }}
-              >
+              </ThemedText>
+              <ThemedText size={38} weight="bold" className="mx-0.5">
                 /
-              </Text>
-              <Text
-                className="font-bold"
-                style={{ fontSize: valueSize, color: colors['text-primary'] }}
-              >
+              </ThemedText>
+              <ThemedText size={38} weight="bold">
                 {reading.diastolic}
-              </Text>
+              </ThemedText>
               <ThemedText type="small" themeColor="text-secondary" className="ml-2">
                 mmHg
               </ThemedText>

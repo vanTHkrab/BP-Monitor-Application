@@ -9,8 +9,9 @@
  */
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
 import { useSession, useVerifyEmail } from '@/modules/auth';
@@ -88,11 +89,9 @@ export default function VerifyEmailScreen() {
   if (verified) {
     return (
       <AuthShell showHero={false}>
-        <Text
-          className="mb-4 text-center font-semibold"
-          style={{ fontSize: 18, color: colors['text-primary'] }}>
+        <ThemedText size={18} weight="semibold" className="mb-4 text-center">
           ยืนยันอีเมลสำเร็จ
-        </Text>
+        </ThemedText>
         <GradientButton
           testID="verify-email-done"
           title="กลับ"
@@ -105,16 +104,12 @@ export default function VerifyEmailScreen() {
 
   return (
     <AuthShell showHero={false}>
-      <Text
-        className="mb-1 text-center font-semibold"
-        style={{ fontSize: 18, color: colors['text-primary'] }}>
+      <ThemedText size={18} weight="semibold" className="mb-1 text-center">
         ยืนยันอีเมล
-      </Text>
-      <Text
-        className="mb-4 text-center"
-        style={{ fontSize: 13, color: colors['text-secondary'] }}>
+      </ThemedText>
+      <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mb-4 text-center">
         กรอกรหัส 6 หลักที่ส่งไปยัง {email}
-      </Text>
+      </ThemedText>
 
       {sendError ? <AuthErrorBanner message={sendError.message} /> : null}
       {verifyError ? <AuthErrorBanner message={verifyError.message} /> : null}
@@ -140,16 +135,11 @@ export default function VerifyEmailScreen() {
       </View>
 
       <View className="mt-4 items-center">
-        <Text
-          onPress={handleResend}
-          style={{
-            fontSize: 13,
-            color: cooldown.isThrottled ? colors['text-secondary'] : colors.secondary,
-          }}>
+        <ThemedText type="label" weight="regular" onPress={handleResend} style={{ color: cooldown.isThrottled ? colors['text-secondary'] : colors.secondary }}>
           {cooldown.isThrottled
             ? `ส่งรหัสใหม่ได้ในอีก ${formatCountdown(cooldown.remaining ?? 0)}`
             : 'ส่งรหัสอีกครั้ง'}
-        </Text>
+        </ThemedText>
       </View>
     </AuthShell>
   );

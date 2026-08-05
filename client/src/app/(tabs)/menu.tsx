@@ -21,14 +21,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { Avatar } from '@/components/ui/avatar';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { MenuItem, MenuSection } from '@/components/ui/menu-item';
 import { BottomTabInset, Spacing } from '@/constants/theme';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useLogout, useSession } from '@/modules/auth';
 import { gradientFor } from '@/theme';
@@ -38,7 +38,6 @@ cssInterop(LinearGradient, { className: 'style' });
 
 export default function MenuScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
   const { user, isLoadingUser } = useSession();
@@ -82,12 +81,9 @@ export default function MenuScreen() {
               color="#FFFFFF"
               style={{ marginRight: Spacing.one }}
             />
-            <Text
-              className="font-bold"
-              style={{ fontSize: Math.round(17 * fontScale), color: '#FFFFFF' }}
-            >
+            <ThemedText type="bodyLarge" weight="bold" style={{ color: '#FFFFFF' }}>
               เมนูอื่นๆ
-            </Text>
+            </ThemedText>
           </LinearGradient>
         </View>
 
@@ -118,43 +114,22 @@ export default function MenuScreen() {
             </View>
             <View className="flex-1">
               {isLoadingUser ? (
-                <Text
-                  style={{
-                    fontSize: Math.round(14 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                <ThemedText type="small" weight="regular" themeColor="text-secondary">
                   กำลังโหลดข้อมูลผู้ใช้...
-                </Text>
+                </ThemedText>
               ) : user ? (
                 <>
-                  <Text
-                    className="mb-0.5 font-bold"
-                    style={{
-                      fontSize: Math.round(17 * fontScale),
-                      color: colors['text-primary'],
-                    }}
-                  >
+                  <ThemedText type="bodyLarge" weight="bold" className="mb-0.5">
                     {user.firstname} {user.lastname}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Math.round(14 * fontScale),
-                      color: colors['text-secondary'],
-                    }}
-                  >
+                  </ThemedText>
+                  <ThemedText type="small" weight="regular" themeColor="text-secondary">
                     {user.email ?? user.phone}
-                  </Text>
+                  </ThemedText>
                 </>
               ) : (
-                <Text
-                  style={{
-                    fontSize: Math.round(15 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                <ThemedText type="body" weight="regular" themeColor="text-secondary">
                   ไม่พบข้อมูลผู้ใช้
-                </Text>
+                </ThemedText>
               )}
             </View>
             <Ionicons

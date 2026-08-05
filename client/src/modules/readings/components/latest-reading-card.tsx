@@ -22,10 +22,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -45,7 +44,6 @@ export type LatestReadingCardProps = {
 
 export function LatestReadingCard({ reading, isLoading = false }: LatestReadingCardProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
 
@@ -56,7 +54,6 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
    * per-surface composition decision, not one typography role. Worth
    * revisiting as a set; not worth flattening one at a time.
    */
-  const valueSize = Math.round(48 * fontScale);
   const statusTint = reading ? statusColorFor(reading.status) : colors['text-secondary'];
 
   return (
@@ -83,26 +80,15 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
         {reading ? (
           <>
             <View className="mb-3 flex-row items-baseline justify-center">
-              <Text
-                testID="home-systolic"
-                className="font-bold"
-                style={{ fontSize: valueSize, color: colors['text-primary'] }}
-              >
+              <ThemedText size={48} weight="bold" testID="home-systolic">
                 {reading.systolic}
-              </Text>
-              <Text
-                className="mx-1 font-bold"
-                style={{ fontSize: valueSize, color: colors['text-primary'] }}
-              >
+              </ThemedText>
+              <ThemedText size={48} weight="bold" className="mx-1">
                 /
-              </Text>
-              <Text
-                testID="home-diastolic"
-                className="font-bold"
-                style={{ fontSize: valueSize, color: colors['text-primary'] }}
-              >
+              </ThemedText>
+              <ThemedText size={48} weight="bold" testID="home-diastolic">
                 {reading.diastolic}
-              </Text>
+              </ThemedText>
               <ThemedText
                 type="default"
                 weight="semibold"

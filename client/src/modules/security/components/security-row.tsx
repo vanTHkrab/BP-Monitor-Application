@@ -12,9 +12,9 @@
  * and the expectation people arrive with.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { status as statusColor } from '@/theme';
 
@@ -49,7 +49,6 @@ export function SecurityRow({
   testID,
 }: SecurityRowProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const valueColor =
     tone === 'good'
@@ -79,32 +78,20 @@ export function SecurityRow({
       </View>
 
       <View className="flex-1 py-3 pr-3">
-        <Text
-          className="font-medium"
-          style={{
-            fontSize: Math.round(16 * fontScale),
-            color: tone === 'danger' ? colors.danger : colors['text-primary'],
-          }}
-        >
+        <ThemedText type="default" style={{ color: tone === 'danger' ? colors.danger : colors['text-primary'] }}>
           {title}
-        </Text>
+        </ThemedText>
 
         {value ? (
-          <Text
-            className="mt-0.5"
-            style={{ fontSize: Math.round(14 * fontScale), color: valueColor }}
-          >
+          <ThemedText type="small" weight="regular" className="mt-0.5" style={{ color: valueColor }}>
             {value}
-          </Text>
+          </ThemedText>
         ) : null}
 
         {hint ? (
-          <Text
-            className="mt-1"
-            style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-1">
             {hint}
-          </Text>
+          </ThemedText>
         ) : null}
       </View>
 
@@ -151,21 +138,13 @@ export function SecurityGroup({
   children: React.ReactNode;
 }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mb-2 mt-6">
       {title ? (
-        <Text
-          className="mb-2.5 ml-1 font-semibold uppercase"
-          style={{
-            fontSize: Math.round(12 * fontScale),
-            color: colors['text-secondary'],
-            letterSpacing: 0.5,
-          }}
-        >
+        <ThemedText type="caption" weight="semibold" themeColor="text-secondary" className="mb-2.5 ml-1 uppercase" style={{ letterSpacing: 0.5 }}>
           {title}
-        </Text>
+        </ThemedText>
       ) : null}
 
       <View

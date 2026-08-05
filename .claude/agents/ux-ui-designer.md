@@ -146,9 +146,13 @@ is used for primary actions and selected states only.
   Only the four loaded weights exist (regular / medium / semibold / bold); a
   fifth would have to be added to `app/_layout.tsx` first, and an unloaded
   name falls back to the system font silently.
-- Do **not** put `text-sm` / `text-lg` in `className`: those emit a fixed
-  `fontSize` into the same style object as the scaled one, making "which wins"
-  a question of ordering. The variant is the only sizing input.
+- **`className` on a `ThemedText` is for layout only. Colour and size
+  utilities there fail silently.** The component's style object lands after
+  NativeWind's, so `text-white` is dropped outright — colour goes through
+  `themeColor`, or through `style` for a value that is not a token. And
+  `text-[15px]` is worse than dropped: it works and never scales, because a
+  Tailwind arbitrary value is a fixed px. Both were found in the app by a
+  sweep, thirteen and nine nodes respectively.
 - A size no variant offers means one of two things: it is component-specific
   (a button-label size belongs to the button, not to a shared scale), or the
   app finally needs a real typography scale. Neither is "add a single-use

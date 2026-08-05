@@ -7,8 +7,9 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
+import { Pressable, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { palette, status } from '@/theme';
@@ -141,11 +142,9 @@ export function TextField({
       </View>
 
       {showErrorText ? (
-        <Text
-          className="ml-1 mt-1.5 font-semibold"
-          style={{ fontSize: Math.round(13 * fontScale), color: status.high }}>
+        <ThemedText type="label" className="ml-1 mt-1.5" style={{ color: status.high }}>
           {error}
-        </Text>
+        </ThemedText>
       ) : null}
     </View>
   );

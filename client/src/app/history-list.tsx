@@ -12,10 +12,10 @@
  * makes two readings a week apart look equally recent.
  */
 import { router } from 'expo-router';
-import { FlatList, RefreshControl, Text, View } from 'react-native';
+import { FlatList, RefreshControl, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import { BPReadingCard, useReadings, useReadingsSync } from '@/modules/readings';
@@ -23,7 +23,6 @@ import { SecurityHeader } from '@/modules/security';
 
 export default function HistoryListScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const { userId } = useSession();
 
@@ -39,12 +38,9 @@ export default function HistoryListScreen() {
         <SecurityHeader title="ประวัติทั้งหมด" />
 
         {readings.length > 0 ? (
-          <Text
-            className="mb-2 px-5"
-            style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
-          >
+          <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mb-2 px-5">
             {`ทั้งหมด ${readings.length} รายการ`}
-          </Text>
+          </ThemedText>
         ) : null}
 
         <FlatList
@@ -65,15 +61,9 @@ export default function HistoryListScreen() {
               className="mt-2 rounded-2xl border p-5"
               style={{ backgroundColor: colors.surface, borderColor: colors.border }}
             >
-              <Text
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  lineHeight: Math.round(22 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 {isLoading ? 'กำลังโหลดประวัติ...' : 'ยังไม่มีการวัดที่บันทึกไว้'}
-              </Text>
+              </ThemedText>
             </View>
           }
           renderItem={({ item }) => (

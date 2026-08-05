@@ -10,10 +10,10 @@
  * Default off, and the copy says why it is optional rather than nagging.
  */
 import { useState } from 'react';
-import { ScrollView, Switch, Text, View } from 'react-native';
+import { ScrollView, Switch, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import {
   biometricErrorMessage,
@@ -27,7 +27,6 @@ import { palette } from '@/theme';
 
 export default function AppLockScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { enabled, capability, setEnabled } = useAppLock();
   const [message, setMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -83,23 +82,13 @@ export default function AppLockScreen() {
 
         <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
           <View className="mt-2 rounded-2xl p-5" style={{ backgroundColor: colors.surface }}>
-            <Text
-              className="font-bold"
-              style={{ fontSize: Math.round(17 * fontScale), color: colors['text-primary'] }}
-            >
+            <ThemedText type="bodyLarge" weight="bold">
               ให้ถามก่อนเปิดแอปทุกครั้ง
-            </Text>
-            <Text
-              className="mt-2"
-              style={{
-                fontSize: Math.round(15 * fontScale),
-                lineHeight: Math.round(23 * fontScale),
-                color: colors['text-secondary'],
-              }}
-            >
+            </ThemedText>
+            <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-2">
               เหมาะกับเครื่องที่ใช้ร่วมกับคนอื่น ถ้าใช้เครื่องคนเดียว
               ไม่เปิดก็ได้ — ข้อมูลของคุณยังถูกป้องกันด้วยบัญชีอยู่แล้ว
-            </Text>
+            </ThemedText>
           </View>
 
           <SecurityGroup>
@@ -130,30 +119,15 @@ export default function AppLockScreen() {
           </SecurityGroup>
 
           {message ? (
-            <Text
-              className="mt-4 px-2"
-              accessibilityLiveRegion="polite"
-              style={{
-                fontSize: Math.round(15 * fontScale),
-                lineHeight: Math.round(22 * fontScale),
-                color: colors.danger,
-              }}
-            >
+            <ThemedText type="body" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-4 px-2">
               {message}
-            </Text>
+            </ThemedText>
           ) : null}
 
-          <Text
-            className="mt-6 px-2"
-            style={{
-              fontSize: Math.round(13 * fontScale),
-              lineHeight: Math.round(20 * fontScale),
-              color: colors['text-secondary'],
-            }}
-          >
+          <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-6 px-2">
             ล็อกแอปทำงานบนเครื่องนี้เท่านั้น ไม่ได้ป้องกันการเข้าถึงบัญชีจากเครื่องอื่น
             สำหรับเรื่องนั้นให้ดูที่หน้าอุปกรณ์ที่เข้าสู่ระบบ
-          </Text>
+          </ThemedText>
 
           <View className="h-10" />
         </ScrollView>

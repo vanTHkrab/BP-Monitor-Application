@@ -10,9 +10,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import type { ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { palette } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
@@ -39,7 +39,6 @@ export function MenuItem({
 }: MenuItemProps) {
   const colors = useTheme();
   const { scheme } = useColorSchemePreference();
-  const fontScale = useFontScale();
   const isDark = scheme === 'dark';
 
   return (
@@ -89,15 +88,9 @@ export function MenuItem({
         )}
       </View>
 
-      <Text
-        className="ml-3.5 flex-1 pr-2 font-semibold"
-        style={{
-          fontSize: Math.round(15 * fontScale),
-          color: destructive ? colors.danger : colors['text-primary'],
-        }}
-      >
+      <ThemedText type="body" weight="semibold" className="ml-3.5 flex-1 pr-2" style={{ color: destructive ? colors.danger : colors['text-primary'] }}>
         {title}
-      </Text>
+      </ThemedText>
 
       <View
         className="h-7 w-7 items-center justify-center rounded-full"
@@ -122,22 +115,13 @@ export function MenuSection({
   title?: string;
   children: ReactNode;
 }) {
-  const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mb-2 mt-6">
       {title ? (
-        <Text
-          className="mb-3 ml-1 font-semibold uppercase"
-          style={{
-            fontSize: Math.round(12 * fontScale),
-            color: colors['text-secondary'],
-            letterSpacing: 0.5,
-          }}
-        >
+        <ThemedText type="caption" weight="semibold" themeColor="text-secondary" className="mb-3 ml-1 uppercase" style={{ letterSpacing: 0.5 }}>
           {title}
-        </Text>
+        </ThemedText>
       ) : null}
       {children}
     </View>

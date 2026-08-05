@@ -13,9 +13,9 @@
  * dead end.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import type { LastLoginMethod } from '../lib/last-login-method';
 
@@ -35,7 +35,6 @@ export function AlternateSignIn({
   isGooglePending = false,
 }: AlternateSignInProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const methods = [
     onPasskey
@@ -71,12 +70,9 @@ export function AlternateSignIn({
     <View className="mt-6">
       <View className="mb-4 flex-row items-center">
         <View className="h-px flex-1" style={{ backgroundColor: colors.border }} />
-        <Text
-          className="mx-3"
-          style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-        >
+        <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mx-3">
           หรือ
-        </Text>
+        </ThemedText>
         <View className="h-px flex-1" style={{ backgroundColor: colors.border }} />
       </View>
 
@@ -107,26 +103,18 @@ export function AlternateSignIn({
             <Ionicons name={method.icon} size={22} color={colors['text-primary']} />
           )}
 
-          <Text
-            className="ml-3 flex-1 font-semibold"
-            style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-          >
+          <ThemedText type="default" weight="semibold" className="ml-3 flex-1">
             {method.label}
-          </Text>
+          </ThemedText>
 
           {method.key === lastUsed ? (
             <View
               className="rounded-full px-2.5 py-1"
               style={{ backgroundColor: colors['surface-muted'] }}
             >
-              <Text
-                style={{
-                  fontSize: Math.round(12 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="caption" themeColor="text-secondary">
                 ใช้ครั้งล่าสุด
-              </Text>
+              </ThemedText>
             </View>
           ) : null}
         </Pressable>

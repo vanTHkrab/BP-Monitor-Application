@@ -40,28 +40,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import { useEffect, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  ActivityIndicator,
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-  type PressableProps,
-} from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, View, type PressableProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import { useActivePatient } from '@/modules/caregivers';
@@ -136,7 +122,6 @@ function TapScale({ children, style, ...props }: PressableProps) {
 export default function CameraScreen() {
   const insets = useSafeAreaInsets();
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
   const accent = gradientFor(scheme, 'accent');
@@ -580,8 +565,6 @@ export default function CameraScreen() {
     (Platform.OS === 'ios' ? 60 : 62) + insets.bottom + (Platform.OS === 'ios' ? 2 : 4);
   const bottomOverlayPadding = tabBarTotalHeight + 14;
 
-  const caption = Math.round(12 * fontScale);
-  const body = Math.round(15 * fontScale);
 
   // ── Caregiver gate ────────────────────────────────────────────────────────
   // Before the permission gate, so the app never asks for a camera it cannot
@@ -601,19 +584,13 @@ export default function CameraScreen() {
           >
             <Ionicons name="people" size={56} color={palette.purple} />
           </View>
-          <Text
-            className="mb-3 text-center font-bold"
-            style={{ color: colors['text-primary'], fontSize: Math.round(20 * fontScale) }}
-          >
+          <ThemedText type="heading" weight="bold" className="mb-3 text-center">
             เลือกผู้ป่วยก่อนถ่ายภาพ
-          </Text>
-          <Text
-            className="mb-8 text-center leading-6"
-            style={{ color: colors['text-secondary'], fontSize: body }}
-          >
+          </ThemedText>
+          <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-8 text-center leading-6">
             คุณกำลังใช้โหมดผู้ดูแล กรุณาเลือกผู้ป่วยจากแถบด้านบน หรือหน้าจัดการผู้ป่วย
             ก่อนบันทึกค่าความดันแทนผู้ป่วย
-          </Text>
+          </ThemedText>
           <GradientButton
             title="จัดการผู้ป่วย"
             onPress={() => router.push('/invitations')}
@@ -648,19 +625,13 @@ export default function CameraScreen() {
           >
             <Ionicons name="eye-outline" size={56} color={palette.purple} />
           </View>
-          <Text
-            className="mb-3 text-center font-bold"
-            style={{ color: colors['text-primary'], fontSize: Math.round(20 * fontScale) }}
-          >
+          <ThemedText type="heading" weight="bold" className="mb-3 text-center">
             คุณดูข้อมูลได้อย่างเดียว
-          </Text>
-          <Text
-            className="mb-8 text-center leading-6"
-            style={{ color: colors['text-secondary'], fontSize: body }}
-          >
+          </ThemedText>
+          <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-8 text-center leading-6">
             {`คุณ${activePatient.firstname} ให้สิทธิ์คุณดูข้อมูลเท่านั้น ` +
               'หากต้องการบันทึกค่าความดันแทน กรุณาขอให้ผู้ป่วยเปลี่ยนสิทธิ์ให้'}
-          </Text>
+          </ThemedText>
           <GradientButton
             title="ดูประวัติแทน"
             onPress={() => router.push('/(tabs)/history')}
@@ -677,9 +648,9 @@ export default function CameraScreen() {
     return (
       <GradientBackground>
         <View className="flex-1 items-center justify-center">
-          <Text style={{ color: colors['text-primary'], fontSize: Math.round(16 * fontScale) }}>
+          <ThemedText type="default" weight="regular">
             กำลังโหลด...
-          </Text>
+          </ThemedText>
         </View>
       </GradientBackground>
     );
@@ -699,20 +670,14 @@ export default function CameraScreen() {
           >
             <Ionicons name="camera-outline" size={64} color={palette.blue} />
           </View>
-          <Text
-            className="mb-3 font-bold"
-            style={{ color: colors['text-primary'], fontSize: Math.round(24 * fontScale) }}
-          >
+          <ThemedText type="title" className="mb-3">
             ต้องการสิทธิ์เข้าถึงกล้อง
-          </Text>
-          <Text
-            className="mb-8 text-center leading-6"
-            style={{ color: colors['text-secondary'], fontSize: body }}
-          >
+          </ThemedText>
+          <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-8 text-center leading-6">
             {permission.canAskAgain === false
               ? 'ตอนนี้แอปยังใช้กล้องไม่ได้ กรุณาเปิดสิทธิ์กล้องจากหน้าการตั้งค่า'
               : 'แอปต้องการสิทธิ์ในการเข้าถึงกล้องเพื่อถ่ายภาพเครื่องวัดความดัน'}
-          </Text>
+          </ThemedText>
           <GradientButton
             title={permission.canAskAgain === false ? 'เปิดการตั้งค่า' : 'อนุญาตใช้กล้อง'}
             onPress={() => void requestCameraPermission()}
@@ -729,15 +694,9 @@ export default function CameraScreen() {
             accessibilityRole="button"
             accessibilityLabel="ลองใช้กล้องอีกครั้ง"
           >
-            <Text
-              className="font-semibold underline"
-              style={{
-                color: isDark ? palette.blueLight : palette.blueDeep,
-                fontSize: Math.round(14 * fontScale),
-              }}
-            >
+            <ThemedText type="small" weight="semibold" className="underline" style={{ color: isDark ? palette.blueLight : palette.blueDeep }}>
               ลองใช้กล้องอีกครั้ง
-            </Text>
+            </ThemedText>
           </Pressable>
         </View>
       </GradientBackground>
@@ -768,22 +727,12 @@ export default function CameraScreen() {
                   }}
                 >
                   <Ionicons name="alert-circle" size={26} color={statusColor.high} />
-                  <Text
-                    className="mt-2 font-extrabold"
-                    style={{ color: colors['text-primary'], fontSize: Math.round(16 * fontScale) }}
-                  >
+                  <ThemedText type="default" weight="bold" className="mt-2">
                     กล้องใช้งานไม่ได้
-                  </Text>
-                  <Text
-                    className="mt-1.5 text-center"
-                    style={{
-                      color: colors['text-secondary'],
-                      fontSize: Math.round(13 * fontScale),
-                    }}
-                    numberOfLines={3}
-                  >
+                  </ThemedText>
+                  <ThemedText type="label" weight="regular" themeColor="text-secondary" numberOfLines={3} className="mt-1.5 text-center">
                     {cameraMountError}
-                  </Text>
+                  </ThemedText>
                   <View className="mt-3 w-full flex-row gap-2.5">
                     <TapScale
                       onPress={retryCamera}
@@ -796,9 +745,9 @@ export default function CameraScreen() {
                         className="flex-row items-center justify-center py-3"
                       >
                         <Ionicons name="refresh" size={18} color="white" />
-                        <Text className="ml-2 font-bold text-white" style={{ fontSize: caption }}>
+                        <ThemedText type="caption" weight="bold" className="ml-2" style={{ color: '#FFFFFF' }}>
                           ลองใหม่
-                        </Text>
+                        </ThemedText>
                       </LinearGradient>
                     </TapScale>
                     <TapScale
@@ -815,12 +764,9 @@ export default function CameraScreen() {
                         }}
                       >
                         <Ionicons name="settings" size={18} color={colors['text-primary']} />
-                        <Text
-                          className="ml-2 font-bold"
-                          style={{ color: colors['text-primary'], fontSize: caption }}
-                        >
+                        <ThemedText type="caption" weight="bold" className="ml-2">
                           ตั้งค่า
-                        </Text>
+                        </ThemedText>
                       </View>
                     </TapScale>
                   </View>
@@ -843,12 +789,9 @@ export default function CameraScreen() {
                   <View className="absolute inset-0 items-center justify-center">
                     <View className="flex-row items-center rounded-full bg-black/55 px-3.5 py-2.5">
                       <Ionicons name="time-outline" size={16} color="white" />
-                      <Text
-                        className="ml-2 font-semibold text-white"
-                        style={{ fontSize: caption }}
-                      >
+                      <ThemedText type="caption" weight="semibold" className="ml-2" style={{ color: '#FFFFFF' }}>
                         กำลังเปิดกล้อง...
-                      </Text>
+                      </ThemedText>
                     </View>
                   </View>
                 ) : null}
@@ -895,9 +838,9 @@ export default function CameraScreen() {
                       size={16}
                       color={autoCapture ? statusColor.normal : 'white'}
                     />
-                    <Text className="ml-1.5 font-medium text-white" style={{ fontSize: caption }}>
+                    <ThemedText type="caption" weight="medium" className="ml-1.5" style={{ color: '#FFFFFF' }}>
                       อัตโนมัติ
-                    </Text>
+                    </ThemedText>
                   </View>
                 </TapScale>
               ) : null}
@@ -933,11 +876,11 @@ export default function CameraScreen() {
                     size={18}
                     color={FRAMING_PRESENTATION[framingState].color}
                   />
-                  <Text className="ml-2 font-medium text-white" style={{ fontSize: body }}>
+                  <ThemedText type="body" className="ml-2" style={{ color: '#FFFFFF' }}>
                     {isCountingDown
                       ? 'พร้อมแล้ว · แตะเพื่อยกเลิก'
                       : FRAMING_PRESENTATION[framingState].label}
-                  </Text>
+                  </ThemedText>
                 </View>
 
                 {/* Corner brackets take the state colour. Colour alone never
@@ -983,9 +926,9 @@ export default function CameraScreen() {
                   <View className="h-[50px] w-[50px] items-center justify-center rounded-full border border-white/15 bg-white/[0.12]">
                     <Ionicons name="images" size={22} color="white" />
                   </View>
-                  <Text className="mt-1.5 font-medium text-white" style={{ fontSize: caption }}>
+                  <ThemedText type="caption" weight="medium" className="mt-1.5" style={{ color: '#FFFFFF' }}>
                     แกลเลอรี่
-                  </Text>
+                  </ThemedText>
                 </TapScale>
 
                 {/* While the countdown runs, the shutter becomes the cancel — a
@@ -1046,12 +989,9 @@ export default function CameraScreen() {
                       )}
                     </View>
                   </View>
-                  <Text
-                    className="mt-1.5 text-center font-medium text-white"
-                    style={{ fontSize: caption }}
-                  >
+                  <ThemedText type="caption" weight="medium" className="mt-1.5 text-center" style={{ color: '#FFFFFF' }}>
                     {isCapturing ? 'กำลังถ่าย...' : isCountingDown ? 'ยกเลิก' : 'ถ่ายภาพ'}
-                  </Text>
+                  </ThemedText>
                 </Pressable>
 
                 <TapScale
@@ -1063,9 +1003,9 @@ export default function CameraScreen() {
                   <View className="h-[50px] w-[50px] items-center justify-center rounded-full border border-white/15 bg-white/[0.12]">
                     <Ionicons name="create" size={22} color="white" />
                   </View>
-                  <Text className="mt-1.5 font-medium text-white" style={{ fontSize: caption }}>
+                  <ThemedText type="caption" weight="medium" className="mt-1.5" style={{ color: '#FFFFFF' }}>
                     กรอกค่า
-                  </Text>
+                  </ThemedText>
                 </TapScale>
               </View>
             </LinearGradient>
@@ -1105,15 +1045,9 @@ export default function CameraScreen() {
                               : palette.blue,
                     }}
                   />
-                  <Text
-                    className="font-semibold"
-                    style={{
-                      color: colors['text-primary'],
-                      fontSize: Math.round(13 * fontScale),
-                    }}
-                  >
+                  <ThemedText type="label">
                     {PHASE_LABEL[phase]}
-                  </Text>
+                  </ThemedText>
                 </View>
 
                 {/* Skipped on `failed`: the recovery button below already says
@@ -1173,12 +1107,9 @@ export default function CameraScreen() {
                       }}
                     >
                       <Ionicons name="camera-reverse" size={20} color={palette.blueDeep} />
-                      <Text
-                        className="ml-2 font-semibold"
-                        style={{ color: palette.blueDeep, fontSize: body }}
-                      >
+                      <ThemedText type="body" weight="semibold" className="ml-2" style={{ color: palette.blueDeep }}>
                         ลองใช้กล้องอีกครั้ง
-                      </Text>
+                      </ThemedText>
                     </View>
                   </TapScale>
                 </View>
@@ -1199,12 +1130,9 @@ export default function CameraScreen() {
                     style={{ backgroundColor: '#231C42', borderColor: '#2D2654' }}
                   >
                     <Ionicons name="refresh" size={20} color="#E8E4F5" />
-                    <Text
-                      className="ml-2 font-semibold"
-                      style={{ color: '#E8E4F5', fontSize: body }}
-                    >
+                    <ThemedText type="body" weight="semibold" className="ml-2" style={{ color: '#E8E4F5' }}>
                       ถ่ายใหม่
-                    </Text>
+                    </ThemedText>
                   </View>
                 </TapScale>
 
@@ -1219,9 +1147,9 @@ export default function CameraScreen() {
                     className="flex-row items-center justify-center px-5 py-3.5"
                   >
                     <Ionicons name="checkmark" size={22} color="white" />
-                    <Text className="ml-2 font-semibold text-white" style={{ fontSize: body }}>
+                    <ThemedText type="body" weight="semibold" className="ml-2" style={{ color: '#FFFFFF' }}>
                       ยืนยันภาพ
-                    </Text>
+                    </ThemedText>
                   </LinearGradient>
                 </TapScale>
               </View>
@@ -1270,15 +1198,9 @@ export default function CameraScreen() {
                 </View>
 
                 <View className="mb-1.5 flex-row items-center justify-between">
-                  <Text
-                    className="font-semibold"
-                    style={{
-                      color: colors['text-primary'],
-                      fontSize: Math.round(17 * fontScale),
-                    }}
-                  >
+                  <ThemedText type="bodyLarge" weight="semibold">
                     กรอกค่าความดัน
-                  </Text>
+                  </ThemedText>
                   <TapScale
                     onPress={() => setShowEntryModal(false)}
                     className="h-9 w-9 items-center justify-center rounded-xl"
@@ -1304,24 +1226,17 @@ export default function CameraScreen() {
                         color={palette.purple}
                         style={{ marginRight: 6 }}
                       />
-                      <Text
-                        className="flex-1 font-semibold"
-                        style={{ color: palette.purple, fontSize: caption }}
-                        numberOfLines={1}
-                      >
+                      <ThemedText type="caption" weight="semibold" numberOfLines={1} className="flex-1" style={{ color: palette.purple }}>
                         บันทึกให้ คุณ {activePatient.firstname} {activePatient.lastname}
-                      </Text>
+                      </ThemedText>
                     </View>
                   ) : null}
 
-                  <Text
-                    className="mb-3"
-                    style={{ color: colors['text-secondary'], fontSize: caption }}
-                  >
+                  <ThemedText type="caption" themeColor="text-secondary" className="mb-3">
                     {capturedImage
                       ? 'ตรวจสอบรูปแล้วกรอกค่า SYS / DIA / ชีพจร'
                       : 'ยังไม่มีรูป (ถ่ายรูปหรือเลือกรูปก่อน แล้วค่อยบันทึก)'}
-                  </Text>
+                  </ThemedText>
 
                   {/* Informative, never red: being offline is the case this app
                       is built for, not a failure. */}
@@ -1341,13 +1256,10 @@ export default function CameraScreen() {
                         color={isDark ? palette.blueLight : palette.blueDeep}
                         style={{ marginRight: 8, marginTop: 1 }}
                       />
-                      <Text
-                        className="flex-1 font-semibold"
-                        style={{ color: isDark ? palette.blueLight : '#0E6E9E', fontSize: caption }}
-                      >
+                      <ThemedText type="caption" weight="semibold" className="flex-1" style={{ color: isDark ? palette.blueLight : '#0E6E9E' }}>
                         ตอนนี้ออฟไลน์อยู่ กรอกค่าจากหน้าจอเครื่องวัดได้เลย
                         ระบบจะซิงก์ข้อมูลและรูปให้อัตโนมัติเมื่อกลับมาออนไลน์
-                      </Text>
+                      </ThemedText>
                     </View>
                   ) : null}
 
@@ -1368,12 +1280,9 @@ export default function CameraScreen() {
                         color={statusColor.high}
                         style={{ marginRight: 8 }}
                       />
-                      <Text
-                        className="flex-1 font-semibold"
-                        style={{ color: statusColor.high, fontSize: caption }}
-                      >
+                      <ThemedText type="caption" weight="semibold" className="flex-1" style={{ color: statusColor.high }}>
                         {saveError}
-                      </Text>
+                      </ThemedText>
                     </View>
                   ) : null}
 
@@ -1398,19 +1307,13 @@ export default function CameraScreen() {
                           color="#B97400"
                           style={{ marginRight: 8 }}
                         />
-                        <Text
-                          className="font-semibold"
-                          style={{ color: '#7A4E00', fontSize: body }}
-                        >
+                        <ThemedText type="body" weight="semibold" style={{ color: '#7A4E00' }}>
                           ช่วยตรวจสอบตัวเลขให้หน่อยนะคะ
-                        </Text>
+                        </ThemedText>
                       </View>
-                      <Text
-                        className="mb-3"
-                        style={{ color: 'rgba(122,78,0,0.92)', fontSize: caption }}
-                      >
+                      <ThemedText type="caption" className="mb-3" style={{ color: 'rgba(122,78,0,0.92)' }}>
                         {`ระบบไม่แน่ใจ (ความมั่นใจ ${lowConfidencePct}%) กรุณาเทียบกับหน้าจอเครื่องวัด`}
-                      </Text>
+                      </ThemedText>
                       <View className="flex-row gap-2">
                         <TapScale
                           onPress={() => {
@@ -1422,12 +1325,9 @@ export default function CameraScreen() {
                           accessibilityLabel="ใช้ค่าที่ระบบอ่านได้"
                         >
                           <LinearGradient colors={accent} className="items-center px-3 py-2">
-                            <Text
-                              className="font-semibold text-white"
-                              style={{ fontSize: caption }}
-                            >
+                            <ThemedText type="caption" weight="semibold" style={{ color: '#FFFFFF' }}>
                               ใช้ค่านี้
-                            </Text>
+                            </ThemedText>
                           </LinearGradient>
                         </TapScale>
                         <TapScale
@@ -1443,12 +1343,9 @@ export default function CameraScreen() {
                               borderColor: 'rgba(217,119,6,0.45)',
                             }}
                           >
-                            <Text
-                              className="font-semibold"
-                              style={{ color: '#7A4E00', fontSize: caption }}
-                            >
+                            <ThemedText type="caption" weight="semibold" style={{ color: '#7A4E00' }}>
                               แก้เอง
-                            </Text>
+                            </ThemedText>
                           </View>
                         </TapScale>
                       </View>
@@ -1530,12 +1427,9 @@ export default function CameraScreen() {
                       }}
                     >
                       <Ionicons name="refresh" size={18} color={colors['text-primary']} />
-                      <Text
-                        className="ml-2 font-semibold"
-                        style={{ color: colors['text-primary'], fontSize: body }}
-                      >
+                      <ThemedText type="body" weight="semibold" className="ml-2">
                         ถ่ายใหม่
-                      </Text>
+                      </ThemedText>
                     </View>
                   </TapScale>
 
@@ -1553,9 +1447,9 @@ export default function CameraScreen() {
                         style={{ backgroundColor: isDark ? colors.border : '#BDC3C7' }}
                       >
                         <Ionicons name="save" size={18} color="white" />
-                        <Text className="ml-2 font-semibold text-white" style={{ fontSize: body }}>
+                        <ThemedText type="body" weight="semibold" className="ml-2" style={{ color: '#FFFFFF' }}>
                           {saveLabel}
-                        </Text>
+                        </ThemedText>
                       </View>
                     ) : (
                       <LinearGradient
@@ -1563,9 +1457,9 @@ export default function CameraScreen() {
                         className="flex-row items-center justify-center py-3.5"
                       >
                         <Ionicons name="save" size={18} color="white" />
-                        <Text className="ml-2 font-semibold text-white" style={{ fontSize: body }}>
+                        <ThemedText type="body" weight="semibold" className="ml-2" style={{ color: '#FFFFFF' }}>
                           บันทึก
-                        </Text>
+                        </ThemedText>
                       </LinearGradient>
                     )}
                   </TapScale>

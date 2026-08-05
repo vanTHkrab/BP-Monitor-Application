@@ -169,3 +169,36 @@ it('lets an explicit style colour beat themeColor', async () => {
 
   expect(color).toBe('#FFFFFF');
 });
+
+/*
+ * The escape hatch for sizes the scale does not name. It has to scale like a
+ * variant does — the whole reason it is a prop rather than a `style` override
+ * is that a `fontSize` in `style` silently stops tracking the preference.
+ */
+describe('explicit size', () => {
+  const styleOf = (node: { props: Record<string, unknown> }): Record<string, number> =>
+    Object.assign({}, ...([node.props.style].flat(3).filter(Boolean) as object[]));
+
+  it('scales an explicit size like a variant', async () => {
+    usePreferencesStore.setState({ fontSize: 'xlarge' });
+    const view = await renderScreen(<ThemedText size={38}>38</ThemedText>);
+
+    expect(styleOf(view.getByText('38')).fontSize).toBe(Math.round(38 * (22 / 16)));
+  });
+
+  it('still carries the typeface', async () => {
+    const view = await renderScreen(
+      <ThemedText size={38} weight="bold">
+        38
+      </ThemedText>,
+    );
+
+    expect(styleOf(view.getByText('38')).fontFamily).toBe('NotoSansThai_700Bold');
+  });
+
+  it('derives a line height when none is given', async () => {
+    const view = await renderScreen(<ThemedText size={20}>20</ThemedText>);
+
+    expect(styleOf(view.getByText('20')).lineHeight).toBe(Math.round(20 * 1.45));
+  });
+});

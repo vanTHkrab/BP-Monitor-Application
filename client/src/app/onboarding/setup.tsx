@@ -12,6 +12,7 @@
 import { router } from 'expo-router';
 import { Text, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { FONT_SIZE_STEPS } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { ChoiceCard } from '@/modules/onboarding/components/choice-card';
@@ -76,11 +77,9 @@ export default function OnboardingSetupScreen() {
       actionTitle="เริ่มใช้งาน"
       actionTestID="onboarding-setup-finish"
       onAction={handleFinish}>
-      <Text
-        className="mb-3 ml-1 text-[13px] font-semibold"
-        style={{ color: colors['text-secondary'] }}>
+      <ThemedText type="label" themeColor="text-secondary" className="mb-3 ml-1">
         ธีม
-      </Text>
+      </ThemedText>
 
       {THEMES.map((theme) => (
         <ChoiceCard
@@ -94,11 +93,9 @@ export default function OnboardingSetupScreen() {
         />
       ))}
 
-      <Text
-        className="mb-3 ml-1 mt-4 text-[13px] font-semibold"
-        style={{ color: colors['text-secondary'] }}>
+      <ThemedText type="label" themeColor="text-secondary" className="mb-3 ml-1 mt-4">
         ขนาดตัวอักษร
-      </Text>
+      </ThemedText>
 
       <View
         className="mb-4 rounded-2xl border p-4"

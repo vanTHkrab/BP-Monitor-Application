@@ -10,8 +10,9 @@
  * comment was to send it.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -48,12 +49,9 @@ export function CommentComposer({
       {isEditing ? (
         <View className="mb-2 flex-row items-center px-1">
           <Ionicons name="pencil" size={14} color={colors.primary} />
-          <Text
-            className="ml-1.5 flex-1 font-medium"
-            style={{ fontSize: Math.round(13 * fontScale), color: colors.primary }}
-          >
+          <ThemedText type="label" weight="medium" themeColor="primary" className="ml-1.5 flex-1">
             กำลังแก้ไขความคิดเห็นของคุณ
-          </Text>
+          </ThemedText>
           <Pressable
             testID="comment-cancel-edit"
             onPress={onCancelEdit}
@@ -62,12 +60,9 @@ export function CommentComposer({
             className="items-center justify-center px-2"
             style={{ minHeight: 36 }}
           >
-            <Text
-              className="font-semibold"
-              style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-            >
+            <ThemedText type="label" themeColor="text-secondary">
               ยกเลิก
-            </Text>
+            </ThemedText>
           </Pressable>
         </View>
       ) : null}

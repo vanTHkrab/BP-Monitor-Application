@@ -13,12 +13,19 @@
  *
  * ## Sizing lives in the variant, not at the call site
  *
- * `className` is forwarded for layout, spacing, and alignment. It is **not**
- * the place for `text-sm` / `text-lg`: those emit a fixed `fontSize` into the
- * same style object as the scaled one, making "which wins" a question of
- * ordering rather than of intent. The variant is the only sizing input.
- * Something that needs a size no variant offers wants a new variant — or is
- * telling you the app finally needs a real typography scale.
+ * `className` is forwarded for layout, spacing, and alignment only.
+ *
+ * **Colour and size utilities do not work here, and fail silently.** This
+ * component's own style object is applied after NativeWind's, so a
+ * `text-white` is simply dropped — a sweep of the app found thirteen nodes
+ * that would have rendered dark text on a gradient. Colour goes through
+ * `themeColor`, or through `style` for a value that is not a token (white on
+ * a filled surface, a BP-severity tint). Size goes through `type`, or through
+ * `size` when the scale genuinely does not name it.
+ *
+ * `text-[15px]` is worse than dropped — it *works*, and never scales, because
+ * a Tailwind arbitrary value is a fixed px. Nine nodes in the app were quietly
+ * ignoring the font-size preference that way before the sweep.
  */
 import { Text, type TextProps } from 'react-native';
 
@@ -47,6 +54,23 @@ export type ThemedTextProps = TextProps & {
   themeColor?: SemanticColorName;
   /** Overrides the variant's default weight. Selects a font file, not a `fontWeight`. */
   weight?: ThaiFontWeight;
+  /**
+   * An explicit px size, scaled like a variant's. **Prefer a variant.**
+   *
+   * This exists for text whose size is genuinely a property of its component
+   * rather than a typography role: a button's `small`/`medium`/`large`, the
+   * blood-pressure figure that is 48 on the hero card and 38 in a list row, a
+   * chart label pinned to an axis prop. Minting a variant for each would put
+   * one component's composition into a shared scale.
+   *
+   * It is also the inventory. `grep 'size={'` lists every size the scale does
+   * not name — which is the input to designing a real one, and the reason
+   * this is a visible prop rather than a `style` override that would silently
+   * stop scaling.
+   */
+  size?: number;
+  /** Explicit px line height, scaled. Defaults to `size × 1.45`. */
+  lineHeight?: number;
   className?: string;
 };
 
@@ -99,6 +123,8 @@ export function ThemedText({
   type = 'default',
   themeColor,
   weight,
+  size,
+  lineHeight,
   className,
   ...rest
 }: ThemedTextProps) {
@@ -115,8 +141,10 @@ export function ThemedText({
       style={[
         {
           color: theme[themeColor ?? 'text-primary'],
-          fontSize: Math.round(variant.fontSize * scale),
-          lineHeight: Math.round(variant.lineHeight * scale),
+          fontSize: Math.round((size ?? variant.fontSize) * scale),
+          lineHeight: Math.round(
+            (lineHeight ?? (size ? size * 1.45 : variant.lineHeight)) * scale,
+          ),
           // No `fontWeight`. On Android it is ignored or faked next to an
           // explicit family, and emitting one invites a caller to think
           // `className="font-bold"` will work here — it will not. `weight`

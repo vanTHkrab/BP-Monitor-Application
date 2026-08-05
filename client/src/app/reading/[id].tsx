@@ -25,10 +25,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import {
@@ -46,7 +46,6 @@ export default function ReadingDetailScreen() {
   const readingKey = decodeURIComponent(id ?? '');
 
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { userId } = useSession();
 
   const { readings, isLoading } = useReadings();
@@ -103,56 +102,25 @@ export default function ReadingDetailScreen() {
               }}
             >
               <View className="flex-row items-end justify-center">
-                <Text
-                  testID="reading-detail-systolic"
-                  className="font-bold"
-                  style={{
-                    fontSize: Math.round(44 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                <ThemedText type="display" testID="reading-detail-systolic">
                   {reading.systolic}
-                </Text>
-                <Text
-                  className="mx-1 font-bold"
-                  style={{
-                    fontSize: Math.round(36 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                </ThemedText>
+                <ThemedText size={36} weight="bold" className="mx-1">
                   /
-                </Text>
-                <Text
-                  className="font-bold"
-                  style={{
-                    fontSize: Math.round(44 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                </ThemedText>
+                <ThemedText type="display">
                   {reading.diastolic}
-                </Text>
-                <Text
-                  className="mb-2 ml-2"
-                  style={{
-                    fontSize: Math.round(15 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                </ThemedText>
+                <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-2 ml-2">
                   mmHg
-                </Text>
+                </ThemedText>
               </View>
 
               <View className="mt-2 flex-row items-center justify-center">
                 <Ionicons name="heart" size={18} color="#E91E63" />
-                <Text
-                  className="ml-2 font-semibold"
-                  style={{
-                    fontSize: Math.round(15 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                <ThemedText type="body" weight="semibold" className="ml-2">
                   {`ชีพจร ${reading.pulse} bpm`}
-                </Text>
+                </ThemedText>
               </View>
             </View>
 
@@ -161,29 +129,17 @@ export default function ReadingDetailScreen() {
                 className="mr-2 flex-1 rounded-2xl border p-3"
                 style={{ backgroundColor: colors.surface, borderColor: colors.border }}
               >
-                <Text
-                  style={{
-                    fontSize: Math.round(13 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                <ThemedText type="label" weight="regular" themeColor="text-secondary">
                   สถานะ
-                </Text>
+                </ThemedText>
                 <View className="mt-2 flex-row items-center">
                   <View
                     className="mr-2 h-3 w-3 rounded-full"
                     style={{ backgroundColor: statusColorFor(reading.status) }}
                   />
-                  <Text
-                    testID="reading-detail-status"
-                    className="font-bold"
-                    style={{
-                      fontSize: Math.round(15 * fontScale),
-                      color: colors['text-primary'],
-                    }}
-                  >
+                  <ThemedText type="body" weight="bold" testID="reading-detail-status">
                     {statusLabel(reading.status)}
-                  </Text>
+                  </ThemedText>
                 </View>
               </View>
 
@@ -191,24 +147,12 @@ export default function ReadingDetailScreen() {
                 className="ml-2 flex-1 rounded-2xl border p-3"
                 style={{ backgroundColor: colors.surface, borderColor: colors.border }}
               >
-                <Text
-                  style={{
-                    fontSize: Math.round(13 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                <ThemedText type="label" weight="regular" themeColor="text-secondary">
                   แหล่งข้อมูล
-                </Text>
-                <Text
-                  testID="reading-detail-sync"
-                  className="mt-2 font-bold"
-                  style={{
-                    fontSize: Math.round(15 * fontScale),
-                    color: colors['text-primary'],
-                  }}
-                >
+                </ThemedText>
+                <ThemedText type="body" weight="bold" testID="reading-detail-sync" className="mt-2">
                   {reading.syncState === 'queued' ? 'รอซิงก์' : 'ซิงก์แล้ว'}
-                </Text>
+                </ThemedText>
               </View>
             </View>
 
@@ -263,40 +207,20 @@ export default function ReadingDetailScreen() {
                     size={16}
                     color={statusColorFor('high')}
                   />
-                  <Text
-                    className="ml-1.5 font-bold"
-                    style={{
-                      fontSize: Math.round(15 * fontScale),
-                      color: colors['text-primary'],
-                    }}
-                  >
+                  <ThemedText type="body" weight="bold" className="ml-1.5">
                     {`ส่งขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (${reading.attempts} ครั้ง)`}
-                  </Text>
+                  </ThemedText>
                 </View>
 
-                <Text
-                  className="mt-2"
-                  style={{
-                    fontSize: Math.round(13 * fontScale),
-                    lineHeight: Math.round(20 * fontScale),
-                    color: colors['text-secondary'],
-                  }}
-                >
+                <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-2">
                   ข้อมูลยังอยู่ในเครื่องและจะส่งใหม่อัตโนมัติเมื่อเชื่อมต่อได้
                   ลากหน้าจอประวัติลงเพื่อลองอีกครั้งได้ทันที
-                </Text>
+                </ThemedText>
 
                 {reading.lastError ? (
-                  <Text
-                    className="mt-2"
-                    style={{
-                      fontSize: Math.round(12 * fontScale),
-                      lineHeight: Math.round(18 * fontScale),
-                      color: colors['text-secondary'],
-                    }}
-                  >
+                  <ThemedText type="caption" themeColor="text-secondary" className="mt-2">
                     {reading.lastError}
-                  </Text>
+                  </ThemedText>
                 ) : null}
               </View>
             ) : null}
@@ -305,12 +229,9 @@ export default function ReadingDetailScreen() {
               className="mb-4 rounded-2xl border p-4"
               style={{ backgroundColor: colors.surface, borderColor: colors.border }}
             >
-              <Text
-                className="mb-3 font-bold"
-                style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
-              >
+              <ThemedText type="body" weight="bold" className="mb-3">
                 รูปเครื่องวัดความดัน
-              </Text>
+              </ThemedText>
 
               {imageUri ? (
                 <Image
@@ -331,14 +252,7 @@ export default function ReadingDetailScreen() {
                     size={34}
                     color={colors['text-secondary']}
                   />
-                  <Text
-                    className="mt-2 text-center"
-                    style={{
-                      fontSize: Math.round(13 * fontScale),
-                      lineHeight: Math.round(20 * fontScale),
-                      color: colors['text-secondary'],
-                    }}
-                  >
+                  <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-2 text-center">
                     {/* Reaching here with an `s3Key` no longer means "not
                         ported" — `useResolvedImageUri` tried and came back
                         empty, which is a failed download of a signed URL that
@@ -348,7 +262,7 @@ export default function ReadingDetailScreen() {
                     {reading.s3Key
                       ? 'ยังโหลดรูปไม่ได้ ลองใหม่อีกครั้งเมื่อเชื่อมต่ออินเทอร์เน็ต'
                       : 'รายการนี้ยังไม่มีรูปเครื่องวัดความดัน'}
-                  </Text>
+                  </ThemedText>
                 </View>
               )}
             </View>
@@ -357,32 +271,18 @@ export default function ReadingDetailScreen() {
               className="mb-4 rounded-2xl border p-4"
               style={{ backgroundColor: colors.surface, borderColor: colors.border }}
             >
-              <Text
-                className="font-bold"
-                style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
-              >
+              <ThemedText type="body" weight="bold">
                 หมายเหตุ
-              </Text>
-              <Text
-                className="mt-2"
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  lineHeight: Math.round(24 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              </ThemedText>
+              <ThemedText type="body" weight="regular" lineHeight={24} themeColor="text-secondary" className="mt-2">
                 {reading.notes?.trim() || 'ไม่มีหมายเหตุเพิ่มเติม'}
-              </Text>
+              </ThemedText>
             </View>
 
             {error ? (
-              <Text
-                className="mb-3 px-1"
-                accessibilityLiveRegion="polite"
-                style={{ fontSize: Math.round(14 * fontScale), color: colors.danger }}
-              >
+              <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-3 px-1">
                 {error}
-              </Text>
+              </ThemedText>
             ) : null}
 
             <Pressable
@@ -399,12 +299,9 @@ export default function ReadingDetailScreen() {
                 opacity: isDeleting ? 0.5 : pressed ? 0.85 : 1,
               })}
             >
-              <Text
-                className="font-bold"
-                style={{ fontSize: Math.round(15 * fontScale), color: colors.danger }}
-              >
+              <ThemedText type="body" weight="bold" themeColor="danger">
                 ลบรายการนี้
-              </Text>
+              </ThemedText>
             </Pressable>
           </ScrollView>
         ) : (
@@ -414,15 +311,9 @@ export default function ReadingDetailScreen() {
               className="rounded-2xl border p-5"
               style={{ backgroundColor: colors.surface, borderColor: colors.border }}
             >
-              <Text
-                style={{
-                  fontSize: Math.round(15 * fontScale),
-                  lineHeight: Math.round(22 * fontScale),
-                  color: colors['text-secondary'],
-                }}
-              >
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 {isLoading ? 'กำลังโหลด...' : 'ไม่พบรายการนี้ อาจถูกลบไปแล้ว'}
-              </Text>
+              </ThemedText>
             </View>
           </View>
         )}
@@ -440,24 +331,15 @@ function InfoRow({
   value: string;
   isLast?: boolean;
 }) {
-  const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className={isLast ? 'flex-row items-center' : 'mb-3 flex-row items-center'}>
-      <Text
-        className="flex-1"
-        style={{ fontSize: Math.round(15 * fontScale), color: colors['text-secondary'] }}
-      >
+      <ThemedText type="body" weight="regular" themeColor="text-secondary" className="flex-1">
         {label}
-      </Text>
-      <Text
-        className="flex-1 text-right font-semibold"
-        numberOfLines={1}
-        style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
-      >
+      </ThemedText>
+      <ThemedText type="body" weight="semibold" numberOfLines={1} className="flex-1 text-right">
         {value}
-      </Text>
+      </ThemedText>
     </View>
   );
 }

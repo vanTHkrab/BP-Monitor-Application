@@ -19,11 +19,11 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { HEALTH_TIPS, resolveTipIcon } from '@/modules/health-tips';
 
@@ -33,7 +33,6 @@ const STAGGER_STEP_MS = 100;
 
 export default function HealthTipsScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <GradientBackground>
@@ -49,26 +48,16 @@ export default function HealthTipsScreen() {
             accessibilityLabel="ย้อนกลับ">
             <Ionicons name="arrow-back" size={28} color={colors['text-primary']} />
           </Pressable>
-          <Text
-            className="flex-1 text-center font-bold"
-            style={{
-              fontSize: Math.round(19 * fontScale),
-              color: colors['text-primary'],
-            }}>
+          <ThemedText size={19} weight="bold" className="flex-1 text-center">
             เคล็ดลับการดูแลสุขภาพ
-          </Text>
+          </ThemedText>
           <View className="w-7" />
         </View>
 
         <View className="mb-4 mt-1 px-4">
-          <Text
-            style={{
-              fontSize: Math.round(15 * fontScale),
-              lineHeight: Math.round(15 * fontScale * 1.6),
-              color: colors['text-secondary'],
-            }}>
+          <ThemedText type="body" weight="regular" lineHeight={24} themeColor="text-secondary">
             แนวทางง่าย ๆ ที่ช่วยควบคุมความดันโลหิตและดูแลสุขภาพในระยะยาว
-          </Text>
+          </ThemedText>
         </View>
 
         <View className="px-4">
@@ -90,23 +79,12 @@ export default function HealthTipsScreen() {
                     <Ionicons name={icon.name} size={24} color={icon.tint} />
                   </View>
                   <View className="flex-1">
-                    <Text
-                      className="font-bold"
-                      style={{
-                        fontSize: Math.round(17 * fontScale),
-                        color: colors['text-primary'],
-                      }}>
+                    <ThemedText type="bodyLarge" weight="bold">
                       {tip.title}
-                    </Text>
-                    <Text
-                      className="mt-1"
-                      style={{
-                        fontSize: Math.round(15 * fontScale),
-                        lineHeight: Math.round(15 * fontScale * 1.6),
-                        color: colors['text-secondary'],
-                      }}>
+                    </ThemedText>
+                    <ThemedText type="body" weight="regular" lineHeight={24} themeColor="text-secondary" className="mt-1">
                       {tip.description}
-                    </Text>
+                    </ThemedText>
                   </View>
                 </View>
               </Animated.View>

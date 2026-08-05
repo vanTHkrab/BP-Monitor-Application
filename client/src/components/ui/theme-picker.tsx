@@ -17,9 +17,9 @@
  * leaves the user guessing why nothing changed.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { useColorSchemePreference, type ColorSchemePreference } from '@/theme/color-scheme';
 
@@ -35,7 +35,6 @@ const OPTIONS: {
 
 export function ThemePicker() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { preference, setPreference, scheme } = useColorSchemePreference();
 
   return (
@@ -69,28 +68,18 @@ export function ThemePicker() {
                 size={24}
                 color={isSelected ? '#FFFFFF' : colors['text-secondary']}
               />
-              <Text
-                className="mt-1.5 font-semibold"
-                numberOfLines={1}
-                style={{
-                  fontSize: Math.round(14 * fontScale),
-                  color: isSelected ? '#FFFFFF' : colors['text-primary'],
-                }}
-              >
+              <ThemedText type="small" weight="semibold" numberOfLines={1} className="mt-1.5" style={{ color: isSelected ? '#FFFFFF' : colors['text-primary'] }}>
                 {option.label}
-              </Text>
+              </ThemedText>
             </Pressable>
           );
         })}
       </View>
 
       {preference === 'system' ? (
-        <Text
-          className="ml-1 mt-2.5"
-          style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-        >
+        <ThemedText type="label" weight="regular" themeColor="text-secondary" className="ml-1 mt-2.5">
           ตอนนี้เครื่องตั้งเป็นธีม{scheme === 'dark' ? 'มืด' : 'สว่าง'}
-        </Text>
+        </ThemedText>
       ) : null}
     </View>
   );

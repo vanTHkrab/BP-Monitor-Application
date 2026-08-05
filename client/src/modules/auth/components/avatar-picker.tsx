@@ -12,8 +12,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 export type AvatarPickerProps = {
@@ -80,9 +81,9 @@ export function AvatarPicker({ uri, onChange }: AvatarPickerProps) {
         )}
       </Pressable>
 
-      <Text className="mt-2 text-[13px] font-semibold" style={{ color: colors['text-secondary'] }}>
+      <ThemedText type="label" themeColor="text-secondary" className="mt-2">
         {uri ? 'แตะเพื่อเปลี่ยนรูป' : 'เพิ่มรูปโปรไฟล์ (ไม่บังคับ)'}
-      </Text>
+      </ThemedText>
     </View>
   );
 }

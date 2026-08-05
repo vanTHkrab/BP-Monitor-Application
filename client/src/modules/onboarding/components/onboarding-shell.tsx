@@ -7,8 +7,9 @@
  * fold reads as a dead end.
  */
 import type { ReactNode } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { useTheme } from '@/hooks/use-theme';
@@ -55,12 +56,12 @@ export function OnboardingShell({
           ))}
         </View>
 
-        <Text className="text-[26px] font-bold" style={{ color: colors['text-primary'] }}>
+        <ThemedText size={26} weight="bold">
           {title}
-        </Text>
-        <Text className="mb-6 mt-2 text-[15px]" style={{ color: colors['text-secondary'] }}>
+        </ThemedText>
+        <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-6 mt-2">
           {subtitle}
-        </Text>
+        </ThemedText>
 
         <ScrollView
           className="flex-1"

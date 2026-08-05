@@ -27,11 +27,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { formatErrorMessage } from '@/lib/error-message';
 import { useSession } from '@/modules/auth';
@@ -54,7 +54,6 @@ type ComposerState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; p
 
 export default function CommunityScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const insets = useSafeAreaInsets();
   const { userId } = useSession();
 
@@ -111,30 +110,20 @@ export default function CommunityScreen() {
     <GradientBackground safeArea={false}>
       <View className="flex-1" style={{ paddingTop: insets.top }}>
         <View className="px-4 pb-3 pt-2">
-          <Text
-            className="font-bold"
-            style={{ fontSize: Math.round(24 * fontScale), color: colors['text-primary'] }}
-          >
+          <ThemedText type="title">
             ชุมชนสุขภาพ
-          </Text>
-          <Text
-            className="mt-0.5"
-            style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
-          >
+          </ThemedText>
+          <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-0.5">
             แลกเปลี่ยนประสบการณ์ดูแลความดันกับคนอื่น
-          </Text>
+          </ThemedText>
         </View>
 
         <CategoryTabs value={category} onChange={setCategory} />
 
         {error ? (
-          <Text
-            className="mb-2 px-5"
-            accessibilityLiveRegion="polite"
-            style={{ fontSize: Math.round(14 * fontScale), color: colors.danger }}
-          >
+          <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-2 px-5">
             {error}
-          </Text>
+          </ThemedText>
         ) : null}
 
         <FlatList
@@ -177,12 +166,9 @@ export default function CommunityScreen() {
           })}
         >
           <Ionicons name="create-outline" size={22} color="#FFFFFF" />
-          <Text
-            className="ml-2 font-bold text-white"
-            style={{ fontSize: Math.round(15 * fontScale) }}
-          >
+          <ThemedText type="body" weight="bold" className="ml-2" style={{ color: '#FFFFFF' }}>
             เขียนโพสต์
-          </Text>
+          </ThemedText>
         </Pressable>
       </View>
 
@@ -206,28 +192,17 @@ export default function CommunityScreen() {
 
 function EmptyFeed({ isLoading, category }: { isLoading: boolean; category: PostCategory }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mt-6 rounded-2xl p-5" style={{ backgroundColor: colors.surface }}>
-      <Text
-        className="font-bold"
-        style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-      >
+      <ThemedText type="default" weight="bold">
         {isLoading ? 'กำลังโหลดโพสต์…' : `ยังไม่มีโพสต์ใน "${categoryLabel(category)}"`}
-      </Text>
+      </ThemedText>
 
       {isLoading ? null : (
-        <Text
-          className="mt-2"
-          style={{
-            fontSize: Math.round(14 * fontScale),
-            lineHeight: Math.round(21 * fontScale),
-            color: colors['text-secondary'],
-          }}
-        >
+        <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-2">
           เป็นคนแรกที่เริ่มบทสนทนาในหมวดนี้ได้เลย
-        </Text>
+        </ThemedText>
       )}
     </View>
   );

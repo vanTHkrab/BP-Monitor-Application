@@ -8,10 +8,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -24,7 +24,6 @@ export type AuthShellProps = {
 export function AuthShell({ children, showHero = true }: AuthShellProps) {
   const { scheme } = useColorSchemePreference();
   const colors = useTheme();
-  const fontScale = useFontScale();
   const isDark = scheme === 'dark';
 
   return (
@@ -58,21 +57,12 @@ export function AuthShell({ children, showHero = true }: AuthShellProps) {
                   * multiplier `ThemedText` does, which is the part that was
                   * actually missing.
                   */}
-                <Text
-                  className="mb-1 font-bold"
-                  style={{
-                    fontSize: Math.round(28 * fontScale),
-                    color: isDark ? '#FFFFFF' : colors['text-primary'],
-                  }}>
+                <ThemedText size={28} weight="bold" className="mb-1" style={{ color: isDark ? '#FFFFFF' : colors['text-primary'] }}>
                   BP Monitor
-                </Text>
-                <Text
-                  style={{
-                    fontSize: Math.round(15 * fontScale),
-                    color: colors['text-secondary'],
-                  }}>
+                </ThemedText>
+                <ThemedText type="body" weight="regular" themeColor="text-secondary">
                   ติดตามความดันโลหิตอย่างง่ายดาย
-                </Text>
+                </ThemedText>
               </View>
             ) : null}
 
@@ -87,11 +77,9 @@ export function AuthShell({ children, showHero = true }: AuthShellProps) {
           </View>
 
           <View className="py-6">
-            <Text
-              className="text-center text-white"
-              style={{ fontSize: Math.round(12 * fontScale) }}>
+            <ThemedText type="caption" className="text-center" style={{ color: '#FFFFFF' }}>
               Copyright©2025 BP Monitor App
-            </Text>
+            </ThemedText>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

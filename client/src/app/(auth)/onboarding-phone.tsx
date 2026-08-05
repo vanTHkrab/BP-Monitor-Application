@@ -13,11 +13,11 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Text } from 'react-native';
+import {  } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
-import { useTheme } from '@/hooks/use-theme';
 import { useSetPhone } from '@/modules/auth';
 import { AuthErrorBanner } from '@/modules/auth/components/auth-error-banner';
 import { AuthShell } from '@/modules/auth/components/auth-shell';
@@ -25,7 +25,6 @@ import { isValidPhone } from '@/modules/auth/lib/validation';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
 
 export default function OnboardingPhoneScreen() {
-  const colors = useTheme();
   const { setPhone, isPending, error, clearError } = useSetPhone();
   const [phone, setPhoneValue] = useState('');
   const [fieldError, setFieldError] = useState<string | undefined>();
@@ -53,16 +52,12 @@ export default function OnboardingPhoneScreen() {
 
   return (
     <AuthShell showHero={false}>
-      <Text
-        className="mb-1 text-center font-semibold"
-        style={{ fontSize: 18, color: colors['text-primary'] }}>
+      <ThemedText size={18} weight="semibold" className="mb-1 text-center">
         เพิ่มเบอร์โทรศัพท์
-      </Text>
-      <Text
-        className="mb-4 text-center"
-        style={{ fontSize: 13, color: colors['text-secondary'] }}>
+      </ThemedText>
+      <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mb-4 text-center">
         ใช้สำหรับให้ผู้ดูแลค้นหาบัญชีของคุณ
-      </Text>
+      </ThemedText>
 
       {error ? <AuthErrorBanner message={error.message} /> : null}
 
