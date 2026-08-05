@@ -203,6 +203,7 @@ type CommentType {
 
 type AlertReadingType {
   id: Int!
+  userId: String!
   systolic: Int!
   diastolic: Int!
   pulse: Int!

@@ -21,6 +21,7 @@ const ALERT_FIELDS = `
   createdAt
   reading {
     id
+    userId
     systolic
     diastolic
     pulse

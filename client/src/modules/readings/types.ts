@@ -85,6 +85,12 @@ export type Alert = {
    * The snapshot the gateway embeds so the list does not need a follow-up
    * query per row. Absent only if the reading was deleted after the alert.
    */
+  /**
+   * True when this alert reached the signed-in user because they *care for*
+   * the person it is about, rather than being about them. Derived from the
+   * reading's owner — see `alertFromGql`.
+   */
+  isAboutSomeoneElse: boolean;
   reading?: {
     remoteId: number;
     systolic: number;

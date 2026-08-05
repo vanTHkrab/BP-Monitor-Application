@@ -19,6 +19,7 @@ type AlertPayload = {
   createdAt: string;
   reading: {
     id: number;
+    userId: string;
     systolic: number;
     diastolic: number;
     pulse: number;
@@ -36,6 +37,18 @@ function alertFromGql(payload: AlertPayload): Alert {
     level: payload.alertLevel,
     isRead: payload.readAt !== null,
     createdAt: new Date(payload.createdAt),
+    /*
+     * `payload.userId` is the *recipient*; `payload.reading.userId` is who the
+     * reading is about. They differ exactly when the gateway's fan-out gave a
+     * caregiver their own copy of a patient's alert.
+     *
+     * Defaults to false when the reading is absent (deleted after the alert
+     * was raised) — an unlabelled alert is better than one labelled about
+     * somebody the row can no longer name.
+     */
+    isAboutSomeoneElse: payload.reading
+      ? payload.reading.userId !== payload.userId
+      : false,
     reading: payload.reading
       ? {
           remoteId: payload.reading.id,

@@ -131,7 +131,13 @@ function AlertRow({ alert, onPress }: { alert: Alert; onPress?: () => void }) {
       testID={`alert-${alert.id}`}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={alert.isRead ? alert.message : `ยังไม่ได้อ่าน: ${alert.message}`}
+      accessibilityLabel={[
+        alert.isRead ? '' : 'ยังไม่ได้อ่าน:',
+        alert.isAboutSomeoneElse ? 'แจ้งเตือนเกี่ยวกับผู้ที่คุณดูแล' : '',
+        alert.message,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       className="mb-3 flex-row rounded-2xl p-4"
       style={({ pressed }) => ({
         backgroundColor: colors.surface,
@@ -142,7 +148,17 @@ function AlertRow({ alert, onPress }: { alert: Alert; onPress?: () => void }) {
         className="mr-3 h-10 w-10 items-center justify-center rounded-full"
         style={{ backgroundColor: colors['surface-muted'] }}
       >
-        <Ionicons name="pulse-outline" size={20} color={accent} />
+        {/*
+          A caregiver's bell now mixes alerts about them with alerts about the
+          people they care for. The icon is the fastest way to tell which
+          without reading the sentence — the message already names the patient,
+          but a list of both kinds needs to be scannable.
+        */}
+        <Ionicons
+          name={alert.isAboutSomeoneElse ? 'people-outline' : 'pulse-outline'}
+          size={20}
+          color={accent}
+        />
       </View>
 
       <View className="flex-1">

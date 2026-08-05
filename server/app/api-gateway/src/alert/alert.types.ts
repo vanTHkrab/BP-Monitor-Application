@@ -3,6 +3,15 @@ import { Field, Int, ObjectType } from '@nestjs/graphql';
 @ObjectType()
 export class AlertReadingType {
   @Field(() => Int) id: number;
+  /**
+   * Who the reading belongs to.
+   *
+   * Not the same as `AlertType.userId`, which is the *recipient*. They differ
+   * exactly when this alert reached a caregiver through the fan-out in
+   * `ReadingService.createAlertForReading` — which is what lets the client
+   * mark those rows as being about somebody else without a second query.
+   */
+  @Field() userId: string;
   @Field(() => Int) systolic: number;
   @Field(() => Int) diastolic: number;
   @Field(() => Int) pulse: number;

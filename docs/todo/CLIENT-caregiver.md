@@ -259,7 +259,40 @@ Cheapest possible fix for the bell, and it needs no new thinking about
 authorization: `assertCanActOnBehalfOf` already guards `readings(patientId:)`
 and applies unchanged. No schema migration.
 
-### 3. Fan alerts out to linked caregivers
+### 3. Fan alerts out to linked caregivers — **done**
+
+`ReadingService.createAlertForReading` writes the patient's row, then one row
+per accepted caregiver via `createMany({ skipDuplicates: true })`. The
+caregiver copy is worded differently and leads with the patient's name —
+"ค่าความดันของคุณสูงมาก" arriving on somebody else's phone is worse than no
+alert at all.
+
+The fan-out is **best-effort and swallowed**: by the time it runs the patient
+has been alerted and the reading is saved, so a failed notification must not
+surface as a failed save. That swallow is also a trap — the existing service
+tests passed with no `caregiverPatient` mock at all, silently exercising
+nothing — so the mock is now present in every case with a comment saying why.
+
+Two consequences worth knowing:
+
+- **A caregiver's bell now mixes both kinds.** `AlertReadingType.userId` (the
+  patient) is exposed alongside `AlertType.userId` (the recipient); the client
+  derives `isAboutSomeoneElse` from the pair, with no extra query and no
+  migration. `app/alerts.tsx` switches the row icon on it so the list stays
+  scannable.
+- **It fixes the read-state problem from §1.** A caregiver now owns a row of
+  their own and can legitimately mark it read. `canMarkRead` still gates the
+  *other* case — reading a patient's own list through `alerts(patientId:)`,
+  where the rows belong to the patient.
+
+**No migration.** `Alert.userId` was already per-row, so fan-out is just more
+inserts. A `@@unique([userId, bpReadingId])` would be the natural hardening
+and is deliberately **not** here: no database was reachable to run
+`prisma migrate dev`, and the repo forbids hand-writing migrations. It is
+defensive rather than urgent — a reading is created once, so there is no live
+duplicate path — but it should land with the next migration that runs.
+
+The original reasoning:
 
 Two shapes, and the choice matters more than it looks:
 
@@ -294,10 +327,8 @@ names.
 ## What is left, in order
 
 1. ~~**`useSubject()` + `alerts(patientId:)`**~~ — done.
-2. **Alert fan-out** (§3) — turns the caregiver from "must go and look" into
-   "is told", which is the reason the role exists. Now also the fix for
-   read state: with an alert of their own, a caregiver has something they can
-   legitimately mark read.
+2. ~~**Alert fan-out**~~ — done. Follow-up: `@@unique([userId, bpReadingId])`
+   when a migration can next be run.
 3. **The permission column** (§4) — cheap now, a rewrite later.
 4. **Quick-switcher + richer `myPatients`** (§5, §6) — UX and scale.
 5. **The banner on pushed routes** (§2, "still open") — `reading/[id]` and
