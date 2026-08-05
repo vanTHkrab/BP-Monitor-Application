@@ -9,7 +9,7 @@
  */
 import { useCallback, useState } from 'react';
 
-import { db } from '@/database';
+import { getDb } from '@/database';
 import { formatErrorMessage } from '@/lib/error-message';
 
 import { deleteMirrorRow } from '../repository/mirror';
@@ -29,13 +29,13 @@ export function useDeleteReading() {
       if (reading.syncState === 'queued' || reading.remoteId == null) {
         // Never left the device. There is nothing on the server to delete,
         // and no way for it to come back.
-        if (reading.clientId) await dequeueReading(db, reading.clientId);
+        if (reading.clientId) await dequeueReading(getDb(), reading.clientId);
         return true;
       }
 
       // Server first — see the header.
       await readingsApi.deleteReading(reading.remoteId);
-      await deleteMirrorRow(db, reading.remoteId);
+      await deleteMirrorRow(getDb(), reading.remoteId);
       return true;
     } catch (caught) {
       setError(formatErrorMessage(caught, 'ลบค่าความดันไม่สำเร็จ กรุณาลองใหม่'));

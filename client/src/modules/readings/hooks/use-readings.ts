@@ -16,7 +16,7 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { asc, desc, eq } from 'drizzle-orm';
 import { useMemo } from 'react';
 
-import { db, pendingReadings, readings } from '@/database';
+import { getDb, pendingReadings, readings } from '@/database';
 import { useSession } from '@/modules/auth';
 
 import {
@@ -41,7 +41,7 @@ export function useReadings({ patientId }: UseReadingsOptions = {}) {
   const subjectId = patientId ?? userId ?? '';
 
   const mirror = useLiveQuery(
-    db
+    getDb()
       .select()
       .from(readings)
       .where(eq(readings.userId, subjectId))
@@ -49,7 +49,7 @@ export function useReadings({ patientId }: UseReadingsOptions = {}) {
   );
 
   const queue = useLiveQuery(
-    db
+    getDb()
       .select()
       .from(pendingReadings)
       .where(eq(pendingReadings.userId, subjectId))

@@ -90,6 +90,25 @@ Through the screen harness, assert only what needs no camera: the
 permission-denied state, the offline banner, and that manual entry is
 reachable when no detector exists.
 
+## 5b. Screen-test reach (done)
+
+`@/database` used to call `openDatabaseSync` at module scope, so *importing*
+anything from `@/modules/readings` opened the device database. Under jest that
+threw before a test ran, and every screen touching readings had to
+`jest.mock('@/modules/readings')` wholesale — which meant the screen was being
+tested against a stub of its own module rather than against real code.
+
+`getDb()` is now lazy, so the barrel imports harmlessly and a test replaces
+only the hooks it must (`useReadings` is a `useLiveQuery` over expo-sqlite and
+still cannot run). `home`, `history`, and `settings` all use
+`...jest.requireActual('@/modules/readings')` now.
+
+Two jest-config changes went with it, both in `client/package.json`:
+`transformIgnorePatterns` had to allow `tamagui` / `@tamagui` and
+`gifted-charts-core` through babel (they ship ESM), and `test-utils.tsx` now
+mounts `TamaguiProvider` + `ToastProvider` so the harness matches
+`app/_layout.tsx`.
+
 ## 6. Doc drift from the earlier ports
 
 `client/constants/api.ts` and `client/store/slices/` are referenced by

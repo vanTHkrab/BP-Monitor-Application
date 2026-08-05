@@ -27,7 +27,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
-import { db } from '@/database';
+import { getDb } from '@/database';
 
 import { listMirrorLocalImageClientIds } from '../repository/mirror';
 import { listQueuedClientIds } from '../repository/queue';
@@ -142,8 +142,8 @@ export async function cleanupOrphanedPendingImages(): Promise<void> {
     if (!dir.exists) return;
 
     const [queued, mirrored] = await Promise.all([
-      listQueuedClientIds(db),
-      listMirrorLocalImageClientIds(db),
+      listQueuedClientIds(getDb()),
+      listMirrorLocalImageClientIds(getDb()),
     ]);
     const activeKeys = new Set(
       [...queued, ...mirrored].map(sanitizeClientIdForFilename),

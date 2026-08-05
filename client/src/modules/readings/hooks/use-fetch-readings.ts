@@ -14,7 +14,7 @@
  */
 import { useCallback, useState } from 'react';
 
-import { db } from '@/database';
+import { getDb } from '@/database';
 import { useSession } from '@/modules/auth';
 import { formatErrorMessage } from '@/lib/error-message';
 
@@ -46,11 +46,11 @@ export function useFetchReadings({ patientId }: { patientId?: string } = {}) {
       // whole write. Dropping what the server no longer has, first, means the
       // upsert only ever sees rows it can land.
       await pruneMissingMirrorRows(
-        db,
+        getDb(),
         subjectId,
         rows.map((row) => row.remoteId),
       );
-      await upsertMirrorRows(db, rows);
+      await upsertMirrorRows(getDb(), rows);
       return true;
     } catch (caught) {
       // Offline is the common case here and is not worth a red banner — the

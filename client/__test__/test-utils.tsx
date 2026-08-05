@@ -3,11 +3,17 @@
  *
  * A screen in this app is never renderable on its own: `useTheme` reads
  * through `ColorSchemeProvider`, `GradientBackground` reads safe-area insets,
- * and every module hook is a TanStack Query hook that throws without a
- * `QueryClientProvider`. Repeating that wrapper per file is how one of them
- * ends up with a subtly different client — a cache shared across tests, or
- * retries left on, which turns one failing request into a test that hangs for
- * the retry backoff.
+ * every module hook is a TanStack Query hook that throws without a
+ * `QueryClientProvider`, and any Tamagui component needs `TamaguiProvider`
+ * (a `Sheet` without it throws "Must set animations in tamagui.config.ts",
+ * which points at the config rather than at the missing provider). Repeating
+ * that wrapper per file is how one of them ends up with a subtly different
+ * client — a cache shared across tests, or retries left on, which turns one
+ * failing request into a test that hangs for the retry backoff.
+ *
+ * This mirrors the provider order in `app/_layout.tsx`. When that file gains
+ * a provider a screen can observe, add it here in the same change, or screen
+ * tests start failing in ways that look like bugs in the screen.
  *
  * **`renderScreen` is async and must be awaited.** React Native Testing
  * Library v14 (the React 19 line) made `render` return a Promise so it can
@@ -20,7 +26,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderOptions } from '@testing-library/react-native';
 import type { ReactElement, ReactNode } from 'react';
 import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context';
+import { TamaguiProvider, ToastProvider } from 'tamagui';
 
+import tamaguiConfig from '../tamagui.config';
 import { ColorSchemeProvider } from '@/theme/color-scheme';
 
 /**
@@ -61,11 +69,15 @@ export async function renderScreen(ui: ReactElement, options: RenderScreenOption
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <SafeAreaProvider initialMetrics={TEST_METRICS}>
-        <QueryClientProvider client={queryClient}>
-          {/* No `storage` prop: the provider then keeps the preference in
-              memory for the session, which is what a test wants. */}
-          <ColorSchemeProvider>{children}</ColorSchemeProvider>
-        </QueryClientProvider>
+        <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+          <ToastProvider native={false}>
+            <QueryClientProvider client={queryClient}>
+              {/* No `storage` prop: the provider then keeps the preference in
+                  memory for the session, which is what a test wants. */}
+              <ColorSchemeProvider>{children}</ColorSchemeProvider>
+            </QueryClientProvider>
+          </ToastProvider>
+        </TamaguiProvider>
       </SafeAreaProvider>
     );
   }

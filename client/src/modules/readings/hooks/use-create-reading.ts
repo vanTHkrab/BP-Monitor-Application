@@ -15,7 +15,7 @@
  */
 import { useCallback, useState } from 'react';
 
-import { db } from '@/database';
+import { getDb } from '@/database';
 import { useSession } from '@/modules/auth';
 
 import { createReadingClientId } from '../lib/client-id';
@@ -55,7 +55,7 @@ export function useCreateReading() {
             ? await persistPendingImage(input.imageUri, clientId)
             : input.imageUri;
 
-        await enqueueReading(db, {
+        await enqueueReading(getDb(), {
           clientId,
           userId: subjectId,
           systolic: input.systolic,

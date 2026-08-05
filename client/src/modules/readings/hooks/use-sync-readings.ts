@@ -15,7 +15,7 @@
 import NetInfo from '@react-native-community/netinfo';
 import { useCallback } from 'react';
 
-import { db } from '@/database';
+import { getDb } from '@/database';
 import { useSession } from '@/modules/auth';
 import { LocalImageMissingError, uploadImageViaPresign } from '@/services/upload-image';
 
@@ -31,7 +31,7 @@ import * as readingsApi from '../services/readings-api';
 
 function createPorts(): SyncPorts {
   return {
-    listQueued: (userId) => listQueuedReadings(db, userId),
+    listQueued: (userId) => listQueuedReadings(getDb(), userId),
 
     uploadImage: async (uri) => {
       try {
@@ -49,10 +49,10 @@ function createPorts(): SyncPorts {
     },
 
     createReading: (input) => readingsApi.createReading(input),
-    promote: (clientId, row) => promoteToMirror(db, clientId, row),
-    recordImageUploaded: (clientId, imageId) => markQueuedImageUploaded(db, clientId, imageId),
+    promote: (clientId, row) => promoteToMirror(getDb(), clientId, row),
+    recordImageUploaded: (clientId, imageId) => markQueuedImageUploaded(getDb(), clientId, imageId),
     recordFailure: (clientId, attempts, message) =>
-      recordQueueFailure(db, clientId, attempts, message),
+      recordQueueFailure(getDb(), clientId, attempts, message),
 
     // The durable copy has done its job once the row is in the mirror. The
     // drain calls this after the promotion and swallows any failure; the
@@ -64,7 +64,7 @@ function createPorts(): SyncPorts {
 /**
  * One set of ports for the process, not one per hook instance.
  *
- * They hold no state — every function closes over the `db` singleton and
+ * They hold no state — every function calls `getDb()` and
  * nothing else — so a per-instance copy was only ever extra allocation, and
  * it made "how many drains can exist?" look like a question about React.
  */

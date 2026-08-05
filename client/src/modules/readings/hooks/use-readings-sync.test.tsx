@@ -13,10 +13,11 @@ import type { ReactNode } from 'react';
 
 import { ReadingsSyncProvider, useReadingsSync } from './use-readings-sync';
 
-// `@/database` opens the device database at import time, which no test can
-// do. The provider only reaches for it to hand a handle to `clearMirror`,
-// which is mocked below.
-jest.mock('@/database', () => ({ db: {} }));
+// `getDb()` opens the device database, which no test can do. The provider
+// only calls it to hand a handle to `clearMirror`, which is mocked below.
+// Since `@/database` became lazy this is the call, not the import, that has
+// to be stubbed — importing the module is now harmless.
+jest.mock('@/database', () => ({ getDb: () => ({}) }));
 
 const mockClearMirror = jest.fn(async () => {});
 jest.mock('../repository/mirror', () => ({

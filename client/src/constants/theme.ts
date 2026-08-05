@@ -4,9 +4,15 @@
  * Colours deliberately do not live here — they belong to src/theme/tokens.js,
  * the single source shared by NativeWind, Tamagui, and React Navigation.
  * Use `useTheme()` for resolved colours, or a `bg-*` / `text-*` utility.
+ *
+ * This file used to `import '@/global.css'`. It was redundant —
+ * `app/_layout.tsx` imports it at the app root, which is the only place a
+ * stylesheet side-effect belongs — and it made a constants module drag the
+ * Tailwind entrypoint behind it. Under jest that import is handed to the JS
+ * parser, which dies on `@tailwind base`, so every screen test reaching the
+ * tab bar failed to load. Don't add it back; add it to a root layout if a new
+ * entrypoint ever needs one.
  */
-
-import '@/global.css';
 
 import { Platform } from 'react-native';
 

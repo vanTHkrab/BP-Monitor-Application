@@ -4,7 +4,7 @@ import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 // inlined as strings by babel-plugin-inline-import — see babel.config.js.
 import migrations from '../../drizzle/migrations';
 
-import { db } from './index';
+import { getDb } from './index';
 
 export type MigrationState = {
   /** True once every pending migration has been applied. */
@@ -21,5 +21,5 @@ export type MigrationState = {
  * rather than being swallowed.
  */
 export function useDatabaseMigrations(): MigrationState {
-  return useMigrations(db, migrations);
+  return useMigrations(getDb(), migrations);
 }

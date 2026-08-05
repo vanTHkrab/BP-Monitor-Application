@@ -46,7 +46,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { db } from '@/database';
+import { getDb } from '@/database';
 import { useSession } from '@/modules/auth';
 import { useActivePatient } from '@/modules/caregivers';
 
@@ -158,7 +158,7 @@ export function ReadingsSyncProvider({ children }: { children: ReactNode }) {
     // exists to keep visible.
     if (!previous || previous === userId) return;
 
-    void clearMirror(db, previous).catch(() => {});
+    void clearMirror(getDb(), previous).catch(() => {});
   }, [userId]);
 
   /**
