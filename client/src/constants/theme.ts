@@ -26,32 +26,47 @@ export const Fonts = Platform.select({
     rounded: 'ui-rounded',
     /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
-
-    // 🟢 Noto Sans Thai
-    notoSans: 'NotoSansThai_400Regular',
-    notoSansBold: 'NotoSansThai_700Bold',
   },
   default: {
     sans: 'normal',
     serif: 'serif',
     rounded: 'normal',
     mono: 'monospace',
-
-    // 🟢 Noto Sans Thai
-    notoSans: 'NotoSansThai_400Regular',
-    notoSansBold: 'NotoSansThai_700Bold',
   },
   web: {
     sans: 'var(--font-display)',
     serif: 'var(--font-serif)',
     rounded: 'var(--font-rounded)',
     mono: 'var(--font-mono)',
-
-    // 🟢 ใส่ fallback สำหรับ web
-    notoSans: 'NotoSansThai_400Regular, sans-serif',
-    notoSansBold: 'NotoSansThai_700Bold, sans-serif',
   },
 });
+
+/**
+ * The app's typeface, one family name per weight.
+ *
+ * **Weight selects the family — it is not a `fontWeight`.** On Android an
+ * explicit `fontFamily` does not synthesise weight: a `fontWeight: '700'` next
+ * to `NotoSansThai_400Regular` is ignored or faked, which is exactly what the
+ * two places that used this font were doing before. `ThemedText` maps its
+ * `weight` prop through this record so the right file is chosen.
+ *
+ * Every entry must be loaded in `app/_layout.tsx`. A name that was never
+ * loaded does not fail loudly — it silently falls back to the system font,
+ * which on Android is a different Thai face per OEM and the whole reason this
+ * app bundles one.
+ *
+ * Platform-independent on purpose: these are file names registered by
+ * `useFonts`, not system aliases, so iOS and Android resolve the same string.
+ * Web adds a `sans-serif` fallback for the window before the webfont lands.
+ */
+export const ThaiFontFamily = {
+  regular: 'NotoSansThai_400Regular',
+  medium: 'NotoSansThai_500Medium',
+  semibold: 'NotoSansThai_600SemiBold',
+  bold: 'NotoSansThai_700Bold',
+} as const;
+
+export type ThaiFontWeight = keyof typeof ThaiFontFamily;
 
 export const Spacing = {
   half: 2,

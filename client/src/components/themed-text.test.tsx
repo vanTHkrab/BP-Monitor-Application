@@ -91,3 +91,60 @@ it('takes its colour from the theme, not from a literal', async () => {
   expect(color).toBeDefined();
   expect(color).not.toBe('#3c87f7');
 });
+
+/**
+ * The font family is chosen by weight, not by `fontWeight`.
+ *
+ * This is the Android trap the app was already falling into in two places: a
+ * named `fontFamily` does not synthesise weight there, so
+ * `NotoSansThai_400Regular` with `fontWeight: 'bold'` renders regular or a
+ * faked bold. Emitting a `fontWeight` at all would also invite callers to
+ * reach for `className="font-bold"`, which cannot work here.
+ */
+describe('font family', () => {
+  const styleOf = (node: { props: Record<string, unknown> }): Record<string, unknown> =>
+    Object.assign({}, ...([node.props.style].flat(3).filter(Boolean) as object[]));
+
+  it('picks the family from the variant weight', async () => {
+    const view = await renderScreen(<ThemedText type="label">หัวข้อ</ThemedText>);
+
+    expect(styleOf(view.getByText('หัวข้อ')).fontFamily).toBe('NotoSansThai_600SemiBold');
+  });
+
+  it('lets weight override the variant', async () => {
+    const view = await renderScreen(
+      <ThemedText type="body" weight="bold">
+        ข้อความ
+      </ThemedText>,
+    );
+
+    expect(styleOf(view.getByText('ข้อความ')).fontFamily).toBe('NotoSansThai_700Bold');
+  });
+
+  it('never emits a fontWeight beside the family', async () => {
+    const view = await renderScreen(<ThemedText type="smallBold">เข้ม</ThemedText>);
+
+    const style = styleOf(view.getByText('เข้ม'));
+    expect(style.fontFamily).toBe('NotoSansThai_700Bold');
+    expect(style.fontWeight).toBeUndefined();
+  });
+
+  // Every family this component can name has to be registered in
+  // `app/_layout.tsx`. An unloaded name does not throw — it silently falls
+  // back to the system font, which is a different Thai face per OEM.
+  it('only names weights the app loads', async () => {
+    const loaded = new Set([
+      'NotoSansThai_400Regular',
+      'NotoSansThai_500Medium',
+      'NotoSansThai_600SemiBold',
+      'NotoSansThai_700Bold',
+    ]);
+
+    for (const weight of ['regular', 'medium', 'semibold', 'bold'] as const) {
+      const view = await renderScreen(
+        <ThemedText weight={weight}>{`ทดสอบ-${weight}`}</ThemedText>,
+      );
+      expect(loaded).toContain(styleOf(view.getByText(`ทดสอบ-${weight}`)).fontFamily);
+    }
+  });
+});

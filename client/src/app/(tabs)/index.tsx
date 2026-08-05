@@ -40,6 +40,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GradientBackground } from '@/components/gradient-background';
+import { ThemedText } from '@/components/themed-text';
 import { Avatar } from '@/components/ui/avatar';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
@@ -55,7 +56,6 @@ import {
 } from '@/modules/readings';
 import { gradientFor, palette, status } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
-import {Fonts} from "@/constants/theme";
 
 cssInterop(LinearGradient, { className: 'style' });
 
@@ -109,13 +109,16 @@ export default function HomeScreen() {
             </View>
 
             <View className="flex-1">
-              <Text
-                className="font-semibold"
-                numberOfLines={1}
-                style={{ fontSize: Math.round(20 * fontScale), color: colors['text-primary'], fontFamily: Fonts.notoSans, fontWeight: "bold"}}
-              >
+              {/*
+                * Was `fontFamily: Fonts.notoSans` (the 400 file) with
+                * `fontWeight: "bold"` — on Android that pairing is ignored or
+                * faked, so this greeting was rendering regular or synthetic
+                * bold rather than the bold face it asked for. `heading` is
+                * 20px semibold, which is what it was after.
+                */}
+              <ThemedText type="heading" numberOfLines={1}>
                 {`สวัสดี, คุณ ${user?.firstname || 'ผู้ใช้'}`}
-              </Text>
+              </ThemedText>
 
               {isViewingPatient ? (
                 <Text

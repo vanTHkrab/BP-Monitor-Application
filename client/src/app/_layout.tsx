@@ -39,7 +39,9 @@ import { StatusBar } from 'expo-status-bar';
 import {
   useFonts,
   NotoSansThai_400Regular,
-  NotoSansThai_700Bold
+  NotoSansThai_500Medium,
+  NotoSansThai_600SemiBold,
+  NotoSansThai_700Bold,
 } from '@expo-google-fonts/noto-sans-thai';
 
 SplashScreen.preventAutoHideAsync().then();
@@ -238,8 +240,21 @@ export default function RootLayout() {
   // two clients alive with different caches.
   const [queryClient] = useState(createQueryClient);
 
+  /*
+   * Four weights, because the app uses four. `font-bold` appears 78 times,
+   * `font-semibold` 76, and `font-medium` 30 — loading only 400 and 700 would
+   * collapse 106 of those onto a neighbour and flatten the hierarchy every
+   * settings-shaped and card-shaped screen leans on.
+   *
+   * On Android a named `fontFamily` does not synthesise weight: `fontWeight`
+   * beside an explicit family is ignored or faked. The weight has to select
+   * the *family*, which is what `ThemedText` does — and it can only do that
+   * for weights that were loaded here.
+   */
   const [loaded, error] = useFonts({
     NotoSansThai_400Regular,
+    NotoSansThai_500Medium,
+    NotoSansThai_600SemiBold,
     NotoSansThai_700Bold,
   });
 

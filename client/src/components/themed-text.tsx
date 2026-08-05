@@ -22,33 +22,38 @@
  */
 import { Text, type TextProps } from 'react-native';
 
-import { Fonts } from '@/constants/theme';
+import { ThaiFontFamily, type ThaiFontWeight } from '@/constants/theme';
 import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/cn';
 import type { SemanticColorName } from '@/theme';
 
 export type ThemedTextType =
-  | 'default'
+  | 'display'
   | 'title'
-  | 'subtitle'
-  | 'label'
+  | 'heading'
+  | 'bodyLarge'
+  | 'body'
+  | 'default'
   | 'small'
   | 'smallBold'
+  | 'label'
+  | 'caption'
   | 'link'
   | 'code';
 
 export type ThemedTextProps = TextProps & {
   type?: ThemedTextType;
   themeColor?: SemanticColorName;
+  /** Overrides the variant's default weight. Selects a font file, not a `fontWeight`. */
+  weight?: ThaiFontWeight;
   className?: string;
 };
 
 type Variant = {
   fontSize: number;
   lineHeight: number;
-  fontWeight: '400' | '500' | '600' | '700';
-  fontFamily?: string;
+  weight: ThaiFontWeight;
 };
 
 /**
@@ -64,23 +69,25 @@ type Variant = {
  * been.
  */
 const VARIANTS: Record<ThemedTextType, Variant> = {
-  default: { fontSize: 16, lineHeight: 24, fontWeight: '500' },
-  title: { fontSize: 48, lineHeight: 52, fontWeight: '600' },
-  subtitle: { fontSize: 32, lineHeight: 44, fontWeight: '600' },
-  // Section labels — the "ให้สิทธิ์" / "แหล่งข้อมูล" line above a group. Its
-  // own step because 13 sits between `small` and nothing, and rounding it up
-  // to 14 would flatten the hierarchy every settings-shaped screen relies on.
-  label: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  small: { fontSize: 14, lineHeight: 20, fontWeight: '500' },
-  smallBold: { fontSize: 14, lineHeight: 20, fontWeight: '700' },
-  link: { fontSize: 14, lineHeight: 30, fontWeight: '500' },
-  code: { fontSize: 12, lineHeight: 18, fontWeight: '700', fontFamily: Fonts.notoSans },
+  display: { fontSize: 44, lineHeight: 52, weight: 'bold' },
+  title: { fontSize: 24, lineHeight: 32, weight: 'bold' },
+  heading: { fontSize: 20, lineHeight: 28, weight: 'semibold' },
+  bodyLarge: { fontSize: 17, lineHeight: 25, weight: 'medium' },
+  default: { fontSize: 16, lineHeight: 24, weight: 'medium' },
+  body: { fontSize: 15, lineHeight: 22, weight: 'medium' },
+  small: { fontSize: 14, lineHeight: 20, weight: 'medium' },
+  smallBold: { fontSize: 14, lineHeight: 20, weight: 'bold' },
+  label: { fontSize: 13, lineHeight: 19, weight: 'semibold' },
+  caption: { fontSize: 12, lineHeight: 18, weight: 'regular' },
+  link: { fontSize: 14, lineHeight: 20, weight: 'medium' },
+  code: { fontSize: 12, lineHeight: 18, weight: 'bold' },
 };
 
 export function ThemedText({
   style,
   type = 'default',
   themeColor,
+  weight,
   className,
   ...rest
 }: ThemedTextProps) {
@@ -89,6 +96,7 @@ export function ThemedText({
   const scale = useFontScale();
 
   const variant = VARIANTS[type];
+  const family = ThaiFontFamily[weight ?? variant.weight];
 
   return (
     <Text
@@ -98,8 +106,11 @@ export function ThemedText({
           color: theme[themeColor ?? 'text-primary'],
           fontSize: Math.round(variant.fontSize * scale),
           lineHeight: Math.round(variant.lineHeight * scale),
-          fontWeight: variant.fontWeight,
-          ...(variant.fontFamily ? { fontFamily: variant.fontFamily } : {}),
+          // No `fontWeight`. On Android it is ignored or faked next to an
+          // explicit family, and emitting one invites a caller to think
+          // `className="font-bold"` will work here — it will not. `weight`
+          // is the axis.
+          fontFamily: family,
         },
         style,
       ]}

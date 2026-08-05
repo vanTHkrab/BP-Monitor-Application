@@ -118,13 +118,37 @@ is used for primary actions and selected states only.
 ### Typography rules (project-specific)
 
 - **Reach for `ThemedText` first** (`src/components/themed-text.tsx`). It takes
-  a `type` variant (`title` / `subtitle` / `label` / `default` / `small` /
-  `smallBold` / `link` / `code`), a `themeColor` token, and a `className` for
-  layout — and it scales by construction, so a screen using it cannot forget
-  the font preference. Do **not** put `text-sm` / `text-lg` in its
-  `className`: those emit a fixed `fontSize` into the same style object as the
-  scaled one, making "which wins" a question of ordering. The variant is the
-  only sizing input.
+  a `type` variant, a `weight`, a `themeColor` token, and a `className` for
+  layout. It scales by construction and carries the app's typeface, so a screen
+  using it cannot forget either.
+
+  | `type` | px | default weight |
+  |---|---|---|
+  | `display` | 44 | bold |
+  | `title` | 24 | bold |
+  | `heading` | 20 | semibold |
+  | `bodyLarge` | 17 | medium |
+  | `default` | 16 | medium |
+  | `body` | 15 | medium |
+  | `small` / `smallBold` | 14 | medium / bold |
+  | `label` | 13 | semibold |
+  | `caption` / `code` | 12 | regular / bold |
+
+  These are the sizes the app already used, given names — **not a designed
+  typography scale.** 15 / 14 / 13 sitting 1px apart is a fact about the port,
+  not a hierarchy. Treat a request for a size that is not here as evidence the
+  app needs a real scale, not as a reason to add a step.
+
+- **Weight selects a font file, not a `fontWeight`.** `weight="bold"` resolves
+  to `NotoSansThai_700Bold`. On Android a `fontWeight` beside an explicit
+  family is ignored or faked, so `className="font-bold"` on a `ThemedText`
+  does nothing useful — the app had two places making exactly that mistake.
+  Only the four loaded weights exist (regular / medium / semibold / bold); a
+  fifth would have to be added to `app/_layout.tsx` first, and an unloaded
+  name falls back to the system font silently.
+- Do **not** put `text-sm` / `text-lg` in `className`: those emit a fixed
+  `fontSize` into the same style object as the scaled one, making "which wins"
+  a question of ordering. The variant is the only sizing input.
 - A size no variant offers means one of two things: it is component-specific
   (a button-label size belongs to the button, not to a shared scale), or the
   app finally needs a real typography scale. Neither is "add a single-use
