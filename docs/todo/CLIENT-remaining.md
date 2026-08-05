@@ -9,7 +9,8 @@ they are not open work. Caregiver work has moved to
 [CLIENT-caregiver.md](./CLIENT-caregiver.md).
 
 Bigger items have their own files — [CLIENT-export.md](./CLIENT-export.md),
-[CLIENT-debug-tools.md](./CLIENT-debug-tools.md). This is the rest, roughly in
+[CLIENT-debug-tools.md](./CLIENT-debug-tools.md),
+[CLIENT-typography.md](./CLIENT-typography.md). This is the rest, roughly in
 the order the user would notice it missing.
 
 ---

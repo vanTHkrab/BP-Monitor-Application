@@ -150,54 +150,11 @@ top-level screens.
   `allowFontScaling={false}` and multiply the OS scale itself; nothing does.
 
 - **There is still no shared typography scale**, and `ThemedText`'s variants
-  are not one. They are the sizes the app already used, given names — measured
-  rather than invented: 239 `fontSize` declarations, of which 15px accounts for
-  70, 13px for 49, 14px for 44, 16px for 25 and 12px for 16. The top five cover
-  85% of all text. That `body` / `small` / `label` sit 1px apart is a fact
-  about the port, not a hierarchy.
-
-  The variants that shipped before this were an Expo starter template's:
-  `subtitle: 32` matched **nothing** in the app and `title: 48` matched one
-  thing — the blood-pressure number on the home card, which is a display
-  figure, not a heading. Meanwhile 15px, the app's single most common size,
-  had no variant at all, so the 70 places using it could not adopt the
-  component without changing size. Both are fixed.
-
-  Sizes in `auth-shell.tsx` (28 / 15 / 12) and `gradient-button.tsx`'s three
-  button-label sizes stay literal on purpose: they belong to one screen's
-  composition and to a button's size prop, not to a shared scale. When enough
-  of those accumulate, that is the signal to design a real scale rather than to
-  keep adding steps.
-
-  **The clearest instance of that signal so far, surfaced by the `readings`
-  sweep: the blood-pressure figure renders at three sizes.** 48 on the home
-  hero card, 44 on the reading detail screen, 38 in a history row — the same
-  number, the same meaning, three arbitrary steps. Each is defensible in
-  isolation (hero / detail / list item) and the set is not: nobody chose 38 as
-  "one step below 44". They stay literal, annotated, and unconverted because
-  picking one would flatten a hierarchy that is doing real work, and minting
-  `displayHero` / `displayDetail` / `displayRow` would encode the accident.
-  This wants deciding as a set, with the three surfaces side by side.
-
-- **The typeface is Noto Sans Thai, and it is applied through `ThemedText`.**
-  Four weights are loaded in `app/_layout.tsx` (400 / 500 / 600 / 700) because
-  the app uses four: `font-bold` 78 times, `font-semibold` 76, `font-medium`
-  30. Loading only 400 and 700 — which is what it did — would collapse 106 of
-  those onto a neighbour.
-
-  **Weight selects the font *file*.** On Android a `fontWeight` beside an
-  explicit `fontFamily` is ignored or synthesised, so `ThemedText` maps its
-  `weight` prop to a family name and emits no `fontWeight` at all. The two
-  places that used the font before this both paired
-  `NotoSansThai_400Regular` with `fontWeight: 'bold'` and were rendering the
-  wrong face.
-
-  **Only files that use `ThemedText` get the typeface.** React Native does not
-  inherit `fontFamily` from a parent, and `Text.defaultProps` is gone in RN
-  0.86 / React 19 — so the remaining ~65 files rendering raw `<Text>` are
-  still on the system font until they are swept. The font is loaded and the
-  splash blocks on it either way, which is the argument for finishing the
-  sweep rather than leaving it half-applied.
+  are not one — they are the sizes the app already used, given role names. The
+  measurements, the three open design questions, and the traps that come with
+  the shared component moved to their own file:
+  [CLIENT-typography.md](./CLIENT-typography.md). Read it before adding a
+  variant or touching a font size.
 - **No "change role later" screen.** `selectRole` is deliberately
   re-callable, so a settings row can reuse the same hook. Safe because `role`
   is a UI mode, not an access-control boundary — reading another user's data
