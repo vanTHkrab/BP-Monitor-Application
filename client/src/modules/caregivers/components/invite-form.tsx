@@ -14,12 +14,12 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import { formatErrorMessage } from '@/lib/error-message';
+import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 import { status as statusColor } from '@/theme';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
@@ -34,7 +34,6 @@ const MIN_PHONE_DIGITS = 9;
 
 export function InviteForm() {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const { invitePatient, isPending } = useInvitePatient();
 
   const [phone, setPhone] = useState('');
@@ -80,22 +79,17 @@ export function InviteForm() {
         </View>
 
         <View className="flex-1">
-          <Text
-            className="font-bold"
-            style={{ fontSize: Math.round(17 * fontScale), color: colors['text-primary'] }}
-          >
+          <ThemedText type="bodyLarge" weight="bold">
             เชิญผู้ป่วยที่ดูแล
-          </Text>
-          <Text
+          </ThemedText>
+          <ThemedText
+            type="label"
+            weight="regular"
+            themeColor="text-secondary"
             className="mt-1"
-            style={{
-              fontSize: Math.round(13 * fontScale),
-              lineHeight: Math.round(19 * fontScale),
-              color: colors['text-secondary'],
-            }}
           >
             กรอกเบอร์โทรศัพท์ที่ผู้ป่วยใช้สมัคร ระบบจะส่งคำเชิญไปให้ตอบรับก่อน
-          </Text>
+          </ThemedText>
         </View>
       </View>
 
@@ -129,17 +123,17 @@ export function InviteForm() {
       />
 
       {banner ? (
-        <Text
+        <ThemedText
+          type="small"
+          weight="regular"
           className="mt-3 px-1"
           accessibilityLiveRegion="polite"
-          style={{
-            fontSize: Math.round(14 * fontScale),
-            lineHeight: Math.round(20 * fontScale),
-            color: banner.tone === 'ok' ? statusColor.normal : colors.danger,
-          }}
+          // `status.normal` is a BP-severity colour and `danger` is a token —
+          // neither is reachable through `themeColor`'s semantic set here.
+          style={{ color: banner.tone === 'ok' ? statusColor.normal : colors.danger }}
         >
           {banner.text}
-        </Text>
+        </ThemedText>
       ) : null}
     </View>
   );

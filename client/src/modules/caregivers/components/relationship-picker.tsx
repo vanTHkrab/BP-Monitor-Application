@@ -6,9 +6,9 @@
  * seven — each chip would be about four characters wide. This wraps instead,
  * and drops the `clearable` behaviour because the field is required.
  */
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 
 import { RELATIONSHIP_OPTIONS, relationshipLabel } from '../lib/relationship';
@@ -28,16 +28,12 @@ export function RelationshipPicker({
   disabled = false,
 }: RelationshipPickerProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mb-4" accessibilityRole="radiogroup" accessibilityLabel={label}>
-      <Text
-        className="mb-2 ml-1 font-semibold"
-        style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
-      >
+      <ThemedText type="label" themeColor="text-secondary" className="mb-2 ml-1">
         {label}
-      </Text>
+      </ThemedText>
 
       <View className="flex-row flex-wrap gap-2">
         {RELATIONSHIP_OPTIONS.map((option) => {
@@ -57,19 +53,20 @@ export function RelationshipPicker({
               style={{
                 minHeight: 44,
                 opacity: disabled ? 0.5 : 1,
-                borderColor: isSelected ? colors.primary : colors.border,
+                borderColor: isSelected ? colors.primary : colors['border-strong'],
                 backgroundColor: isSelected ? colors.primary : 'transparent',
               }}
             >
-              <Text
-                className="font-semibold"
-                style={{
-                  fontSize: Math.round(14 * fontScale),
-                  color: isSelected ? '#FFFFFF' : colors['text-secondary'],
-                }}
+              <ThemedText
+                type="small"
+                weight="semibold"
+                themeColor="text-secondary"
+                // White is the contrast pair for the filled background, not a
+                // token of its own — `style` wins over `themeColor`.
+                style={isSelected ? { color: '#FFFFFF' } : undefined}
               >
                 {relationshipLabel(option)}
-              </Text>
+              </ThemedText>
             </Pressable>
           );
         })}

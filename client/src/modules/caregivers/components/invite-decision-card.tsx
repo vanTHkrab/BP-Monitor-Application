@@ -36,9 +36,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
+
 import { useTheme } from '@/hooks/use-theme';
 import { formatThaiPhone } from '@/utils/phone-format';
 
@@ -85,7 +86,6 @@ export function InviteDecisionCard({
   isResponding = false,
 }: InviteDecisionCardProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
   const [permission, setPermission] = useState<CaregiverPermission>('full');
 
   return (
@@ -108,38 +108,33 @@ export function InviteDecisionCard({
         </View>
 
         <View className="flex-1">
-          <Text
-            className="font-bold"
-            style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-          >
+          <ThemedText type="default" weight="bold">
             คุณ{link.caregiverName}
-          </Text>
-          <Text
+          </ThemedText>
+          <ThemedText
+            type="label"
+            weight="regular"
+            themeColor="text-secondary"
             className="mt-0.5"
-            style={{
-              fontSize: Math.round(13 * fontScale),
-              color: colors['text-secondary'],
-            }}
           >
             {formatThaiPhone(link.caregiverPhone)} · ระบุว่าเป็น
             {relationshipLabel(link.relationship)}ของคุณ
-          </Text>
+          </ThemedText>
         </View>
       </View>
 
       <View className="p-4">
-        <Text
-          className="mb-1 font-bold"
-          style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText type="body" weight="bold" className="mb-1">
           หากอนุญาต จะให้ทำอะไรได้บ้าง
-        </Text>
-        <Text
+        </ThemedText>
+        <ThemedText
+          type="label"
+          weight="regular"
+          themeColor="text-secondary"
           className="mb-3"
-          style={{ fontSize: Math.round(13 * fontScale), color: colors['text-secondary'] }}
         >
           เปลี่ยนภายหลังได้โดยยกเลิกการเชื่อมโยงแล้วเชื่อมใหม่
-        </Text>
+        </ThemedText>
 
         <View accessibilityRole="radiogroup" className="gap-2">
           {PERMISSION_OPTIONS.map((option) => (
@@ -181,15 +176,14 @@ export function InviteDecisionCard({
             })}
           >
             <Ionicons name="close" size={18} />  
-            <Text
-              className="ml-1.5 font-semibold"
-              style={{
-                fontSize: Math.round(15 * fontScale),
-                color: colors['text-secondary'],
-              }}
+            <ThemedText
+              type="body"
+              weight="semibold"
+              themeColor="text-secondary"
+              className="ml-1.5"
             >
               ปฏิเสธ
-            </Text>
+            </ThemedText>
           </Pressable>
 
           <Pressable
@@ -217,12 +211,9 @@ export function InviteDecisionCard({
             ) : (
               <>
                 <Ionicons name="checkmark-circle" size={20} />
-                <Text
-                  className="ml-2 font-bold"
-                  style={{ fontSize: Math.round(16 * fontScale) }}
-                >
+                <ThemedText type="default" weight="bold" className="ml-2">
                   อนุญาต
-                </Text>
+                </ThemedText>
               </>
             )}
           </Pressable>
@@ -259,7 +250,6 @@ function PermissionOption({
   colors: ReturnType<typeof useTheme>;
   testID: string;
 }) {
-  const fontScale = useFontScale();
 
   return (
     <Pressable
@@ -286,25 +276,17 @@ function PermissionOption({
       />
 
       <View className="flex-1 pr-2">
-        <Text
-          className="font-bold"
-          style={{
-            fontSize: Math.round(15 * fontScale),
-            color: colors['text-primary'],
-          }}
-        >
+        <ThemedText type="body" weight="bold">
           {label}
-        </Text>
-        <Text
+        </ThemedText>
+        <ThemedText
+          type="label"
+          weight="regular"
+          themeColor="text-secondary"
           className="mt-0.5"
-          style={{
-            fontSize: Math.round(13 * fontScale),
-            lineHeight: Math.round(18 * fontScale),
-            color: colors['text-secondary'],
-          }}
         >
           {consequence}
-        </Text>
+        </ThemedText>
       </View>
 
       <View

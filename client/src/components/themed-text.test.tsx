@@ -148,3 +148,24 @@ describe('font family', () => {
     }
   });
 });
+
+/*
+ * The escape hatch for colours that are not tokens — white on a filled
+ * button, for instance, where the *background* is the token and this is its
+ * contrast pair. Callers rely on it, so the precedence is pinned rather than
+ * assumed: `style` is applied after the variant's own object.
+ */
+it('lets an explicit style colour beat themeColor', async () => {
+  const view = await renderScreen(
+    <ThemedText themeColor="text-primary" style={{ color: '#FFFFFF' }}>
+      บนพื้นสี
+    </ThemedText>,
+  );
+
+  const flat = [
+    (view.getByText('บนพื้นสี').props as Record<string, unknown>).style,
+  ].flat(3).filter(Boolean) as Record<string, string>[];
+  const color = flat.reduce<string | undefined>((found, l) => l.color ?? found, undefined);
+
+  expect(color).toBe('#FFFFFF');
+});

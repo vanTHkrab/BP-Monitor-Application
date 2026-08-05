@@ -10,10 +10,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { Avatar } from '@/components/ui/avatar';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 
 export type LinkRowProps = {
@@ -58,7 +58,6 @@ export function LinkRow({
   testID,
 }: LinkRowProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View>
@@ -92,18 +91,15 @@ export function LinkRow({
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
             <View className="flex-1">
-              <Text
-                className="font-medium"
-                style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-              >
-                {name}
-              </Text>
-              <Text
+              <ThemedText type="default">{name}</ThemedText>
+              <ThemedText
+                type="small"
+                weight="regular"
+                themeColor="text-secondary"
                 className="mt-0.5"
-                style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
               >
                 {detail}
-              </Text>
+              </ThemedText>
             </View>
             <Ionicons
               name="chevron-forward"
@@ -113,18 +109,15 @@ export function LinkRow({
           </Pressable>
         ) : (
           <View className="flex-1 py-3 pr-3">
-            <Text
-              className="font-medium"
-              style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-            >
-              {name}
-            </Text>
-            <Text
+            <ThemedText type="default">{name}</ThemedText>
+            <ThemedText
+              type="small"
+              weight="regular"
+              themeColor="text-secondary"
               className="mt-0.5"
-              style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
             >
               {detail}
-            </Text>
+            </ThemedText>
           </View>
         )}
 
@@ -157,20 +150,18 @@ export function LinkRow({
 /** The surface the rows sit in. Mirrors `SecurityGroup`. */
 export function LinkGroup({ title, children }: { title: string; children: ReactNode }) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   return (
     <View className="mb-2 mt-6">
-      <Text
-        className="mb-2.5 ml-1 font-semibold uppercase"
-        style={{
-          fontSize: Math.round(12 * fontScale),
-          color: colors['text-secondary'],
-          letterSpacing: 0.5,
-        }}
+      <ThemedText
+        type="caption"
+        weight="semibold"
+        themeColor="text-secondary"
+        className="mb-2.5 ml-1 uppercase"
+        style={{ letterSpacing: 0.5 }}
       >
         {title}
-      </Text>
+      </ThemedText>
 
       <View className="overflow-hidden rounded-2xl" style={{ backgroundColor: colors.surface }}>
         {children}

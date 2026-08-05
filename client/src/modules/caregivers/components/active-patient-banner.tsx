@@ -33,10 +33,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useFontScale } from '@/hooks/use-font-scale';
+import { ThemedText } from '@/components/themed-text';
 import { palette } from '@/theme';
 
 import { useActivePatient } from '../hooks/use-active-patient';
@@ -46,7 +46,6 @@ import { PatientSwitcherSheet } from './patient-switcher-sheet';
 export function ActivePatientBanner() {
   const { patient, isViewingPatient, clearActivePatient, setActivePatient } =
     useActivePatient();
-  const fontScale = useFontScale();
   const insets = useSafeAreaInsets();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   // Already in the cache for any caregiver who reached this screen — the
@@ -90,13 +89,17 @@ export function ActivePatientBanner() {
           className="ml-2 flex-1 flex-row items-center"
           style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
         >
-          <Text
-            className="font-semibold text-white"
+          <ThemedText
+            type="small"
+            weight="semibold"
             numberOfLines={1}
-            style={{ fontSize: Math.round(14 * fontScale) }}
+            // White on the accent gradient — the background is the token, this
+            // is its contrast pair, so it goes through `style` rather than
+            // `themeColor`.
+            style={{ color: '#FFFFFF' }}
           >
             {`กำลังดูข้อมูลของ ${name}`}
-          </Text>
+          </ThemedText>
           {patients.length > 1 ? (
             <Ionicons name="chevron-down" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
           ) : null}
@@ -116,12 +119,9 @@ export function ActivePatientBanner() {
           className="ml-2 items-center justify-center rounded-full bg-white/20 px-3"
           style={({ pressed }) => ({ minHeight: 32, opacity: pressed ? 0.7 : 1 })}
         >
-          <Text
-            className="font-semibold text-white"
-            style={{ fontSize: Math.round(13 * fontScale) }}
-          >
+          <ThemedText type="label" style={{ color: '#FFFFFF' }}>
             ออก
-          </Text>
+          </ThemedText>
         </Pressable>
       </View>
 

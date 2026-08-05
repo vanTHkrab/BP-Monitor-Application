@@ -17,10 +17,10 @@
  * recognising who has access to your medical history.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { Avatar } from '@/components/ui/avatar';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
 
 export type PersonCardProps = {
@@ -61,7 +61,6 @@ export function PersonCard({
   testID,
 }: PersonCardProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
 
   const body = (
     <View className="flex-1 flex-row items-center">
@@ -70,18 +69,17 @@ export function PersonCard({
       </View>
 
       <View className="flex-1">
-        <Text
-          className="font-bold"
-          style={{ fontSize: Math.round(16 * fontScale), color: colors['text-primary'] }}
-        >
+        <ThemedText type="default" weight="bold">
           {name}
-        </Text>
-        <Text
+        </ThemedText>
+        <ThemedText
+          type="small"
+          weight="regular"
+          themeColor="text-secondary"
           className="mt-0.5"
-          style={{ fontSize: Math.round(14 * fontScale), color: colors['text-secondary'] }}
         >
           {detail}
-        </Text>
+        </ThemedText>
 
         {chips.length > 0 ? (
           <View className="mt-2 flex-row flex-wrap gap-1.5">
@@ -94,16 +92,14 @@ export function PersonCard({
                     chip.tone === 'accent' ? colors.accent : colors['surface-muted'],
                 }}
               >
-                <Text
-                  className="font-semibold"
-                  style={{
-                    fontSize: Math.round(12 * fontScale),
-                    color:
-                      chip.tone === 'accent' ? '#FFFFFF' : colors['text-secondary'],
-                  }}
+                <ThemedText
+                  type="caption"
+                  weight="semibold"
+                  themeColor="text-secondary"
+                  style={chip.tone === 'accent' ? { color: '#FFFFFF' } : undefined}
                 >
                   {chip.label}
-                </Text>
+                </ThemedText>
               </View>
             ))}
           </View>
