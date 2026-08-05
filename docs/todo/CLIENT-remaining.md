@@ -119,20 +119,29 @@ Two jest-config changes went with it, both in `client/package.json`:
 mounts `TamaguiProvider` + `ToastProvider` so the harness matches
 `app/_layout.tsx`.
 
-## 7. Two dependencies nothing imports
+## 7. Two dependencies nothing imports — done
 
-Root `CLAUDE.md` rule 13: every manifest entry must be imported somewhere in
-the matching source tree.
+Both removed. Root `CLAUDE.md` rule 13: every manifest entry must be imported
+somewhere in the matching source tree.
 
-- **`expo-contacts`** — zero references in the whole repo outside
-  `app.json`'s plugin list. The plugin still adds a contacts permission to the
-  build, so the app asks for something no code uses. Confirmed ghost; remove
-  the dependency and the plugin entry together.
-- **`expo-glass-effect`** — no import in `src/`, but `expo-router` declares it
-  as its own dependency, so it is probably only here because someone added it
-  to satisfy a resolution error. *Suspected*, not confirmed: verify with a
-  prebuild before removing, since autolinking can want a native module
-  declared at the app level.
+- **`expo-contacts`** — zero references in the repo outside `app.json`'s
+  plugin list. Removed with its plugin entry in the same change.
+- **`expo-glass-effect`** — the *suspected* one, and the suspicion was right.
+  `expo-router@57.0.8` declares it as its own dependency, so the app-level
+  entry was redundant. Verified rather than assumed:
+  `npx expo-modules-autolinking search` still resolves it after the removal,
+  through `expo-router`'s copy in the pnpm store. It is also iOS-only
+  (`apple: { modules: ['GlassEffectModule'] }`), which this Android-first app
+  never reaches.
+
+**One claim in the original note did not survive checking.** It said the
+contacts plugin "still adds a contacts permission to the build" — the
+currently generated `android/app/src/main/AndroidManifest.xml` has no
+`READ_CONTACTS`, and `ios/` has no `NSContactsUsageDescription`. Nothing was
+shipping the permission today. The removal is still right (install size,
+audit surface, rule 13, and the next `expo prebuild` no longer has the
+question to answer), but it was a config-level ghost, not a live
+over-permission.
 
 `pnpm dlx depcheck` is the tool for finding the next one.
 

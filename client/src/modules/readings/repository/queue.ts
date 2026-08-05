@@ -145,7 +145,28 @@ export async function dequeueReading(db: ReadingsDatabase, clientId: string): Pr
   await db.delete(pendingReadings).where(eq(pendingReadings.clientId, clientId));
 }
 
-/** Sign-out: this account's queue is not the next account's problem. */
+/**
+ * Deletes an account's queued rows. **Deliberately not called on sign-out.**
+ *
+ * `use-readings-sync.tsx` clears the *mirror* when a user departs and leaves
+ * the queue alone on purpose: a queued reading exists nowhere else in the
+ * world, so wiping it to tidy a cache destroys a measurement the patient took.
+ * The reason is written there, next to the `clearMirror` call that is wired.
+ *
+ * Kept because "empty this account's outbox" is a real operation (a reset, a
+ * corrupted-row escape hatch) and rewriting it under pressure is worse than
+ * keeping it tested. If it is ever wired to a user-facing action, that action
+ * has to say it is discarding unsent readings.
+ *
+ * Matches the same two owners `listQueuedReadings` does. An on-behalf row is
+ * stored under the **patient's** `userId` with the caregiver in
+ * `recordedById`, so deleting by `userId` alone would clear a caregiver's own
+ * captures for everyone except the patient they were taken for.
+ */
 export async function clearQueue(db: ReadingsDatabase, userId: string): Promise<void> {
-  await db.delete(pendingReadings).where(eq(pendingReadings.userId, userId));
+  await db
+    .delete(pendingReadings)
+    .where(
+      or(eq(pendingReadings.userId, userId), eq(pendingReadings.recordedById, userId)),
+    );
 }

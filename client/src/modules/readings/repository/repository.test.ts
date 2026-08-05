@@ -157,6 +157,12 @@ describe('readings repository', () => {
       expect(row.attempts).toBe(0);
     });
 
+    /*
+     * `clearQueue` is deliberately not wired to sign-out — see the comment on
+     * the `clearMirror` call in `use-readings-sync.tsx`. These pin the
+     * behaviour anyway: it is a real operation kept for a reset path, and an
+     * untested escape hatch is worse than an unused one.
+     */
     it('clears only the signed-out account', async () => {
       await enqueueReading(db, queued('mine'));
       await enqueueReading(db, queued('theirs', { userId: 'user-2' }));
@@ -165,6 +171,22 @@ describe('readings repository', () => {
 
       expect(await listQueuedReadings(db, USER)).toHaveLength(0);
       expect(await listQueuedReadings(db, 'user-2')).toHaveLength(1);
+    });
+
+    // The mirror of the listing rule: a caregiver clearing their own outbox
+    // must take their on-behalf captures with them, not leave rows only the
+    // patient can see.
+    it('clears a caregiver’s on-behalf rows too', async () => {
+      await enqueueReading(
+        db,
+        queued('on-behalf', { userId: 'patient-9', recordedById: USER }),
+      );
+      await enqueueReading(db, queued('unrelated', { userId: 'patient-9' }));
+
+      await clearQueue(db, USER);
+
+      const left = await listQueuedReadings(db, 'patient-9');
+      expect(left.map((r) => r.clientId)).toEqual(['unrelated']);
     });
 
     it('dequeues by clientId', async () => {

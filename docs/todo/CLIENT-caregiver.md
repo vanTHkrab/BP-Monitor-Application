@@ -565,20 +565,35 @@ A preference screen before any of that persists a value no system reads —
 which is exactly what `app/settings.tsx` refused to port client-old's
 "สำรองข้อมูลอัตโนมัติ" switch for.
 
-### 5. An on-behalf row outlives the caregiver's session
+### ~~5. An on-behalf row outlives the caregiver's session~~ — **the premise was wrong**
 
-Found while fixing the drain, not fixed with it. `clearQueue(db, userId)`
-deletes by `userId`, which for a caregiver's on-behalf capture is the
-**patient** — so signing the caregiver out leaves the patient's reading, and
-the photo it points at, on the caregiver's device with nobody able to send
-it. Draining now works for whoever signs in next, which is the right
-behaviour when that is the patient and the wrong one when it is a third
-account on a shared phone.
+Recorded here as a correction rather than deleted, because the wrong version
+was reasoned from a real observation and the next person will make the same
+inference.
 
-Not urgent (the row is inert and the app is single-account at a time) but it
-is other people's health data sitting past the session that created it, which
-is the category this project treats as load-bearing. The fix mirrors the
-listing one: clear on `userId` **or** `recordedById`.
+The observation: `clearQueue(db, userId)` deletes by `userId`, which for an
+on-behalf capture is the *patient*, so a caregiver signing out would leave
+that row behind. True as far as it goes — and irrelevant, because
+**`clearQueue` is deliberately never called.** `use-readings-sync.tsx` clears
+the *mirror* when a user departs and leaves the queue alone on purpose, with
+the reason written next to the call: a queued reading exists nowhere else in
+the world, so wiping it to tidy a cache destroys a measurement the patient
+took. Privacy there costs a re-fetch; the alternative costs a medical record.
+
+What was actually worth fixing was smaller and is done:
+
+- `clearQueue`'s own filter now matches both owners, so if it is ever wired to
+  a reset path it does not clear a caregiver's captures for everyone except
+  the patient. Its docstring says it is unwired and why.
+- The comment in `use-readings-sync.tsx` claimed a queued row "stays scoped to
+  its owner by `userId` — no other account can read it or drain it". The drain
+  fix made that stale: a row is now reachable from the patient's session *or*
+  the caregiver's. Still not a leak — both are parties to the reading and the
+  gateway re-checks the link on every write — but the sentence had to say so
+  rather than assert something narrower than the code.
+
+**The lesson worth keeping:** "function X has the wrong filter" is only a bug
+if something calls X. Check the callers before writing the finding down.
 
 ### 6. No audit trail for caregiver access
 

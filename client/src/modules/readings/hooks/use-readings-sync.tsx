@@ -142,10 +142,16 @@ export function ReadingsSyncProvider({ children }: { children: ReactNode }) {
    * **The queue is deliberately left alone.** `clearQueue` is the obvious
    * companion call and it is the wrong one: a queued reading exists nowhere
    * else in the world, and someone who signs out on a train would be deleting
-   * their own measurement to tidy up a cache. It stays scoped to its owner by
-   * `userId` — no other account can read it or drain it — and it syncs when
-   * they come back. Privacy here costs a re-fetch; the alternative costs a
-   * medical record.
+   * their own measurement to tidy up a cache. It syncs when they come back.
+   * Privacy here costs a re-fetch; the alternative costs a medical record.
+   *
+   * A row is reachable by the two people it concerns and nobody else:
+   * `listQueuedReadings` matches `userId` **or** `recordedById`, so an
+   * on-behalf capture drains from either the patient's session or the
+   * caregiver's. That is wider than "its owner" and still not a leak — both
+   * are parties to the reading, and the gateway re-checks the caregiver link
+   * on every write regardless. A third account signing in on the same phone
+   * matches neither column and sees nothing.
    */
   const heldUserIdRef = useRef<string | null>(null);
 
