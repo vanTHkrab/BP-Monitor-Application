@@ -173,10 +173,12 @@ the truth.
 
 ## What is still open
 
-- **C-005 is half done.** `activePatientId` now exists
-  (`modules/caregivers/hooks/use-active-patient.ts`) and home branches on it,
-  but nothing *sets* it yet — the "ดูข้อมูล" button on `app/invitations.tsx`
-  is still unported. That button is now unblocked: it calls
-  `setActivePatient(patient)` and navigates to `/(tabs)`.
+- **C-005 is half done**, and this screen is the half that works.
+  `activePatientId` exists (`modules/caregivers/hooks/use-active-patient.ts`)
+  and home branches on it, but nothing *sets* it — so the caregiver gate here
+  is currently unreachable rather than merely unused. Scoped in
+  [CLIENT-caregiver.md](./CLIENT-caregiver.md); note that home is also the
+  **only** screen that says whose data is on it, which the same change needs
+  to fix.
 - ~~**`/health-tips`** has no route.~~ Done — the screen is ported and the
   home row links to it.

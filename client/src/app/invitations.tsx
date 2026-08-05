@@ -26,8 +26,13 @@
  * set `activePatientId` and replaced the route with `/(tabs)`. It was blocked
  * on the home and history tabs, which have since landed and do read
  * `useActivePatient()` — so the button now has somewhere real to go and is
- * unblocked work rather than a dependency. Tracked as C-005; see
- * docs/todo/CLIENT-remaining.md.
+ * unblocked work rather than a dependency.
+ *
+ * **Its absence is why caregiver mode is currently unreachable**: home and
+ * history both gate on an active patient and nothing else can set one. Ship
+ * it together with the "whose data is this" banner — without that, a
+ * caregiver can record a reading or export a report under the wrong person's
+ * name. Tracked as C-005; see docs/todo/CLIENT-caregiver.md.
  */
 import { useMemo, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';

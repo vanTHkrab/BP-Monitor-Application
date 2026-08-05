@@ -4,8 +4,9 @@ Every screen client-old had now exists here for real, except `app/debug.tsx`.
 What remains is smaller than a screen each: features that live *inside* ported
 screens, and the infrastructure the ports worked around.
 
-Sections marked *(done)* are kept as the record of what was decided, not as
-open work.
+Sections marked *done* are kept as the record of what was decided and why —
+they are not open work. Caregiver work has moved to
+[CLIENT-caregiver.md](./CLIENT-caregiver.md).
 
 Bigger items have their own files — [CLIENT-export.md](./CLIENT-export.md),
 [CLIENT-debug-tools.md](./CLIENT-debug-tools.md). This is the rest, roughly in
@@ -13,7 +14,7 @@ the order the user would notice it missing.
 
 ---
 
-## 1. Signed-URL images (done)
+## 1. Signed-URL images — done
 
 **Where:** `modules/readings/lib/image-cache.ts`,
 `hooks/use-resolved-image-uri.ts`, `app/reading/[id].tsx`.
@@ -74,20 +75,14 @@ The pure part — given a schedule and a list of readings, which rounds are
 done — is the whole feature and is unit-testable without a device. Put it in
 `modules/notifications/lib/` and let the screen join it against `useReadings`.
 
-## 4. The caregiver's "ดูข้อมูล" jump — **C-005**
+## 4. The caregiver role — moved to its own file
 
-**Where:** `app/invitations.tsx`.
-
-Tapping a linked patient should set the viewing context and land on their
-data. It was blocked on the home and history tabs being placeholders; both
-have landed and both already read `useActivePatient()`, so this is now a
-`setActivePatient(patient)` plus a `router.replace('/(tabs)')` — plus deciding
-what the tab bar says while a caregiver is inside someone else's history,
-which is the part worth thinking about rather than the wiring.
-
-client-old also had an `ActivePatientBanner` above every screen for this. This
-tree has no equivalent, and a caregiver who cannot tell whose readings they
-are looking at is the failure mode that matters.
+C-005 and everything around it now live in
+[CLIENT-caregiver.md](./CLIENT-caregiver.md): the jump exists nowhere, so
+caregiver mode is unreachable from the UI even though every screen is built
+for it, and no screen but home says whose data is on it — which became a
+correctness problem the moment export started attributing documents to the
+active patient.
 
 ## 5. A reducer test for the capture state machine
 
@@ -103,7 +98,7 @@ Through the screen harness, assert only what needs no camera: the
 permission-denied state, the offline banner, and that manual entry is
 reachable when no detector exists.
 
-## 5b. Screen-test reach (done)
+## 6. Screen-test reach — done
 
 `@/database` used to call `openDatabaseSync` at module scope, so *importing*
 anything from `@/modules/readings` opened the device database. Under jest that
@@ -122,7 +117,41 @@ Two jest-config changes went with it, both in `client/package.json`:
 mounts `TamaguiProvider` + `ToastProvider` so the harness matches
 `app/_layout.tsx`.
 
-## 6. Doc drift from the earlier ports
+## 7. Two dependencies nothing imports
+
+Root `CLAUDE.md` rule 13: every manifest entry must be imported somewhere in
+the matching source tree.
+
+- **`expo-contacts`** — zero references in the whole repo outside
+  `app.json`'s plugin list. The plugin still adds a contacts permission to the
+  build, so the app asks for something no code uses. Confirmed ghost; remove
+  the dependency and the plugin entry together.
+- **`expo-glass-effect`** — no import in `src/`, but `expo-router` declares it
+  as its own dependency, so it is probably only here because someone added it
+  to satisfy a resolution error. *Suspected*, not confirmed: verify with a
+  prebuild before removing, since autolinking can want a native module
+  declared at the app level.
+
+`pnpm dlx depcheck` is the tool for finding the next one.
+
+## 8. Paths that pass tests but have never run on a device
+
+Both shipped in this line of work, both green under `pnpm check`, neither
+exercised for real. Recorded so the gap is not mistaken for coverage.
+
+- **`lib/image-cache.ts`'s I/O half** (`resolveImageUri`'s download branch and
+  `cleanupExpiredImages`). The specific risk is `File.modificationTime`'s
+  unit: the code handles seconds *and* milliseconds (`< 1e11` ⇒ seconds)
+  because platforms disagree, and reading it wrong expires the cache on every
+  check — a cache that never hits, wasting data without ever failing loudly.
+  Test: open a reading captured on another device, go offline, reopen it.
+- **The CSV export path.** PDF has been exercised; CSV and the failure
+  branches have not.
+
+Neither is worth a unit test — mocking `File.downloadFileAsync` asserts only
+that a mock was called. They want one manual pass each.
+
+## 9. Doc drift from the earlier ports
 
 `client/constants/api.ts` and `client/store/slices/` are referenced by
 `docs/01-api/API.md`, `infra/README.md`, and the api-gateway docs. Neither
@@ -137,12 +166,14 @@ files have not.
 Mechanical, but it is the kind of thing that sends the next contributor (or
 agent) looking for a file that has not existed for four commits.
 
-## 7. Two board items to reconcile
+## 10. Board items to reconcile
 
 - **C-004** (`[~]` in `TASK.md`) — "integrate on-device YOLO pre-flight result
   into camera UI warning banner". Superseded: the live framing gate replaced
   the warning-banner design entirely, and it shipped. Close it rather than
   implementing it.
-- **C-005** — item 4 above, now unblocked.
+- **C-005** — now scoped in [CLIENT-caregiver.md](./CLIENT-caregiver.md), and
+  unblocked. **C-001**, **A-004**, and **A-005** are tracked there too, since
+  all three are caregiver work.
 
 `TASK.md` is `bp-task`'s to write; don't edit it by hand.
