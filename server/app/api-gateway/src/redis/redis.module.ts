@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { RateLimitService } from './rate-limit.service';
+import { redisConnectionFromEnv } from './redis-connection';
 import Redis from 'ioredis';
 
 // Single shared ioredis client, exposed as a global provider so any feature
@@ -24,9 +25,19 @@ import Redis from 'ioredis';
     {
       provide: 'REDIS_CLIENT',
       useFactory: () => {
+        // Same resolution as the AI transport — see redis-connection.ts for
+        // why that is centralised rather than repeated. This client was
+        // hardcoded to `localhost`, which is fine on a dev machine and wrong
+        // in every container, where localhost is the container itself.
+        //
+        // Nothing reported it, because the failure is indistinguishable from
+        // the designed one: `lazyConnect` plus a swallowed `error` handler
+        // makes an unreachable Redis silent by construction, and
+        // `RateLimitService` then degrades to its per-process counter. Every
+        // deployed instance sat permanently in that fallback, limiting
+        // per-pod instead of globally, with nothing in a log to say so.
         const redis = new Redis({
-          host: 'localhost',
-          port: 6379,
+          ...redisConnectionFromEnv(),
           lazyConnect: true,
           maxRetriesPerRequest: 1,
           retryStrategy: () => null,

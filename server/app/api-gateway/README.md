@@ -46,7 +46,7 @@ curl -s http://localhost:3000/graphql \
 | `JWT_SECRET` | yes | — | **At least 32 characters**, genuinely random. The gateway refuses to boot below that |
 | `JWT_EXPIRES_IN` | no | `7d` | Shorter for stricter environments; longer widens the exposure window of a leaked token |
 | `S3_*` | if uploading | — | `S3_PROVIDER`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `S3_ENDPOINT`, `S3_DEFAULT_REGION` |
-| `REDIS_HOST` / `REDIS_PORT` | no | `localhost` / `6379` | AI features degrade gracefully when Redis is down |
+| `REDIS_URL` *or* `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | no | `localhost` / `6379` | One resolution for all three clients (`src/redis/redis-connection.ts`). `REDIS_URL` wins and is the only form carrying credentials or TLS. AI features and rate limiting both degrade quietly when Redis is unreachable — quietly enough that a wrong host looks like a working system |
 | `PORT` | no | `3000` | |
 | `GRAPHIQL_ENABLED` | no | — | `1` forces GraphiQL on. Unset means on everywhere except `NODE_ENV=production` |
 | `BETTER_AUTH_URL` | in prod | `http://localhost:$PORT` | Origin only — `/api/auth` is appended |

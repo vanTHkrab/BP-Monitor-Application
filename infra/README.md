@@ -237,7 +237,9 @@ a security tightening, not just a refactor side-effect of adding nginx.
 
 All connection strings live in `.env`. `DATABASE_URL` is consumed by Prisma in
 api-gateway; host **must** be `postgres` (the compose service name) inside the
-compose network. Redis uses `REDIS_HOST=redis` for the same reason.
+compose network. The gateway reaches Redis with `REDIS_HOST=redis` for the
+same reason; `ai-service` needs `REDIS_URL=redis://redis:6379` instead, because
+`main.py` reads only that variable.
 
 New in this change (prod only, consumed by `docker-compose.prod.yml` and
 `infra/scripts/init-letsencrypt.sh`):
