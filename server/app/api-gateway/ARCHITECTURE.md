@@ -1,19 +1,28 @@
-# API Gateway — Agent Architecture
+# API Gateway — Architecture
 
 ภาพรวมว่า gateway "เป็นคนกลาง" ระหว่างใครกับใครบ้าง และข้อมูลไหลยังไง สำหรับ
 ทีมที่เพิ่งเข้ามา หรือ AI agent ที่ต้องการ mental model ก่อนแก้โค้ด
+
+> **Note:** this file was previously named `AGENT.md`, which made it look like
+> agent instructions. It is an architecture reference. Agent instructions are
+> in [AGENTS.md](./AGENTS.md).
 
 ---
 
 ## บทบาท
 
+The Expo client is the gateway's only real consumer. The web dashboard sends
+one unauthenticated `hello` query as a liveness probe and otherwise reaches
+Postgres, Redis, and S3 directly — it holds no JWT. See the root
+[AGENTS.md](../../../AGENTS.md) for the full topology.
+
 ```
-┌─────────────┐     ┌─────────────┐
-│ Expo client │     │  Web (Next) │
-└──────┬──────┘     └──────┬──────┘
-       │  HTTPS + JWT      │
-       │  (GraphQL)        │
-       ▼                   ▼
+┌─────────────┐          ┌─────────────┐
+│ Expo client │          │  Web (Next) │
+└──────┬──────┘          └──────┬──────┘
+       │  HTTPS + JWT           │ `hello` probe only
+       │  (GraphQL)             │ (no token; also talks
+       ▼                        ▼  to PG/Redis/S3 direct)
 ┌────────────────────────────────────┐
 │           API GATEWAY              │
 │    (NestJS + Fastify + Mercurius)  │
