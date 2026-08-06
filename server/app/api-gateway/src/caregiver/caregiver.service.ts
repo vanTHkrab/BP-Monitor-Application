@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +12,7 @@ import {
   RelationshipType,
 } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { RateLimitService } from '../redis/rate-limit.service';
 import {
   CaregiverLinkStatusGql,
   CaregiverLinkType,
@@ -76,9 +79,63 @@ const parseRelationship = (raw: string): RelationshipType => {
   return 'other';
 };
 
+/**
+ * Invite budget: 10 attempts per 10 minutes per caregiver.
+ *
+ * Generous enough that nobody adding their family hits it, tight enough that
+ * enumerating an address space is not worth the wait.
+ *
+ * The window is fixed rather than sliding, matching `RateLimitService` — the
+ * same primitive Better Auth's credential endpoints use. That inherits a known
+ * weakness: a caller can spend 10 at 09:59 and another 10 at 10:01 for 20 in
+ * two minutes. Accepted here, because switching to a sliding window means
+ * changing the shared primitive and therefore changing login-throttle
+ * behaviour too, which is a bigger blast radius than this mitigation warrants.
+ * Filed separately.
+ */
+const INVITE_RATE_LIMIT = { window: 10 * 60, max: 10 };
+
+/** Namespaced so it cannot collide with Better Auth's own limiter keys. */
+const inviteRateLimitKey = (caregiverId: string) =>
+  `ratelimit:caregiver-invite:${caregiverId}`;
+
 @Injectable()
 export class CaregiverService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly rateLimit: RateLimitService,
+  ) {}
+
+  /**
+   * Spends one invite attempt, throwing 429 when the budget is gone.
+   *
+   * `app.module.ts` maps 429 to `extensions.code = 'TOO_MANY_REQUESTS'`, and
+   * its `errorFormatter` lifts every non-envelope key of an HttpException body
+   * into `extensions`. So `retryAfterSec` arrives at the client the same way
+   * the credential endpoints already deliver it, and
+   * `client/src/services/api.ts` reads it generically for every operation —
+   * no client change is needed for the countdown to have a number to show.
+   *
+   * When Redis is unreachable this degrades to `RateLimitService`'s
+   * per-process counter, which is the policy the repo already chose for the
+   * login throttle. Neither fail-open nor fail-closed; one policy, one place.
+   */
+  private async assertInviteRateLimit(caregiverId: string): Promise<void> {
+    const { allowed, retryAfter } = await this.rateLimit.consume(
+      inviteRateLimitKey(caregiverId),
+      INVITE_RATE_LIMIT,
+    );
+
+    if (allowed) return;
+
+    throw new HttpException(
+      {
+        message: 'ส่งคำเชิญบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่',
+        retryAfterSec: retryAfter ?? INVITE_RATE_LIMIT.window,
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
 
   async list(userId: string): Promise<CaregiverLinkType[]> {
     const links = await this.prisma.caregiverPatient.findMany({
@@ -130,6 +187,19 @@ export class CaregiverService {
     patientContact: string,
     relationship: string,
   ): Promise<CaregiverLinkType> {
+    // Counted before anything else, and keyed on the *caregiver*, not on the
+    // contact string. Keying on the contact would let an attacker rotate
+    // addresses and never spend a budget — which is precisely the attack this
+    // exists to stop, since `ไม่พบผู้ใช้จากอีเมลนี้` is an honest answer to
+    // "does this address have an account here?" and email addresses are far
+    // easier to guess than Thai phone numbers. The honest message is a
+    // deliberate UX choice; this is its mitigation.
+    //
+    // Every attempt counts, found or not-found, valid or malformed. Counting
+    // only failures would hand out a free attempt on every successful guess,
+    // and a successful lookup is the information being protected.
+    await this.assertInviteRateLimit(caregiverId);
+
     const contact = patientContact.trim();
     if (!contact) {
       throw new BadRequestException(
