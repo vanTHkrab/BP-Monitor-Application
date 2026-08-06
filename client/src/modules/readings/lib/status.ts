@@ -88,12 +88,20 @@ const COLORS: Record<BPStatus, string> = {
   critical: statusColor.critical,
 };
 
-const STATUSES = Object.keys(LABELS) as BPStatus[];
+/**
+ * Every status, derived from `LABELS` rather than written out again. `LABELS`
+ * is a `Record<BPStatus, string>`, so the compiler forces a new member into it
+ * — which makes this list the one place that cannot drift from the type. The
+ * severity filter's partition test asserts against it for exactly that reason:
+ * a sixth status added to `BPStatus` fails a test instead of quietly landing
+ * in no filter group.
+ */
+export const BP_STATUSES = Object.keys(LABELS) as BPStatus[];
 
 /** Narrows a stored string. An unrecognised value renders as `normal` rather
  *  than crashing a list — but it is never *written* by this build. */
 export function parseStatus(value: string | null | undefined): BPStatus {
-  return STATUSES.includes(value as BPStatus) ? (value as BPStatus) : 'normal';
+  return BP_STATUSES.includes(value as BPStatus) ? (value as BPStatus) : 'normal';
 }
 
 export const statusLabel = (status: BPStatus): string => LABELS[status];

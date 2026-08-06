@@ -2,7 +2,7 @@
 title: "Client: CSV and PDF export"
 description: Record of the shipped export path, its three callers, and what was ported from client-old.
 status: current
-updated: 2026-08-05
+updated: 2026-08-07
 owner: client
 ---
 
@@ -85,8 +85,13 @@ test rather than by a comment:
 2. **Settings** — whole-history export, in a "ข้อมูลของฉัน" section placed
    directly above "ลบข้อมูล": someone about to delete their history is exactly
    the person to offer a copy first.
-3. **History** — exports `filtered`, the range the time filter is showing, not
-   everything. There is a test for precisely this.
+3. **History** — exports `visible`: the rows the list is showing, which is the
+   time range **and** the severity group, not everything. The button sits under
+   the list, so the document has to be the list — handing over the
+   severity-unfiltered set would put normal readings in a report the sheet
+   described as "สูง/สูงมาก". The sheet summary names the severity only when
+   one is chosen, so the common case does not read "ระดับ ทุกระดับ". There is a
+   test per axis.
 
 Settings and history ask for a format through `ExportFormatSheet`. client-old
 chained three `Alert`s (data type → period → format); the data-type question

@@ -45,6 +45,7 @@ export { createReadingClientId } from './lib/client-id';
 export { cleanupExpiredImages } from './lib/image-cache';
 export { cleanupOrphanedPendingImages } from './lib/pending-image-store';
 export {
+  BP_STATUSES,
   BP_THRESHOLDS,
   classifyReading,
   parseStatus,
@@ -53,6 +54,17 @@ export {
   statusLabel,
 } from './lib/status';
 export { byMeasuredAtDesc, mergeReadings, readingKey } from './lib/mappers';
+export {
+  DEFAULT_SEVERITY_FILTER,
+  SEVERITY_FILTERS,
+  SEVERITY_GROUPS,
+  filterBySeverity,
+  matchesSeverity,
+  parseSeverityFilter,
+  severityFilterLabel,
+  type SeverityFilter,
+  type SeverityGroup,
+} from './lib/severity-filter';
 export {
   DEFAULT_TIME_FILTER,
   TIME_FILTERS,

@@ -23,10 +23,15 @@
  * schedule and the patient's measurements on one card — the same two-subjects
  * -on-one-screen bug `useSubject` exists to make unrepresentable.
  *
- * **The export button exports `filtered`, not `readings`** — what the user is
- * looking at, not everything they have. The time filter above it is the
- * period, which is why the export asks only for a format and not for a range
- * the screen already states. Whole-history export lives on `app/settings.tsx`.
+ * **Two filter axes, and they do not scope the same things.** The time filter
+ * scopes the chart *and* the list; the severity filter scopes the **list
+ * only**. That asymmetry is deliberate — see `visible` below.
+ *
+ * **The export button exports what is on screen, not `readings`** — what the
+ * user is looking at, not everything they have. The filters above it are the
+ * period and the severity, which is why the export asks only for a format and
+ * not for a range the screen already states. Whole-history export lives on
+ * `app/settings.tsx`.
  * The original's dark-slate gradient (`#2C3E50` → `#1a1a2e`) is not carried
  * over for the same reason as the other drift noted above: it appears nowhere
  * in `Theme`. It uses the `accent` gradient token instead.
@@ -50,13 +55,18 @@ import {
   BPReadingCard,
   BPTrendChart,
   ExportFormatSheet,
+  DEFAULT_SEVERITY_FILTER,
   DEFAULT_TIME_FILTER,
+  SEVERITY_FILTERS,
   TIME_FILTERS,
   chartSeries,
   filterByRange,
+  filterBySeverity,
+  severityFilterLabel,
   useExportReadings,
   useReadings,
   useReadingsSync,
+  type SeverityFilter,
   type TimeFilter,
 } from '@/modules/readings';
 import { gradientFor, palette } from '@/theme';
@@ -79,6 +89,7 @@ export default function HistoryScreen() {
   const mustPickPatient = isCaregiver && !isViewingPatient;
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>(DEFAULT_TIME_FILTER);
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(DEFAULT_SEVERITY_FILTER);
 
   const { readings, isLoading } = useReadings();
   const { refresh, isRefreshing } = useReadingsSync();
@@ -94,10 +105,25 @@ export default function HistoryScreen() {
 
   const { exportReadings, isExporting } = useExportReadings();
 
-  const filtered = useMemo(() => filterByRange(readings, timeFilter), [readings, timeFilter]);
+  const inRange = useMemo(() => filterByRange(readings, timeFilter), [readings, timeFilter]);
   // Memoised separately from the list so changing the filter does not
   // re-derive the chart series and every row in one pass.
-  const series = useMemo(() => chartSeries(filtered), [filtered]);
+  const series = useMemo(() => chartSeries(inRange), [inRange]);
+
+  /**
+   * The list's rows: the time range **and** the severity group.
+   *
+   * The chart above is fed from `inRange`, **not** from this — and that is not
+   * an inconsistency to tidy up. A trend line drawn through only the readings
+   * that survived a severity filter hides every reading between them, so
+   * selecting "สูง/สูงมาก" would draw a patient whose readings are mostly fine
+   * as someone in continuous crisis. A trend's whole meaning comes from the
+   * points the user did *not* single out; a list's does not.
+   */
+  const visible = useMemo(
+    () => filterBySeverity(inRange, severityFilter),
+    [inRange, severityFilter],
+  );
 
   /**
    * One sheet, not client-old's three chained `Alert`s. The original asked for
@@ -107,6 +133,12 @@ export default function HistoryScreen() {
    */
   const [formatSheetOpen, setFormatSheetOpen] = useState(false);
   const rangeLabel = TIME_FILTERS.find((filter) => filter.key === timeFilter)?.label ?? '';
+  // Named in the sheet only when it actually narrows, so the common case does
+  // not read "ระดับ ทุกระดับ".
+  const severityLabel = severityFilter === 'all' ? '' : severityFilterLabel(severityFilter);
+  const exportSummary = severityLabel
+    ? `ช่วง ${rangeLabel} · ระดับ ${severityLabel} · ${visible.length} รายการ`
+    : `ช่วง ${rangeLabel} · ${visible.length} รายการ`;
 
   return (
     <GradientBackground safeArea={false}>
@@ -138,12 +170,27 @@ export default function HistoryScreen() {
           <PickPatientPrompt />
         ) : (
           <>
-            <View className="mb-4 px-4">
+            {/*
+              Two rows rather than one: eight controls on one line is below the
+              44dp floor this app's audience needs, and the two axes answer
+              different questions ("when" and "how bad"). Stacking them keeps
+              each row at four pills — the width the time row already ships at.
+            */}
+            <View className="mb-3 px-4">
               <TabButtons
                 testIDPrefix="history-filter"
                 tabs={TIME_FILTERS}
                 activeTab={timeFilter}
                 onTabChange={setTimeFilter}
+              />
+            </View>
+
+            <View className="mb-4 px-4">
+              <TabButtons
+                testIDPrefix="history-severity"
+                tabs={SEVERITY_FILTERS}
+                activeTab={severityFilter}
+                onTabChange={setSeverityFilter}
               />
             </View>
 
@@ -174,7 +221,43 @@ export default function HistoryScreen() {
                 รายการล่าสุด
               </ThemedText>
 
-              {filtered.slice(0, PREVIEW_COUNT).map((reading) => (
+              {/*
+                Two filters stack, so an empty list has two possible causes and
+                "ไม่พบรายการ" names neither. This branch runs only when the
+                range itself has rows, which makes severity the sole culprit —
+                so the copy can say so, and the button is the one tap back.
+                When the *range* is empty the chart's own empty state above has
+                already said so; a second message here would compete with it.
+              */}
+              {visible.length === 0 && inRange.length > 0 ? (
+                <View
+                  testID="history-severity-empty"
+                  className="mb-5 rounded-3xl border p-5"
+                  style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+                >
+                  <ThemedText type="body" weight="regular" themeColor="text-secondary" className="text-center">
+                    {`ช่วง ${rangeLabel} มี ${inRange.length} รายการ แต่ไม่มีรายการระดับ "${severityLabel}"`}
+                  </ThemedText>
+
+                  <Pressable
+                    testID="history-severity-reset"
+                    onPress={() => setSeverityFilter('all')}
+                    accessibilityRole="button"
+                    accessibilityLabel="ล้างตัวกรองระดับความดัน แสดงทุกระดับ"
+                    className="mt-3 self-center rounded-2xl px-4 py-2"
+                    style={({ pressed }) => ({
+                      backgroundColor: colors['surface-muted'],
+                      opacity: pressed ? 0.9 : 1,
+                    })}
+                  >
+                    <ThemedText type="body" weight="semibold" style={{ color: palette.purple }}>
+                      ดูทุกระดับ
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {visible.slice(0, PREVIEW_COUNT).map((reading) => (
                 <BPReadingCard
                   key={reading.key}
                   reading={reading}
@@ -184,13 +267,25 @@ export default function HistoryScreen() {
               ))}
             </View>
 
-            {filtered.length > PREVIEW_COUNT ? (
+            {visible.length > PREVIEW_COUNT ? (
               <View className="mb-3 px-4">
                 <Pressable
                   testID="history-view-all"
-                  onPress={() => router.push('/history-list')}
+                  // The severity choice travels; the time range does not. That
+                  // screen's title is "ประวัติทั้งหมด" and its job is the long
+                  // scroll, so re-imposing a period there would contradict it —
+                  // but arriving at a full-history list that quietly dropped the
+                  // "สูง/สูงมาก" the user had just selected is the worse of the
+                  // two surprises.
+                  onPress={() =>
+                    router.push(
+                      severityFilter === 'all'
+                        ? '/history-list'
+                        : `/history-list?severity=${severityFilter}`,
+                    )
+                  }
                   accessibilityRole="button"
-                  accessibilityLabel={`ดูทั้งหมด ${filtered.length} รายการ`}
+                  accessibilityLabel={`ดูทั้งหมด ${visible.length} รายการ`}
                   className="overflow-hidden rounded-2xl"
                   style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
                 >
@@ -200,7 +295,7 @@ export default function HistoryScreen() {
                   >
                     <Ionicons name="list" size={20} color={palette.purple} />
                     <ThemedText type="body" weight="semibold" className="ml-2" style={{ color: palette.purple }}>
-                      {`ดูทั้งหมด (${filtered.length} รายการ)`}
+                      {`ดูทั้งหมด (${visible.length} รายการ)`}
                     </ThemedText>
                   </View>
                 </Pressable>
@@ -211,15 +306,15 @@ export default function HistoryScreen() {
               <Pressable
                 testID="history-export"
                 onPress={() => setFormatSheetOpen(true)}
-                disabled={filtered.length === 0 || isExporting}
+                disabled={visible.length === 0 || isExporting}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: filtered.length === 0 || isExporting }}
-                accessibilityLabel="ส่งออกรายงาน PDF หรือ CSV ของช่วงเวลาที่เลือก"
+                accessibilityState={{ disabled: visible.length === 0 || isExporting }}
+                accessibilityLabel="ส่งออกรายงาน PDF หรือ CSV ของรายการที่แสดงอยู่"
                 className="overflow-hidden rounded-2xl shadow-lg"
                 style={({ pressed }) => ({
                   // An empty range has nothing to put in the document, and an
                   // empty PDF is a worse answer than a disabled button.
-                  opacity: filtered.length === 0 || isExporting ? 0.5 : pressed ? 0.9 : 1,
+                  opacity: visible.length === 0 || isExporting ? 0.5 : pressed ? 0.9 : 1,
                 })}
               >
                 <LinearGradient
@@ -242,8 +337,13 @@ export default function HistoryScreen() {
       <ExportFormatSheet
         open={formatSheetOpen}
         onOpenChange={setFormatSheetOpen}
-        onSelect={(format) => void exportReadings(filtered, format)}
-        summary={`ช่วง ${rangeLabel} · ${filtered.length} รายการ`}
+        // `visible`, not `inRange`: the button sits under the list, so the
+        // document has to be the list. Handing over the severity-unfiltered set
+        // would put normal readings in a report the screen described as
+        // "สูง/สูงมาก" — the same class of surprise as exporting the whole
+        // history from a screen showing 30 days.
+        onSelect={(format) => void exportReadings(visible, format)}
+        summary={exportSummary}
       />
     </GradientBackground>
   );
