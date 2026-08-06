@@ -5,6 +5,13 @@ deployable environments via Docker Compose.
 
 The mobile **client** is **not** containerised — it runs on Expo directly.
 
+> **Note:** the step-by-step deploy sequence now lives in
+> [docs/guides/deploy.md](../docs/guides/deploy.md), and first-time local
+> setup in [docs/guides/setup.md](../docs/guides/setup.md). **This file
+> remains the reference** for Compose file structure, the port tables, and
+> the reasoning behind each service's configuration — the guides link here
+> rather than duplicating it.
+
 ## Layout
 
 ```text
@@ -295,14 +302,14 @@ Never commit a real `.env` — only `.env.example` is tracked.
   revisit with a SAN cert (or two certs) across `$DOMAIN_NAME` +
   `api.$DOMAIN_NAME` if the gateway and dashboard ever need independent
   scaling, rate limiting, or WAF policy.
-- **GraphiQL is proxied for parity, not because it's newly exposed.**
-  `app.module.ts` sets `graphiql: true` unconditionally (not gated behind
-  `NODE_ENV`), so it was already internet-reachable at `:3000/graphiql`
-  before nginx existed (the gateway published its port directly). Proxying
-  `/graphiql` through nginx doesn't create a new exposure, it just moves an
-  existing one behind TLS. Gating GraphiQL off in production is an
-  api-gateway app-code change, out of scope here — flagged for a future
-  `nest-dev` task, not fixed in this change.
+- **GraphiQL now has two independent gates.** `app.module.ts` resolves
+  `graphiql` from `GRAPHIQL_ENABLED` (`1` = on), defaulting to on everywhere
+  except `NODE_ENV=production` — so a prod deploy does not serve a
+  mutation-capable schema explorer unless someone opts in. nginx puts
+  `/graphiql` behind Basic Auth on top of that. Neither gate is redundant;
+  they fail differently. (This note previously said `graphiql: true` was set
+  unconditionally and that gating it was future `nest-dev` work — that work
+  has since landed.)
 - **certbot's image tag is deliberately not pinned**, unlike this project's
   own Dockerfiles. It needs to track Let's Encrypt's ACME protocol over
   however many years the host stays up; a stale pin is a known way for

@@ -9,10 +9,11 @@ owner: cross
 # Plans
 
 Cross-cutting, forward-looking plans and recorded architectural-debt items that
-don't belong to a single service's own `PLAN.md`. Per-service roadmaps live in
-[`api-gateway-plan.md`](../project/api-gateway-plan.md),
-[`ai-service-plan.md`](../project/ai-service-plan.md), and
-`client/PLAN.md`.
+don't belong to a single service's own roadmap. The gateway's roadmap lives in
+[`api-gateway-plan.md`](../project/api-gateway-plan.md) and the client's
+per-feature records in [`docs/project/`](../project/). The ai-service roadmap
+was retired once its milestones shipped — its closed decisions are now ADRs in
+[`docs/decisions/`](../decisions/).
 
 Each plan states its status and, when deferred, an explicit **trigger
 condition** for when to act — so a known trap is visible rather than silently

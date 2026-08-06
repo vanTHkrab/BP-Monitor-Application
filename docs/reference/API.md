@@ -676,7 +676,7 @@ pnpm --dir server/app/api-gateway start:dev
 
 - [api-gateway/CLAUDE.md](../../server/app/api-gateway/CLAUDE.md) — gateway conventions
 - [api-gateway/STRUCTURE.md](../../server/app/api-gateway/STRUCTURE.md) — feature-module layout
-- [api-gateway/AGENT.md](../../server/app/api-gateway/AGENT.md) — architecture overview
+- [api-gateway/ARCHITECTURE.md](../../server/app/api-gateway/ARCHITECTURE.md) — request lifecycle and module graph
 - [client/CLAUDE.md](../../client/CLAUDE.md) — mobile error-handling rules
 - AI ↔ gateway wire contract — [ai-service/src/ai_service/handlers.py](../../server/app/ai-service/src/ai_service/handlers.py)
   (Redis channels `analyze_bp_image` / `analyze_bp_image.reply`; `handle_message` owns the reply schema and `ocrEngine` dispatch)
