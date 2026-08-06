@@ -120,6 +120,8 @@ type PatientSummaryType {
   latestReading: PatientLatestReadingType
   weight: Float
   height: Float
+  gender: String
+  congenitalDisease: String
 }
 
 type PatientHealthProfileType {

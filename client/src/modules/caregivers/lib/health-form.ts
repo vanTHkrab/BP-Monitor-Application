@@ -19,28 +19,22 @@
  * inert instead of silently writable, which is the same guard
  * `caregiver.service.ts` puts on its own loop.
  *
- * ## Why only *changed* fields are sent, and why that is load-bearing here
+ * ## Why only *changed* fields are sent
  *
- * `myPatients` — the only list a caregiver can read a patient's health from —
- * carries `dob`, `weight` and `height` and **not** `gender` or
- * `congenitalDisease`. There is no query that returns those two to a
- * caregiver; `PatientHealthProfileType` exists only as this mutation's return
- * value. (Flagged: `caregiver.resolver.ts` says "a caregiver who wants to
- * know the current values can read them from `myPatients`", which is true of
- * three fields out of five. Closing the gap is a gateway change — adding
- * `gender` and `congenitalDisease` to `PatientSummaryType` — and is not this
- * change's to make.)
+ * The gateway distinguishes an absent key ("leave this column alone") from an
+ * explicit `null` ("clear it"), and this builds the patch accordingly: a field
+ * the user did not touch is absent, a field they emptied is `null`.
  *
- * Submitting the whole form would therefore send `gender: null` and
- * `congenitalDisease: null` on every save and **erase** two columns the
- * caregiver was never shown. The gateway distinguishes an absent key ("leave
- * alone") from an explicit `null` ("clear it"), so the fix is exact: those
- * two fields start empty, and an empty field that started empty is not in the
- * patch. Typing into one sends it; leaving it alone cannot clear it.
+ * That matters because two caregivers can look after the same patient. Sending
+ * the whole form would make every save a full overwrite, so the second one to
+ * submit would silently revert a field the first had just changed — without
+ * either of them editing it. A patch cannot do that.
  *
- * The cost is stated on the screen rather than hidden: a caregiver cannot
- * *clear* a congenital disease they cannot see. Refusing to erase data you
- * were not shown is the right side of that trade for a medical record.
+ * It mattered more before `PatientSummaryType` carried `gender` and
+ * `congenitalDisease`: the form could not read them, so a full submit would
+ * have sent `null` for both and erased columns nobody was shown. That gap is
+ * closed — the readable set and the editable set are now the same five — but
+ * the patch stays, on its own merits.
  */
 import { formatIsoDate } from '@/utils/date-formatter';
 
@@ -109,17 +103,21 @@ export function healthFormFromPatient(
   patient: PatientSummary | null,
   known?: PatientHealthProfile | null,
 ): HealthForm {
+  // `known` is what this session's last save returned, so it wins over the
+  // list, which was fetched before that save.
   const dob = known?.dob ?? patient?.dob ?? null;
   const weight = known?.weight ?? patient?.weight;
   const height = known?.height ?? patient?.height;
+  const gender = known?.gender ?? patient?.gender ?? null;
+  const congenital = known?.congenitalDisease ?? patient?.congenitalDisease;
 
   return {
     ...EMPTY_BASELINE,
     dob,
-    gender: known?.gender ?? null,
+    gender: (gender as HealthForm['gender']) ?? null,
     weight: weight != null ? String(weight) : '',
     height: height != null ? String(height) : '',
-    congenitalDisease: known?.congenitalDisease ?? '',
+    congenitalDisease: congenital ?? '',
   };
 }
 

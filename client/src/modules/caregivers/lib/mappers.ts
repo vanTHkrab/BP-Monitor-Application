@@ -57,6 +57,8 @@ export type PatientSummaryPayload = {
   } | null;
   weight: number | null;
   height: number | null;
+  gender: string | null;
+  congenitalDisease: string | null;
 };
 
 /** Unknown statuses collapse to `pending`: it is the only one that shows the
@@ -110,6 +112,8 @@ export function patientSummaryFromGql(payload: PatientSummaryPayload): PatientSu
       : undefined,
     weight: payload.weight ?? undefined,
     height: payload.height ?? undefined,
+    gender: payload.gender ?? undefined,
+    congenitalDisease: payload.congenitalDisease ?? undefined,
   };
 }
 

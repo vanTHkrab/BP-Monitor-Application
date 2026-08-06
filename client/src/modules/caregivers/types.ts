@@ -101,6 +101,13 @@ export type PatientSummary = {
   latestReading?: PatientLatestReading;
   weight?: number;
   height?: number;
+  /**
+   * Present so the edit form can seed every field it may write. The readable
+   * set and the editable set are the same five on purpose — a field a
+   * caregiver can change but cannot see is one they would overwrite blind.
+   */
+  gender?: string;
+  congenitalDisease?: string;
 };
 
 /** Just enough of a reading to sort and colour a patient row. */

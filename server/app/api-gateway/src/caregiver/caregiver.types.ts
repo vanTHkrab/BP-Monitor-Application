@@ -139,6 +139,20 @@ export class PatientSummaryType {
   latestReading?: PatientLatestReadingType;
   @Field(() => Float, { nullable: true }) weight?: number;
   @Field(() => Float, { nullable: true }) height?: number;
+  /**
+   * `gender` and `congenitalDisease` are here for one reason: they are two of
+   * the five fields `updatePatientHealth` lets a `full` caregiver write, and
+   * this is the only query that shows a caregiver their patient's values.
+   *
+   * Without them the edit form could not seed those two, so saving would
+   * either send `null` for both on every submit — erasing a condition nobody
+   * was shown — or the client would need a special case to suppress fields it
+   * cannot display. **The editable set and the readable set have to match.**
+   * If a sixth field ever becomes editable, it belongs here in the same
+   * change.
+   */
+  @Field({ nullable: true }) gender?: string;
+  @Field({ nullable: true }) congenitalDisease?: string;
 }
 
 /**

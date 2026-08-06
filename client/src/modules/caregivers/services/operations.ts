@@ -49,6 +49,8 @@ export const GQL_MY_PATIENTS = `
       }
       weight
       height
+      gender
+      congenitalDisease
     }
   }
 `;

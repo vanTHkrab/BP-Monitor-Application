@@ -570,6 +570,8 @@ export class CaregiverService {
             dob: true,
             weight: true,
             height: true,
+            gender: true,
+            congenitalDisease: true,
           },
         },
       },
@@ -618,6 +620,8 @@ export class CaregiverService {
       relationship: link.relationship,
       weight: link.patient.weight ?? undefined,
       height: link.patient.height ?? undefined,
+      gender: link.patient.gender ?? undefined,
+      congenitalDisease: link.patient.congenitalDisease ?? undefined,
     }));
   }
 

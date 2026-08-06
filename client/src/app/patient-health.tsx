@@ -355,23 +355,6 @@ export default function PatientHealthScreen() {
           </ProfileGroup>
 
           {/*
-            Said in the form, not only in a code comment. "เพศ" and "โรคประจำตัว"
-            render blank for a caregiver who has not yet saved them because
-            there is no query that returns those two — so without this the
-            screen looks like it is reporting the patient has neither.
-          */}
-          {isEditing && known === null ? (
-            <Notice
-              testID="patient-health-unknown-notice"
-              title="เพศ และ โรคประจำตัว ยังแสดงค่าเดิมไม่ได้"
-              text={
-                'ระบบยังไม่เปิดให้ผู้ดูแลอ่านสองช่องนี้ ช่องที่เว้นว่างไว้จะไม่ถูกบันทึกทับ ' +
-                'กรอกเฉพาะช่องที่ต้องการแก้ไขเท่านั้น'
-              }
-            />
-          ) : null}
-
-          {/*
             Errors are inline on this screen rather than an `Alert` — the
             project reserves `Alert.alert` for permission prompts and one-shot
             irreversible confirmations, and a refused save is neither.
