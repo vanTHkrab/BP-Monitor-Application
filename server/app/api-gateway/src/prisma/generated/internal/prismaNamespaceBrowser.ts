@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
+  ProfileChangeLog: 'ProfileChangeLog',
   Passkey: 'Passkey',
   UserSession: 'UserSession',
   Account: 'Account',
@@ -109,6 +110,20 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const ProfileChangeLogScalarFieldEnum = {
+  id: 'id',
+  patientId: 'patientId',
+  actorId: 'actorId',
+  actorName: 'actorName',
+  field: 'field',
+  oldValue: 'oldValue',
+  newValue: 'newValue',
+  changedAt: 'changedAt'
+} as const
+
+export type ProfileChangeLogScalarFieldEnum = (typeof ProfileChangeLogScalarFieldEnum)[keyof typeof ProfileChangeLogScalarFieldEnum]
 
 
 export const PasskeyScalarFieldEnum = {

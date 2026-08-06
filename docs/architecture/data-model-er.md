@@ -28,6 +28,9 @@ erDiagram
     User ||--o{ CaregiverPatient : "caregiver_of"
     User ||--o{ CaregiverPatient : "patient_of"
 
+    User ||--o{ ProfileChangeLog : "subject_of"
+    User ||--o{ ProfileChangeLog : "actor_of"
+
     BloodPressureReading ||--o| Image : "captured_by"
     BloodPressureReading ||--o{ Alert : "triggers"
 
@@ -70,8 +73,20 @@ erDiagram
         uuid patient_id PK,FK
         enum relationship "parent|patient|caregiver|child|spouse|sibling|friend|caregiver_professional|other"
         enum status "pending|accepted|rejected"
+        enum permission "view|full"
         timestamp created_at
         timestamp responded_at
+    }
+
+    ProfileChangeLog {
+        uuid id PK
+        uuid patient_id FK "whose record"
+        uuid actor_id FK "who changed it; null once their account is deleted"
+        string actor_name "snapshot at write time"
+        string field "one of dob|gender|weight|height|congenital_disease"
+        string old_value "rendered text; null means unset"
+        string new_value "rendered text; null means cleared"
+        timestamp changed_at
     }
 
     BloodPressureReading {
@@ -154,6 +169,23 @@ erDiagram
 - **CaregiverPatient is self-relation on User** — Composite PK (caregiver_id,
   patient_id). The same row pairs a caregiver and a patient with a typed
   relationship. Cascades on either side delete the link, not the people.
+  `permission` (`view` | `full`, default `full`) is what an *accepted* link
+  grants: `full` covers recording readings on the patient's behalf and
+  editing their health information, and the patient can move it either way at
+  any time via `updateCaregiverPermission`.
+- **ProfileChangeLog is the audit for that second power** — One row per field
+  changed, not per request, so "weight 60 → 80, by whom, when" is a row rather
+  than a diff someone has to reconstruct. Values are stored as rendered text
+  because the five editable fields span four types and the consumer is a human
+  reading a list; `null` on either side distinguishes unset from cleared.
+  `patient_id` cascades — the trail belongs to the record it describes — but
+  `actor_id` is `SetNull` with a denormalised `actor_name` beside it, so
+  deleting a caregiver's account cannot erase the patient's record of what
+  that caregiver did. `Restrict` was the alternative and is worse: it would
+  make an audit row a permanent block on the actor's right to erasure. Only
+  the patient can read their own trail; there is deliberately no
+  caregiver-facing query, because every row carries the patient's health
+  values and revocation has to be complete.
 - **user_sessions, not session cookies** — Every authenticated request
   validates the session row exists with is_active=true. Logout flips the flag;
   sessions table is also the data behind the device-history screen.

@@ -277,9 +277,21 @@ export class AuthService {
       }
     }
 
-    if (data.email) {
+    // A-006. Better Auth lowercases on every path it owns (sign-up, sign-in,
+    // change-email); this one writes through Prisma directly and so bypassed
+    // that, and was the only way a mixed-case address could enter the column.
+    //
+    // Normalising here rather than at the reads fixes both halves at once.
+    // The `findUnique` below is exact-match on a `@unique` column, so a stored
+    // `Foo@x.com` is invisible to a lookup for `foo@x.com` — which is how
+    // `addCaregiverPatient`'s email lookup would fail to find a patient who
+    // exists, and equally how this very uniqueness check would miss a
+    // conflict and let the update fail at the database instead.
+    const email = data.email?.trim().toLowerCase();
+
+    if (email) {
       const existingEmail = await this.prisma.user.findUnique({
-        where: { email: data.email },
+        where: { email },
       });
 
       if (existingEmail && existingEmail.id !== userId) {
@@ -294,7 +306,7 @@ export class AuthService {
     // Email can no longer be cleared: it is the ownership proof account
     // linking depends on, and the column is NOT NULL as of the Better Auth
     // identity migration. An empty string is ignored rather than written.
-    if (data.email) patch.email = data.email;
+    if (email) patch.email = email;
     if (data.dob !== undefined) patch.dob = data.dob || null;
     if (data.gender !== undefined) patch.gender = data.gender || null;
     if (data.weight !== undefined) patch.weight = data.weight ?? null;

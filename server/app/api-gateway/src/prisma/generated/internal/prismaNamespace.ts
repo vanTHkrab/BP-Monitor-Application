@@ -385,6 +385,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   User: 'User',
+  ProfileChangeLog: 'ProfileChangeLog',
   Passkey: 'Passkey',
   UserSession: 'UserSession',
   Account: 'Account',
@@ -412,7 +413,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "passkey" | "userSession" | "account" | "verification" | "caregiverPatient" | "image" | "alert" | "bloodPressureReading" | "post" | "postComment" | "postCommentLike" | "postLike"
+    modelProps: "user" | "profileChangeLog" | "passkey" | "userSession" | "account" | "verification" | "caregiverPatient" | "image" | "alert" | "bloodPressureReading" | "post" | "postComment" | "postCommentLike" | "postLike"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -487,6 +488,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.UserCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.UserCountAggregateOutputType> | number
+        }
+      }
+    }
+    ProfileChangeLog: {
+      payload: Prisma.$ProfileChangeLogPayload<ExtArgs>
+      fields: Prisma.ProfileChangeLogFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ProfileChangeLogFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ProfileChangeLogFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>
+        }
+        findFirst: {
+          args: Prisma.ProfileChangeLogFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ProfileChangeLogFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>
+        }
+        findMany: {
+          args: Prisma.ProfileChangeLogFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>[]
+        }
+        create: {
+          args: Prisma.ProfileChangeLogCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>
+        }
+        createMany: {
+          args: Prisma.ProfileChangeLogCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ProfileChangeLogCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>[]
+        }
+        delete: {
+          args: Prisma.ProfileChangeLogDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>
+        }
+        update: {
+          args: Prisma.ProfileChangeLogUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>
+        }
+        deleteMany: {
+          args: Prisma.ProfileChangeLogDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ProfileChangeLogUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ProfileChangeLogUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>[]
+        }
+        upsert: {
+          args: Prisma.ProfileChangeLogUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfileChangeLogPayload>
+        }
+        aggregate: {
+          args: Prisma.ProfileChangeLogAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProfileChangeLog>
+        }
+        groupBy: {
+          args: Prisma.ProfileChangeLogGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProfileChangeLogGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ProfileChangeLogCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProfileChangeLogCountAggregateOutputType> | number
         }
       }
     }
@@ -1446,6 +1521,20 @@ export const UserScalarFieldEnum = {
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
 
 
+export const ProfileChangeLogScalarFieldEnum = {
+  id: 'id',
+  patientId: 'patientId',
+  actorId: 'actorId',
+  actorName: 'actorName',
+  field: 'field',
+  oldValue: 'oldValue',
+  newValue: 'newValue',
+  changedAt: 'changedAt'
+} as const
+
+export type ProfileChangeLogScalarFieldEnum = (typeof ProfileChangeLogScalarFieldEnum)[keyof typeof ProfileChangeLogScalarFieldEnum]
+
+
 export const PasskeyScalarFieldEnum = {
   id: 'id',
   name: 'name',
@@ -1931,6 +2020,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit
+  profileChangeLog?: Prisma.ProfileChangeLogOmit
   passkey?: Prisma.PasskeyOmit
   userSession?: Prisma.UserSessionOmit
   account?: Prisma.AccountOmit

@@ -377,6 +377,8 @@ export type UserWhereInput = {
   postLikes?: Prisma.PostLikeListRelationFilter
   sessions?: Prisma.UserSessionListRelationFilter
   passkeys?: Prisma.PasskeyListRelationFilter
+  profileChanges?: Prisma.ProfileChangeLogListRelationFilter
+  profileEditsMade?: Prisma.ProfileChangeLogListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -416,6 +418,8 @@ export type UserOrderByWithRelationInput = {
   postLikes?: Prisma.PostLikeOrderByRelationAggregateInput
   sessions?: Prisma.UserSessionOrderByRelationAggregateInput
   passkeys?: Prisma.PasskeyOrderByRelationAggregateInput
+  profileChanges?: Prisma.ProfileChangeLogOrderByRelationAggregateInput
+  profileEditsMade?: Prisma.ProfileChangeLogOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -458,6 +462,8 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   postLikes?: Prisma.PostLikeListRelationFilter
   sessions?: Prisma.UserSessionListRelationFilter
   passkeys?: Prisma.PasskeyListRelationFilter
+  profileChanges?: Prisma.ProfileChangeLogListRelationFilter
+  profileEditsMade?: Prisma.ProfileChangeLogListRelationFilter
 }, "id" | "email" | "phone">
 
 export type UserOrderByWithAggregationInput = {
@@ -557,6 +563,8 @@ export type UserCreateInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -596,6 +604,8 @@ export type UserUncheckedCreateInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserUpdateInput = {
@@ -635,6 +645,8 @@ export type UserUpdateInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -674,6 +686,8 @@ export type UserUncheckedUpdateInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -892,6 +906,36 @@ export type DateTimeFieldUpdateOperationsInput = {
   set?: Date | string
 }
 
+export type UserCreateNestedOneWithoutProfileChangesInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutProfileChangesInput, Prisma.UserUncheckedCreateWithoutProfileChangesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutProfileChangesInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserCreateNestedOneWithoutProfileEditsMadeInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutProfileEditsMadeInput, Prisma.UserUncheckedCreateWithoutProfileEditsMadeInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutProfileEditsMadeInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutProfileChangesNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutProfileChangesInput, Prisma.UserUncheckedCreateWithoutProfileChangesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutProfileChangesInput
+  upsert?: Prisma.UserUpsertWithoutProfileChangesInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutProfileChangesInput, Prisma.UserUpdateWithoutProfileChangesInput>, Prisma.UserUncheckedUpdateWithoutProfileChangesInput>
+}
+
+export type UserUpdateOneWithoutProfileEditsMadeNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutProfileEditsMadeInput, Prisma.UserUncheckedCreateWithoutProfileEditsMadeInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutProfileEditsMadeInput
+  upsert?: Prisma.UserUpsertWithoutProfileEditsMadeInput
+  disconnect?: Prisma.UserWhereInput | boolean
+  delete?: Prisma.UserWhereInput | boolean
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutProfileEditsMadeInput, Prisma.UserUpdateWithoutProfileEditsMadeInput>, Prisma.UserUncheckedUpdateWithoutProfileEditsMadeInput>
+}
+
 export type UserCreateNestedOneWithoutPasskeysInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutPasskeysInput, Prisma.UserUncheckedCreateWithoutPasskeysInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutPasskeysInput
@@ -1076,6 +1120,358 @@ export type UserUpdateOneRequiredWithoutPostLikesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutPostLikesInput, Prisma.UserUpdateWithoutPostLikesInput>, Prisma.UserUncheckedUpdateWithoutPostLikesInput>
 }
 
+export type UserCreateWithoutProfileChangesInput = {
+  id?: string
+  email: string
+  emailVerified?: boolean
+  name: string
+  firstname: string
+  lastname: string
+  phone: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
+  role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  images?: Prisma.ImageCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
+  posts?: Prisma.PostCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
+}
+
+export type UserUncheckedCreateWithoutProfileChangesInput = {
+  id?: string
+  email: string
+  emailVerified?: boolean
+  name: string
+  firstname: string
+  lastname: string
+  phone: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
+  role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
+  posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
+}
+
+export type UserCreateOrConnectWithoutProfileChangesInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutProfileChangesInput, Prisma.UserUncheckedCreateWithoutProfileChangesInput>
+}
+
+export type UserCreateWithoutProfileEditsMadeInput = {
+  id?: string
+  email: string
+  emailVerified?: boolean
+  name: string
+  firstname: string
+  lastname: string
+  phone: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
+  role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  images?: Prisma.ImageCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
+  posts?: Prisma.PostCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+}
+
+export type UserUncheckedCreateWithoutProfileEditsMadeInput = {
+  id?: string
+  email: string
+  emailVerified?: boolean
+  name: string
+  firstname: string
+  lastname: string
+  phone: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
+  role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
+  posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+}
+
+export type UserCreateOrConnectWithoutProfileEditsMadeInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutProfileEditsMadeInput, Prisma.UserUncheckedCreateWithoutProfileEditsMadeInput>
+}
+
+export type UserUpsertWithoutProfileChangesInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutProfileChangesInput, Prisma.UserUncheckedUpdateWithoutProfileChangesInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutProfileChangesInput, Prisma.UserUncheckedCreateWithoutProfileChangesInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutProfileChangesInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutProfileChangesInput, Prisma.UserUncheckedUpdateWithoutProfileChangesInput>
+}
+
+export type UserUpdateWithoutProfileChangesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  images?: Prisma.ImageUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
+}
+
+export type UserUncheckedUpdateWithoutProfileChangesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
+}
+
+export type UserUpsertWithoutProfileEditsMadeInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutProfileEditsMadeInput, Prisma.UserUncheckedUpdateWithoutProfileEditsMadeInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutProfileEditsMadeInput, Prisma.UserUncheckedCreateWithoutProfileEditsMadeInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutProfileEditsMadeInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutProfileEditsMadeInput, Prisma.UserUncheckedUpdateWithoutProfileEditsMadeInput>
+}
+
+export type UserUpdateWithoutProfileEditsMadeInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  images?: Prisma.ImageUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+}
+
+export type UserUncheckedUpdateWithoutProfileEditsMadeInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+}
+
 export type UserCreateWithoutPasskeysInput = {
   id?: string
   email: string
@@ -1112,6 +1508,8 @@ export type UserCreateWithoutPasskeysInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutPasskeysInput = {
@@ -1150,6 +1548,8 @@ export type UserUncheckedCreateWithoutPasskeysInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutPasskeysInput = {
@@ -1204,6 +1604,8 @@ export type UserUpdateWithoutPasskeysInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPasskeysInput = {
@@ -1242,6 +1644,8 @@ export type UserUncheckedUpdateWithoutPasskeysInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutSessionsInput = {
@@ -1280,6 +1684,8 @@ export type UserCreateWithoutSessionsInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -1318,6 +1724,8 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -1372,6 +1780,8 @@ export type UserUpdateWithoutSessionsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -1410,6 +1820,8 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutAccountsInput = {
@@ -1448,6 +1860,8 @@ export type UserCreateWithoutAccountsInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutAccountsInput = {
@@ -1486,6 +1900,8 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutAccountsInput = {
@@ -1540,6 +1956,8 @@ export type UserUpdateWithoutAccountsInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAccountsInput = {
@@ -1578,6 +1996,8 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutCaregiverLinksInput = {
@@ -1616,6 +2036,8 @@ export type UserCreateWithoutCaregiverLinksInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutCaregiverLinksInput = {
@@ -1654,6 +2076,8 @@ export type UserUncheckedCreateWithoutCaregiverLinksInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutCaregiverLinksInput = {
@@ -1697,6 +2121,8 @@ export type UserCreateWithoutPatientLinksInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutPatientLinksInput = {
@@ -1735,6 +2161,8 @@ export type UserUncheckedCreateWithoutPatientLinksInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutPatientLinksInput = {
@@ -1789,6 +2217,8 @@ export type UserUpdateWithoutCaregiverLinksInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutCaregiverLinksInput = {
@@ -1827,6 +2257,8 @@ export type UserUncheckedUpdateWithoutCaregiverLinksInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserUpsertWithoutPatientLinksInput = {
@@ -1876,6 +2308,8 @@ export type UserUpdateWithoutPatientLinksInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPatientLinksInput = {
@@ -1914,6 +2348,8 @@ export type UserUncheckedUpdateWithoutPatientLinksInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutImagesInput = {
@@ -1952,6 +2388,8 @@ export type UserCreateWithoutImagesInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutImagesInput = {
@@ -1990,6 +2428,8 @@ export type UserUncheckedCreateWithoutImagesInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutImagesInput = {
@@ -2044,6 +2484,8 @@ export type UserUpdateWithoutImagesInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutImagesInput = {
@@ -2082,6 +2524,8 @@ export type UserUncheckedUpdateWithoutImagesInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutAlertsInput = {
@@ -2120,6 +2564,8 @@ export type UserCreateWithoutAlertsInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutAlertsInput = {
@@ -2158,6 +2604,8 @@ export type UserUncheckedCreateWithoutAlertsInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutAlertsInput = {
@@ -2212,6 +2660,8 @@ export type UserUpdateWithoutAlertsInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAlertsInput = {
@@ -2250,6 +2700,8 @@ export type UserUncheckedUpdateWithoutAlertsInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutReadingsInput = {
@@ -2288,6 +2740,8 @@ export type UserCreateWithoutReadingsInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutReadingsInput = {
@@ -2326,6 +2780,8 @@ export type UserUncheckedCreateWithoutReadingsInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutReadingsInput = {
@@ -2369,6 +2825,8 @@ export type UserCreateWithoutRecordedReadingsInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutRecordedReadingsInput = {
@@ -2407,6 +2865,8 @@ export type UserUncheckedCreateWithoutRecordedReadingsInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutRecordedReadingsInput = {
@@ -2461,6 +2921,8 @@ export type UserUpdateWithoutReadingsInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutReadingsInput = {
@@ -2499,6 +2961,8 @@ export type UserUncheckedUpdateWithoutReadingsInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserUpsertWithoutRecordedReadingsInput = {
@@ -2548,6 +3012,8 @@ export type UserUpdateWithoutRecordedReadingsInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutRecordedReadingsInput = {
@@ -2586,6 +3052,8 @@ export type UserUncheckedUpdateWithoutRecordedReadingsInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutPostsInput = {
@@ -2624,6 +3092,8 @@ export type UserCreateWithoutPostsInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutPostsInput = {
@@ -2662,6 +3132,8 @@ export type UserUncheckedCreateWithoutPostsInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutPostsInput = {
@@ -2716,6 +3188,8 @@ export type UserUpdateWithoutPostsInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPostsInput = {
@@ -2754,6 +3228,8 @@ export type UserUncheckedUpdateWithoutPostsInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutPostCommentsInput = {
@@ -2792,6 +3268,8 @@ export type UserCreateWithoutPostCommentsInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutPostCommentsInput = {
@@ -2830,6 +3308,8 @@ export type UserUncheckedCreateWithoutPostCommentsInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutPostCommentsInput = {
@@ -2884,6 +3364,8 @@ export type UserUpdateWithoutPostCommentsInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPostCommentsInput = {
@@ -2922,6 +3404,8 @@ export type UserUncheckedUpdateWithoutPostCommentsInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutPostCommentLikesInput = {
@@ -2960,6 +3444,8 @@ export type UserCreateWithoutPostCommentLikesInput = {
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutPostCommentLikesInput = {
@@ -2998,6 +3484,8 @@ export type UserUncheckedCreateWithoutPostCommentLikesInput = {
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutPostCommentLikesInput = {
@@ -3052,6 +3540,8 @@ export type UserUpdateWithoutPostCommentLikesInput = {
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPostCommentLikesInput = {
@@ -3090,6 +3580,8 @@ export type UserUncheckedUpdateWithoutPostCommentLikesInput = {
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 export type UserCreateWithoutPostLikesInput = {
@@ -3128,6 +3620,8 @@ export type UserCreateWithoutPostLikesInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogCreateNestedManyWithoutActorInput
 }
 
 export type UserUncheckedCreateWithoutPostLikesInput = {
@@ -3166,6 +3660,8 @@ export type UserUncheckedCreateWithoutPostLikesInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutPatientInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedCreateNestedManyWithoutActorInput
 }
 
 export type UserCreateOrConnectWithoutPostLikesInput = {
@@ -3220,6 +3716,8 @@ export type UserUpdateWithoutPostLikesInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUpdateManyWithoutActorNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPostLikesInput = {
@@ -3258,6 +3756,8 @@ export type UserUncheckedUpdateWithoutPostLikesInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+  profileChanges?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutPatientNestedInput
+  profileEditsMade?: Prisma.ProfileChangeLogUncheckedUpdateManyWithoutActorNestedInput
 }
 
 
@@ -3279,6 +3779,8 @@ export type UserCountOutputType = {
   postLikes: number
   sessions: number
   passkeys: number
+  profileChanges: number
+  profileEditsMade: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -3295,6 +3797,8 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   postLikes?: boolean | UserCountOutputTypeCountPostLikesArgs
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
   passkeys?: boolean | UserCountOutputTypeCountPasskeysArgs
+  profileChanges?: boolean | UserCountOutputTypeCountProfileChangesArgs
+  profileEditsMade?: boolean | UserCountOutputTypeCountProfileEditsMadeArgs
 }
 
 /**
@@ -3398,6 +3902,20 @@ export type UserCountOutputTypeCountPasskeysArgs<ExtArgs extends runtime.Types.E
   where?: Prisma.PasskeyWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountProfileChangesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ProfileChangeLogWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountProfileEditsMadeArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ProfileChangeLogWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -3436,6 +3954,8 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   postLikes?: boolean | Prisma.User$postLikesArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   passkeys?: boolean | Prisma.User$passkeysArgs<ExtArgs>
+  profileChanges?: boolean | Prisma.User$profileChangesArgs<ExtArgs>
+  profileEditsMade?: boolean | Prisma.User$profileEditsMadeArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -3532,6 +4052,8 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   postLikes?: boolean | Prisma.User$postLikesArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   passkeys?: boolean | Prisma.User$passkeysArgs<ExtArgs>
+  profileChanges?: boolean | Prisma.User$profileChangesArgs<ExtArgs>
+  profileEditsMade?: boolean | Prisma.User$profileEditsMadeArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -3553,6 +4075,8 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     postLikes: Prisma.$PostLikePayload<ExtArgs>[]
     sessions: Prisma.$UserSessionPayload<ExtArgs>[]
     passkeys: Prisma.$PasskeyPayload<ExtArgs>[]
+    profileChanges: Prisma.$ProfileChangeLogPayload<ExtArgs>[]
+    profileEditsMade: Prisma.$ProfileChangeLogPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -4016,6 +4540,8 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   postLikes<T extends Prisma.User$postLikesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$postLikesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PostLikePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   passkeys<T extends Prisma.User$passkeysArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$passkeysArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PasskeyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  profileChanges<T extends Prisma.User$profileChangesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$profileChangesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProfileChangeLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  profileEditsMade<T extends Prisma.User$profileEditsMadeArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$profileEditsMadeArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProfileChangeLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -4770,6 +5296,54 @@ export type User$passkeysArgs<ExtArgs extends runtime.Types.Extensions.InternalA
   take?: number
   skip?: number
   distinct?: Prisma.PasskeyScalarFieldEnum | Prisma.PasskeyScalarFieldEnum[]
+}
+
+/**
+ * User.profileChanges
+ */
+export type User$profileChangesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ProfileChangeLog
+   */
+  select?: Prisma.ProfileChangeLogSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ProfileChangeLog
+   */
+  omit?: Prisma.ProfileChangeLogOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProfileChangeLogInclude<ExtArgs> | null
+  where?: Prisma.ProfileChangeLogWhereInput
+  orderBy?: Prisma.ProfileChangeLogOrderByWithRelationInput | Prisma.ProfileChangeLogOrderByWithRelationInput[]
+  cursor?: Prisma.ProfileChangeLogWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ProfileChangeLogScalarFieldEnum | Prisma.ProfileChangeLogScalarFieldEnum[]
+}
+
+/**
+ * User.profileEditsMade
+ */
+export type User$profileEditsMadeArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ProfileChangeLog
+   */
+  select?: Prisma.ProfileChangeLogSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ProfileChangeLog
+   */
+  omit?: Prisma.ProfileChangeLogOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProfileChangeLogInclude<ExtArgs> | null
+  where?: Prisma.ProfileChangeLogWhereInput
+  orderBy?: Prisma.ProfileChangeLogOrderByWithRelationInput | Prisma.ProfileChangeLogOrderByWithRelationInput[]
+  cursor?: Prisma.ProfileChangeLogWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ProfileChangeLogScalarFieldEnum | Prisma.ProfileChangeLogScalarFieldEnum[]
 }
 
 /**

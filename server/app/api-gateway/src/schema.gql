@@ -92,7 +92,9 @@ enum CaregiverLinkStatus {
   rejected
 }
 
-"""สิทธิ์ที่ผู้ป่วยให้ผู้ดูแล — view: ดูอย่างเดียว, full: บันทึกแทนได้"""
+"""
+สิทธิ์ที่ผู้ป่วยให้ผู้ดูแล — view: ดูอย่างเดียว, full: บันทึกค่าความดันแทนได้ และแก้ไขข้อมูลสุขภาพ (วันเกิด เพศ น้ำหนัก ส่วนสูง โรคประจำตัว) ได้
+"""
 enum CaregiverPermission {
   view
   full
@@ -118,6 +120,26 @@ type PatientSummaryType {
   latestReading: PatientLatestReadingType
   weight: Float
   height: Float
+}
+
+type PatientHealthProfileType {
+  patientId: String!
+  dob: DateTime
+  gender: String
+  weight: Float
+  height: Float
+  congenitalDisease: String
+}
+
+type ProfileChangeLogType {
+  id: String!
+  actorId: String
+  actorName: String!
+  byPatient: Boolean!
+  field: String!
+  oldValue: String
+  newValue: String
+  changedAt: DateTime!
 }
 
 """
@@ -326,6 +348,12 @@ type Query {
   """ผู้ป่วยที่ caregiver ดูแลอยู่ (accepted เท่านั้น)"""
   myPatients: [PatientSummaryType!]!
 
+  """ประวัติการแก้ไขข้อมูลสุขภาพของตัวเอง (ใหม่สุดก่อน)"""
+  myProfileChangeLog(
+    """จำนวนรายการสูงสุด (ปรับให้อยู่ในช่วง 1-200)"""
+    limit: Int! = 50
+  ): [ProfileChangeLogType!]!
+
   """รายการโพสต์ชุมชน (สาธารณะ)"""
   posts(category: String, limit: Int! = 100, offset: Int! = 0): [PostType!]!
   analysisJob(jobId: String!): AnalysisJob!
@@ -409,7 +437,9 @@ type Mutation {
     caregiverId: String!
     accept: Boolean!
 
-    """สิทธิ์ที่ให้ผู้ดูแล เมื่อ accept เป็น true"""
+    """
+    สิทธิ์ที่ให้ผู้ดูแล เมื่อ accept เป็น true — view: ดูอย่างเดียว, full: บันทึกค่าความดันแทนได้ และแก้ไขข้อมูลสุขภาพ (วันเกิด เพศ น้ำหนัก ส่วนสูง โรคประจำตัว) ได้ โดยไม่รวมอีเมลและเบอร์โทรศัพท์
+    """
     permission: CaregiverPermission! = full
   ): CaregiverLinkType!
 
@@ -417,9 +447,16 @@ type Mutation {
   updateCaregiverPermission(
     caregiverId: String!
 
-    """สิทธิ์ใหม่ — view: ดูอย่างเดียว, full: บันทึกแทนได้"""
+    """
+    สิทธิ์ใหม่ — view: ดูอย่างเดียว, full: บันทึกค่าความดันแทนได้ และแก้ไขข้อมูลสุขภาพ (วันเกิด เพศ น้ำหนัก ส่วนสูง โรคประจำตัว) ได้ โดยไม่รวมอีเมลและเบอร์โทรศัพท์
+    """
     permission: CaregiverPermission!
   ): CaregiverLinkType!
+
+  """
+  ผู้ดูแลที่มีสิทธิ์ full แก้ไขข้อมูลสุขภาพของผู้ป่วย (วันเกิด เพศ น้ำหนัก ส่วนสูง โรคประจำตัว) — ไม่รวมอีเมลและเบอร์โทรศัพท์
+  """
+  updatePatientHealth(patientId: String!, input: UpdatePatientHealthInput!): PatientHealthProfileType!
 
   """ลบความสัมพันธ์ผู้ดูแล/ผู้ป่วย"""
   removeCaregiverPatient(caregiverId: String!, patientId: String!): Boolean!
@@ -565,6 +602,14 @@ input CreateReadingInput {
   imageId: Int
   notes: String
   patientId: ID
+}
+
+input UpdatePatientHealthInput {
+  dob: DateTime
+  gender: String
+  weight: Float
+  height: Float
+  congenitalDisease: String
 }
 
 input CreatePostInput {

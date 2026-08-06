@@ -573,6 +573,8 @@ doesn't need a follow-up query.
 | `addCaregiverPatient(patientContact, relationship)` | Mutation | ✅ |
 | `respondToCaregiverInvite(caregiverId, accept, permission)` | Mutation | ✅ |
 | `updateCaregiverPermission(caregiverId, permission)` | Mutation | ✅ |
+| `updatePatientHealth(patientId, input)` | Mutation | ✅ |
+| `myProfileChangeLog(limit)` | Query | ✅ |
 | `removeCaregiverPatient(caregiverId, patientId)` | Mutation | ✅ |
 
 - Links are symmetric — the same query returns both the caregiver-side
@@ -600,8 +602,18 @@ doesn't need a follow-up query.
   | --- | --- | --- |
   | `assertCanViewPatient` | any accepted link | `readings(patientId:)`, `alerts(patientId:)` |
   | `assertCanRecordForPatient` | accepted **and** `full` | `createReading` |
+  | `assertCanEditPatientHealth` | accepted **and** `full` | `updatePatientHealth` |
 
   Pending and rejected links grant nothing either way.
+
+  `assertCanEditPatientHealth` applies the same bar as
+  `assertCanRecordForPatient` but reports a **missing** link as `NOT_FOUND`
+  rather than `FORBIDDEN`. The reason is the argument: `createReading` is
+  reached from a patient the caregiver could already see, so 403 is never
+  ambiguous there, whereas `updatePatientHealth` takes a `patientId` the
+  caller supplies — collapsing the two codes would make it an existence
+  oracle for arbitrary user ids. A link that exists but is `view`, `pending`,
+  or `rejected` is `FORBIDDEN`.
 - **The patient chooses the permission when accepting**, via
   `respondToCaregiverInvite(permission: CaregiverPermission)`. It is an
   enum, not a String — an unrecognised value fails validation before the
@@ -631,6 +643,59 @@ doesn't need a follow-up query.
   `permission` and the patient's `latestReading` — one grouped query, so a
   caregiver's patient list is not N+1. Clients use `permission` to refuse a
   write before the measurement is taken; the gateway refuses it either way.
+
+### 5.6.1 Editing a patient's health information
+
+- **`updatePatientHealth(patientId, input)`** lets a `full` caregiver edit
+  their patient's health record. `input` is `UpdatePatientHealthInput`, which
+  contains **exactly five fields** — `dob`, `gender`, `weight`, `height`,
+  `congenitalDisease` — and returns `PatientHealthProfileType` carrying the
+  same five back.
+- **`email` and `phone` are not reachable through it, by construction.** They
+  are not filtered out in the service; they are absent from the input type.
+  Both are `@unique` and both are Better Auth sign-in identifiers, so a
+  caregiver able to change the email could request a password reset and take
+  the account. `firstname`, `lastname` and `avatar` are excluded too — they
+  are how other people identify the patient, not health data. This is
+  deliberately **not** a widening of `UpdateProfileInput`: sharing that input
+  is how `email` ends up reachable later by accident.
+- Absent and `null` mean different things. A field left out of `input` is
+  untouched; a field sent as `null` (or, for `congenitalDisease`, an empty
+  string) is cleared.
+- Passing your own id is allowed and takes the same audited path, so a
+  patient editing their own record through a caregiver-shaped client is not a
+  special case. Note that `updateProfile` in §5.1 remains **unaudited** — the
+  trail below records what came through `updatePatientHealth`.
+- **`full` therefore now means more than it did.** It covers recording
+  readings on the patient's behalf *and* editing these five fields. Patients
+  who granted `full` before this existed were widened retroactively; the
+  Thai `description` strings on `respondToCaregiverInvite.permission`,
+  `updateCaregiverPermission.permission`, and the `CaregiverPermission` enum
+  all say so, because those are the strings a patient reads while deciding.
+  `updateCaregiverPermission` is the revocation route, and is what makes the
+  reuse defensible rather than a silent grant.
+- **`myProfileChangeLog(limit)`** returns the caller's own trail of health
+  edits, newest first, as `[ProfileChangeLogType!]!`. One row **per field
+  changed**, not per request: `{ actorId, actorName, byPatient, field,
+  oldValue, newValue, changedAt }`. Values are rendered text (`dob` as
+  `YYYY-MM-DD`); `null` on either side means the field held no value.
+  Submitting a value equal to the current one writes no row at all, so a form
+  that resubmits every field does not bury the one that changed. `limit`
+  defaults to 50 and is **clamped** to 1–200 server-side rather than
+  rejected — it is a scalar argument, which the global `ValidationPipe` does
+  not police the way it does an `@InputType` field.
+- `actorId` is nullable because the actor's account may since have been
+  deleted; `actorName` is a snapshot taken at write time and is always
+  present, so the trail can still say who acted. The profile write and its
+  audit rows share one `$transaction` — an edit that landed without its trail
+  is the situation the table exists to prevent.
+- **There is deliberately no caregiver-facing counterpart**, not even one
+  scoped to "edits I made". Every row contains the patient's health values on
+  both sides of the change, so a caregiver since downgraded to `view` or
+  unlinked would keep a readable window onto data they may no longer see —
+  and filtering by actor does not help, because those are exactly the rows
+  holding the data. Revocation has to be complete. The patient id comes from
+  the session, so this query cannot be aimed at anyone else's trail.
 
 ---
 

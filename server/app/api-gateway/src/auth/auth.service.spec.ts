@@ -354,6 +354,40 @@ describe('AuthService', () => {
         service.updateProfile('user-1', { email: 'taken@x.co' }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
+
+    // A-006. This is the only path that writes `email` through Prisma rather
+    // than through Better Auth, so it is the only one that can put a
+    // mixed-case address in a column every other lookup matches exactly.
+    it('lowercases and trims the email it writes', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(null);
+      prisma.user.update.mockResolvedValueOnce(baseUser);
+
+      await service.updateProfile('user-1', { email: '  Foo@Example.COM ' });
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { email: 'foo@example.com' },
+      });
+    });
+
+    // Normalising at the write alone would not be enough: the pre-check is a
+    // findUnique on a @unique column, so checking the raw value looks up a
+    // different key than the one about to be written — missing a real
+    // conflict and failing at the DB constraint instead of returning 409.
+    it('checks uniqueness against the normalised address, not the raw one', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        ...baseUser,
+        id: 'user-2',
+      });
+
+      await expect(
+        service.updateProfile('user-1', { email: 'Taken@X.CO' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'taken@x.co' },
+      });
+    });
   });
 
   describe('changePassword', () => {
