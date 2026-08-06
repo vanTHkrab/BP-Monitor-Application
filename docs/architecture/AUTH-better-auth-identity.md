@@ -54,13 +54,25 @@ endpoint — none has to be reimplemented:
 | `register` | `POST /sign-up/email` |
 | `login` | `POST /sign-in/phone-number`, `POST /sign-in/email` |
 | `me` | `GET /get-session` |
-| `updateProfile` | `POST /update-user` |
+| `updateProfile` | `POST /update-user` (see the `email` note below) |
 | `changePassword` | `POST /change-password` |
 | `verifyPassword` | `POST /verify-password` |
 | `loginSessions` | `GET /list-sessions` |
 | `logout` | `POST /sign-out` |
 | `logoutAllDevices` | `POST /revoke-sessions` |
 | `deleteMyData` | `POST /delete-user` |
+
+**`updateProfile` writes `email` through Prisma, not through Better Auth**, so
+it does not inherit the lowercasing every Better-Auth-owned path applies. It
+therefore normalises the address itself — trimmed and lowercased once, *before*
+the uniqueness pre-check, in `AuthService.updateProfile`. Normalising at the
+write alone would not have been enough: the pre-check is a `findUnique` on a
+`@unique` column, so an un-normalised `Foo@x.com` would look up a different key
+than the one being written, missing a real conflict and failing at the database
+constraint instead of returning `อีเมลนี้ถูกใช้งานแล้ว`. It is also the reason a
+mixed-case row would be invisible to `addCaregiverPatient`'s email lookup. This
+was TASK.md **A-006**; there is no other write path that can create such a row,
+so no backfill was needed.
 
 What the migration adds on top: `/request-password-reset`,
 `/reset-password`, `/send-verification-email`, `/verify-email`,

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   CaregiverPermission,
+  Gender,
   RelationshipType,
 } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,7 +18,10 @@ import {
   CaregiverLinkStatusGql,
   CaregiverLinkType,
   CaregiverPermissionGql,
+  PatientHealthProfileType,
   PatientSummaryType,
+  ProfileChangeLogType,
+  UpdatePatientHealthInput,
 } from './caregiver.types';
 
 type CaregiverLinkWithUsers = {
@@ -78,6 +82,106 @@ const parseRelationship = (raw: string): RelationshipType => {
   }
   return 'other';
 };
+
+/**
+ * The five fields `updatePatientHealth` may write, in the order the audit
+ * trail lists them.
+ *
+ * The single source of truth for that set: the loop iterates this rather than
+ * `Object.keys(input)`, so a field added to `UpdatePatientHealthInput` without
+ * being added here is inert instead of silently writable. `email`, `phone`,
+ * `firstname`, `lastname` and `avatar` are absent from the input type *and*
+ * from this list — two independent reasons a caregiver cannot reach them.
+ */
+const EDITABLE_HEALTH_FIELDS = [
+  'dob',
+  'gender',
+  'weight',
+  'height',
+  'congenitalDisease',
+] as const;
+
+type EditableHealthField = (typeof EDITABLE_HEALTH_FIELDS)[number];
+
+const HEALTH_SELECT = {
+  dob: true,
+  gender: true,
+  weight: true,
+  height: true,
+  congenitalDisease: true,
+} as const;
+
+type HealthFields = {
+  dob: Date | null;
+  gender: Gender | null;
+  weight: number | null;
+  height: number | null;
+  congenitalDisease: string | null;
+};
+
+/**
+ * Any value one of the five editable fields can hold, on either side of the
+ * wire. Deliberately not `unknown`: the helpers below narrow on `field`, and
+ * `unknown` would push every branch into a cast, which is exactly the kind of
+ * escape hatch that lets an unintended field through.
+ *
+ * `Gender` is absorbed by `string` rather than listed — the input arrives as a
+ * `@IsIn`-validated string and only becomes the enum at the Prisma boundary.
+ */
+type HealthValue = Date | number | string | null | undefined;
+
+/**
+ * The value to store, given what the client submitted.
+ *
+ * Empty and whitespace-only strings collapse to `null` — matching
+ * `AuthService.updateProfile`, where `''` clears rather than storing a blank.
+ * Without this, "cleared the congenital disease" and "set it to an empty
+ * string" would be two different audit entries for one user action.
+ */
+const normalizeHealthValue = (
+  field: EditableHealthField,
+  raw: HealthValue,
+): HealthValue => {
+  if (raw === null || raw === undefined) return null;
+  if (field === 'congenitalDisease' || field === 'gender') {
+    const trimmed = typeof raw === 'string' ? raw.trim() : '';
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  return raw;
+};
+
+/**
+ * How a value reads in the audit trail — and, because the diff compares these
+ * strings, what counts as a change at all.
+ *
+ * `dob` renders as `YYYY-MM-DD`: the column is a bare DATE, so the time
+ * component carries no information and including it would make two writes of
+ * the same birthday look like an edit.
+ */
+const renderHealthValue = (
+  field: EditableHealthField,
+  value: HealthValue,
+): string | null => {
+  if (value === null || value === undefined) return null;
+  if (field === 'dob') {
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString().slice(0, 10);
+  }
+  return value instanceof Date ? value.toISOString() : String(value);
+};
+
+const toHealthProfile = (
+  patientId: string,
+  row: HealthFields,
+): PatientHealthProfileType => ({
+  patientId,
+  dob: row.dob ?? undefined,
+  gender: row.gender ?? undefined,
+  weight: row.weight ?? undefined,
+  height: row.height ?? undefined,
+  congenitalDisease: row.congenitalDisease ?? undefined,
+});
 
 /**
  * Invite budget: 10 attempts per 10 minutes per caregiver.
@@ -466,6 +570,8 @@ export class CaregiverService {
             dob: true,
             weight: true,
             height: true,
+            gender: true,
+            congenitalDisease: true,
           },
         },
       },
@@ -514,6 +620,8 @@ export class CaregiverService {
       relationship: link.relationship,
       weight: link.patient.weight ?? undefined,
       height: link.patient.height ?? undefined,
+      gender: link.patient.gender ?? undefined,
+      congenitalDisease: link.patient.congenitalDisease ?? undefined,
     }));
   }
 
@@ -570,6 +678,177 @@ export class CaregiverService {
         'คุณดูข้อมูลของผู้ป่วยรายนี้ได้อย่างเดียว ไม่สามารถบันทึกแทนได้',
       );
     }
+  }
+
+  /**
+   * ตรวจว่า actor มีสิทธิ์**แก้ไขข้อมูลสุขภาพ**ของ patient หรือไม่
+   *
+   * Same bar as recording a reading — an accepted `full` link — but it reports
+   * a missing link differently. `assertCanRecordForPatient` answers 403 for
+   * both "no link" and "read-only link", which is right there: that mutation
+   * is reached from a camera the caregiver opened from a patient they can
+   * already see, so the link is known to exist and 403 is never ambiguous.
+   *
+   * This path is reached with a `patientId` the caller supplies, so "no link
+   * at all" is the ordinary answer to asking about somebody who is not your
+   * patient. 404 says the addressed relationship does not exist; 403 says it
+   * exists and does not permit this. Collapsing them would also make this
+   * mutation an existence oracle for arbitrary user ids.
+   */
+  async assertCanEditPatientHealth(
+    actorId: string,
+    patientId: string,
+  ): Promise<void> {
+    if (actorId === patientId) return;
+
+    const link = await this.prisma.caregiverPatient.findUnique({
+      where: { caregiverId_patientId: { caregiverId: actorId, patientId } },
+      select: { status: true, permission: true },
+    });
+
+    if (!link) {
+      throw new NotFoundException('ไม่พบผู้ป่วยรายนี้ในรายชื่อที่คุณดูแล');
+    }
+
+    // A pending invite is a request, not a grant. It carries the column
+    // default (`full`), so checking permission before status would let an
+    // unanswered invite edit the record it was still asking about.
+    if (link.status !== 'accepted') {
+      throw new ForbiddenException(
+        'ผู้ป่วยยังไม่ได้ตอบรับคำเชิญ จึงยังแก้ไขข้อมูลแทนไม่ได้',
+      );
+    }
+
+    if (link.permission !== 'full') {
+      throw new ForbiddenException(
+        'คุณดูข้อมูลของผู้ป่วยรายนี้ได้อย่างเดียว ไม่สามารถแก้ไขข้อมูลสุขภาพได้',
+      );
+    }
+  }
+
+  /**
+   * Edit a patient's health information and record what changed.
+   *
+   * The write and the audit rows go in one `$transaction`: an edit that
+   * landed without its trail is exactly the situation `ProfileChangeLog`
+   * exists to prevent, and it would be undetectable afterwards.
+   *
+   * Only fields whose rendered value actually differs are written to the log.
+   * A client that submits the whole form every time — which is what a form
+   * screen does — would otherwise fill the patient's history with entries
+   * saying nothing changed, and bury the one that did.
+   */
+  async updatePatientHealth(
+    actorId: string,
+    patientId: string,
+    input: UpdatePatientHealthInput,
+  ): Promise<PatientHealthProfileType> {
+    await this.assertCanEditPatientHealth(actorId, patientId);
+
+    const [patient, actor] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: patientId },
+        select: HEALTH_SELECT,
+      }),
+      this.prisma.user.findUnique({
+        where: { id: actorId },
+        select: { firstname: true, lastname: true },
+      }),
+    ]);
+
+    // Reachable despite the guard above: the link row survives only as long
+    // as its FK target, but the actor's own account can be deleted mid-request.
+    if (!patient || !actor) {
+      throw new NotFoundException('ไม่พบผู้ใช้');
+    }
+
+    const actorName = `${actor.firstname} ${actor.lastname}`.trim();
+    const patch: Record<string, unknown> = {};
+    const entries: {
+      patientId: string;
+      actorId: string;
+      actorName: string;
+      field: string;
+      oldValue: string | null;
+      newValue: string | null;
+    }[] = [];
+
+    for (const field of EDITABLE_HEALTH_FIELDS) {
+      const submitted = input[field];
+      // Absent means "leave alone"; an explicit null means "clear it". The
+      // two are distinguishable here only because GraphQL preserves the
+      // difference and `@IsOptional()` passes both through untouched.
+      if (submitted === undefined) continue;
+
+      const next = normalizeHealthValue(field, submitted);
+      const before = renderHealthValue(field, patient[field]);
+      const after = renderHealthValue(field, next);
+
+      // Compared as rendered text, which is the same value the log stores.
+      // That makes "no change" mean exactly "the trail would have shown
+      // nothing" — and incidentally ignores the time component on `dob`,
+      // whose column is a bare DATE.
+      if (before === after) continue;
+
+      patch[field] = next;
+      entries.push({
+        patientId,
+        actorId,
+        actorName,
+        field,
+        oldValue: before,
+        newValue: after,
+      });
+    }
+
+    if (entries.length === 0) {
+      return toHealthProfile(patientId, patient);
+    }
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: patientId },
+        data: patch,
+        select: HEALTH_SELECT,
+      }),
+      this.prisma.profileChangeLog.createMany({ data: entries }),
+    ]);
+
+    return toHealthProfile(patientId, updated);
+  }
+
+  /**
+   * The patient's own trail of health-information edits, newest first.
+   *
+   * Patient-only by design — there is no caregiver-facing equivalent. See
+   * `CaregiverResolver.myProfileChangeLog` for why.
+   */
+  async profileChangeLog(
+    patientId: string,
+    limit: number,
+  ): Promise<ProfileChangeLogType[]> {
+    // Clamped rather than validated: `limit` is a scalar `@Args`, which the
+    // global ValidationPipe does not reach the way it does an `@InputType`
+    // field. An unbounded `take` is the one way this query gets expensive, so
+    // the bound is enforced where it cannot be skipped.
+    const take = Math.min(Math.max(Math.trunc(limit) || 1, 1), 200);
+
+    const rows = await this.prisma.profileChangeLog.findMany({
+      where: { patientId },
+      orderBy: { changedAt: 'desc' },
+      take,
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      actorId: row.actorId ?? undefined,
+      actorName: row.actorName,
+      byPatient: row.actorId === patientId,
+      field: row.field,
+      oldValue: row.oldValue ?? undefined,
+      newValue: row.newValue ?? undefined,
+      changedAt: row.changedAt,
+    }));
   }
 
   private toType(link: CaregiverLinkWithUsers): CaregiverLinkType {

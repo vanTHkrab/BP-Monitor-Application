@@ -68,7 +68,7 @@ pnpm build                         # nest build → dist/
 pnpm start:prod                    # node dist/main
 pnpm exec tsc --noEmit             # type-check
 
-pnpm exec jest --watchman=false    # ⬅ unit tests: 18 suites / 181 tests
+pnpm exec jest --watchman=false    # ⬅ unit tests: 18 suites / 212 tests
 pnpm test:e2e                      # e2e — needs a running database
 
 pnpm lint                          # check only

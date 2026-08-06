@@ -45,6 +45,34 @@ export { Prisma }
  */
 export type User = Prisma.UserModel
 /**
+ * Model ProfileChangeLog
+ * One row per health field changed on a patient's profile.
+ * 
+ * Exists because `CaregiverPermission.full` lets somebody other than the
+ * patient edit that patient's health information. An edit nobody can see is
+ * indistinguishable from the patient misremembering their own weight, and
+ * "who changed this to 80?" is the first question asked when a number looks
+ * wrong.
+ * 
+ * **One row per field, not per request.** A request that changes weight and
+ * height writes two rows. The question this table answers is "weight 60 →
+ * 80, by whom, when" — a single row holding a JSON patch would force every
+ * reader to diff it back apart, and would make a per-field query
+ * (`where field = 'weight'`) a full scan instead of an index hit.
+ * 
+ * **Values are rendered text, not typed columns.** The five editable fields
+ * span four types (Date, enum, Float, String), so typed storage means four
+ * nullable column pairs of which three are always null. The audit's consumer
+ * is a human reading a history list, and text is what they read. `null`
+ * means the field genuinely had no value, which is why both sides are
+ * nullable rather than defaulting to an empty string — "unset → 80" and
+ * "'' → 80" are different events.
+ * 
+ * Rows are written only when the value actually changed; submitting the
+ * current value again is not an edit and leaves no trace.
+ */
+export type ProfileChangeLog = Prisma.ProfileChangeLogModel
+/**
  * Model Passkey
  * Better Auth's `passkey` model (from `@better-auth/passkey`).
  * 

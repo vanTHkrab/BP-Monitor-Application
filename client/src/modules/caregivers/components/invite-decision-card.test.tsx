@@ -14,6 +14,7 @@ jest.mock(
   () => require('@react-native-async-storage/async-storage/jest/async-storage-mock') as unknown,
 );
 
+import { PERMISSION_OPTIONS } from '../lib/permission';
 import type { CaregiverLink } from '../types';
 import { InviteDecisionCard } from './invite-decision-card';
 import { fireEvent, renderScreen } from '../../../../__test__/test-utils';
@@ -64,8 +65,38 @@ describe('InviteDecisionCard', () => {
   it('spells out what each option grants, chosen or not', async () => {
     const { view } = await renderCard();
 
-    expect(view.getByText(/และบันทึกค่าความดันแทนคุณได้/)).toBeTruthy();
-    expect(view.getByText(/แต่บันทึกค่าแทนคุณไม่ได้/)).toBeTruthy();
+    // Read off `lib/permission.ts` rather than a literal. That file owns the
+    // wording and this card's job is to *show* it — a copy here would let the
+    // two drift, and the drift would be invisible because both would still
+    // render a plausible Thai sentence.
+    for (const option of PERMISSION_OPTIONS) {
+      expect(view.getByText(option.consequence)).toBeTruthy();
+    }
+  });
+
+  /**
+   * `full` now also covers editing the patient's five health fields, and the
+   * consequence has to say so **here**, on the card where the grant is made.
+   *
+   * Reusing `full` rather than adding a permission level retroactively widens
+   * what patients who already granted it agreed to; what makes that
+   * defensible is that they can downgrade at any time, which only works if
+   * they know what they are choosing. This sentence is the consent, not a
+   * description of it — asserted separately from the loop above so that
+   * dropping the health clause fails with the reason attached.
+   */
+  it('tells the patient that "บันทึกแทนได้" now includes their health information', async () => {
+    const { view } = await renderCard();
+
+    const full = PERMISSION_OPTIONS.find((option) => option.value === 'full');
+    expect(full?.consequence).toContain('แก้ไขข้อมูลสุขภาพ');
+    // Named, not summarised: "what exactly can they change?" is the question
+    // someone weighing this actually has.
+    expect(full?.consequence).toContain('โรคประจำตัว');
+    // And the exclusion, which is the reason the gateway gave this path its
+    // own input type.
+    expect(full?.consequence).toContain('แก้อีเมลและเบอร์โทรศัพท์ไม่ได้');
+    expect(view.getByText(full?.consequence ?? '')).toBeTruthy();
   });
 
   it('marks exactly one option as chosen, and moves it on tap', async () => {

@@ -35,6 +35,8 @@ const payload = (over: Partial<PatientSummaryPayload> = {}): PatientSummaryPaylo
   permission: 'full',
   weight: null,
   height: null,
+  gender: null,
+  congenitalDisease: null,
   ...over,
 });
 

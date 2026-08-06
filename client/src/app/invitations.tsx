@@ -52,6 +52,7 @@ import {
   LinkRow,
   PermissionSheet,
   PersonCard,
+  canEditPatientHealth,
   permissionLabel,
   deriveSections,
   linkKey,
@@ -100,7 +101,7 @@ export default function InvitationsScreen() {
    */
   const [tab, setTab] = useState<'people' | 'requests'>('people');
 
-  const { setActivePatient } = useActivePatient();
+  const { setActivePatient, isViewingPatient } = useActivePatient();
 
   const sections = useMemo(() => deriveSections(links, userId), [links, userId]);
 
@@ -193,6 +194,22 @@ export default function InvitationsScreen() {
             ? [{ label: 'ดูอย่างเดียว', tone: 'accent' as const }]
             : []),
         ],
+        /*
+         * Whether to offer the health-edit affordance. Computed here and
+         * rendered below rather than baked into `chips`, because the chip
+         * carries an `onPress` and a handler in a `useMemo` would either need
+         * the memo to depend on a function recreated every render or need
+         * that dependency suppressed — and the second is how a stale closure
+         * over `setActivePatient` gets introduced.
+         *
+         * `myPatients` returns accepted links only, so `permission === 'full'`
+         * is the whole client-side check. It is **not** the authority: the
+         * gateway re-decides on submit, and the patient can downgrade at any
+         * moment via `updateCaregiverPermission`. This only avoids offering an
+         * action that will be refused; when one is refused anyway, the screen
+         * shows the server's own Thai message.
+         */
+        canEditHealth: canEditPatientHealth(patient),
         patient,
       }));
     }
@@ -207,6 +224,10 @@ export default function InvitationsScreen() {
       avatarUri: link.patientAvatar,
       detail: formatThaiPhone(link.patientPhone),
       chips: [{ label: relationshipLabel(link.relationship) }],
+      // Same reason as `patient` below: without the record there is nothing
+      // to put in the store, and `permission` is not on the symmetric link
+      // row in a form this side can trust.
+      canEditHealth: false,
       /**
        * No `PatientSummary` on this path — it is the fallback for when
        * `myPatients` has not resolved, and the store keeps the whole record so
@@ -237,6 +258,26 @@ export default function InvitationsScreen() {
   const openPatient = (patient: PatientSummary) => {
     setActivePatient(patient);
     router.replace('/(tabs)');
+  };
+
+  /**
+   * Edit that patient's health information.
+   *
+   * Sets the viewing context first, exactly like `openPatient` and for the
+   * same reason: `app/patient-health.tsx` reads whose data it is about from
+   * `useSubject()` rather than from a route parameter, so navigating before
+   * the store is set would render one frame of a form aimed at nobody — and a
+   * `patientId` in the route would be a second source of truth for a question
+   * the app already answers, on a screen that *writes*.
+   *
+   * `push`, not `replace`. This is a task on top of the list, not the mode
+   * switch `openPatient` performs; backing out returns to the picker. The
+   * caregiver is left inside the patient afterwards, which the compact banner
+   * on this screen — `SecurityHeader subject="patient"` — announces.
+   */
+  const openPatientHealth = (patient: PatientSummary) => {
+    setActivePatient(patient);
+    router.push('/patient-health');
   };
 
   const pendingCount = sections.invitesToAnswer.length;
@@ -303,6 +344,25 @@ export default function InvitationsScreen() {
                 </Pressable>
               ) : null}
 
+              {/*
+                * The patient's oversight of the grant they made.
+                *
+                * Here rather than on `app/profile.tsx` because this is the
+                * screen about *who has access*, and "what did they do with
+                * it" is the next question on the same page. Offered whether
+                * or not a caregiver currently exists: an edit made by someone
+                * since unlinked is exactly the entry someone comes looking
+                * for, and hiding the row with the caregiver would hide it.
+                *
+                * Hidden while a caregiver is inside a patient.
+                * `myProfileChangeLog` answers about the *session*, so in that
+                * state the row would offer the caregiver their own log from
+                * under a banner naming somebody else.
+                */}
+              {!isViewingPatient ? (
+                <ProfileChangesRow onPress={() => router.push('/profile-changes')} />
+              ) : null}
+
               {sections.myCaregivers.length > 0 ? (
                 <>
                   <SectionTitle text={`ผู้ดูแลของฉัน · ${sections.myCaregivers.length} คน`} />
@@ -356,7 +416,19 @@ export default function InvitationsScreen() {
                         name={row.name}
                         avatarUri={row.avatarUri}
                         detail={row.detail}
-                        chips={row.chips}
+                        chips={[
+                          ...row.chips,
+                          ...(row.canEditHealth && row.patient
+                            ? [
+                                {
+                                  label: 'แก้ไขข้อมูลสุขภาพ',
+                                  testID: `patient-${row.patientId}-edit-health`,
+                                  accessibilityLabel: `แก้ไขข้อมูลสุขภาพของ${row.name}`,
+                                  onPress: () => openPatientHealth(row.patient),
+                                },
+                              ]
+                            : []),
+                        ]}
                         onOpen={row.patient ? () => openPatient(row.patient) : undefined}
                         removeLabel="ยกเลิกการเชื่อมโยงกับ"
                         onRemove={() =>
@@ -489,6 +561,46 @@ function SectionTitle({ text }: { text: string }) {
     <ThemedText type="caption" weight="semibold" themeColor="text-secondary" className="mb-2.5 ml-1 mt-2 uppercase" style={{ letterSpacing: 0.5 }}>
       {text}
     </ThemedText>
+  );
+}
+
+/**
+ * The way into the audit trail.
+ *
+ * A full-width row rather than a chip or a link in a menu: this is the
+ * control that makes a `full` grant supervisable, and an elderly patient
+ * looking for "who changed my weight" needs to find it without knowing the
+ * word for it. The subtitle says what the screen contains, because the title
+ * alone is jargon the first time you read it.
+ */
+function ProfileChangesRow({ onPress }: { onPress: () => void }) {
+  const colors = useTheme();
+
+  return (
+    <Pressable
+      testID="invitations-profile-changes"
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="ดูประวัติการแก้ไขข้อมูลสุขภาพของคุณ"
+      className="mb-4 flex-row items-center rounded-2xl border p-3.5"
+      style={({ pressed }) => ({
+        backgroundColor: colors.surface,
+        borderColor: colors['border-strong'],
+        opacity: pressed ? 0.7 : 1,
+        minHeight: 64,
+      })}
+    >
+      <Ionicons name="time-outline" size={20} color={colors['text-secondary']} />
+      <View className="ml-2.5 flex-1">
+        <ThemedText type="small" weight="semibold">
+          ประวัติการแก้ไขข้อมูลสุขภาพ
+        </ThemedText>
+        <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
+          ดูว่าใครแก้วันเกิด เพศ น้ำหนัก ส่วนสูง หรือโรคประจำตัวของคุณบ้าง
+        </ThemedText>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors['text-secondary']} />
+    </Pressable>
   );
 }
 

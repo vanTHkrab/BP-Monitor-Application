@@ -70,7 +70,7 @@ cd server/app/api-gateway
 pnpm start:dev                        # hot reload, regenerates src/schema.gql
 pnpm build                            # nest build → dist/
 pnpm exec tsc --noEmit                # type-check only
-pnpm exec jest --watchman=false       # ⬅ unit tests: 18 suites / 181 tests
+pnpm exec jest --watchman=false       # ⬅ unit tests: 18 suites / 212 tests
 pnpm test:e2e                         # needs a live database
 pnpm prisma migrate dev               # apply pending migrations
 ```

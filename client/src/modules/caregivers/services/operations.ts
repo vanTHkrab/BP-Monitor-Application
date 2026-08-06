@@ -49,6 +49,8 @@ export const GQL_MY_PATIENTS = `
       }
       weight
       height
+      gender
+      congenitalDisease
     }
   }
 `;
@@ -128,6 +130,71 @@ export const GQL_UPDATE_CAREGIVER_PERMISSION = `
       status
       respondedAt
       permission
+    }
+  }
+`;
+
+/**
+ * A caregiver with an accepted `full` link edits their patient's health
+ * information.
+ *
+ * **Five fields, and the input type is what keeps it to five.**
+ * `UpdatePatientHealthInput` exists on the gateway precisely so this path
+ * cannot reach `email` or `phone` — both are unique login identities, and a
+ * caregiver who could change the email could request a password reset and
+ * take the account. `firstname`, `lastname` and `avatar` are absent for the
+ * milder reason that they are the patient's own presentation, not a health
+ * record. Reusing `UpdateProfileInput` here would put all five back within
+ * reach of a one-line mistake, so this operation does not mention it.
+ *
+ * An **absent** key means "leave this column alone"; an explicit `null`
+ * clears it. `lib/health-form.ts` is what decides which, and the distinction
+ * is the only reason a form that cannot read `gender` is safe to submit.
+ *
+ * The selection is the whole returned profile rather than just the patient
+ * id: it is the only read path a caregiver has for `gender` and
+ * `congenitalDisease` (see `health-form.ts`), so throwing it away would mean
+ * the form still cannot show what it just wrote.
+ */
+export const GQL_UPDATE_PATIENT_HEALTH = `
+  mutation UpdatePatientHealth($patientId: String!, $input: UpdatePatientHealthInput!) {
+    updatePatientHealth(patientId: $patientId, input: $input) {
+      patientId
+      dob
+      gender
+      weight
+      height
+      congenitalDisease
+    }
+  }
+`;
+
+/**
+ * The patient's own record of who changed their health information.
+ *
+ * No `patientId` argument by design — the gateway takes it from the session,
+ * so this cannot be aimed at anyone else's trail. There is deliberately **no
+ * caregiver-facing counterpart**: every row carries the health values on both
+ * sides of the change, so a caregiver later downgraded to `view` would keep a
+ * readable window onto data they can no longer see. Filtering by actor does
+ * not help — those are exactly the rows holding the data.
+ *
+ * That is why `app/profile-changes.tsx` mounts `SecurityHeader` with
+ * `subject="self"` and why its entry point is hidden while a caregiver is
+ * inside a patient: the query answers about the session, and a screen titled
+ * with the patient's context would be describing the wrong person's log.
+ */
+export const GQL_MY_PROFILE_CHANGE_LOG = `
+  query MyProfileChangeLog($limit: Int!) {
+    myProfileChangeLog(limit: $limit) {
+      id
+      actorId
+      actorName
+      byPatient
+      field
+      oldValue
+      newValue
+      changedAt
     }
   }
 `;

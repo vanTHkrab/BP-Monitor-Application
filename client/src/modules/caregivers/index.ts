@@ -17,9 +17,11 @@ export {
   useCaregiverLinks,
   useInvitePatient,
   useMyPatients,
+  useProfileChangeLog,
   useRemoveCaregiverLink,
   useRespondToInvite,
   useUpdateCaregiverPermission,
+  useUpdatePatientHealth,
 } from './hooks/use-caregivers';
 
 export {
@@ -38,7 +40,24 @@ export {
 } from './components/patient-switcher-sheet';
 export { InviteDecisionCard } from './components/invite-decision-card';
 export { PermissionSheet } from './components/permission-sheet';
-export { PERMISSION_OPTIONS, permissionLabel } from './lib/permission';
+export { PERMISSION_OPTIONS, canEditPatientHealth, permissionLabel } from './lib/permission';
+export { HEALTH_VALUE_EMPTY, formatHealthValue, healthFieldLabel } from './lib/health-fields';
+/*
+ * The form helpers are exported; `HEALTH_FIELDS` and the diff are what keep
+ * the mutation to five fields, so a screen must not be able to assemble an
+ * `UpdatePatientHealthInput` by hand. `changedHealthFields` is the only
+ * supported way to build one — see `lib/health-form.ts`.
+ */
+export {
+  changedHealthFields,
+  hasHealthChanges,
+  healthFormFromPatient,
+  validateHealthForm,
+  type HealthBaseline,
+  type HealthErrors,
+  type HealthForm,
+} from './lib/health-form';
+export { ChangeLogEntryRow } from './components/change-log-entry';
 export { InviteForm } from './components/invite-form';
 export { LinkGroup, LinkRow } from './components/link-row';
 export { PersonCard } from './components/person-card';
@@ -47,6 +66,10 @@ export { useInviteAlerts } from './hooks/use-invite-alerts';
 
 export type {
   CaregiverPermission,
+  HealthFieldName,
+  PatientHealthProfile,
+  ProfileChangeLogEntry,
+  UpdatePatientHealthInput,
   PatientLatestReading,
   CaregiverLink,
   CaregiverLinkStatus,

@@ -30,8 +30,15 @@ export const MAX_AGE_YEARS = 120;
 
 export type ProfileErrors = FieldErrors<ProfileField>;
 
-/** Empty is valid — these fields are optional. Returns a Thai message if not. */
-function validateMeasurement(
+/**
+ * Empty is valid — these fields are optional. Returns a Thai message if not.
+ *
+ * Exported because `modules/caregivers/lib/health-form.ts` validates the same
+ * `weight` and `height` columns from the caregiver's edit screen. A second
+ * implementation there would eventually let a caregiver save a weight the
+ * patient's own form rejects, into the same column.
+ */
+export function validateMeasurement(
   raw: string,
   { min, max }: { min: number; max: number },
   unit: string,
@@ -46,6 +53,24 @@ function validateMeasurement(
   return null;
 }
 
+/**
+ * Same contract and same reason as `validateMeasurement`: the caregiver's
+ * edit screen writes this column too, and a birthday one form accepts and the
+ * other refuses is a bug the patient meets only when someone edits on their
+ * behalf.
+ */
+export function validateDob(dob: Date | null, now: Date = new Date()): string | null {
+  if (!dob) return null;
+
+  const oldest = new Date(now);
+  oldest.setFullYear(oldest.getFullYear() - MAX_AGE_YEARS);
+
+  if (dob.getTime() > now.getTime()) return 'วันเกิดต้องไม่เป็นวันในอนาคต';
+  if (dob.getTime() < oldest.getTime()) return 'กรุณาตรวจสอบปีเกิดอีกครั้ง';
+
+  return null;
+}
+
 export function validateProfile(form: ProfileForm, now: Date = new Date()): ProfileErrors {
   const errors: ProfileErrors = {};
 
@@ -56,13 +81,8 @@ export function validateProfile(form: ProfileForm, now: Date = new Date()): Prof
   if (!phone) errors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
   else if (!isValidPhone(phone)) errors.phone = 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก';
 
-  if (form.dob) {
-    const oldest = new Date(now);
-    oldest.setFullYear(oldest.getFullYear() - MAX_AGE_YEARS);
-
-    if (form.dob.getTime() > now.getTime()) errors.dob = 'วันเกิดต้องไม่เป็นวันในอนาคต';
-    else if (form.dob.getTime() < oldest.getTime()) errors.dob = 'กรุณาตรวจสอบปีเกิดอีกครั้ง';
-  }
+  const dobError = validateDob(form.dob, now);
+  if (dobError) errors.dob = dobError;
 
   const weightError = validateMeasurement(form.weight, WEIGHT_RANGE_KG, 'กก.');
   if (weightError) errors.weight = weightError;
