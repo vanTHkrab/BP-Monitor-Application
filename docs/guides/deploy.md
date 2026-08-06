@@ -111,14 +111,28 @@ Docker daemon to reload a config file.
 | --- | --- | --- |
 | `https://$DOMAIN_NAME/graphql` | api-gateway | **None** — JWT auth + nginx rate limit only |
 | `https://$DOMAIN_NAME/graphiql` | api-gateway | Basic Auth **and** `GRAPHIQL_ENABLED=1` |
-| `https://$DOMAIN_NAME/` | web dashboard | Basic Auth |
+| `https://$DOMAIN_NAME/admin/*` | web — service status | Basic Auth |
+| `https://$DOMAIN_NAME/` | web — documentation | **None** — deliberately public |
 
 The split is deliberate:
 
-- **The dashboard must be gated.** Its login form is a shadcn template with no
-  auth library behind it, and its server actions connect straight to Postgres,
-  Redis, and S3. Ungated on a public host it is a read-anything database
-  inspector.
+- **The status pages must be gated.** `web/` has no authentication at all — no
+  auth library is installed — while the pages under `/admin/` connect straight
+  to Postgres, Redis, and S3 and render session counts and user totals.
+  Ungated on a public host they are a read-anything database inspector. The
+  Basic Auth credential is the only thing in front of them.
+- **The docs are not gated, on purpose.** `/` serves the project documentation,
+  prerendered from `docs/**/*.md` at build time. It is static HTML with no
+  credentials, no patient data, and no datastore reads, so a password there
+  would only guard the thing the site exists to publish.
+- **The prefix is what makes this expressible.** nginx resolves plain prefix
+  locations by longest match, so `location /admin/` in
+  `infra/nginx/templates/default.conf.template` wins over `location /`
+  wherever it sits in the file — order is not the mechanism. What matters is
+  that removing that block does not fail loudly: it silently publishes the
+  status pages, and there is no second gate behind it. If a future page under
+  `/` starts reading a datastore, move it under `/admin/` rather than adding a
+  second gate.
 - **GraphiQL must be gated** and is additionally off by default in production.
   A schema explorer with mutation access to live patient data is not something
   to serve casually. The env gate and the Basic Auth gate fail differently —
@@ -128,6 +142,11 @@ The split is deliberate:
   `Authorization` is already taken. Adding Basic Auth would break every
   installed app. It keeps its own auth, its own throttle, and a per-IP
   `limit_req` in nginx (10 r/s, burst 40, real `429`) as a flood guard.
+
+> ⚠️ The gate matches `/admin/` with a trailing slash. Bare `/admin` falls
+> through to the docs catch-all and 404s today, because no page is defined
+> there — harmless now, but adding `web/src/app/admin/page.tsx` would serve it
+> ungated. If that page is ever wanted, widen the nginx match at the same time.
 
 So: browser visitors get the Basic Auth key, phone testers get a demo account.
 

@@ -74,7 +74,7 @@ export default function OverviewPage() {
                     title="S3 Storage"
                     description="Object storage for BP images and avatars."
                     icon={<HardDriveIcon className="size-4" />}
-                    href="/s3"
+                    href="/admin/s3"
                     isLoading={s3.isPending}
                     result={s3.data}
                     detail={
@@ -89,7 +89,7 @@ export default function OverviewPage() {
                     title="Redis"
                     description="Pub/sub bus between gateway and AI service."
                     icon={<CloudIcon className="size-4" />}
-                    href="/redis"
+                    href="/admin/redis"
                     isLoading={redis.isPending}
                     result={redis.data}
                     detail={
@@ -104,7 +104,7 @@ export default function OverviewPage() {
                     title="Database"
                     description="Postgres — source of truth for all app data."
                     icon={<DatabaseIcon className="size-4" />}
-                    href="/database"
+                    href="/admin/database"
                     isLoading={database.isPending}
                     result={database.data}
                     detail={
@@ -117,7 +117,7 @@ export default function OverviewPage() {
                     title="API Gateway"
                     description="NestJS + Mercurius GraphQL gateway."
                     icon={<NetworkIcon className="size-4" />}
-                    href="/gateway"
+                    href="/admin/gateway"
                     isLoading={gateway.isPending}
                     result={gateway.data}
                     detail={
@@ -132,7 +132,7 @@ export default function OverviewPage() {
                     title="AI Service"
                     description="FastAPI OCR worker on Redis pub/sub."
                     icon={<BotIcon className="size-4" />}
-                    href="/ai-service"
+                    href="/admin/ai-service"
                     isLoading={aiService.isPending}
                     result={aiService.data}
                     detail={
@@ -145,7 +145,7 @@ export default function OverviewPage() {
                     title="Clients"
                     description="Active mobile + web sessions hitting the gateway."
                     icon={<UsersIcon className="size-4" />}
-                    href="/clients"
+                    href="/admin/clients"
                     isLoading={clients.isPending}
                     result={clients.data}
                     detail={
