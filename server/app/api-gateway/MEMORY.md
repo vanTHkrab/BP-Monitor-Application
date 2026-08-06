@@ -25,7 +25,8 @@ incidents, ข้อตกลงที่หาในโค้ดไม่เจ
 - **bcrypt 10 rounds** — OWASP minimum, ยอม trade-off กับ login latency
   (ประมาณ 80-100ms ที่ rounds=10 บน laptop ปัจจุบัน)
 - ~~**JWT 30 วัน**~~ → **JWT 7 วัน** (2026-05-14) ลด exposure window ของ
-  token ที่รั่ว. ยังไม่มี refresh token — roadmap อยู่ใน PLAN.md P0 #1
+  token ที่รั่ว. ยังไม่มี refresh token — roadmap อยู่ใน
+  [api-gateway-plan.md](../../../docs/project/api-gateway-plan.md) P0 #1
 - **JWT payload = `{sub, sid}` เท่านั้น** (2026-05-14) — ไม่ใส่ `phone`
   หรือ PII อื่น. Token รั่ว = ไม่เปิดเผยข้อมูลผูกบัญชี; user context
   ที่ resolver ต้องการ field อื่น ให้ hydrate จาก DB ผ่าน `@CurrentUser` +
@@ -89,7 +90,8 @@ incidents, ข้อตกลงที่หาในโค้ดไม่เจ
   shape อยู่ใน `src/ai/` ฝั่ง gateway และ `src/ai_service/handlers.py` ฝั่ง Python
   ห้ามแก้ฝั่งเดียว
 - **PDPA scope**: ผู้ใช้ขอ "ลบข้อมูลของฉัน" → ต้องลบให้ครบจริงๆ
-  (PLAN.md P0 #4 ยังไม่เสร็จ — เอกสารนี้เตือนตัวเองว่ามันยังเป็น risk)
+  ([api-gateway-plan.md](../../../docs/project/api-gateway-plan.md) P0 #4
+  ยังไม่เสร็จ — เอกสารนี้เตือนตัวเองว่ามันยังเป็น risk)
 
 ---
 

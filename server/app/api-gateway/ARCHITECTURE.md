@@ -101,7 +101,7 @@ Gateway ไม่รู้จัก business logic ของ AI — แค่ส
 - **Session revocation** เป็น authoritative — ต่อให้ token ยังไม่หมดอายุ
   ถ้า session ถูก revoke = guard reject. Client จับ 401 / `UNAUTHENTICATED`
   ที่ token-bearing request แล้ว auto-logout (`handleSessionExpired`)
-- **No refresh token** ในตอนนี้ (อยู่ใน PLAN.md P0 #1)
+- **No refresh token** ในตอนนี้ (อยู่ใน [api-gateway-plan.md](../../../docs/project/api-gateway-plan.md) P0 #1)
 
 ---
 

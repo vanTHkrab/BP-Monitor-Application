@@ -202,9 +202,11 @@ paths that do:
 | `types/graphql.ts` | per-module `types.ts` + `lib/mappers.ts` |
 
 Files touched: `docs/reference/API.md`, `infra/README.md`,
-`server/app/api-gateway/{CLAUDE,README,PLAN}.md`,
-`server/app/ai-service/PLAN.md`. The root `CLAUDE.md` was already
-reconciled in an earlier pass.
+`server/app/api-gateway/{CLAUDE,README}.md`, and the two roadmaps that have
+since moved — the gateway's to
+[docs/project/api-gateway-plan.md](./api-gateway-plan.md), the ai-service's
+retired into [docs/decisions/](../decisions/). The root `CLAUDE.md` was
+already reconciled in an earlier pass.
 
 `CLIENT-auth-structure.md`'s old-to-new table still names the old paths and
 is **correct** — it is describing `client-old`. A future sweep should not

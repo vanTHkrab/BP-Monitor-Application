@@ -68,7 +68,10 @@ Three things to keep:
   unset, which preserves the gateway's "absent means server default"
   semantic. A picker only needs somewhere to store the choice — client-old
   used a `devMode` + `selectedOcrEngine` pair in its preferences slice, and
-  `ai-service/PLAN.md` (M2.2) describes the whole surface.
+  [ADR-003](../decisions/ADR-003-ocr-engines-behind-a-protocol.md) describes
+  the engine-selection surface this picker drives. (It used to point at
+  `ai-service/PLAN.md` "M2.2"; that roadmap was retired once the engines
+  shipped, and its durable reasoning became the ADR.)
 - **The benchmark reports class names, not just fps.** A smaller input size
   that raises frame rate while quietly losing the `sys` / `dia` / `pulse`
   boxes is a regression dressed as a win. This is also how you decide the
