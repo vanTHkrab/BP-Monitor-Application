@@ -41,6 +41,30 @@ export type RateLimitRow = {
  * The `count == 1` guard is the fixed-window contract. Re-arming PEXPIRE on
  * every hit would slide the expiry forward for as long as an attacker keeps
  * knocking, and the key would never expire.
+ *
+ * **Fixed window stays, decided in A-008 — do not "fix" this.** The window
+ * starts on the first hit rather than on a clock boundary, so a caller who
+ * spends the full budget at T and again at T+window gets 2x `max` back to
+ * back. That was weighed and accepted:
+ *
+ * - The *sustained* rate is unchanged; only the momentary burst doubles. Both
+ *   threats this limiter answers — credential stuffing and the account
+ *   enumeration A-007 mitigates — are priced in attempts per hour, not
+ *   attempts per second, so 2x for one instant barely moves an attacker's
+ *   cost.
+ * - Halving `max` would cap the worst case exactly, at the price of real
+ *   users: three login attempts per fifteen minutes is not enough for someone
+ *   mistyping a password. Rejected for that reason, not overlooked.
+ * - A sliding window (sorted-set log, or a two-bucket weighted counter) closes
+ *   it precisely, but every consumer shares this primitive — changing it
+ *   changes Better Auth's credential routes too — and `consumeInMemory` below
+ *   would have to implement the same algorithm or a Redis outage would
+ *   silently change semantics. That is a lot of surface for a burst that does
+ *   not buy the attacker much.
+ *
+ * Revisit if any of these become true: a consumer needs a budget large enough
+ * that halving it is expensive, `retryAfter` needs to be second-accurate for
+ * UX, or a compliance rule names sliding windows.
  */
 const CONSUME = `
   local count = redis.call('INCR', KEYS[1])
