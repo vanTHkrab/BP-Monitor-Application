@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import type { BetterAuthInstance } from './better-auth';
 import { InjectBetterAuth } from './better-auth.token';
 import { StorageService } from '../storage/storage.service';
@@ -55,6 +56,7 @@ export class AuthService {
     @InjectBetterAuth() private readonly auth: BetterAuthInstance,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly push: PushService,
   ) {}
 
   /**
@@ -452,8 +454,23 @@ export class AuthService {
    * storage, and the cookie cache if it is ever re-enabled — so `me` keeps
    * succeeding with a token the user has just signed out. Only Better Auth can
    * invalidate its own caches.
+   *
+   * `pushToken` is the caller's own installation token, when it has one. A
+   * `PushToken` row is deliberately not tied to a session — it belongs to the
+   * installation and has to survive session rotation — so nothing deletes it
+   * on the way out unless it is deleted here. Skipping it leaves a signed-out
+   * phone still receiving another person's critical BP readings, which on a
+   * shared handset is a disclosure, not just noise.
+   *
+   * Optional because the caller may genuinely have no token: Expo Go on
+   * Android cannot obtain one at all (remote push was dropped in SDK 53), and
+   * a logout must not fail over a device that could never register.
    */
-  async logout(userId: string, sessionId: string) {
+  async logout(userId: string, sessionId: string, pushToken?: string) {
+    if (pushToken) {
+      await this.push.unregisterToken(userId, pushToken);
+    }
+
     const session = await this.prisma.userSession.findFirst({
       where: { id: sessionId, userId, isActive: true },
       select: { token: true },
@@ -475,7 +492,19 @@ export class AuthService {
     return true;
   }
 
-  async logoutAllDevices(userId: string, currentSessionId?: string) {
+  /**
+   * `keepPushToken` is this device's token; every *other* installation's token
+   * is dropped along with its session. Without it, "sign out everywhere else"
+   * would revoke the other devices' sessions while leaving them subscribed to
+   * push — signed out and still being notified.
+   */
+  async logoutAllDevices(
+    userId: string,
+    currentSessionId?: string,
+    keepPushToken?: string,
+  ) {
+    await this.push.unregisterOtherTokens(userId, keepPushToken);
+
     const where: Record<string, unknown> = {
       userId,
       isActive: true,

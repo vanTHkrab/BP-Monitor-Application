@@ -51,6 +51,7 @@ files; reorganising inside a module is a manual refactor.
 | `src/well-known.controller.ts` | Serves `/.well-known/assetlinks.json` from `ANDROID_APP_SHA256_FINGERPRINT` — Android will not accept a passkey without it. Must be reachable on the **RP domain**, not just on the gateway's host |
 | `src/reading/`, `src/post/`, `src/comment/`, `src/alert/` | feature modules — same shape: `*.module.ts`, `*.resolver.ts`, `*.service.ts`, `*.types.ts` |
 | `src/caregiver/` | same shape, plus the three authorization guards every cross-patient path goes through: `assertCanViewPatient` (any accepted link), `assertCanRecordForPatient` (accepted + `full`), `assertCanEditPatientHealth` (accepted + `full`, but 404 for a missing link — its `patientId` is caller-supplied, so 403 everywhere would make it an existence oracle). Also owns `updatePatientHealth` + the `ProfileChangeLog` audit trail: a `full` caregiver may edit five health fields and **only** those five — `email`/`phone` are absent from `UpdatePatientHealthInput` rather than filtered out, because both are `@unique` Better Auth sign-in identities. Don't widen that input or reuse `UpdateProfileInput` here |
+| `src/push/` | Expo push delivery. `PushService` owns token registration (upsert keyed on the token, so a shared device *reassigns* rather than duplicates), the send path, and a 30-min `@Cron` receipt sweep that prunes `DeviceNotRegistered` tokens. **`expo-server-sdk` v7 is ESM-only and the Jest setup is CJS**, so the only runtime import of it lives in `expo-push.provider.ts`, which no spec loads — `expo-push.client.ts` holds just the DI token and the interface. Same isolation trick as `auth/android-origin.ts`; import the SDK from a service and the whole suite stops parsing |
 | `src/ai/` | bridges GraphQL to AI service over Redis transport |
 | `src/storage/` | S3 upload helpers (profile + BP image) + `StorageCleanupService` (`@Cron` daily orphan-image sweep) |
 | `src/prisma/` | `PrismaService` (extends PrismaClient), `prisma.module.ts` is global |
@@ -63,7 +64,7 @@ files; reorganising inside a module is a manual refactor.
 pnpm start:dev                # hot-reload
 pnpm build                    # tsc → dist/
 pnpm exec tsc --noEmit        # type-check only
-pnpm exec jest --watchman=false   # unit: 18 suites / 212 tests. NOT `pnpm test`
+pnpm exec jest --watchman=false   # unit: 20 suites / 245 tests. NOT `pnpm test`
 pnpm test:e2e                 # e2e (needs DB)
 pnpm prisma migrate dev       # apply pending migrations
 ```
@@ -131,8 +132,8 @@ pnpm prisma migrate dev       # apply pending migrations
   free-form, use `@IsString()` + `@MaxLength()` at minimum.
 - **Don't migrate the DB without `pnpm prisma migrate dev`.** Manually
   editing the database in dev causes drift.
-- **Add a service-level unit test with new behavior.** The suite is 18 files
-  / 212 tests and `auth/` is covered (`auth.service.spec.ts`,
+- **Add a service-level unit test with new behavior.** The suite is 20 files
+  / 245 tests and `auth/` is covered (`auth.service.spec.ts`,
   `android-origin.spec.ts`, `dto/select-role.input.spec.ts`,
   `types/auth.types.spec.ts`). Mock `PrismaService`; never hit a real DB from
   a unit test.

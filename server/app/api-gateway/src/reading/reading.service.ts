@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { AlertLevel, BpStatus } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 
 // Shape returned to the resolver. The `images` relation is included so
 // the resolver can derive a signed s3Key without a second query, and
@@ -17,7 +18,10 @@ const READING_INCLUDE = {
 
 @Injectable()
 export class ReadingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushService,
+  ) {}
 
   async listByUser(userId: string, limit: number, offset: number) {
     return this.prisma.bloodPressureReading.findMany({
@@ -186,21 +190,62 @@ export class ReadingService {
         `${patient?.firstname ?? ''} ${patient?.lastname ?? ''}`.trim() ||
         'ผู้ป่วยที่คุณดูแล';
 
+      const caregiverMessage = this.getCaregiverAlertMessage(
+        data.status,
+        data,
+        patientName,
+      );
+
       await this.prisma.alert.createMany({
         data: links.map((link) => ({
           userId: link.caregiverId,
           bpReadingId: readingId,
           alertLevel,
-          alertMessage: this.getCaregiverAlertMessage(
-            data.status,
-            data,
-            patientName,
-          ),
+          alertMessage: caregiverMessage,
         })),
         // A reading is created once, so this is defensive rather than a live
         // path — but a partial retry must not double a caregiver's bell.
         skipDuplicates: true,
       });
+
+      // Push is `critical` only, while the rows above are written for
+      // `warning` too. Deliberate: somebody with chronic hypertension
+      // produces several warning-level readings a day, and a caregiver who
+      // gets pushed for each of them turns notifications off — after which
+      // they receive nothing, including the one reading that mattered.
+      // Alert fatigue is the failure mode being designed against here, so
+      // widening this to `warning` is not an improvement; it is the bug.
+      //
+      // Caregivers only. The patient is holding the phone that just took the
+      // measurement and has already seen the number, so pushing to them is
+      // noise — the fan-out writes them a row, but never a push.
+      //
+      // Fire-and-forget: an outbound HTTPS call to Expo must not sit inside
+      // the reading mutation's latency budget, and `notifyUsers` never
+      // rejects, for the same reason this whole block is wrapped in a catch.
+      if (data.status === 'critical') {
+        void this.push
+          .notifyUsers(
+            links.map((link) => link.caregiverId),
+            {
+              title: 'ค่าความดันวิกฤต',
+              body: caregiverMessage,
+              data: {
+                type: 'bp-critical',
+                bpReadingId: readingId,
+                patientId,
+                alertLevel,
+              },
+            },
+          )
+          .catch(() => {
+            // `notifyUsers` is documented never to reject; this is the belt to
+            // that brace. Because the call is deliberately not awaited, a
+            // rejection would surface as an unhandled rejection and take the
+            // process down under Node's default policy — strictly worse than a
+            // missed push.
+          });
+      }
     } catch {
       // Swallowed on purpose: the patient has been alerted, the reading is
       // saved, and a failed fan-out must not surface as a failed save.

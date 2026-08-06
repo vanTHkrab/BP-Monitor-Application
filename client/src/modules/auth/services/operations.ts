@@ -98,15 +98,36 @@ export const GQL_LOGIN_SESSIONS = `
   }
 `;
 
+/**
+ * `pushToken` is this installation's Expo push token, and passing it is not
+ * optional in practice.
+ *
+ * A `PushToken` row is deliberately not session-scoped on the gateway — an
+ * Expo token belongs to the app installation and has to survive session
+ * rotation — so the server cannot infer which installation is signing out.
+ * Omit the argument and nothing is unregistered: the phone stays subscribed
+ * and keeps receiving a patient's critical readings after the caregiver has
+ * signed out of it. On a shared handset that is a disclosure, not noise.
+ *
+ * Nullable because a device may genuinely have none: Expo Go on Android
+ * cannot obtain a token at all, and a logout must not fail over that.
+ */
 export const GQL_LOGOUT = `
-  mutation Logout {
-    logout
+  mutation Logout($pushToken: String) {
+    logout(pushToken: $pushToken)
   }
 `;
 
+/**
+ * Same argument, **opposite meaning** — the gateway reads it as
+ * `keepPushToken`. `logoutAllDevices` signs out every *other* device and drops
+ * every other installation's token, keeping the one it is given. Passing this
+ * device's token is therefore what stops "sign out everywhere else" from
+ * unsubscribing the phone in your hand.
+ */
 export const GQL_LOGOUT_ALL_DEVICES = `
-  mutation LogoutAllDevices {
-    logoutAllDevices
+  mutation LogoutAllDevices($pushToken: String) {
+    logoutAllDevices(pushToken: $pushToken)
   }
 `;
 

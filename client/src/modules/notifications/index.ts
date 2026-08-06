@@ -7,8 +7,21 @@
  * the storage write and the permission gate the hook owns — leaving the OS
  * queue and the saved settings describing different schedules.
  */
-export { initReminderNotifications, stopReminderNotifications } from './bootstrap';
+export {
+  initReminderNotifications,
+  registerPushNotifications,
+  stopReminderNotifications,
+} from './bootstrap';
 export { notifyNewInvites } from './services/invite-notification';
+/*
+ * `services/push-registration.ts` is otherwise unexported for the same reason
+ * `reminder-service.ts` is: registration owns a permission prompt that must be
+ * asked at most once, and a screen calling it directly would spend the app's
+ * one shot at `POST_NOTIFICATIONS`. `forgetPushToken` and
+ * `getRegisteredPushToken` are reached by `modules/auth/hooks/use-logout.ts`
+ * through a deep import, which the header comment there explains — routing
+ * them through this barrel would close a cycle back into `@/modules/auth`.
+ */
 export { useReminderSettings } from './hooks/use-reminder-settings';
 
 export { SCHEDULED_NOTIFICATION_BUDGET, planReminders } from './lib/schedule-plan';

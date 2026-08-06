@@ -20,6 +20,7 @@ import {
 } from '@/modules/auth';
 import {
   initReminderNotifications,
+  registerPushNotifications,
   stopReminderNotifications,
 } from '@/modules/notifications';
 import {
@@ -73,11 +74,21 @@ function useAuthBootstrap() {
  * is still being restored, and the listener has to already exist at that
  * moment or the tap is lost. It only routes and re-schedules — nothing here
  * reads user data, so there is nothing to leak before sign-in resolves.
+ *
+ * Remote-push registration is the opposite and is therefore a separate call:
+ * a token is worthless without a session to attach it to, so
+ * `registerPushNotifications` waits on the auth store rather than on this
+ * effect. Both are set up here so the response listener already exists when a
+ * push tap cold-starts the app.
  */
 function useNotificationBootstrap() {
   useEffect(() => {
     void initReminderNotifications();
-    return stopReminderNotifications;
+    const unsubscribe = registerPushNotifications();
+    return () => {
+      unsubscribe();
+      stopReminderNotifications();
+    };
   }, []);
 }
 

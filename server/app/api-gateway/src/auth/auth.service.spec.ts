@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { StorageService } from '../storage/storage.service';
 import { AuthService } from './auth.service';
 import { BETTER_AUTH } from './better-auth.token';
@@ -96,6 +97,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let prisma: PrismaMock;
   let auth: AuthMock;
+  let push: { unregisterToken: jest.Mock; unregisterOtherTokens: jest.Mock };
   const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
   beforeAll(() => {
@@ -120,12 +122,17 @@ describe('AuthService', () => {
         (v: string | null | undefined) => v ?? null,
       ),
     };
+    push = {
+      unregisterToken: jest.fn().mockResolvedValue(true),
+      unregisterOtherTokens: jest.fn().mockResolvedValue(0),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: BETTER_AUTH, useValue: auth },
         { provide: PrismaService, useValue: prisma },
         { provide: StorageService, useValue: storage },
+        { provide: PushService, useValue: push },
       ],
     }).compile();
 
@@ -498,9 +505,52 @@ describe('AuthService', () => {
         data: { isActive: false, revokedAt: expect.any(Date) },
       });
     });
+
+    it('unregisters the push token the caller supplies', async () => {
+      // A PushToken row has no session to cascade from — if logout does not
+      // delete it, a signed-out phone keeps receiving the next patient's
+      // critical readings.
+      prisma.userSession.findFirst.mockResolvedValueOnce({ token: 'tok' });
+      auth.api.signOut.mockResolvedValueOnce({ success: true });
+      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      await service.logout('user-1', 'sess-1', 'ExponentPushToken[abc]');
+
+      expect(push.unregisterToken).toHaveBeenCalledWith(
+        'user-1',
+        'ExponentPushToken[abc]',
+      );
+    });
+
+    it('logs out fine when the caller has no push token', async () => {
+      // Expo Go on Android cannot obtain one at all; a logout must not fail
+      // over a device that could never register.
+      prisma.userSession.findFirst.mockResolvedValueOnce({ token: 'tok' });
+      auth.api.signOut.mockResolvedValueOnce({ success: true });
+      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      await expect(service.logout('user-1', 'sess-1')).resolves.toBe(true);
+
+      expect(push.unregisterToken).not.toHaveBeenCalled();
+    });
   });
 
   describe('logoutAllDevices', () => {
+    it('drops every push token except this device’s', async () => {
+      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 2 });
+
+      await service.logoutAllDevices(
+        'user-1',
+        'sess-current',
+        'ExponentPushToken[keep]',
+      );
+
+      expect(push.unregisterOtherTokens).toHaveBeenCalledWith(
+        'user-1',
+        'ExponentPushToken[keep]',
+      );
+    });
+
     it('excludes the current session when provided', async () => {
       prisma.userSession.updateMany.mockResolvedValueOnce({ count: 2 });
       await service.logoutAllDevices('user-1', 'sess-current');

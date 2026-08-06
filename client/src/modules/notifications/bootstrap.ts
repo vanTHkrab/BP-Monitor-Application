@@ -17,8 +17,13 @@
  */
 import { router } from 'expo-router';
 
+import { useAuthStore } from '@/stores';
+
+import { parseCriticalAlert } from './lib/critical-alert';
+import { handleCriticalAlertResponse } from './services/critical-alert-handler';
 import { INVITE_KIND } from './services/invite-notification';
 import { isNotificationSupported } from './services/notifications-module';
+import { syncPushRegistration } from './services/push-registration';
 import {
   cancelPendingFollowUps,
   scheduleFollowUp,
@@ -80,7 +85,19 @@ export async function initReminderNotifications(): Promise<void> {
   const responseSub = Notifications.addNotificationResponseReceivedListener(
     (response) => {
       const { actionIdentifier } = response;
-      const kind = response.notification.request.content.data?.kind;
+      const data = response.notification.request.content.data;
+      const kind = data?.kind;
+
+      // A remote push, not one of ours. Checked first and by payload shape
+      // rather than by `kind`: the gateway stamps `type`, the local
+      // notifications stamp `kind`, so the two vocabularies cannot collide.
+      // Handling it here rather than from a second listener for the same
+      // reason the invite branch is here — a second response listener would
+      // double-handle every reminder tap.
+      if (parseCriticalAlert(data)) {
+        void handleCriticalAlertResponse(data);
+        return;
+      }
 
       // A caregiver invite. Routed here rather than from the caregivers module
       // because this is the app's only notification-response listener, and a
@@ -120,4 +137,48 @@ export async function initReminderNotifications(): Promise<void> {
 
 export function stopReminderNotifications(): void {
   teardown?.();
+}
+
+/**
+ * Registers this installation for remote push whenever a user is signed in.
+ *
+ * ## Why an auth-store subscription rather than a new lifecycle
+ *
+ * A push token is only useful once there is a session to attach it to, and the
+ * app already has exactly one place that reacts to becoming authenticated:
+ * a `useAuthStore.subscribe` registered once at root, which is how
+ * `registerSessionUserMirror` keeps the remembered user id in step. This is
+ * the same shape for the same reason — the alternative is a list of five
+ * sign-in paths (password, register, Google, passkey, restore) that a sixth
+ * one forgets to join, and the failure would be a caregiver who quietly stops
+ * receiving alerts.
+ *
+ * It also covers relaunch for free without a second mechanism: `initAuth`
+ * calls `signedIn` after restoring the token, and this is registered before
+ * that runs, so a cold start with a valid session is just another transition.
+ *
+ * **Deliberately not an `AppState` or `NetInfo` listener.**
+ * `readings/hooks/use-readings-sync.tsx` owns the app's only ones
+ * (`client/AGENTS.md`), and registration does not need them: the gateway
+ * upserts, so "once per launch and once per sign-in" is enough and a
+ * foreground-driven retry would only add prompts.
+ *
+ * Runs after sign-out too — as a no-op. `syncPushRegistration` needs a session
+ * for its guarded mutation, and `userId` is null by then; the token is dropped
+ * on the logout path instead, where the gateway is still willing to listen.
+ */
+export function registerPushNotifications(): () => void {
+  const start = (userId: string | null) => {
+    if (!userId) return;
+    void syncPushRegistration(userId);
+  };
+
+  // The session may already be restored — `initAuth` resolves on its own
+  // schedule and a subscription alone would miss a sign-in that landed first.
+  start(useAuthStore.getState().userId);
+
+  return useAuthStore.subscribe((state, previous) => {
+    if (state.userId === previous.userId) return;
+    start(state.userId);
+  });
 }

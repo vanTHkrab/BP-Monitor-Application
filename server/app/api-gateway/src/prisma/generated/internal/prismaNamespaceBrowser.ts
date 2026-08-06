@@ -55,6 +55,7 @@ export const ModelName = {
   ProfileChangeLog: 'ProfileChangeLog',
   Passkey: 'Passkey',
   UserSession: 'UserSession',
+  PushToken: 'PushToken',
   Account: 'Account',
   Verification: 'Verification',
   CaregiverPatient: 'CaregiverPatient',
@@ -160,6 +161,22 @@ export const UserSessionScalarFieldEnum = {
 } as const
 
 export type UserSessionScalarFieldEnum = (typeof UserSessionScalarFieldEnum)[keyof typeof UserSessionScalarFieldEnum]
+
+
+export const PushTokenScalarFieldEnum = {
+  id: 'id',
+  token: 'token',
+  userId: 'userId',
+  deviceLabel: 'deviceLabel',
+  platform: 'platform',
+  lastRegisteredAt: 'lastRegisteredAt',
+  pendingReceiptId: 'pendingReceiptId',
+  pendingReceiptAt: 'pendingReceiptAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PushTokenScalarFieldEnum = (typeof PushTokenScalarFieldEnum)[keyof typeof PushTokenScalarFieldEnum]
 
 
 export const AccountScalarFieldEnum = {
