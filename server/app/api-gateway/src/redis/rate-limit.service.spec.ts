@@ -1,11 +1,13 @@
 /// <reference types="jest" />
 /**
- * The Redis rate-limit storage behind Better Auth's `rateLimit.customStorage`.
+ * `RateLimitService` — the fixed-window Redis limiter, exercised through the
+ * adapter it hands Better Auth at `rateLimit.customStorage`.
  *
  * This is the only thing standing between a credential endpoint and an
- * unbounded guessing loop — it replaced `login-throttle.guard.ts` — and until
- * this file existed nothing asserted it at all. The contract it has to satisfy
- * is Better Auth's, not ours, so the assertions below are written against
+ * unbounded guessing loop — it replaced the old `login-throttle.guard.ts` —
+ * and until this file existed nothing asserted it at all. Better Auth is not
+ * its only caller any more, but it is still the strictest one, so the
+ * assertions below are written against its contract rather than ours, from
  * `node_modules/better-auth/dist/api/rate-limiter/index.mjs` and cite it:
  *
  *   - `onRequestRateLimit` (line ~342) prefers `storage.consume(key, rule)`
@@ -27,30 +29,16 @@
  */
 import type Redis from 'ioredis';
 
-// `better-auth` and its plugins ship ESM only, and this jest runtime is CJS —
-// importing better-auth.ts for one non-exported helper drags all of them in
-// and the suite dies on `Cannot use import statement outside a module`. These
-// stubs exist purely to make the module loadable; nothing below touches them.
-// They go away when the limiter moves out of better-auth.ts into src/redis/.
-jest.mock('@better-auth/passkey', () => ({ passkey: () => ({}) }));
-jest.mock('better-auth', () => ({ betterAuth: () => ({}) }));
-jest.mock('better-auth/adapters/prisma', () => ({ prismaAdapter: () => ({}) }));
-jest.mock('better-auth/plugins', () => ({
-  admin: () => ({}),
-  bearer: () => ({}),
-  emailOTP: () => ({}),
-  haveIBeenPwned: () => ({}),
-  lastLoginMethod: () => ({}),
-  phoneNumber: () => ({}),
-}));
-jest.mock('better-auth/plugins/access', () => ({
-  createAccessControl: () => ({ newRole: () => ({}) }),
-}));
-jest.mock('better-auth/plugins/admin/access', () => ({
-  defaultStatements: { user: [], session: [] },
-}));
+import { RateLimitService } from './rate-limit.service';
 
-import { rateLimitStorageFor } from './better-auth';
+/**
+ * Behaviour is asserted through `betterAuthStorage()` rather than through
+ * `consume` directly, so these are still the same assertions that covered the
+ * limiter while it lived in `auth/better-auth.ts` — the adapter is the surface
+ * Better Auth actually holds.
+ */
+const rateLimitStorageFor = (redis: Redis) =>
+  new RateLimitService(redis).betterAuthStorage();
 
 type FakeRedis = {
   status: string;

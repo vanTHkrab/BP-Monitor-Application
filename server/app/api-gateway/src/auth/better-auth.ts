@@ -18,6 +18,7 @@ import * as bcrypt from 'bcrypt';
 import type Redis from 'ioredis';
 
 import type { PrismaService } from '../prisma/prisma.service';
+import type { RateLimitService } from '../redis/rate-limit.service';
 import { androidOriginsFromFingerprints } from './android-origin';
 import {
   BCRYPT_SALT_ROUNDS,
@@ -181,98 +182,11 @@ function secondaryStorageFor(redis: Redis) {
   };
 }
 
-/**
- * Atomic rate-limit storage.
- *
- * INCR and PEXPIRE run in one Lua call so a burst cannot interleave between
- * the read and the write — the same approach the Redis-backed
- * login-throttle.guard.ts used before Better Auth took the job over.
- *
- * Redis is optional at boot here as everywhere else, so an unavailable server
- * falls back to a per-process counter. That is weaker across replicas but
- * still bounds a single instance, which is strictly better than allowing
- * everything through.
- */
-export function rateLimitStorageFor(redis: Redis) {
-  const CONSUME = `
-    local count = redis.call('INCR', KEYS[1])
-    if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
-    return {count, redis.call('PTTL', KEYS[1])}
-  `;
-
-  const fallback = new Map<string, { count: number; expiresAt: number }>();
-
-  const consumeInMemory = (key: string, windowMs: number, max: number) => {
-    const now = Date.now();
-    const entry = fallback.get(key);
-
-    if (!entry || entry.expiresAt <= now) {
-      fallback.set(key, { count: 1, expiresAt: now + windowMs });
-      return { allowed: true, retryAfter: null };
-    }
-
-    entry.count += 1;
-    if (entry.count <= max) {
-      return { allowed: true, retryAfter: null as number | null };
-    }
-    return {
-      allowed: false,
-      retryAfter: Math.ceil((entry.expiresAt - now) / 1000) as number | null,
-    };
-  };
-
-  return {
-    get: async (key: string) => {
-      if (redis.status !== 'ready') return null;
-      try {
-        const raw = await redis.get(key);
-        return raw
-          ? (JSON.parse(raw) as {
-              key: string;
-              count: number;
-              lastRequest: number;
-            })
-          : null;
-      } catch {
-        return null;
-      }
-    },
-    set: async (key: string, value: unknown) => {
-      if (redis.status !== 'ready') return;
-      try {
-        await redis.set(key, JSON.stringify(value));
-      } catch {
-        // A limiter that fails closed would lock everyone out of login.
-      }
-    },
-    consume: async (key: string, rule: { window: number; max: number }) => {
-      const windowMs = rule.window * 1000;
-
-      if (redis.status !== 'ready') {
-        return consumeInMemory(key, windowMs, rule.max);
-      }
-
-      try {
-        const [count, ttl] = (await redis.eval(
-          CONSUME,
-          1,
-          key,
-          String(windowMs),
-        )) as [number, number];
-
-        if (count <= rule.max) return { allowed: true, retryAfter: null };
-        return {
-          allowed: false,
-          retryAfter: Math.ceil(Math.max(ttl, 0) / 1000),
-        };
-      } catch {
-        return consumeInMemory(key, windowMs, rule.max);
-      }
-    },
-  };
-}
-
-export function createBetterAuth(prisma: PrismaService, redis: Redis) {
+export function createBetterAuth(
+  prisma: PrismaService,
+  redis: Redis,
+  rateLimit: RateLimitService,
+) {
   return betterAuth({
     appName: 'BP Monitor',
     // Reuses the existing secret so the deployment does not grow a second one
@@ -406,7 +320,12 @@ export function createBetterAuth(prisma: PrismaService, redis: Redis) {
       // get/set, and Better Auth warns that a limiter built on those is
       // best-effort — two concurrent requests both read the old count and both
       // pass. A credential endpoint is exactly where that matters.
-      customStorage: rateLimitStorageFor(redis),
+      //
+      // The primitive itself now lives in `redis/rate-limit.service.ts`; this
+      // is only the adapter to Better Auth's contract. Any other caller that
+      // needs a budget injects the same service and therefore gets the same
+      // atomicity and the same Redis-down policy.
+      customStorage: rateLimit.betterAuthStorage(),
       // Replaces login-throttle.guard.ts. Configured per path rather than per
       // resolver so a newly added credential route is covered by default —
       // the old guard only knew about the phone login mutation, which would
