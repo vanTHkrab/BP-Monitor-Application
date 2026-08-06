@@ -5,11 +5,14 @@ import { StorageModule } from '../storage/storage.module';
 import { AiProcessor } from './ai.process';
 import { AiResolver } from './ai.resolver';
 import { AI_QUEUE, AiService } from './ai.service';
+import { redisConnectionFromEnv } from '../redis/redis-connection';
 import { MetricsLogger } from './metrics-logger';
 
-const redisPort = Number.parseInt(process.env.REDIS_PORT ?? '6379', 10);
-const resolvedRedisPort = Number.isNaN(redisPort) ? 6379 : redisPort;
-const redisHost = process.env.REDIS_HOST ?? 'localhost';
+// Resolved inside factories, not at module import, so this matches when
+// `REDIS_CLIENT`'s own `useFactory` runs. Both read the same `process.env`
+// today, but resolving at two different *times* is the same shape of latent
+// divergence this file was just fixed to remove — anything that populated
+// `process.env` between import and DI instantiation would split them again.
 
 @Module({
   imports: [
@@ -17,21 +20,17 @@ const redisHost = process.env.REDIS_HOST ?? 'localhost';
     // to attach a short-lived URL to the job payload so ai-service can
     // fetch the image without holding S3 credentials of its own.
     StorageModule,
-    BullModule.forRoot({
-      connection: {
-        host: redisHost,
-        port: resolvedRedisPort,
-      },
+    BullModule.forRootAsync({
+      useFactory: () => ({ connection: redisConnectionFromEnv() }),
     }),
     BullModule.registerQueue({ name: AI_QUEUE }),
-    ClientsModule.register([
+    ClientsModule.registerAsync([
       {
         name: 'AI_SERVICE',
-        transport: Transport.REDIS,
-        options: {
-          host: redisHost,
-          port: resolvedRedisPort,
-        },
+        useFactory: () => ({
+          transport: Transport.REDIS,
+          options: redisConnectionFromEnv(),
+        }),
       },
     ]),
   ],

@@ -63,8 +63,14 @@ services:
       context: ../../server/app/ai-service
       dockerfile: Dockerfile
     environment:
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      # `main.py` reads REDIS_URL and nothing else — REDIS_HOST/REDIS_PORT
+      # were set here and silently ignored, so the subscriber fell back to
+      # `redis://localhost:6379`, which inside this container is this
+      # container. It subscribed to a Redis nobody publishes to and the whole
+      # analysis path was dead in Compose, with no error on either side: the
+      # gateway published successfully to the real Redis and simply never
+      # got a reply.
+      REDIS_URL: redis://redis:6379
       # Public R2 base URL the entrypoint downloads model artifacts from.
       # docker-entrypoint.sh refuses to start if this is unset or still
       # the placeholder value.

@@ -57,7 +57,7 @@ path in it refuses to start, on purpose.
 | `BETTER_AUTH_URL` | Prod required | **Origin only.** `/api/auth` is appended automatically; any other path is discarded with a warning. Getting this wrong costs nothing at boot and 404s every auth route afterwards. |
 | `BETTER_AUTH_SECRET` | Optional | Falls back to `JWT_SECRET`. Set it explicitly in production so rotating one does not silently rotate the other. |
 | `HAVE_I_BEEN_PWNED_ENABLED` | Optional | `true` rejects passwords found in known breaches. Adds an outbound call to the sign-up path. |
-| `REDIS_HOST` · `REDIS_PORT` | Optional | Transport to the AI service and Better Auth's rate-limit store. Redis is optional at boot — an unreachable server degrades to in-process limiting rather than failing requests. |
+| `REDIS_URL` · `REDIS_HOST` · `REDIS_PORT` · `REDIS_PASSWORD` | Optional | Transport to the AI service and Better Auth's rate-limit store. Provide either `REDIS_URL` or the host/port pair; the URL wins when both are set, and is the only form that can carry credentials or TLS. Redis is optional at boot — an unreachable server degrades to per-process limiting rather than failing requests. |
 | `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | Optional | The **web** OAuth credentials. Google sign-in stays unregistered until both are set, so it reads as "not set up here" rather than breaking at the redirect. |
 | `GOOGLE_ANDROID_CLIENT_ID` | New | The Android OAuth client, added as a second accepted **audience** — not a second provider. Without it, every mobile Google sign-in fails as an invalid token while the web flow keeps working. |
 | `PASSKEY_RP_ID` | New | A bare registered domain, e.g. `bp.example.com`. Never an IP, port, or scheme — the gateway throws at boot on those. **Unset means the passkey plugin is not loaded at all**, and `securityOverview.passkeySupported` reports false so the app hides the section. |
@@ -66,6 +66,13 @@ path in it refuses to start, on purpose.
 | `S3_ENDPOINT` · `S3_BUCKET_NAME` · `S3_ACCESS_KEY_ID` · `S3_SECRET_ACCESS_KEY` | Required | Object storage for avatars and BP images. Production target is Cloudflare R2; staging points at Supabase Storage's S3 endpoint with the same env shape. These four are the ones [`s3.config.ts`](../../server/app/api-gateway/src/storage/s3.config.ts) throws on when missing. |
 | `S3_PROVIDER` · `S3_DEFAULT_REGION` · `S3_USE_PATH_STYLE_ENDPOINT` · `S3_PUBLIC_BASE_URL` | Optional | Same object storage, non-fatal knobs. `S3_DEFAULT_REGION` defaults to `auto`; `S3_USE_PATH_STYLE_ENDPOINT` is path-style only on the literal string `true`; `S3_PUBLIC_BASE_URL` falls back to a host derived from `S3_ENDPOINT` when unset. |
 | `ANDROID_APP_PACKAGE_NAME` | Optional | Defaults to `com.project.bpmonitor`. Must match `expo.android.package` in `client/app.json`. |
+
+> ⚠️ That graceful degradation is also how a misconfiguration hides. Until
+> 2026-08-06 the rate-limit client ignored these variables entirely and
+> connected to `localhost`, so every container silently limited per-pod
+> instead of globally, with nothing in a log to say so. If a limit behaves as
+> though it is not shared, check that the client is actually connected before
+> assuming the limiter is wrong.
 
 ---
 
