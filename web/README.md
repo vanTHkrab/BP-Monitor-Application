@@ -41,13 +41,14 @@ There is no test suite. The gate is `pnpm lint` plus `pnpm exec tsc --noEmit`.
 ```text
 web/src/
 ├── app/
-│   ├── page.tsx               # shadcn login template — not a real login
-│   ├── (dashboard)/           # overview · gateway · database · redis · s3 · ai-service · clients
+│   ├── page.tsx               # redirects to /docs
+│   ├── (docs)/docs/           # the documentation site — renders docs/**/*.md
+│   ├── admin/                 # overview · gateway · database · redis · s3 · ai-service · clients
 │   └── (diagram)/diagrams/    # 10 Mermaid pages: architecture, ER, use-case,
 │                              #   sequence (auth, bp-capture), flow (offline-sync,
 │                              #   yolo-preflight), state (camera, reading-lifecycle)
 ├── actions/                   # Server Actions — every backend call
-├── components/                # dashboard shell, sidebar, mermaid renderer, shadcn ui/
+├── components/                # docs + dashboard shells, sidebars, markdown & mermaid renderers, shadcn ui/
 ├── hooks/                     # use-mobile
 └── lib/                       # one thin client per backend
 ```

@@ -111,14 +111,26 @@ Docker daemon to reload a config file.
 | --- | --- | --- |
 | `https://$DOMAIN_NAME/graphql` | api-gateway | **None** — JWT auth + nginx rate limit only |
 | `https://$DOMAIN_NAME/graphiql` | api-gateway | Basic Auth **and** `GRAPHIQL_ENABLED=1` |
-| `https://$DOMAIN_NAME/` | web dashboard | Basic Auth |
+| `https://$DOMAIN_NAME/admin/*` | web — service status | Basic Auth |
+| `https://$DOMAIN_NAME/` | web — documentation | **None** — deliberately public |
 
 The split is deliberate:
 
-- **The dashboard must be gated.** Its login form is a shadcn template with no
-  auth library behind it, and its server actions connect straight to Postgres,
-  Redis, and S3. Ungated on a public host it is a read-anything database
-  inspector.
+- **The status pages must be gated.** `web/` has no authentication at all — no
+  auth library is installed — while the pages under `/admin/` connect straight
+  to Postgres, Redis, and S3 and render session counts and user totals.
+  Ungated on a public host they are a read-anything database inspector. The
+  Basic Auth credential is the only thing in front of them.
+- **The docs are not gated, on purpose.** `/` serves the project documentation,
+  prerendered from `docs/**/*.md` at build time. It is static HTML with no
+  credentials, no patient data, and no datastore reads, so a password there
+  would only guard the thing the site exists to publish.
+- **The prefix is what makes this expressible.** nginx matches the longest
+  prefix, so `/admin/` must stay above `location /` in
+  `infra/nginx/templates/default.conf.template`. Removing that block does not
+  fail loudly — it silently publishes the status pages. If a future page under
+  `/` starts reading a datastore, move it under `/admin/` rather than adding a
+  second gate.
 - **GraphiQL must be gated** and is additionally off by default in production.
   A schema explorer with mutation access to live patient data is not something
   to serve casually. The env gate and the Basic Auth gate fail differently —
