@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpenIcon, GaugeIcon } from "lucide-react";
+import { BookOpenIcon, GaugeIcon, ListChecksIcon } from "lucide-react";
 
 import {
     Sidebar,
@@ -85,6 +85,16 @@ export function DocsSidebar({ sections }: { sections: DocsNavSection[] }) {
 
                 <SidebarGroup className="mt-auto">
                     <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                isActive={pathname === "/tasks"}
+                                tooltip="Task board"
+                                render={<Link href="/tasks" />}
+                            >
+                                <ListChecksIcon className="size-4" />
+                                <span>Task board</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
                         <SidebarMenuItem>
                             <SidebarMenuButton
                                 tooltip="Service status"
