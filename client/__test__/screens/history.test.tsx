@@ -7,8 +7,10 @@
  * here is composition: which empty state appears and why, whether the preview
  * really is capped at three, and whether the caregiver gate holds.
  *
- * The chart is not asserted through the renderer. Its input is tested; how
- * `react-native-gifted-charts` draws it is that library's business.
+ * How `react-native-gifted-charts` draws the chart is that library's business,
+ * so the mock below captures the `data` prop rather than rendering anything.
+ * That one prop is asserted, though, and it is the most load-bearing
+ * assertion in this file: the severity filter must **not** reach the chart.
  */
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
@@ -18,8 +20,17 @@ jest.mock(
   () => require('@react-native-async-storage/async-storage/jest/async-storage-mock') as unknown,
 );
 
+/**
+ * The systolic series the screen last handed the chart. `mock`-prefixed
+ * because `jest.mock` factories are hoisted above every other binding and
+ * babel-jest only lets that prefix through.
+ */
+const mockChartData = { current: [] as { value: number }[] };
 jest.mock('react-native-gifted-charts', () => ({
-  LineChart: () => null,
+  LineChart: ({ data }: { data: { value: number }[] }) => {
+    mockChartData.current = data;
+    return null;
+  },
 }));
 
 const mockUser = {
@@ -118,6 +129,7 @@ beforeEach(() => {
   mockReadings.isLoading = false;
   mockReminders.settings = { ...remindersOff };
   mockReminders.isLoading = false;
+  mockChartData.current = [];
 });
 
 describe('HistoryScreen', () => {
@@ -127,6 +139,14 @@ describe('HistoryScreen', () => {
     expect(view.getByText('ประวัติความดัน')).toBeTruthy();
     ['7days', '30days', '3months', '1year'].forEach((key) => {
       expect(view.getByTestId(`history-filter-${key}`)).toBeTruthy();
+    });
+  });
+
+  it('renders the severity row as a second axis, four pills wide', async () => {
+    const view = await renderScreen(<HistoryScreen />);
+
+    ['all', 'normal', 'watch', 'alert'].forEach((key) => {
+      expect(view.getByTestId(`history-severity-${key}`)).toBeTruthy();
     });
   });
 
@@ -171,6 +191,144 @@ describe('HistoryScreen', () => {
     });
   });
 
+  describe('the severity filter', () => {
+    // Distinct statuses, all inside the default 30-day range, so nothing here
+    // is decided by the time axis.
+    const mixed = () => [
+      reading(1, { key: 'k-critical', status: 'critical' }),
+      reading(2, { key: 'k-normal', status: 'normal' }),
+      reading(3, { key: 'k-low', status: 'low' }),
+    ];
+
+    it('narrows the list to the selected group', async () => {
+      mockReadings.readings = mixed();
+      const view = await renderScreen(<HistoryScreen />);
+
+      await fireEvent.press(view.getByTestId('history-severity-alert'));
+
+      await waitFor(() => expect(view.queryByTestId('reading-k-normal')).toBeNull());
+      expect(view.getByTestId('reading-k-critical')).toBeTruthy();
+      expect(view.queryByTestId('reading-k-low')).toBeNull();
+    });
+
+    // The grouping's whole point: a scheme built around "high" hides
+    // hypotension, which is abnormal too. `low` has to be reachable.
+    it('reaches a low reading through "เฝ้าระวัง"', async () => {
+      mockReadings.readings = mixed();
+      const view = await renderScreen(<HistoryScreen />);
+
+      await fireEvent.press(view.getByTestId('history-severity-watch'));
+
+      await waitFor(() => expect(view.getByTestId('reading-k-low')).toBeTruthy());
+      expect(view.queryByTestId('reading-k-critical')).toBeNull();
+    });
+
+    it('stacks with the time filter rather than replacing it', async () => {
+      mockReadings.readings = [
+        reading(2, { key: 'k-recent-high', status: 'high' }),
+        reading(200, { key: 'k-old-high', status: 'high' }),
+        reading(2, { key: 'k-recent-normal', status: 'normal' }),
+      ];
+      const view = await renderScreen(<HistoryScreen />);
+
+      await fireEvent.press(view.getByTestId('history-severity-alert'));
+
+      // Excluded by severity alone, by time alone, and by both.
+      await waitFor(() => expect(view.getByTestId('reading-k-recent-high')).toBeTruthy());
+      expect(view.queryByTestId('reading-k-recent-normal')).toBeNull();
+      expect(view.queryByTestId('reading-k-old-high')).toBeNull();
+    });
+
+    /**
+     * The regression this file exists to catch. Feeding the chart the
+     * severity-filtered set draws a line through only the singled-out points
+     * and hides every reading between them — a patient whose readings are
+     * mostly fine renders as someone in continuous crisis. The time filter
+     * scopes both; severity scopes the list only.
+     */
+    it('does not scope the trend chart', async () => {
+      mockReadings.readings = mixed();
+      const view = await renderScreen(<HistoryScreen />);
+
+      expect(mockChartData.current).toHaveLength(3);
+
+      await fireEvent.press(view.getByTestId('history-severity-alert'));
+
+      await waitFor(() => expect(view.queryByTestId('reading-k-normal')).toBeNull());
+      expect(mockChartData.current).toHaveLength(3);
+    });
+
+    // The other half of the same asymmetry: time *does* scope the chart.
+    it('still lets the time filter scope the chart', async () => {
+      mockReadings.readings = [reading(2, { key: 'k-recent' }), reading(20, { key: 'k-older' })];
+      const view = await renderScreen(<HistoryScreen />);
+
+      expect(mockChartData.current).toHaveLength(2);
+
+      await fireEvent.press(view.getByTestId('history-filter-7days'));
+
+      await waitFor(() => expect(mockChartData.current).toHaveLength(1));
+    });
+
+    describe('when it excludes everything', () => {
+      // "ไม่พบรายการ" is useless with two filters stacked. The range has rows,
+      // so severity is the sole culprit and the copy has to say which.
+      it('names the severity filter rather than blaming the range', async () => {
+        mockReadings.readings = [reading(1, { key: 'k-normal', status: 'normal' })];
+        const view = await renderScreen(<HistoryScreen />);
+
+        await fireEvent.press(view.getByTestId('history-severity-alert'));
+
+        const empty = await view.findByTestId('history-severity-empty');
+        expect(empty).toHaveTextContent(/สูง\/สูงมาก/);
+        expect(empty).toHaveTextContent(/30 วัน/);
+      });
+
+      it('offers one tap back to every level', async () => {
+        mockReadings.readings = [reading(1, { key: 'k-normal', status: 'normal' })];
+        const view = await renderScreen(<HistoryScreen />);
+
+        await fireEvent.press(view.getByTestId('history-severity-alert'));
+        await fireEvent.press(await view.findByTestId('history-severity-reset'));
+
+        await waitFor(() => expect(view.getByTestId('reading-k-normal')).toBeTruthy());
+        expect(view.queryByTestId('history-severity-empty')).toBeNull();
+      });
+
+      // The chart's own empty state already says the range is empty. A second
+      // message here would blame severity for the time filter's exclusion.
+      it('stays quiet when it is the range that is empty', async () => {
+        mockReadings.readings = [reading(200, { key: 'k-old', status: 'critical' })];
+        const view = await renderScreen(<HistoryScreen />);
+
+        await fireEvent.press(view.getByTestId('history-severity-alert'));
+
+        await waitFor(() =>
+          expect(view.getByTestId('history-empty')).toHaveTextContent(/ไม่มีการวัดในช่วงเวลานี้/),
+        );
+        expect(view.queryByTestId('history-severity-empty')).toBeNull();
+      });
+    });
+
+    it('carries the chosen group to the full list, and nothing when it is "all"', async () => {
+      mockReadings.readings = [
+        reading(1, { key: 'k1', status: 'high' }),
+        reading(2, { key: 'k2', status: 'high' }),
+        reading(3, { key: 'k3', status: 'high' }),
+        reading(4, { key: 'k4', status: 'high' }),
+      ];
+      const view = await renderScreen(<HistoryScreen />);
+
+      await fireEvent.press(view.getByTestId('history-view-all'));
+      expect(router.push).toHaveBeenLastCalledWith('/history-list');
+
+      await fireEvent.press(view.getByTestId('history-severity-alert'));
+      await fireEvent.press(await view.findByTestId('history-view-all'));
+
+      expect(router.push).toHaveBeenLastCalledWith('/history-list?severity=alert');
+    });
+  });
+
   describe('exporting', () => {
     // The bug this guards: exporting `readings` instead of `filtered` hands
     // the user a document covering a period they did not ask for, while the
@@ -184,6 +342,33 @@ describe('HistoryScreen', () => {
 
       const [rows] = mockExportReadings.mock.calls.at(-1) as [{ key: string }[], string];
       expect(rows.map((row) => row.key)).toEqual(['k2']);
+    });
+
+    // Same surprise, second axis. The button sits under the list, so a report
+    // the screen described as "สูง/สูงมาก" must not contain normal readings.
+    it('exports the severity group too, not just the range', async () => {
+      mockReadings.readings = [
+        reading(1, { key: 'k-high', status: 'high' }),
+        reading(2, { key: 'k-normal', status: 'normal' }),
+      ];
+      const view = await renderScreen(<HistoryScreen />);
+
+      await fireEvent.press(view.getByTestId('history-severity-alert'));
+      await fireEvent.press(await view.findByTestId('history-export'));
+      await fireEvent.press(await view.findByTestId('export-format-csv'));
+
+      const [rows] = mockExportReadings.mock.calls.at(-1) as [{ key: string }[], string];
+      expect(rows.map((row) => row.key)).toEqual(['k-high']);
+    });
+
+    it('says which severity the document covers, once one is chosen', async () => {
+      mockReadings.readings = [reading(1, { key: 'k-high', status: 'high' })];
+      const view = await renderScreen(<HistoryScreen />);
+
+      await fireEvent.press(view.getByTestId('history-severity-alert'));
+      await fireEvent.press(await view.findByTestId('history-export'));
+
+      expect(await view.findByText(/ระดับ สูง\/สูงมาก/)).toBeTruthy();
     });
 
     it.each(['pdf', 'csv'])('exports as %s once that format is picked', async (format) => {

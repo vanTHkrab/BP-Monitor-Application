@@ -25,7 +25,17 @@ import { useColorSchemePreference } from '@/theme/color-scheme';
 
 cssInterop(LinearGradient, { className: 'style' });
 
-export type TabButtonItem<T extends string> = { key: T; label: string };
+/**
+ * `accessibilityLabel` is optional and overrides the visible label for screen
+ * readers. It exists for pills whose text is shorter than their meaning — a
+ * grouped filter like "เฝ้าระวัง" does not announce which statuses it
+ * contains, and a screen-reader user has no colour tint to infer it from.
+ */
+export type TabButtonItem<T extends string> = {
+  key: T;
+  label: string;
+  accessibilityLabel?: string;
+};
 
 export type TabButtonsProps<T extends string> = {
   tabs: readonly TabButtonItem<T>[];
@@ -63,6 +73,7 @@ export function TabButtons<T extends string>({
             testID={`${testIDPrefix}-${tab.key}`}
             onPress={() => onTabChange(tab.key)}
             accessibilityRole="tab"
+            accessibilityLabel={tab.accessibilityLabel}
             accessibilityState={{ selected: isActive }}
             className="flex-1"
             style={{ minHeight }}
