@@ -193,7 +193,7 @@ function secondaryStorageFor(redis: Redis) {
  * still bounds a single instance, which is strictly better than allowing
  * everything through.
  */
-function rateLimitStorageFor(redis: Redis) {
+export function rateLimitStorageFor(redis: Redis) {
   const CONSUME = `
     local count = redis.call('INCR', KEYS[1])
     if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
