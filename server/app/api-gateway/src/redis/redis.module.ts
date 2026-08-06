@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { RateLimitService } from './rate-limit.service';
 import Redis from 'ioredis';
 
 // Single shared ioredis client, exposed as a global provider so any feature
@@ -10,6 +11,12 @@ import Redis from 'ioredis';
 // lazyConnect + swallowed errors keep boot resilient when Redis is down —
 // consumers must check `redis.status === 'ready'` before assuming a call
 // will succeed, and degrade gracefully if not.
+//
+// `RateLimitService` is exported alongside the raw client because the
+// degrade-when-down decision is one this module has already made once, for
+// the credential endpoints. A caller that reaches for `REDIS_CLIENT` and
+// writes its own INCR is free to get that decision wrong; a caller that
+// injects the service cannot.
 
 @Global()
 @Module({
@@ -29,7 +36,8 @@ import Redis from 'ioredis';
         return redis;
       },
     },
+    RateLimitService,
   ],
-  exports: ['REDIS_CLIENT'],
+  exports: ['REDIS_CLIENT', RateLimitService],
 })
 export class RedisModule {}

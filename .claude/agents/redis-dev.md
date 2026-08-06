@@ -34,7 +34,6 @@ Confirm scope, locate the Redis-touching surfaces, decide whether the task is me
 
    MAY edit:
      server/app/api-gateway/src/redis/**
-     server/app/api-gateway/src/auth/login-throttle.guard.ts
      server/app/api-gateway/src/ai/ai.module.ts
      server/app/api-gateway/src/ai/ai.process.ts
      server/app/api-gateway/.env.example
@@ -169,10 +168,15 @@ Key schema discipline (no exceptions):
   checks the token before DEL. Bare DEL races with TTL expiry.
 
 Atomicity & race protection:
-- Lua (EVAL / EVALSHA) for read-modify-write. The existing
-  `login-throttle.guard.ts` INCR + PEXPIRE script is the canonical template
-  — reuse its shape for any new sensitive mutation (password change, account
-  delete, caregiver invite). Pre-compute SHA via EVALSHA after first load.
+- Lua (EVAL / EVALSHA) for read-modify-write. `src/redis/rate-limit.service.ts`
+  (`RateLimitService`) is the project's one rate limiter — a fixed window built
+  on an atomic INCR + PEXPIRE script, exported by the `@Global()` `RedisModule`.
+  For any new sensitive mutation (password change, account delete), **inject it
+  rather than writing a second INCR against `REDIS_CLIENT`**: a second limiter
+  means a second Redis-down policy for a reader to remember. Pre-compute SHA via
+  EVALSHA after first load. (It absorbed the Lua from the deleted
+  `login-throttle.guard.ts`, by way of `auth/better-auth.ts` — old notes
+  pointing at either of those are describing history, not a file to copy.)
 - MULTI/EXEC pipelined transactions when Lua is overkill (e.g. two
   independent SETs that should batch but do not need atomicity-on-key).
 - WATCH + optimistic concurrency for read-then-write with low contention.

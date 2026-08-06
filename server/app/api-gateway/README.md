@@ -116,7 +116,9 @@ src/
 
 หมายเหตุด้านความปลอดภัย:
 - bcrypt rounds = 10 (OWASP minimum)
-- Login throttle: 5 ครั้ง / 15 นาที / phone — Redis-backed counter (atomic INCR + PEXPIRE) ที่ persist ข้าม gateway restart และ share ระหว่าง instance; ตกกลับ in-memory ถ้า Redis ไม่ ready (ดู `auth/login-throttle.guard.ts`)
+- Login throttle: 5 ครั้ง / 15 นาที — Better Auth เป็นเจ้าของแล้ว และคุมเป็นราย credential route (`/sign-in/email`, `/sign-in/phone-number`, `/sign-up/email`, …) ไม่ใช่แค่ login ด้วยเบอร์โทร (ดู block `rateLimit` ใน `auth/better-auth.ts`)
+- ตัวนับอยู่ที่ `redis/rate-limit.service.ts` — Redis-backed counter (atomic INCR + PEXPIRE ใน Lua call เดียว) ที่ persist ข้าม gateway restart และ share ระหว่าง instance; ตกกลับ per-process counter ถ้า Redis ไม่ ready
+- `addCaregiverPatient` ใช้ service เดียวกัน: 10 ครั้ง / 10 นาที / caregiver — กันการไล่เดาว่าอีเมลไหนมีบัญชีในระบบ
 - ไม่มี refresh token ในตอนนี้ (ดู PLAN.md)
 
 ---

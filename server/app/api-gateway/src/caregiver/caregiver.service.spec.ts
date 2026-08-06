@@ -12,6 +12,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -21,10 +23,19 @@ jest.mock('../prisma/prisma.service', () => ({
 }));
 
 import { PrismaService } from '../prisma/prisma.service';
+import { RateLimitService } from '../redis/rate-limit.service';
 import { CaregiverService } from './caregiver.service';
 
 const PATIENT_ID = '11111111-1111-4111-8111-111111111111';
 const CAREGIVER_ID = '22222222-2222-4222-8222-222222222222';
+
+/**
+ * A limiter that never refuses, so the suites below assert what they are
+ * about. The throttle has its own describe block at the bottom.
+ */
+const allowingRateLimit = () => ({
+  consume: jest.fn().mockResolvedValue({ allowed: true, retryAfter: null }),
+});
 
 describe('CaregiverService — authorization', () => {
   let service: CaregiverService;
@@ -40,6 +51,7 @@ describe('CaregiverService — authorization', () => {
       providers: [
         CaregiverService,
         { provide: PrismaService, useValue: prisma },
+        { provide: RateLimitService, useValue: allowingRateLimit() },
       ],
     }).compile();
 
@@ -191,6 +203,7 @@ describe('CaregiverService.respondToInvite — the permission grant', () => {
       providers: [
         CaregiverService,
         { provide: PrismaService, useValue: prisma },
+        { provide: RateLimitService, useValue: allowingRateLimit() },
       ],
     }).compile();
 
@@ -260,6 +273,7 @@ describe('CaregiverService.updatePermission — changing a grant after the fact'
       providers: [
         CaregiverService,
         { provide: PrismaService, useValue: prisma },
+        { provide: RateLimitService, useValue: allowingRateLimit() },
       ],
     }).compile();
 
@@ -416,6 +430,7 @@ describe('CaregiverService.add — invite by phone or email', () => {
       providers: [
         CaregiverService,
         { provide: PrismaService, useValue: prisma },
+        { provide: RateLimitService, useValue: allowingRateLimit() },
       ],
     }).compile();
 
@@ -527,5 +542,178 @@ describe('CaregiverService.add — invite by phone or email', () => {
         },
       }),
     );
+  });
+});
+
+/**
+ * The invite throttle.
+ *
+ * `addCaregiverPatient` answers "does this address have an account here?"
+ * honestly — `ไม่พบผู้ใช้จากอีเมลนี้` — because a vague message was judged
+ * worse UX than the enumeration risk. This budget is the mitigation that
+ * decision was made against, so these assert the two properties that make it
+ * one: the budget follows the caller, not the address, and it is spent
+ * whether or not the guess lands.
+ */
+describe('CaregiverService.add — invite throttle', () => {
+  let service: CaregiverService;
+  let prisma: {
+    user: { findUnique: jest.Mock };
+    caregiverPatient: { findUnique: jest.Mock; create: jest.Mock };
+  };
+  let rateLimit: { consume: jest.Mock };
+
+  const OTHER_CAREGIVER_ID = '33333333-3333-4333-8333-333333333333';
+
+  /** The key `consume` was asked about on the nth call. */
+  const consumedKey = (n = 0) => {
+    const [key] = rateLimit.consume.mock.calls[n] as [string, unknown];
+    return key;
+  };
+
+  const refuse = (retryAfter: number | null) =>
+    rateLimit.consume.mockResolvedValue({ allowed: false, retryAfter });
+
+  /** The exception a refused invite throws, typed so its body is assertable. */
+  const refusalFrom = async (caregiverId: string): Promise<HttpException> => {
+    try {
+      await service.add(caregiverId, 'somebody@example.com', 'child');
+    } catch (error) {
+      return error as HttpException;
+    }
+    throw new Error('expected the invite to be refused');
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ id: PATIENT_ID }) },
+      caregiverPatient: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          caregiverId: CAREGIVER_ID,
+          patientId: PATIENT_ID,
+          relationship: 'child',
+          status: 'pending',
+          permission: 'full',
+          respondedAt: null,
+          caregiver: {
+            firstname: 'ก',
+            lastname: 'ข',
+            phone: '0810000000',
+            avatar: null,
+          },
+          patient: {
+            firstname: 'ค',
+            lastname: 'ง',
+            phone: '0812345678',
+            avatar: null,
+          },
+        }),
+      },
+    };
+    rateLimit = allowingRateLimit();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CaregiverService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: RateLimitService, useValue: rateLimit },
+      ],
+    }).compile();
+
+    service = module.get<CaregiverService>(CaregiverService);
+  });
+
+  it('budgets 10 attempts per 10 minutes', async () => {
+    await service.add(CAREGIVER_ID, '0812345678', 'child');
+
+    const [, rule] = rateLimit.consume.mock.calls[0] as [
+      string,
+      { window: number; max: number },
+    ];
+    expect(rule).toEqual({ window: 600, max: 10 });
+  });
+
+  it('keys on the caregiver, so rotating the contact does not dodge it', async () => {
+    await service.add(CAREGIVER_ID, 'a@example.com', 'child');
+    await service.add(CAREGIVER_ID, 'b@example.com', 'child');
+    await service.add(CAREGIVER_ID, '0899999999', 'child');
+
+    // Three different addresses, one budget. Keying on the contact string
+    // would have made each of these free, which is the attack itself.
+    expect(consumedKey(0)).toBe(consumedKey(1));
+    expect(consumedKey(1)).toBe(consumedKey(2));
+    expect(consumedKey(0)).toContain(CAREGIVER_ID);
+    expect(consumedKey(0)).not.toContain('a@example.com');
+  });
+
+  it('gives each caregiver their own budget', async () => {
+    await service.add(CAREGIVER_ID, 'a@example.com', 'child');
+    await service.add(OTHER_CAREGIVER_ID, 'a@example.com', 'child');
+
+    expect(consumedKey(0)).not.toBe(consumedKey(1));
+  });
+
+  it('counts an attempt that finds nobody', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.add(CAREGIVER_ID, 'nobody@example.com', 'child'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    // The whole point: a miss is information, so a miss costs an attempt.
+    // Counting only failures — or only successes — hands out free guesses.
+    expect(rateLimit.consume).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts an attempt that lands', async () => {
+    await service.add(CAREGIVER_ID, '0812345678', 'child');
+
+    expect(rateLimit.consume).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts a malformed attempt, before validating it', async () => {
+    await expect(
+      service.add(CAREGIVER_ID, '   ', 'child'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    // Otherwise an empty string is an unlimited free probe of the throttle.
+    expect(rateLimit.consume).toHaveBeenCalledTimes(1);
+  });
+
+  it('spends the attempt before touching the database', async () => {
+    refuse(120);
+
+    await expect(
+      service.add(CAREGIVER_ID, 'somebody@example.com', 'child'),
+    ).rejects.toThrow();
+
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.caregiverPatient.create).not.toHaveBeenCalled();
+  });
+
+  it('throws 429 carrying retryAfterSec for the client countdown', async () => {
+    refuse(120);
+
+    const error = await refusalFrom(CAREGIVER_ID);
+
+    expect(error).toBeInstanceOf(HttpException);
+    // 429 is what app.module.ts maps to extensions.code TOO_MANY_REQUESTS,
+    // and errorFormatter lifts the rest of this body into extensions — which
+    // is how retryAfterSec reaches the client with no client change.
+    expect(error.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+    expect(error.getResponse()).toEqual({
+      message: 'ส่งคำเชิญบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่',
+      retryAfterSec: 120,
+    });
+  });
+
+  it('falls back to the full window when the limiter cannot say', async () => {
+    refuse(null);
+
+    const error = await refusalFrom(CAREGIVER_ID);
+
+    // A null countdown must not reach the client as "wait null seconds".
+    expect(error.getResponse()).toMatchObject({ retryAfterSec: 600 });
   });
 });

@@ -154,9 +154,12 @@ GraphQL-specific hardening:
   log raw query strings to any sink that survives the request (PII leakage).
 
 Rate limiting beyond login:
-- The current `login-throttle.guard.ts` Lua script (INCR + PEXPIRE) is the
-  canonical pattern — reuse the same shape for any new sensitive mutation
-  (password change, account delete, caregiver invite). DO NOT roll a per-IP
+- `src/redis/rate-limit.service.ts` (`RateLimitService`) is the project's one
+  rate limiter — a fixed window on an atomic INCR + PEXPIRE Lua script,
+  exported by the `@Global()` `RedisModule`. Inject it for any new sensitive
+  mutation (password change, account delete) rather than writing a second
+  INCR; Better Auth's credential routes (5/15min) and `addCaregiverPatient`
+  (10/10min per caregiver) both already run on it. DO NOT roll a per-IP
   limiter at the Fastify layer alone; a JWT-bearing endpoint should key on
   user id (or phone for pre-auth).
 - Global request-rate cap belongs at the reverse proxy / API gateway layer,
@@ -256,8 +259,8 @@ Hand off to redis-dev when the task involves:
 - GraphQL subscriptions backend (mqemitter-redis wiring)
 - A new microservice transport (Redis pub/sub channel, ClientProxy config)
 - Connection topology changes (sentinel, cluster, TLS, env-var read)
-- Anything touching `src/redis/`, `auth/login-throttle.guard.ts` Lua,
-  `ai/ai.module.ts` transport, or `ai/ai.process.ts` wire shape
+- Anything touching `src/redis/` (including the shared `RateLimitService`
+  Lua), `ai/ai.module.ts` transport, or `ai/ai.process.ts` wire shape
 
 Keep in-house (still nest-dev's work) when the task is:
 - A resolver or service that CALLS into an existing Redis-backed pattern
@@ -279,7 +282,9 @@ the Redis layer:
   `src/redis/redis.module.ts` (DI-injected). Never instantiate a second
   client in a feature module.
 - Consumers MUST check `redis.status === 'ready'` before issuing commands
-  and degrade gracefully — see `login-throttle.guard.ts` for the template.
+  and degrade gracefully — see `src/redis/rate-limit.service.ts` for the
+  template. Note what "gracefully" means here: it degrades to a per-process
+  counter, not fail-open. Match that policy rather than inventing a second one.
 - The Redis client is OPTIONAL at boot (lazy-connect + suppressed errors)
   by design. Don't change that without coordinating with redis-dev and
   ai-service.
