@@ -20,10 +20,10 @@ GraphQL contract is **schema-first via decorators**: `*.types.ts` /
 | `src/main.ts` | bootstrap, global `ValidationPipe`, CORS, listen |
 | `src/app.module.ts` | GraphQL driver config + `errorFormatter` (stamps `extensions.code`), feature module wiring |
 | `src/redis/redis.module.ts` | `@Global()` provider of `REDIS_CLIENT` (ioredis). Lazy-connects + suppresses errors — consumers check `redis.status === 'ready'` and degrade if not |
-| `src/auth/` | register/login/me, JWT guard, login throttler, sessions, password change, account deletion |
+| `src/redis/rate-limit.service.ts` | `RateLimitService` — the project's one rate limiter. Fixed window, atomic INCR + PEXPIRE in a single Lua call, falls back to a per-process counter if Redis isn't ready. Exported by the `@Global()` `RedisModule`, so inject it rather than writing a second INCR against `REDIS_CLIENT`. Used by Better Auth's credential routes (5/15min) via `betterAuthStorage()` and by `addCaregiverPatient` (10/10min per caregiver). Replaced the old `src/auth/login-throttle.guard.ts`, which no longer exists |
+| `src/auth/` | register/login/me, JWT guard, sessions, password change, account deletion. Rate limiting is configured here (`better-auth.ts`) but implemented in `src/redis/` |
 | `src/auth/auth.config.ts` | `getJwtSecret()` (fail-fast on missing/short), `JWT_EXPIRES_IN` (default `7d`), `BCRYPT_SALT_ROUNDS` |
 | `src/auth/auth.guard.ts` | `GqlAuthGuard` — verifies JWT, checks session active, throttled `lastActiveAt` update |
-| `src/auth/login-throttle.guard.ts` | Redis-backed rate limiter for login mutation (5/15min/phone) — atomic INCR + PEXPIRE Lua script, falls back to per-process in-memory map if Redis isn't ready |
 | `src/auth/android-origin.ts` | Converts keytool SHA-256 fingerprints into the `android:apk-key-hash:` WebAuthn origins Android actually presents. Separate file so it is unit-testable — `better-auth.ts` imports ESM-only packages the CJS Jest setup cannot load |
 | `src/security/` | Passkey ceremonies (register + authenticate), passkey list/rename/delete, and `securityOverview` for the mobile security screen. Split from `auth/` on the line "getting in" vs "managing how you get in" |
 | `src/well-known.controller.ts` | Serves `/.well-known/assetlinks.json` from `ANDROID_APP_SHA256_FINGERPRINT` — Android will not accept a passkey without it. Must be reachable on the **RP domain**, not just on the gateway's host |

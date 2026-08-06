@@ -221,8 +221,15 @@ route later is configuration, not redesign.
 
 ## Rate limiting
 
-Better Auth's built-in `rateLimit` replaces `login-throttle.guard.ts`,
-backed by the `ioredis` client the gateway already has.
+Better Auth's built-in `rateLimit` replaces `login-throttle.guard.ts` (since
+deleted), backed by the `ioredis` client the gateway already has.
+
+The counter itself no longer lives in this file. Since 2026-08-06 it is
+[`RateLimitService`](../src/redis/rate-limit.service.ts) in `src/redis/`, and
+`better-auth.ts` holds only the adapter — `rateLimit.betterAuthStorage()` —
+plus the per-route rules. It moved because `addCaregiverPatient` needed the
+same budget primitive and a second copy would have meant a second answer to
+"what happens when Redis is down".
 
 It is wired through `customStorage`, not `storage: 'secondary-storage'`.
 The latter only supplies get/set, and Better Auth warns that a limiter built

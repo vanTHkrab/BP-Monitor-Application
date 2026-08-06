@@ -611,7 +611,12 @@ Known trade-off, accepted rather than fixed: the email path widens account
 enumeration — `ไม่พบผู้ใช้จากอีเมลนี้` confirms whether an address has an
 account, and emails are far easier to guess than phone numbers. The honest
 error was kept over a generic one by explicit decision; rate-limiting the
-mutation is separate work and is now on the board as **A-007**.
+mutation was separate work, tracked as **A-007**, and **shipped 2026-08-06**:
+10 attempts per 10 minutes keyed on the caregiver's user id (not on the
+contact string — that would let an attacker rotate addresses and never spend
+a budget), counting every attempt whether or not the guess lands. Refusal is
+a 429 carrying `retryAfterSec`, which `graphqlRequest` already reads out of
+`extensions` for every operation, so nothing changed on the client.
 
 Two more things were found here and left alone under the no-drive-by rule,
 both on the board: **C-006** (`formatErrorMessage` prepends an English

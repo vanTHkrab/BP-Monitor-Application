@@ -14,9 +14,14 @@ incidents, ข้อตกลงที่หาในโค้ดไม่เจ
 - **Session table แยกจาก user** — ไม่ใช้ stateless JWT อย่างเดียว เพื่อให้
   revoke ได้ทันทีและมีหน้า "อุปกรณ์ที่ login อยู่"
 - ~~**Login throttle เป็น in-memory ก่อน**~~ — เริ่มจาก in-memory เพื่อให้ ship
-  เร็ว, **อัปเกรดเป็น Redis-backed เมื่อ 2026-05-14**
-  (`login-throttle.guard.ts` และ `redis/redis.module.ts`). ใช้ Lua script
-  `INCR` + `PEXPIRE` แบบ atomic; fall back ไป in-memory ถ้า Redis ไม่ ready
+  เร็ว, **อัปเกรดเป็น Redis-backed เมื่อ 2026-05-14** (ตอนนั้นอยู่ที่
+  `login-throttle.guard.ts`). ใช้ Lua script `INCR` + `PEXPIRE` แบบ atomic;
+  fall back ไป per-process counter ถ้า Redis ไม่ ready.
+  **ย้ายบ้านสองรอบหลังจากนั้น:** guard ถูกลบตอน Better Auth มาคุม rate limit
+  แทน (Lua ย้ายเข้าไปอยู่ใน `auth/better-auth.ts`), แล้ว **2026-08-06** ถูกดึง
+  ออกมาเป็น `redis/rate-limit.service.ts` เพราะ `addCaregiverPatient` ต้องใช้
+  ตัวเดียวกัน — จุดสำคัญคืออย่าให้มี limiter ตัวที่สองที่ตอบคำถาม "Redis ล่ม
+  แล้วทำยังไง" คนละแบบ
 - **bcrypt 10 rounds** — OWASP minimum, ยอม trade-off กับ login latency
   (ประมาณ 80-100ms ที่ rounds=10 บน laptop ปัจจุบัน)
 - ~~**JWT 30 วัน**~~ → **JWT 7 วัน** (2026-05-14) ลด exposure window ของ

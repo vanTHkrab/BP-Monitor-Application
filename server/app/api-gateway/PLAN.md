@@ -23,9 +23,11 @@ Roadmap, known gaps, และ work-in-progress ของ gateway. ใช้ส�
     ([auth.config.ts](src/auth/auth.config.ts))
   - Global `ValidationPipe` + class-validator decorators บน
     `RegisterInput` / `LoginInput` / `ChangePasswordInput`
-  - Login throttle 5 ครั้ง / 15 นาที / phone (เริ่มจาก in-memory,
-    [login-throttle.guard.ts](src/auth/login-throttle.guard.ts); อัปเกรด
-    เป็น Redis-backed เมื่อ 2026-05-14 — ดู Session hardening pass ด้านล่าง)
+  - Login throttle 5 ครั้ง / 15 นาที / phone (เริ่มจาก in-memory ใน
+    `login-throttle.guard.ts`; อัปเกรดเป็น Redis-backed เมื่อ 2026-05-14 —
+    ดู Session hardening pass ด้านล่าง). guard ถูกลบไปแล้ว — ตัวนับตอนนี้อยู่ที่
+    [rate-limit.service.ts](src/redis/rate-limit.service.ts) และ Better Auth
+    เป็นคนกำหนดว่า route ไหนโดนคุมบ้าง
   - `logout` mutation ใหม่ — revoke session ปัจจุบันที่ฝั่ง server
   - `lastActiveAt` update ใน `GqlAuthGuard` ถูก throttle 5 นาที
 - **Auth UX quick wins (2026-05-13):**

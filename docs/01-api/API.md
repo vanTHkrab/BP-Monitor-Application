@@ -144,8 +144,19 @@ client uses it to drive a live "try again in N seconds" countdown.
 }
 ```
 
-Login throttle: 5 attempts per 15 minutes per phone number. See
-[`login-throttle.guard.ts`](../server/app/api-gateway/src/auth/login-throttle.guard.ts).
+Login throttle: 5 attempts per 15 minutes. Better Auth owns it now and applies
+it per credential route (`/sign-in/email`, `/sign-in/phone-number`,
+`/sign-up/email`, …) rather than only to phone login — see the `rateLimit`
+block in
+[`better-auth.ts`](../../server/app/api-gateway/src/auth/better-auth.ts). The
+counter itself is
+[`RateLimitService`](../../server/app/api-gateway/src/redis/rate-limit.service.ts),
+an atomic INCR + PEXPIRE fixed window that falls back to a per-process counter
+when Redis is unreachable. `addCaregiverPatient` uses the same service for its
+own budget (10 per 10 minutes per caregiver).
+
+Both surface a 429 with `extensions.code = "TOO_MANY_REQUESTS"` and
+`extensions.retryAfterSec`.
 
 ### 3.3 Client-side mapping
 
