@@ -42,7 +42,7 @@ export type Passkey = Prisma.PasskeyModel
  * Better Auth deletes a session on sign-out; this app flips `isActive`
  * instead so the login-sessions screen can show revoked devices as history.
  * `preserveSessionInDatabase` keeps that behaviour — see
- * docs/AUTH-better-auth-identity.md.
+ * docs/architecture/AUTH-better-auth-identity.md.
  */
 export type UserSession = Prisma.UserSessionModel
 /**
