@@ -39,7 +39,7 @@ only because no compose file sets ``replicas``. Before the first
 multi-replica or rolling-deploy production, replace this pub/sub reply
 path with a durable single-delivery transport (Redis Streams consumer
 group, or direct BullMQ consume). See
-``docs/plan/ai-service-reply-transport.md``.
+``docs/research/ai-service-reply-transport.md``.
 """
 from __future__ import annotations
 

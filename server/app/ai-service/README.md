@@ -110,19 +110,18 @@ ai-service/
 │   ├── yolo11n.onnx                   # YOLOv11n, 5 BP classes, 10.7 MB — fetched from R2
 │   ├── crnn.onnx                      # CRNN, ~4.5 MB — fetched from R2
 │   ├── cnn_2ch_distilled_*_int8.onnx  # 4 distilled CNN files, ~0.6 MB each — fetched from R2
-│   └── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB) — fetched from R2
+│   ├── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB) — fetched from R2
+│   └── crnn.pt                        # CRNN training source — NOT fetched at runtime, not in the manifest
 ├── docker-entrypoint.sh               # downloads + sha256-verifies model artifacts on container start
 ├── src/ai_service/scripts/
 │   └── fetch_models.py                # local-dev equivalent (`python -m ai_service.scripts.fetch_models`)
-├── storage/
-│   └── fetch.py                       # async fetch_image() — presigned URL → BGR ndarray
 ├── tests/
-│   └── test_*.py                      # 204 tests across config / debug_dump / fetch / handlers / pipeline / rectify / validation / yolo / crnn / engines / cnn_classifiers
+│   └── test_*.py                      # 214 tests across config / debug_dump / fetch / handlers / pipeline / rectify / validation / yolo / crnn / engines / cnn_classifiers
 ├── pyproject.toml                     # uv-managed deps
 ├── uv.lock
 ├── Dockerfile
-├── PLAN.md                            # roadmap and OCR pipeline decisions
-└── CLAUDE.md                          # AI-assisted edits guideline
+├── prepare/                           # teammate-contributed standalone OCR source; not imported at runtime
+└── AGENTS.md                          # conventions for AI-assisted edits
 ```
 
 ---
@@ -132,7 +131,7 @@ ai-service/
 ```bash
 uv run fastapi dev main.py         # dev (auto-reload)
 uv run fastapi run main.py         # production-style
-uv run pytest                      # full test suite (204 tests)
+uv run pytest                      # full test suite (214 tests)
 uv run pytest tests/test_handlers.py  # single file
 ```
 
@@ -152,7 +151,8 @@ uv run pytest tests/test_handlers.py  # single file
 
 ## See also
 
-- [CLAUDE.md](./CLAUDE.md) — guideline for AI-assisted edits
-- [PLAN.md](./PLAN.md) — roadmap: OCR engine comparison framework (M2.2)
-- [api-gateway README](../api-gateway/README.md) — gateway side of the pipeline
-- Root [CLAUDE.md](../../../CLAUDE.md) — monorepo guideline
+- [AGENTS.md](./AGENTS.md) — conventions, module map, and the traps
+- [docs/decisions/](../../../docs/decisions/) — ADR-001..005: why the pipeline is shaped this way
+- [api-gateway README](../api-gateway/README.md) — the gateway side of the pipeline
+- [docs/guides/troubleshooting.md](../../../docs/guides/troubleshooting.md) — boot failures and reply errors
+- Root [AGENTS.md](../../../AGENTS.md) — monorepo rules

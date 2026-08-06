@@ -1,25 +1,33 @@
 # API Gateway
 
-NestJS 11 + Fastify + Mercurius (GraphQL) gateway สำหรับ BP Monitor Application
-ทำหน้าที่เป็น single entry point ของทุก client (Expo app, Web dashboard) จัดการ
-auth, persistence (Prisma + PostgreSQL), file storage (S3), และเชื่อม AI service
-ผ่าน Redis transport
+NestJS 11 + Fastify + Mercurius GraphQL gateway, Prisma 7 → PostgreSQL. The
+entry point for the mobile client and **the owner of every piece of durable
+shared state in the project** — users, sessions, readings, posts, alerts,
+caregiver links, and image metadata.
 
-GraphQL endpoint: `POST /graphql`
-GraphiQL playground (dev): `GET /graphql`
+It also presigns S3 uploads and bridges to the FastAPI AI service over Redis
+pub/sub.
 
----
+| | |
+| --- | --- |
+| GraphQL endpoint | `POST /graphql` |
+| GraphiQL UI | `GET /graphiql` — env-gated, see below |
+| Asset links | `GET /.well-known/assetlinks.json` |
+
+There is no REST health route. Use the public `hello` query as a liveness
+probe.
 
 ## Quick start
 
 ```bash
+# from server/app/api-gateway/
 pnpm install
-cp .env.example .env       # แล้วเติม DATABASE_URL, JWT_SECRET, S3_*
-pnpm prisma migrate dev    # สร้าง schema (ครั้งแรก)
-pnpm start:dev             # hot-reload, port 3000
+cp .env.example .env       # fill in DATABASE_URL, JWT_SECRET, S3_*
+pnpm prisma migrate dev    # create the schema (first run)
+pnpm start:dev             # hot reload on port 3000
 ```
 
-ตรวจว่ารันถูก:
+Check it came up:
 
 ```bash
 curl -s http://localhost:3000/graphql \
@@ -28,125 +36,167 @@ curl -s http://localhost:3000/graphql \
 # {"data":{"hello":"Hello from BP Monitor API!"}}
 ```
 
----
+## Environment variables
 
-## Required environment variables
+`.env.example` is the full list. The ones that will stop you:
 
-ดู `.env.example` แต่สรุปสำคัญ:
+| Variable | Required | Default | Notes |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | yes | — | The host must resolve from wherever the gateway runs. Don't use a Compose service name when running natively |
+| `JWT_SECRET` | yes | — | **At least 32 characters**, genuinely random. The gateway refuses to boot below that |
+| `JWT_EXPIRES_IN` | no | `7d` | Shorter for stricter environments; longer widens the exposure window of a leaked token |
+| `S3_*` | if uploading | — | `S3_PROVIDER`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `S3_ENDPOINT`, `S3_DEFAULT_REGION` |
+| `REDIS_HOST` / `REDIS_PORT` | no | `localhost` / `6379` | AI features degrade gracefully when Redis is down |
+| `PORT` | no | `3000` | |
+| `GRAPHIQL_ENABLED` | no | — | `1` forces GraphiQL on. Unset means on everywhere except `NODE_ENV=production` |
+| `BETTER_AUTH_URL` | in prod | `http://localhost:$PORT` | Origin only — `/api/auth` is appended |
+| `BETTER_AUTH_SECRET` | no | falls back to `JWT_SECRET` | Set explicitly in prod so rotating one doesn't rotate both |
+| `PASSKEY_RP_ID` | no | — | A bare registered domain. Passkeys are absent, not broken, when unset |
+| `ANDROID_APP_SHA256_FINGERPRINT` | for passkeys | — | Comma-separated: debug, release, and Play App Signing are different keys |
 
-| Var | บังคับ | หมายเหตุ |
-|---|---|---|
-| `DATABASE_URL` | ✓ | Postgres connection string. Host ต้อง resolve ได้จากเครื่องที่รัน gateway (อย่าใช้ docker service name ถ้ารัน native) |
-| `JWT_SECRET` | ✓ | **อย่างน้อย 32 ตัวอักษร** สุ่มจริง — gateway จะปฏิเสธการบูตถ้าสั้นกว่านั้นหรือไม่ตั้ง |
-| `JWT_EXPIRES_IN` | – | default `7d`. Override with shorter values for stricter environments; longer values widen the exposure window of a leaked token |
-| `S3_*` | ✓ ถ้าใช้ upload | provider, key, bucket, endpoint |
-| `PORT` | – | default `3000` |
+Generate a secret:
 
-สร้าง JWT secret:
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
----
-
-## Scripts
+## Commands
 
 ```bash
-pnpm start:dev          # dev with watch
-pnpm build              # tsc → dist/
-pnpm start:prod         # node dist/main
-pnpm test               # Jest unit tests
-pnpm test:e2e           # Jest e2e (requires running DB)
-pnpm lint               # check only — never writes
-pnpm lint:fix           # same rules, applies autofixes
-pnpm prisma generate    # regen client after schema change
-pnpm prisma migrate dev # create + apply migration
+pnpm start:dev                     # watch mode; regenerates src/schema.gql
+pnpm build                         # nest build → dist/
+pnpm start:prod                    # node dist/main
+pnpm exec tsc --noEmit             # type-check
+
+pnpm exec jest --watchman=false    # ⬅ unit tests: 18 suites / 181 tests
+pnpm test:e2e                      # e2e — needs a running database
+
+pnpm lint                          # check only
+pnpm lint:fix                      # autofix
+
+pnpm prisma generate               # regenerate the client after a schema edit
+pnpm prisma migrate dev            # create + apply a migration
 ```
 
----
+> ⚠️ Use `pnpm exec jest --watchman=false`, not `pnpm test`. The `test` script
+> omits the flag, and a poisoned watchman aborts the run with `ENOSPC` before
+> any test executes — which reads like a real failure rather than an
+> environment one.
 
-## Project layout
+## Layout
 
-```
+```text
 src/
-├── main.ts              # bootstrap (Fastify + global ValidationPipe)
-├── app.module.ts        # GraphQL config, error formatter, feature module wiring
-├── schema.gql           # auto-generated from decorators (do not edit)
-├── auth/                # register/login/me, JWT guard, throttle, sessions
-├── redis/               # global REDIS_CLIENT provider (ioredis)
-├── reading/             # BP readings CRUD
-├── post/                # community posts
-├── comment/             # post comments
-├── alert/               # high-BP alerts
-├── caregiver/           # caregiver ↔ patient links
-├── ai/                  # bridge to FastAPI AI service via Redis
-├── storage/             # S3 upload helpers
-└── prisma/              # Prisma client provider + schema
+├── main.ts                # bootstrap: Fastify, global ValidationPipe, CORS
+├── app.module.ts          # GraphQL driver, errorFormatter, module wiring
+├── schema.gql             # GENERATED from decorators — never edit by hand
+├── auth/                  # register/login/me, JWT guard, sessions, Better Auth
+├── security/              # passkey ceremonies, securityOverview
+├── redis/                 # global REDIS_CLIENT + RateLimitService
+├── reading/               # BP readings
+├── post/ comment/ alert/  # community + alerting
+├── caregiver/             # caregiver ↔ patient links
+├── ai/                    # Redis bridge to ai-service + metrics logging
+├── storage/               # S3 presign, confirm, orphan-sweep cron
+└── prisma/                # PrismaService (global)
 ```
 
----
+Module conventions and the file-placement rules are in
+[STRUCTURE.md](./STRUCTURE.md).
 
 ## GraphQL contract
 
-- ทุก operation ที่ client ใช้อยู่ใน `services/operations.ts` ของแต่ละ module
-  (เช่น [client/src/modules/readings/services/operations.ts](../../../client/src/modules/readings/services/operations.ts))
-  ภายใต้ชื่อ `GQL_*` — ไม่มีไฟล์รวมส่วนกลางแล้ว
-- `pnpm check` ฝั่ง client รัน `verify-graphql` ซึ่ง validate ทุก operation
-  กับ `src/schema.gql` ที่ commit ไว้ — schema ที่ยังไม่ได้ regenerate จึงทำให้
-  ผ่านทั้งที่ผิด ดู [docs/todo/CI-graphql-contract.md](../../../docs/todo/CI-graphql-contract.md)
-- Schema ถูก generate อัตโนมัติจาก decorators ลงใน `src/schema.gql`
-  ห้ามแก้ไฟล์นี้มือ — แก้ที่ `*.types.ts` หรือ `*.resolver.ts` แทน
-- Error response มาตรฐาน: HTTP 200 + body `{ errors: [{ message, extensions: { code } }] }`
-  โดย `code` ถูก stamp ใน `errorFormatter` ของ `app.module.ts` จาก HTTP status
-  ของ HttpException ที่ resolver โยน (`UNAUTHENTICATED`, `FORBIDDEN`,
-  `NOT_FOUND`, `BAD_USER_INPUT`, `INTERNAL_SERVER_ERROR`)
+- **The schema is generated.** `src/schema.gql` comes from decorators on
+  `*.types.ts` / `*.resolver.ts` via `autoSchemaFile`. Edit those, run
+  `pnpm start:dev` briefly, and commit the regenerated file.
+- **Client operations live per module** in `services/operations.ts` under
+  `GQL_*` names — there is no central operations file.
+- **The client validates against the committed schema.** `pnpm check` in
+  `client/` runs `verify-graphql` against `src/schema.gql`, so a schema you
+  forgot to regenerate lets a broken selection pass. See
+  [CI-graphql-contract.md](../../../docs/project/CI-graphql-contract.md).
+- **Errors are HTTP 200** with `{ errors: [{ message, extensions: { code } }] }`.
+  `errorFormatter` in `app.module.ts` stamps `code` from the thrown
+  `HttpException`'s status: `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`,
+  `BAD_USER_INPUT`, `INTERNAL_SERVER_ERROR`.
 
----
+Full contract, including the operation catalogue and the image-upload flow:
+[docs/reference/API.md](../../../docs/reference/API.md).
 
 ## Auth flow
 
-1. Client ส่ง `register` หรือ `login` mutation → gateway สร้าง `userSession`
-   row + sign JWT (`{ sub: userId, sid: sessionId }`) → คืน `{ token, user }`
-2. Client เก็บ token ใน SecureStore แล้วใส่ `Authorization: Bearer <token>`
-   ในทุก request ถัดไป
-3. `GqlAuthGuard` verify JWT → ตรวจว่า session ยัง `isActive` →
-   อัปเดต `lastActiveAt` (throttle 5 นาที) → attach user เข้า GraphQL context
-4. `logout` mutation → mark session ปัจจุบัน `isActive=false` ที่ฝั่ง server
-   → client clear local token
+1. `register` or `login` creates a `userSession` row and signs a JWT
+   (`{ sub: userId, sid: sessionId }`), returning `{ token, user }`.
+2. The client stores the token (SecureStore on native) and sends
+   `Authorization: Bearer <token>` on every subsequent request.
+3. `GqlAuthGuard` verifies the JWT, checks the session is still `isActive`,
+   refreshes `lastActiveAt` (throttled to 5 minutes), and attaches the user to
+   the GraphQL context.
+4. `logout` flips the session to `isActive=false` server-side; the client
+   clears its token.
 
-หมายเหตุด้านความปลอดภัย:
-- bcrypt rounds = 10 (OWASP minimum)
-- Login throttle: 5 ครั้ง / 15 นาที — Better Auth เป็นเจ้าของแล้ว และคุมเป็นราย credential route (`/sign-in/email`, `/sign-in/phone-number`, `/sign-up/email`, …) ไม่ใช่แค่ login ด้วยเบอร์โทร (ดู block `rateLimit` ใน `auth/better-auth.ts`)
-- ตัวนับอยู่ที่ `redis/rate-limit.service.ts` — Redis-backed counter (atomic INCR + PEXPIRE ใน Lua call เดียว) ที่ persist ข้าม gateway restart และ share ระหว่าง instance; ตกกลับ per-process counter ถ้า Redis ไม่ ready
-- `addCaregiverPatient` ใช้ service เดียวกัน: 10 ครั้ง / 10 นาที / caregiver — กันการไล่เดาว่าอีเมลไหนมีบัญชีในระบบ
-- ไม่มี refresh token ในตอนนี้ (ดู PLAN.md)
+Security notes:
 
----
+- **Sessions are authoritative for revocation.** A valid unexpired token whose
+  session was revoked is rejected. JWT verification alone is not enough.
+- bcrypt rounds = 10 (OWASP minimum).
+- **Rate limiting is one service**, `redis/rate-limit.service.ts` — atomic
+  INCR + PEXPIRE in a single Lua call, persisting across restarts and shared
+  between instances, falling back to a per-process counter when Redis is not
+  ready. Better Auth's credential routes get 5/15min; `addCaregiverPatient`
+  gets 10/10min per caregiver, to stop enumeration of which emails have
+  accounts.
+- **No refresh token yet** — see
+  [the roadmap](../../../docs/project/api-gateway-plan.md).
 
-## Connect to AI service
+The identity model and why Better Auth:
+[docs/architecture/AUTH-better-auth-identity.md](../../../docs/architecture/AUTH-better-auth-identity.md).
 
-AI service (FastAPI) ฟัง Redis pub/sub ที่ port 6379 ตามที่กำหนดใน
-`app.module.ts`. ถ้า Redis ไม่ติด AI features จะ fail แบบ graceful แต่ feature
-อื่นทำงานได้
+## GraphiQL
 
----
+Two independent gates, and they fail differently:
+
+1. `GRAPHIQL_ENABLED=1` forces it on; unset means on everywhere except
+   `NODE_ENV=production`.
+2. In the prod stack, nginx additionally puts `/graphiql` behind HTTP Basic
+   Auth.
+
+Neither is redundant. A schema explorer with mutation access to live patient
+data is not something to serve by default.
+
+## AI service connection
+
+The gateway publishes to the Redis channel `analyze_bp_image` and consumes
+`analyze_bp_image.reply`. It presigns a GET URL at enqueue time (valid 10
+minutes) so the AI service never holds S3 credentials —
+[ADR-004](../../../docs/decisions/ADR-004-ai-service-holds-no-s3-credentials.md).
+
+If Redis is down, AI features fail gracefully and everything else keeps
+working. That behaviour is deliberate; don't change it without coordinating
+with ai-service.
+
+> ⚠️ These channels are typed only by convention. A field rename on one side
+> with a stale deploy on the other fails **silently** — the gateway polls for
+> a reply that never matches, and nothing logs an error.
 
 ## Troubleshooting
 
-| อาการ | สาเหตุที่พบบ่อย |
-|---|---|
-| `getaddrinfo EAI_AGAIN <host>` | `DATABASE_URL` ใช้ host ที่ DNS ไม่รู้จัก (เช่น docker service name แต่รัน native) |
-| Boot fail "JWT_SECRET is not set" | ตั้งค่าใน `.env` ตามคำแนะนำด้านบน |
-| Login ตอบ HTTP 429 | ติด rate limit — รอครบ 15 นาที. Counter อยู่ใน Redis (หรือ in-memory ถ้า Redis ดับ) → restart gateway **ไม่ล้าง** counter เว้นแต่ Redis ดับด้วย |
-| GraphQL error `[BAD_USER_INPUT]` | input ไม่ผ่าน class-validator เช่น password < 8 ตัว |
-| Schema ไม่อัปเดต | `pnpm start:dev` regen `schema.gql` อัตโนมัติ; ถ้าค้าง restart |
+| Symptom | Usual cause |
+| --- | --- |
+| `getaddrinfo EAI_AGAIN <host>` | `DATABASE_URL` names a host DNS can't resolve — often a Compose service name while running natively |
+| Boot fails on `JWT_SECRET` | Unset or shorter than 32 characters |
+| Login returns HTTP 429 | Rate limited. The counter lives in Redis, so restarting the gateway does **not** clear it |
+| `[BAD_USER_INPUT]` | class-validator rejected the input — check every `@InputType` field has a decorator |
+| Schema not updating | `pnpm start:dev` regenerates `schema.gql`; restart if it's stuck |
 
----
+More, including passkey configuration failures:
+[docs/guides/troubleshooting.md](../../../docs/guides/troubleshooting.md).
 
-## เอกสารที่เกี่ยวข้อง
+## See also
 
-- [CLAUDE.md](./CLAUDE.md) — guideline สำหรับ AI-assisted edits
-- [AGENT.md](./AGENT.md) — รายละเอียดสถาปัตยกรรมของ gateway agent
-- [PLAN.md](./PLAN.md) — roadmap, work in progress, upcoming changes
-- [MEMORY.md](./MEMORY.md) — ข้อมูลที่ควรจำข้ามรอบ session
-- Root [CLAUDE.md](../../../CLAUDE.md) — guideline ระดับ monorepo
+- [AGENTS.md](./AGENTS.md) — conventions, traps, and cross-cutting concerns
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — request lifecycle and module graph (Thai)
+- [STRUCTURE.md](./STRUCTURE.md) — where a new file goes
+- [MEMORY.md](./MEMORY.md) — durable facts across sessions (Thai)
+- [docs/reference/API.md](../../../docs/reference/API.md) — the GraphQL contract
+- [Root AGENTS.md](../../../AGENTS.md) — monorepo rules

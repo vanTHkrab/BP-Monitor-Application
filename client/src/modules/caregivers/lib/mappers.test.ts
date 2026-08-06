@@ -10,7 +10,7 @@
  * AsyncStorage is mocked because `mappers.ts` now reaches `@/modules/readings`
  * for the BP-status parser, and that barrel pulls the auth module behind it.
  * A pure mapper needing a native-module mock is a smell — see the barrel note
- * in docs/todo/CLIENT-caregiver.md.
+ * in docs/project/CLIENT-caregiver.md.
  */
 jest.mock(
   '@react-native-async-storage/async-storage',

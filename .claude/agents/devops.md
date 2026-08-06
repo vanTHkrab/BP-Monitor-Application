@@ -616,7 +616,7 @@ If a question requires deep reading across these or the source itself, delegate 
 - Root cross-cutting rules and system architecture: `/CLAUDE.md`
 - Local infra docs: `/infra/README.md`
 - Per-service context:
-  - `/server/CLAUDE.md`
+  - `/server/app/api-gateway/CLAUDE.md` and `/server/app/ai-service/CLAUDE.md`
   - `/server/app/api-gateway/CLAUDE.md`
   - `/server/app/ai-service/CLAUDE.md`
   - `/client/CLAUDE.md`  (mobile is NOT containerized — context only)

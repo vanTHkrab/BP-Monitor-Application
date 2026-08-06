@@ -4,7 +4,7 @@
  * Deliberately not role-split: nothing on this screen differs by role today
  * (appearance and sign-out are the same concern for either account type). A
  * screen only moves into a role-specific route group once a feature on it
- * actually diverges — see docs/todo/CLIENT-onboarding.md and the root
+ * actually diverges — see docs/project/CLIENT-onboarding.md and the root
  * CLAUDE.md's route-group note.
  *
  * This screen owns device preferences, not identity. Who you are lives on

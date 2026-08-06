@@ -20,7 +20,7 @@ Scan these files for open work items. Read only what is listed.
 | File | What to extract |
 |------|-----------------|
 | `TASK.md` (root) | All tasks — authoritative source |
-| `client/PLAN.md` | Items marked `[ ]` in **In Flight** and **Backlog** sections |
+| `docs/project/*.md` | Items marked `[ ]` in **In Flight** and **Backlog** sections |
 | Any `@path` line under `## Imports` in `TASK.md` | Resolved tasks from redirect references |
 | `.claude/projects/*/memory/MEMORY.md` | Project-level blockers or constraints worth surfacing |
 
@@ -44,8 +44,7 @@ _Last updated: YYYY-MM-DD · Updated by bp-task_
 
 ## Imports
 
-@client/PLAN.md
-@server/app/api-gateway/PLAN.md
+@docs/project/api-gateway-plan.md
 
 ## Tasks
 

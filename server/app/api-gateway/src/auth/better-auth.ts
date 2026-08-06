@@ -30,7 +30,7 @@ import { normalizeSelfAssignedRole } from './types/auth.types';
 /**
  * The Better Auth instance.
  *
- * Every choice here is justified in docs/AUTH-better-auth-identity.md; this
+ * Every choice here is justified in docs/architecture/AUTH-better-auth-identity.md; this
  * file is where those decisions become configuration. The two that are easy
  * to undo by accident are marked inline.
  */
@@ -537,7 +537,7 @@ async function deliverEmail(message: {
   if (!isDevelopment()) {
     throw new Error(
       'No email provider is configured. Email verification and password ' +
-        'reset cannot be delivered. See docs/AUTH-better-auth-identity.md.',
+        'reset cannot be delivered. See docs/architecture/AUTH-better-auth-identity.md.',
     );
   }
 

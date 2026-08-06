@@ -6,7 +6,7 @@ _Last updated: 2026-08-06 · Updated by bp-task_
 
 <!-- bp-task resolves these at read time. Tasks from imported files are merged
      into the board with their scope prefix. Duplicates are skipped. -->
-@client/PLAN.md
+@docs/project/api-gateway-plan.md
 
 ---
 
@@ -17,8 +17,8 @@ _Last updated: 2026-08-06 · Updated by bp-task_
 - [ ] **C-001** `high` Wire caregiver push-notification preference screen to the store
 - [ ] **C-002** `medium` Add 7-day BP trend chart to the history tab
 - [ ] **C-003** `medium` Implement PIN / biometric lock for the app-open flow
-- [x] **C-004** `high` Integrate on-device YOLO pre-flight result into camera UI warning banner — closed 2026-08-06 as superseded, not implemented: the live framing gate replaced the warning-banner design and already shipped (`docs/todo/CLIENT-remaining.md` §10)
-- [ ] **C-005** `medium` Restore the caregiver "ดูข้อมูล" jump from invitations into a patient's readings — ship with the home/history tab port; `client/src/app/invitations.tsx` should set the viewing context in `client/src/modules/caregivers/`, not the auth store (see `docs/todo/CLIENT-auth-structure.md`, "activePatientId")
+- [x] **C-004** `high` Integrate on-device YOLO pre-flight result into camera UI warning banner — closed 2026-08-06 as superseded, not implemented: the live framing gate replaced the warning-banner design and already shipped (`docs/project/CLIENT-remaining.md` §10)
+- [ ] **C-005** `medium` Restore the caregiver "ดูข้อมูล" jump from invitations into a patient's readings — ship with the home/history tab port; `client/src/app/invitations.tsx` should set the viewing context in `client/src/modules/caregivers/`, not the auth store (see `docs/project/CLIENT-auth-structure.md`, "activePatientId")
 - [ ] **C-006** `medium` Stop `formatErrorMessage` leaking English into user-facing errors — `client/src/services/api.ts:107` prepends `"<OperationName> failed: "`, and `stripCode` in `client/src/lib/error-message.ts:23` is anchored (`/^\s*\[[A-Z_]+\]\s*/`) so it never strips the code; affects all six call sites (post, invitations ×3, post/[id] ×2, readings, community) — preferred fix is dropping the operation-name prefix, since it is developer data
 
 ### web

@@ -91,7 +91,7 @@ function parseRedisInfo(raw: string): Record<string, string> {
 
 // === Pub/sub inspection ===
 // The gateway ↔ ai-service wire is `analyze_bp_image` / `analyze_bp_image.reply`
-// per server/CLAUDE.md. The constants live in lib/redis.ts so this file can
+// per server/app/api-gateway/CLAUDE.md. The constants live in lib/redis.ts so this file can
 // keep its "use server" purity (async functions only).
 
 export interface PubSubChannel {

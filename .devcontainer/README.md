@@ -6,7 +6,7 @@ switching environments:
 
 | Sub-project | Stack | Package manager |
 | --- | --- | --- |
-| `client/` | Expo SDK 54 + React Native 0.81 | pnpm |
+| `client/` | Expo SDK 57 + React Native 0.86 | pnpm |
 | `web/` | Next.js 16 (App Router) | pnpm |
 | `server/app/api-gateway/` | NestJS 11 + Prisma + Mercurius | pnpm |
 | `server/app/ai-service/` | FastAPI + Python 3.13 + onnxruntime | uv |
@@ -14,6 +14,10 @@ switching environments:
 The deployed backends (Postgres, Redis, S3-compatible) run via
 `infra/docker-compose/` and the dev container reaches them through the host
 Docker daemon — see *Docker access* below.
+
+> **Note:** this file covers the container itself. For what to run once you
+> are inside it, see [docs/guides/setup.md](../docs/guides/setup.md) and
+> [docs/guides/run.md](../docs/guides/run.md).
 
 ---
 
@@ -117,7 +121,7 @@ fork the config:
 | Decision | Choice | Why | What we gave up |
 | --- | --- | --- | --- |
 | Base image | JS Node 22 Bookworm + Python Feature | Lean glibc base; native modules + onnxruntime / opencv wheels work out of the box | Universal image's "everything bundled" convenience |
-| Node version | 22 LTS | Matches `@types/node ^22.10.7` in api-gateway; Next.js 16 needs ≥20.18; Expo SDK 54 supports it | Slightly newer than Node 20 LTS the wider ecosystem still defaults to |
+| Node version | 22 LTS | Matches `@types/node ^22.10.7` in api-gateway; Next.js 16 needs ≥20.18; Expo SDK 57 supports it | Slightly newer than Node 20 LTS the wider ecosystem still defaults to |
 | pnpm install | Corepack | Built into Node 22, respects `packageManager` field, no Feature needed | A single pinned global pnpm via Feature would be marginally simpler to debug |
 | Docker access | Host socket mount (Docker-outside-of-Docker) | `localhost:5432` from the container directly hits host Postgres; matches how `infra/docker-compose/` services are reached today | Leaks host Docker — a destructive `docker` command from inside affects the host. DinD would isolate but slow down the compose workflow and force port re-mapping |
 | Install strategy | Eager (all four sub-projects on container create) | Contributor can `pnpm dev` immediately on first prompt | First-open is 3–5 min instead of seconds |

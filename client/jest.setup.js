@@ -95,7 +95,7 @@ jest.mock('react-native-reanimated', () => {
  * problem: a pure mapper in `modules/caregivers` ends up here through two
  * barrels, and discovering that one file at a time is pure tax. The real fix
  * is for the auth barrel not to pull a native module at import time — noted
- * in docs/todo/CLIENT-caregiver.md.
+ * in docs/project/CLIENT-caregiver.md.
  */
 jest.mock('@react-native-google-signin/google-signin', () => ({
   GoogleSignin: {

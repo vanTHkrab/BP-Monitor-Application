@@ -1,4 +1,4 @@
-// Wire-contract pub/sub channels owned by server/CLAUDE.md
+// Wire-contract pub/sub channels owned by server/app/api-gateway/CLAUDE.md
 // (gateway ↔ ai-service: `analyze_bp_image` / `analyze_bp_image.reply`).
 //
 // Kept in a tiny standalone module so both server actions (which bundle the

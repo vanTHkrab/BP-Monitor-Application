@@ -2,7 +2,7 @@
  * Which patient a caregiver is currently looking at.
  *
  * `activePatientId` was the one piece of client-old's auth store that
- * `docs/todo/CLIENT-auth-structure.md` refused to carry over: it is caregiver
+ * `docs/project/CLIENT-auth-structure.md` refused to carry over: it is caregiver
  * context, not auth state, and it was to live in a caregiver module once one
  * existed and once something actually read it. Both are now true — the home
  * tab branches on it — so it lands here. Tracked as **C-005**.

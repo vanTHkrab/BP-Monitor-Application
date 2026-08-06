@@ -4,7 +4,7 @@
  *
  * A multiplier rather than a per-role lookup table, because the app has no
  * shared typography scale — every component still hardcodes its own body /
- * label / heading sizes (see `docs/todo/CLIENT-onboarding.md`, "Font size is
+ * label / heading sizes (see `docs/project/CLIENT-onboarding.md`, "Font size is
  * persisted but not yet consumed app-wide"). A multiplier preserves each
  * component's existing proportions without requiring that redesign, and is
  * the smallest change that makes the preference actually do something.

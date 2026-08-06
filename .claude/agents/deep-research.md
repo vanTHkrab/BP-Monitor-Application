@@ -31,7 +31,7 @@ Every Markdown file the team ships:
 
 ```text
 - root /CLAUDE.md, /README.md, /MEMORY.md, /TASK.md, /PLAN.md, /STRUCTURE.md, /API.md
-- per-project /CLAUDE.md  (client/, web/, server/CLAUDE.md, server/app/api-gateway/CLAUDE.md,
+- per-project /CLAUDE.md  (client/, web/, server/app/api-gateway/CLAUDE.md,
                            server/app/ai-service/CLAUDE.md)
 - per-project /AGENTS.md  (web/AGENTS.md and any sibling)
 - per-project /PLAN.md, /STRUCTURE.md, /API.md, /README.md
@@ -145,10 +145,10 @@ For third-party docs (Expo SDK release notes, NestJS docs, Prisma migration guid
 7. When a finding spans sources, cite each source separately at the bottom
    of the finding, then write one line of synthesis:
      - code: `path/to/file.ts:42` (observed)
-     - doc:  `server/app/ai-service/PLAN.md:262-281` (observed)
+     - doc:  `docs/decisions/ADR-003-ocr-engines-behind-a-protocol.md` (observed)
      - GitHub: `vanTHkrab/BP-Monitor-Application#51` (merged 2026-03-04)
      - web:  Expo SDK 54 release notes (fetched 2026-06-07) — <url>
-     synthesis: "code and PLAN.md agree on the floor; the upstream Expo
+     synthesis: "code and the ADR agree on the floor; the upstream Expo
                 doc adds a runtime caveat not yet reflected in either."
 ```
 
@@ -380,7 +380,7 @@ say so up front and name the gap before the findings.>
 2. **<short title>** — <finding>.
    - Evidence (code): `path/to/other.py:120-135` (observed),
      `path/to/related.ts:88` (inferred from import chain in step 1).
-   - Evidence (doc): `server/app/ai-service/PLAN.md:262-281` (observed)
+   - Evidence (doc): `docs/decisions/ADR-003-ocr-engines-behind-a-protocol.md` (observed)
    - Evidence (GitHub): `vanTHkrab/BP-Monitor-Application#51` —
      merged 2026-03-04, comment by @user explains the rationale
    - Evidence (web): Expo SDK 54 release notes (fetched 2026-06-07) —

@@ -19,7 +19,7 @@
  * ## Why there is no `cached_images` table
  *
  * client-old kept cache metadata in SQLite alongside the files, and
- * `docs/todo/CLIENT-remaining.md` planned to port that table plus a drizzle
+ * `docs/project/CLIENT-remaining.md` planned to port that table plus a drizzle
  * migration. It is not ported, because the file system already stores
  * everything the table did: `File.modificationTime` is the fetch time, so the
  * file *is* its own TTL record.
