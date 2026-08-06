@@ -61,7 +61,7 @@ sequenceDiagram
     App->>GW: mutation submitBPReading
     GW->>PG: insert BloodPressureReading (+ Alert if needed)
     GW-->>App: BloodPressureReading { id, status }
-    App->>App: Mark local row syncStatus=synced
+    App->>App: promoteToMirror() — insert readings,<br/>delete pending_readings, one transaction
 ```
 
 ## Why on-device pre-flight

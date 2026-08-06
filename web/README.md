@@ -5,11 +5,13 @@ Monitor backend. It surfaces live service health for each backend and renders
 the repo's `docs/**/*.md` — architecture diagrams included — as a static site.
 
 > ⚠️ This is not a patient- or clinician-facing app, and it has **no
-> authentication**. No auth library is installed; `/` is an unmodified shadcn
-> login template wired to nothing. It connects directly to Postgres, Redis,
-> and S3, so ungated on a public host it is a read-anything database
-> inspector. Never expose it without the Basic Auth gate in
-> [docs/guides/deploy.md](../docs/guides/deploy.md).
+> authentication**. No auth library is installed and there is no login form —
+> `/` redirects to the docs. The pages under `/admin` connect directly to
+> Postgres, Redis, and S3, so ungated on a public host they are a
+> read-anything database inspector. They are gated by the nginx Basic Auth
+> rule on `location /admin/` and nothing else; see the access model in
+> [docs/guides/deploy.md](../docs/guides/deploy.md). The docs at `/` are
+> deliberately public.
 
 Patient interactions happen in the Expo mobile client (`client/`).
 

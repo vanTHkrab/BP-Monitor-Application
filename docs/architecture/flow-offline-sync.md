@@ -2,9 +2,9 @@
 title: Offline Sync Flow
 description: >-
     How writes survive the network being down. The store is the source of truth
-    from the user's perspective. Postgres is the source of truth from the
-    server's perspective. The offline queue + sync mutex + reconciliation step
-    reconcile the two without losing or duplicating rows.
+    from the user's perspective, Postgres from the server's. A two-table SQLite
+    outbox plus a sync mutex and a reconciliation pass keep the two in step
+    without losing or duplicating rows.
 status: current
 updated: 2026-08-06
 owner: client
@@ -18,51 +18,58 @@ spine.
 ```mermaid
 flowchart TD
     A["User saves reading"] --> B["createReading()<br/>optimistic update<br/>(Zustand store)"]
-    B --> C{"Online?"}
-    C -- "Yes" --> D["submitBPReading (GraphQL)"]
-    D -- "Success" --> E["Mark local row syncStatus=synced<br/>set remoteId"]
-    D -- "Network / 5xx" --> F["Insert into pending_readings<br/>syncStatus=pending"]
-    C -- "No" --> F
+    B --> C["enqueueReading()<br/>INSERT into pending_readings"]
+    C --> D{"Online?"}
+    D -- "Yes" --> E["submitBPReading (GraphQL)"]
+    D -- "No" --> Q["Stays in the queue"]
+    E -- "Success" --> P["promoteToMirror()<br/>INSERT readings + DELETE pending_readings<br/>ONE transaction"]
+    E -- "Network / 5xx" --> Q
+    E -- "4xx" --> R["recordQueueFailure()<br/>row keeps its place and its error"]
 
-    G["Network reconnects /<br/>App becomes foreground"] --> H["syncPendingReadings()"]
+    G["Network reconnects /<br/>app becomes foreground"] --> H["syncPendingReadings()"]
     H --> I{"Mutex held?"}
-    I -- "Yes" --> J["Return in-flight promise"]
+    I -- "Yes" --> J["Return the in-flight promise"]
     I -- "No" --> K["Acquire mutex"]
-    K --> L["For each pending row"]
-    L --> M{"Has image?"}
-    M -- "Yes" --> N["S3 PUT signed URL<br/>(FileSystem.uploadAsync on native)"]
-    M -- "No" --> O["submitBPReading"]
-    N --> O
-    O -- "Success" --> P["Update row syncStatus=synced<br/>set remoteId"]
-    O -- "Failure" --> Q["Stay pending"]
-    P --> R["Release mutex"]
-    Q --> R
+    K --> L["listQueuedReadings()"]
+    L --> M{"Image not uploaded yet?"}
+    M -- "Yes" --> N["S3 PUT via signed URL<br/>(uploadAsync on native)<br/>markQueuedImageUploaded()"]
+    M -- "No" --> E
+    N --> E
+    P --> S["Release mutex"]
+    Q --> S
+    R --> S
 
-    S["fetchReadings()"] --> T["Server returns confirmed list"]
-    T --> U["Reconcile:<br/>refresh synced rows<br/>preserve pending / syncing"]
+    T["fetchReadings()"] --> U["Server returns the confirmed list"]
+    U --> V["upsertMirrorRows() + pruneMissingMirrorRows()<br/>touches the mirror only —<br/>the queue is never read or written here"]
 ```
 
 ## Invariants
 
-- **One mutex per sync function** — syncPendingReadings and syncPendingPosts
-  each hold a promise-based mutex. Concurrent callers return the in-flight
-  promise — never replaced with a boolean.
-- **Optimistic update never blocks UI** — createReading writes to the store
-  before any network call. The UI shows the new reading in <16ms even on a
-  flaky link.
-- **pending_readings is queue AND mirror** — syncStatus discriminates: pending
-  (queued), pending-image (queued, image upload not done), synced
-  (server-confirmed). Reinstall + offline launch still shows history because
-  synced rows live in the same table.
-- **Reconciliation refreshes, not replaces** — fetchReadings refreshes synced
-  rows from the server but preserves pending / pending-image. A reconciliation
-  pass while a sync is in flight cannot eat queued rows.
+- **One mutex per sync function.** `syncPendingReadings` and
+  `syncPendingPosts` each hold a promise-based mutex; concurrent callers get
+  the in-flight promise. Never a boolean flag.
+- **The optimistic update never blocks the UI.** `createReading` writes to the
+  store before any network call, so the reading appears immediately on a flaky
+  link.
+- **Two tables, and the promotion is transactional.** `pending_readings` is the
+  outbox; `readings` is the mirror of what the server confirmed.
+  `promoteToMirror` inserts into one and deletes from the other in a single
+  transaction. Split it and you get either a duplicated reading or a vanished
+  one — see [Reading Lifecycle](./state-reading-lifecycle.md) for why the old
+  single-table-plus-`syncStatus` design was abandoned.
+- **Reconciliation cannot eat queued rows.** `fetchReadings` writes to the
+  mirror only. Because the queue is a different table rather than a filtered
+  subset of the same one, a reconciliation pass running while a sync is in
+  flight is structurally unable to touch pending work — it is not relying on
+  anyone remembering a `WHERE` clause.
 
 ## What can still go wrong
 
-- **App killed mid-sync** — Rows that were `syncing` on kill come back as
-  `pending` next launch (mutex isn't durable). createClientId is the dedupe —
-  server's @@unique on client_id absorbs the retry.
-- **Clock skew on measuredAt** — measuredAt comes from the device; we don't
-  correct it. A patient with the wrong phone clock will have history that
-  disagrees with the caregiver's view.
+- **App killed mid-sync.** The mutex is not durable, so a reading that was
+  being sent comes back queued on next launch — correct, because promotion is
+  the only thing that removes it, and that is transactional. The retry is
+  absorbed by `clientId`: it is the queue's primary key on device and carries a
+  unique constraint on the server, so a duplicate submit lands once.
+- **Clock skew on `measuredAt`.** It comes from the device and is not
+  corrected. A patient whose phone clock is wrong gets history that disagrees
+  with what their caregiver sees.
