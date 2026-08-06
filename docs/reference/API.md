@@ -674,7 +674,6 @@ pnpm --dir server/app/api-gateway start:dev
 
 ## 8. See also
 
-- [server/app/api-gateway/CLAUDE.md](../../server/app/api-gateway/CLAUDE.md) — gateway context
 - [api-gateway/CLAUDE.md](../../server/app/api-gateway/CLAUDE.md) — gateway conventions
 - [api-gateway/STRUCTURE.md](../../server/app/api-gateway/STRUCTURE.md) — feature-module layout
 - [api-gateway/AGENT.md](../../server/app/api-gateway/AGENT.md) — architecture overview
