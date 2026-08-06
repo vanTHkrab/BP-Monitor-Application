@@ -46,6 +46,7 @@ import { CaregiverModule } from './caregiver/caregiver.module';
 import { DebugModule } from './debug/debug.module';
 import { SecurityModule } from './security/security.module';
 import { WellKnownController } from './well-known.controller';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -155,6 +156,7 @@ import { WellKnownController } from './well-known.controller';
     CaregiverModule,
     DebugModule,
     SecurityModule,
+    PushModule,
   ],
   providers: [AppService, AppResolver],
   controllers: [WellKnownController],

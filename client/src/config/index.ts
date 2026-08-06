@@ -23,6 +23,7 @@ export {
   LEGACY_STORAGE_KEYS,
   STORAGE_KEYS,
   announcedInvitesKey,
+  pushDenialNoticeKey,
   reminderSettingsKey,
   type StorageKeyName,
 } from './storage-keys';

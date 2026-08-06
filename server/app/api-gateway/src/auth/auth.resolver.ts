@@ -133,16 +133,22 @@ export class AuthResolver {
   @UseGuards(GqlAuthGuard)
   async logout(
     @CurrentUser() user: { id: string; sessionId: string },
+    @Args('pushToken', { nullable: true }) pushToken?: string,
   ): Promise<boolean> {
-    return this.authService.logout(user.id, user.sessionId);
+    return this.authService.logout(user.id, user.sessionId, pushToken);
   }
 
   @Mutation(() => Boolean, { description: 'ออกจากระบบทุกอุปกรณ์' })
   @UseGuards(GqlAuthGuard)
   async logoutAllDevices(
     @CurrentUser() user: { id: string; sessionId?: string },
+    @Args('pushToken', { nullable: true }) pushToken?: string,
   ): Promise<boolean> {
-    return this.authService.logoutAllDevices(user.id, user.sessionId);
+    return this.authService.logoutAllDevices(
+      user.id,
+      user.sessionId,
+      pushToken,
+    );
   }
 
   @Mutation(() => Boolean, { description: 'ลบข้อมูลผู้ใช้ทั้งหมด' })

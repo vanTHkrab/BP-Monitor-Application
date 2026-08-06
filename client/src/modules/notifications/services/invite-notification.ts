@@ -1,17 +1,20 @@
 /**
  * The "someone asked to be your caregiver" local notification.
  *
- * **This is not a push.** The gateway has no push infrastructure at all — no
- * token column, no registration mutation, nothing that sends (C-001, see
- * docs/project/CLIENT-caregiver.md). What this does is post a local notification
- * the moment *this device* learns about a new invite, which happens on a
- * foreground fetch. A patient whose phone is asleep learns about the invite
- * when they next open the app, not before.
+ * **This is not a push.** The gateway does now have push infrastructure — a
+ * `PushToken` table, `registerPushToken`, and a sender (A-009) — but it uses
+ * it for critical BP readings only; there is nothing that pushes an invite.
+ * What this does is post a local notification the moment *this device* learns
+ * about a new invite, which happens on a foreground fetch. A patient whose
+ * phone is asleep learns about the invite when they next open the app, not
+ * before.
  *
  * That limit is worth stating rather than hiding, because the two look
  * identical when they work and only differ when the app is closed — which is
- * the case the feature is for. When push lands, the caller changes and this
- * stays as the offline/foreground path.
+ * the case the feature is for. If invites ever get pushed too, the caller
+ * changes and this stays as the offline/foreground path;
+ * `services/push-registration.ts` already owns the token this device would
+ * need.
  *
  * Presented immediately (`trigger: null`) rather than scheduled: the event has
  * already happened by the time we know about it, and a delay would put the

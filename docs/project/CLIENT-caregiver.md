@@ -108,22 +108,35 @@ rather than silently inside someone else's medical history. Documented here so
 nobody "fixes" it later. It does mean the banner in §2 can never be the only
 exit: a cold start already clears the context.
 
-## 4. Caregiver push notifications — **C-001, deferred on purpose**
+## 4. Caregiver push notifications — **C-001, gateway side now exists**
 
-**The gateway has no push infrastructure at all.** No push-token column, no
-device registration, nothing that sends. Searching `server/app/api-gateway/src`
-for `expoPushToken` / `pushToken` returns nothing.
+This section used to say the gateway had no push infrastructure at all, and
+that C-001 therefore could not be built honestly: a preference screen with
+nothing behind it is a switch that persists a value no system reads, which is
+exactly what `app/settings.tsx` refused to port client-old's
+"สำรองข้อมูลอัตโนมัติ" toggle for.
 
-So the board item as written — "wire the caregiver push-notification
-preference screen to the store" — cannot be built honestly today. A preference
-screen with nothing behind it is a switch that persists a value no system
-reads, which is exactly what `app/settings.tsx` refused to port client-old's
-"สำรองข้อมูลอัตโนมัติ" toggle for: it claimed to control something that was
-not optional and not happening.
+**That blocker is gone (A-009, 2026-08-07.)** The gateway now has a
+`push_tokens` table, `registerPushToken` / `unregisterPushToken` mutations,
+and a send on every **critical** reading to the patient's accepted caregivers
+— see [API.md §5.5.1](../reference/API.md#551-push-notifications). What the
+client still owes:
 
-The order is gateway first: token storage, a registration mutation, and
-something that actually sends on an alert. The client preference is the small
-last step, not the first.
+1. Obtain an Expo push token and call `registerPushToken` on launch.
+2. Pass that token to `logout(pushToken:)` / `logoutAllDevices(pushToken:)`.
+   The token is not tied to a session, so nothing deletes it implicitly and a
+   signed-out phone keeps receiving alerts.
+3. Handle the received notification (`data.type === 'bp-critical'`, with
+   `bpReadingId` and `patientId` for a deep link).
+4. Only then the preference switch.
+
+**This cannot be exercised in Expo Go.** Android dropped remote push in SDK
+53, which is also why
+`client/src/modules/notifications/services/notifications-module.ts` lazy-loads
+`expo-notifications` — merely importing it there fires an auto-registration
+side effect. C-001 needs a dev build. The gateway degrades honestly in the
+meantime: a caregiver with no registered token is an ordinary outcome there,
+not an error.
 
 `modules/notifications` today schedules **local** reminders only, which is a
 different feature and works.
@@ -247,7 +260,7 @@ the reasoning behind each fix stays attached to the problem it solved.
 | `CaregiverPatient` had `relationship` + `status` and **no permission column** | "this child may view, this nurse may record" | **Fixed** — Improvement §4: column, split guards, client gate; the patient chooses it on accept (see "What is left" §1, now done). |
 | One active patient, switching cost four taps | a caregiver with several patients | **Fixed** — Improvement §5: two taps from the banner |
 | `myPatients` returned summaries with **no latest reading** | "all my patients at a glance" was N+1 | **Fixed** — Improvement §6: one grouped query |
-| No push infrastructure | every kind of real notification (C-001) | **Still true.** In-app alerts now reach the caregiver (Improvement §3); delivery when the app is closed does not exist. |
+| No push infrastructure | every kind of real notification (C-001) | **Fixed server-side** (A-009): `push_tokens`, `registerPushToken`, and a send to caregivers on every critical reading. The client half — obtain a token, register it, handle the payload — is still C-001 and needs a dev build. |
 | No audit trail beyond `recordedBy` on a reading | who viewed whose data, who removed a link | **Still true**, and untracked elsewhere. For health data this is a real gap, not a nice-to-have — now on the list below as item 6. |
 
 ---
@@ -753,15 +766,19 @@ prefers a known value over a blank and would pick them up unchanged. Until
 then the blank is deliberate and the screen says so, because a form that
 submitted them anyway would erase two columns nobody was shown.
 
-### 5. C-001 — caregiver push notifications, still blocked
+### 5. C-001 — caregiver push notifications, now unblocked
 
-Unchanged: **the gateway has no push infrastructure at all.** No token
-column, no device registration, nothing that sends. `grep -r "expoPushToken\|pushToken" server/app/api-gateway/src` returns nothing.
+This used to read "the gateway has no push infrastructure at all". As of
+A-009 (2026-08-07) it does: a `push_tokens` table, `registerPushToken` /
+`unregisterPushToken`, and a send to every accepted caregiver on a
+**critical** reading — see
+[API.md §5.5.1](../reference/API.md#551-push-notifications) and §4 above for
+the client's remaining four steps.
 
-The in-app half now works — the fan-out in §3 puts a real alert in the
-caregiver's own bell. What is missing is delivery when the app is closed, and
-that is gateway work first: token storage, a registration mutation, and a
-sender on the alert path. The client preference screen is the small last step.
+The in-app half already worked — the fan-out in §3 puts a real alert in the
+caregiver's own bell. What is still missing is the *client* end of delivery
+when the app is closed, and it needs a dev build: Expo Go on Android cannot
+obtain a push token at all.
 
 **A patient-side local notification now exists and is not the same thing.**
 `modules/notifications/services/invite-notification.ts` posts a banner when

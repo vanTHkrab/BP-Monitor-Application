@@ -81,6 +81,10 @@ Every other operation requires a Bearer token; absence yields
   `isActive`, `lastActiveAt`).
 - `logout` deactivates only the current session; `logoutAllDevices`
   deactivates every session.
+- Both take an optional `pushToken`. A push token belongs to the app
+  installation rather than the session, so it is not revoked implicitly —
+  pass it or the signed-out device keeps receiving notifications. See
+  [§5.5.1](#551-push-notifications).
 
 ---
 
@@ -238,8 +242,8 @@ ISO string directly.
 | `updateProfile` | Mutation | ✅ | Partial update (every field optional) |
 | `changePassword` | Mutation | ✅ | Requires `currentPassword`; throttled |
 | `verifyPassword` | Mutation | ✅ | Unlocks sensitive screens; throttled |
-| `logout` | Mutation | ✅ | Flips `isActive=false` on the current session |
-| `logoutAllDevices` | Mutation | ✅ | Flips every session |
+| `logout(pushToken)` | Mutation | ✅ | Flips `isActive=false` on the current session; deletes the supplied push token (§5.5.1) |
+| `logoutAllDevices(pushToken)` | Mutation | ✅ | Flips every session; deletes every push token **except** the supplied one |
 | `deleteMyData` | Mutation | ✅ | Cascading account + data deletion |
 | `loginWithGoogle` | Mutation | ❌ | Exchanges a Google ID token from the device account picker → `AuthPayload`. The gateway verifies signature, issuer, and audience |
 
@@ -563,6 +567,44 @@ doesn't need a follow-up query.
   hide anything from the patient it is about. That also means
   `markAlertRead` on a row fetched through `alerts(patientId:)` matches
   nothing and returns `false`.
+
+### 5.5.1 Push notifications
+
+| Op | Type | Auth | Description |
+| --- | --- | --- | --- |
+| `registerPushToken(input)` | Mutation | ✅ | Registers this installation's Expo push token. Call on every launch |
+| `unregisterPushToken(token)` | Mutation | ✅ | Drops one installation's token without signing out |
+
+`RegisterPushTokenInput` is `{ token: String!, deviceLabel: String, platform: String }`.
+`platform` is `"ios"` or `"android"`; anything else is a `BAD_USER_INPUT`, as
+is a `token` Expo's own validator rejects.
+
+- **Registration is idempotent and reassigns.** The row is keyed on the token,
+  which identifies the *installation*, not the account. Calling it twice does
+  not duplicate; calling it as a different user on a shared handset moves the
+  row to that user, so the previous owner stops receiving that device's
+  pushes. Two rows would mean a patient's critical reading reaching whoever
+  used the phone last.
+- **Logout must pass the token.** `logout(pushToken:)` and
+  `logoutAllDevices(pushToken:)` both take the caller's token — the first
+  deletes it, the second deletes every *other* token on the account. A
+  `PushToken` deliberately outlives sessions (it is a property of the install,
+  not the sign-in), so nothing deletes it implicitly. Omit it and a signed-out
+  phone keeps receiving alerts. Both arguments are optional and additive: the
+  old no-argument calls still compile.
+- **Only `critical` readings push.** The alert fan-out writes rows for
+  `warning` too, but a caregiver pushed for every warning-level reading of a
+  chronic-hypertension patient mutes the channel and then misses the one that
+  mattered.
+- **Only caregivers are pushed, never the patient.** The patient is holding
+  the phone that just took the measurement.
+- **No token registered is not an error.** Expo Go on Android cannot obtain a
+  push token at all (remote push was dropped in SDK 53), so this feature needs
+  a dev build. The gateway treats "no device to notify" as an ordinary
+  outcome; nothing fails and nothing is logged as an error.
+- **Dead tokens are pruned server-side.** A `DeviceNotRegistered` in either
+  the send ticket or the later delivery receipt deletes the row. Clients do
+  not need to clean up after an uninstall.
 
 ### 5.6 Caregiver links
 

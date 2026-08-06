@@ -114,13 +114,27 @@ export async function fetchLoginSessions(): Promise<LoginSession[]> {
   return data.loginSessions.map(sessionFromGql);
 }
 
-/** Revokes the current session server-side. The caller still clears locally. */
-export async function logout(): Promise<void> {
-  await graphqlRequest<{ logout: boolean }>(GQL_LOGOUT);
+/**
+ * Revokes the current session server-side. The caller still clears locally.
+ *
+ * `pushToken` is this installation's, and it is what tells the gateway which
+ * `PushToken` row to delete — see the note on `GQL_LOGOUT`. `undefined` when
+ * this device never registered one.
+ */
+export async function logout(pushToken?: string): Promise<void> {
+  await graphqlRequest<{ logout: boolean }>(GQL_LOGOUT, {
+    pushToken: pushToken ?? null,
+  });
 }
 
-export async function logoutAllDevices(): Promise<void> {
-  await graphqlRequest<{ logoutAllDevices: boolean }>(GQL_LOGOUT_ALL_DEVICES);
+/**
+ * Here the same token means "keep this one" — every other installation's is
+ * dropped along with its session. See `GQL_LOGOUT_ALL_DEVICES`.
+ */
+export async function logoutAllDevices(pushToken?: string): Promise<void> {
+  await graphqlRequest<{ logoutAllDevices: boolean }>(GQL_LOGOUT_ALL_DEVICES, {
+    pushToken: pushToken ?? null,
+  });
 }
 
 export async function deleteMyData(): Promise<void> {

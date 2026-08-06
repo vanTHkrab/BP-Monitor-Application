@@ -176,6 +176,7 @@ model User {
   postLikes        PostLike[]
   sessions         UserSession[]
   passkeys         Passkey[]
+  pushTokens       PushToken[]
 
   profileChanges   ProfileChangeLog[] @relation("ProfileChangeSubject")
   profileEditsMade ProfileChangeLog[] @relation("ProfileChangeActor")
@@ -338,6 +339,75 @@ model UserSession {
   @@index([userId, isActive])
   @@index([createdAt])
   @@map("user_sessions")
+}
+
+/// One Expo push token per app installation.
+///
+/// **Why not a column on `UserSession`.** A push token is a property of the
+/// *installation*, not of the sign-in: it is issued by FCM/APNs on first
+/// launch and survives logout, token refresh, and session rotation. Hanging it
+/// off a session would mean a token is lost every time Better Auth rotates
+/// one, and a caregiver would silently stop receiving alerts at the moment
+/// their session refreshed — a failure with no error and no symptom. The cost
+/// of a separate table is that logout has to delete the row explicitly rather
+/// than inheriting the session's cascade; `AuthService.logout` does exactly
+/// that.
+///
+/// **`token` is globally unique, not unique per user.** The same physical
+/// device produces the same Expo token no matter who signs in on it, so a
+/// shared phone must *reassign* the row rather than accumulate one per
+/// account — otherwise a patient's critical reading would push to the previous
+/// owner of that handset. Registration is an upsert on this column.
+model PushToken {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// The `ExponentPushToken[…]` string. Validated with `Expo.isExpoPushToken`
+  /// before it is ever written — an unparseable token is a guaranteed wasted
+  /// send on every future critical reading.
+  token String @unique @db.VarChar(255)
+
+  userId String @map("user_id") @db.Uuid
+
+  /// What the user sees in a device list, e.g. "Pixel 8". Nullable: the
+  /// client may not be able to name the device, and refusing the
+  /// registration over a cosmetic field would cost the alert itself.
+  deviceLabel String? @map("device_label") @db.VarChar(255)
+
+  /// 'ios' | 'android'. A string rather than an enum for the same reason
+  /// `ProfileChangeLog.field` is: it is displayed, never dispatched on, and a
+  /// new value should not need a migration.
+  platform String? @db.VarChar(16)
+
+  /// Refreshed on every registration call. The client registers on each
+  /// launch, so this doubles as "when was this installation last alive" —
+  /// the only signal available for a token that is still valid but belongs
+  /// to a device nobody uses.
+  lastRegisteredAt DateTime @default(now()) @map("last_registered_at")
+
+  /// The receipt id for the most recent push accepted by Expo, and when it
+  /// was accepted.
+  ///
+  /// Expo's ticket only says "queued"; the *delivery* outcome — including a
+  /// `DeviceNotRegistered` that FCM/APNs only reports after the fact — comes
+  /// back from a receipt fetched later. Parking the id here rather than in a
+  /// dedicated table keeps the pruning sweep to one join-free query, and one
+  /// row per token is sufficient: if a newer push overwrote the id, the older
+  /// receipt can no longer tell us anything the newer one will not.
+  pendingReceiptId String?   @map("pending_receipt_id") @db.VarChar(64)
+  pendingReceiptAt DateTime? @map("pending_receipt_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The send path's only lookup: "every token belonging to this caregiver".
+  @@index([userId])
+  /// The receipt sweep's only lookup: rows with an unresolved receipt, oldest
+  /// first. Partial-index-shaped in intent; Prisma has no partial index, and
+  /// a NULL-heavy btree is cheap enough at this table's size.
+  @@index([pendingReceiptAt])
+  @@map("push_tokens")
 }
 
 /// Better Auth's `account` model — one row per credential or social identity.

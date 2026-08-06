@@ -17,6 +17,7 @@ Source of truth: server/app/api-gateway/prisma/schema.prisma.
 ```mermaid
 erDiagram
     User ||--o{ UserSession : "owns"
+    User ||--o{ PushToken : "notified_on"
     User ||--o{ BloodPressureReading : "records"
     User ||--o{ Image : "uploads"
     User ||--o{ Alert : "receives"
@@ -66,6 +67,19 @@ erDiagram
         timestamp revoked_at
         timestamp last_active_at
         timestamp created_at
+    }
+
+    PushToken {
+        uuid id PK
+        string token UK "ExponentPushToken[…]; unique across all users"
+        uuid user_id FK
+        string device_label
+        string platform "ios|android"
+        timestamp last_registered_at
+        string pending_receipt_id "unresolved Expo delivery receipt"
+        timestamp pending_receipt_at
+        timestamp created_at
+        timestamp updated_at
     }
 
     CaregiverPatient {
@@ -186,6 +200,17 @@ erDiagram
   the patient can read their own trail; there is deliberately no
   caregiver-facing query, because every row carries the patient's health
   values and revocation has to be complete.
+- **push_tokens is keyed on the token, not on the user** — An Expo push token
+  belongs to an app *installation*, so `token` is globally `@unique` rather
+  than unique per user. That is what makes a shared handset correct:
+  registering as a second account reassigns the row instead of adding one, so
+  a patient's critical reading cannot reach whoever used the phone last. The
+  price of not hanging it off `user_sessions` is that logout has to delete it
+  explicitly (`AuthService.logout` does) — a token must survive session
+  rotation, or a caregiver silently stops receiving alerts the moment their
+  session refreshes. `pending_receipt_id` parks Expo's delivery receipt so the
+  30-minute sweep can drop tokens reported `DeviceNotRegistered`; one row per
+  token is enough, because a newer receipt supersedes an older one.
 - **user_sessions, not session cookies** — Every authenticated request
   validates the session row exists with is_active=true. Logout flips the flag;
   sessions table is also the data behind the device-history screen.

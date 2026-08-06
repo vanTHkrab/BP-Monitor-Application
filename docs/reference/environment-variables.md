@@ -66,6 +66,7 @@ path in it refuses to start, on purpose.
 | `S3_ENDPOINT` · `S3_BUCKET_NAME` · `S3_ACCESS_KEY_ID` · `S3_SECRET_ACCESS_KEY` | Required | Object storage for avatars and BP images. Production target is Cloudflare R2; staging points at Supabase Storage's S3 endpoint with the same env shape. These four are the ones [`s3.config.ts`](../../server/app/api-gateway/src/storage/s3.config.ts) throws on when missing. |
 | `S3_PROVIDER` · `S3_DEFAULT_REGION` · `S3_USE_PATH_STYLE_ENDPOINT` · `S3_PUBLIC_BASE_URL` | Optional | Same object storage, non-fatal knobs. `S3_DEFAULT_REGION` defaults to `auto`; `S3_USE_PATH_STYLE_ENDPOINT` is path-style only on the literal string `true`; `S3_PUBLIC_BASE_URL` falls back to a host derived from `S3_ENDPOINT` when unset. |
 | `ANDROID_APP_PACKAGE_NAME` | Optional | Defaults to `com.project.bpmonitor`. Must match `expo.android.package` in `client/app.json`. |
+| `EXPO_ACCESS_TOKEN` | Prod care | Expo access token for push delivery ([Expo dashboard](https://expo.dev/) → Account → Access tokens). Unset, Expo accepts a send from anyone holding one of our push tokens; set, only requests carrying this token are honoured. Optional by design so a fresh checkout can send in development — set it in production. Push works without it; nothing fails at boot. |
 
 > ⚠️ That graceful degradation is also how a misconfiguration hides. Until
 > 2026-08-06 the rate-limit client ignored these variables entirely and

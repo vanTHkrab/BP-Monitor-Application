@@ -96,6 +96,27 @@ export type Passkey = Prisma.PasskeyModel
  */
 export type UserSession = Prisma.UserSessionModel
 /**
+ * Model PushToken
+ * One Expo push token per app installation.
+ * 
+ * **Why not a column on `UserSession`.** A push token is a property of the
+ * *installation*, not of the sign-in: it is issued by FCM/APNs on first
+ * launch and survives logout, token refresh, and session rotation. Hanging it
+ * off a session would mean a token is lost every time Better Auth rotates
+ * one, and a caregiver would silently stop receiving alerts at the moment
+ * their session refreshed — a failure with no error and no symptom. The cost
+ * of a separate table is that logout has to delete the row explicitly rather
+ * than inheriting the session's cascade; `AuthService.logout` does exactly
+ * that.
+ * 
+ * **`token` is globally unique, not unique per user.** The same physical
+ * device produces the same Expo token no matter who signs in on it, so a
+ * shared phone must *reassign* the row rather than accumulate one per
+ * account — otherwise a patient's critical reading would push to the previous
+ * owner of that handset. Registration is an upsert on this column.
+ */
+export type PushToken = Prisma.PushTokenModel
+/**
  * Model Account
  * Better Auth's `account` model — one row per credential or social identity.
  * 

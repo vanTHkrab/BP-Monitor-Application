@@ -8,6 +8,7 @@ jest.mock('../prisma/prisma.service', () => ({
 }));
 
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { ReadingService } from './reading.service';
 
 const PATIENT_ID = '11111111-1111-4111-8111-111111111111';
@@ -35,6 +36,7 @@ describe('ReadingService', () => {
     caregiverPatient: { findMany: jest.Mock };
     user: { findUnique: jest.Mock };
   };
+  let push: { notifyUsers: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -68,8 +70,14 @@ describe('ReadingService', () => {
       },
     };
 
+    push = { notifyUsers: jest.fn().mockResolvedValue(undefined) };
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ReadingService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        ReadingService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: PushService, useValue: push },
+      ],
     }).compile();
 
     service = module.get<ReadingService>(ReadingService);
@@ -152,6 +160,73 @@ describe('ReadingService', () => {
       ).resolves.toBeDefined();
 
       expect(prisma.alert.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('create — push delivery to caregivers', () => {
+    const critical = { ...baseInput, systolic: 195, status: 'critical' };
+    const warning = { ...baseInput, systolic: 145, status: 'high' };
+
+    it('pushes to every accepted caregiver on a critical reading', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+
+      await service.create(PATIENT_ID, critical, PATIENT_ID);
+
+      expect(push.notifyUsers).toHaveBeenCalledTimes(1);
+      const [recipients, message] = push.notifyUsers.mock.calls[0];
+      expect(recipients).toEqual([CAREGIVER_ID]);
+      // The caregiver-facing copy, reused verbatim from the alert row — the
+      // recipient's first question is *who*.
+      expect(message.body).toContain('สมชาย ใจดี');
+      expect(message.data).toMatchObject({ patientId: PATIENT_ID });
+    });
+
+    it('never targets the patient, who is holding the phone that measured', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+
+      await service.create(PATIENT_ID, critical, PATIENT_ID);
+
+      expect(push.notifyUsers.mock.calls[0][0]).not.toContain(PATIENT_ID);
+    });
+
+    it('sends nothing for a warning-level reading', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+
+      await service.create(PATIENT_ID, warning, PATIENT_ID);
+
+      // The alert row is still written — only the push is critical-only.
+      // Pushing every warning is how a caregiver ends up muting the channel.
+      expect(prisma.alert.createMany).toHaveBeenCalled();
+      expect(push.notifyUsers).not.toHaveBeenCalled();
+    });
+
+    it('sends nothing for a normal reading', async () => {
+      await service.create(PATIENT_ID, baseInput, PATIENT_ID);
+
+      expect(push.notifyUsers).not.toHaveBeenCalled();
+    });
+
+    it('sends nothing when the patient has no caregivers', async () => {
+      await service.create(PATIENT_ID, critical, PATIENT_ID);
+
+      expect(push.notifyUsers).not.toHaveBeenCalled();
+    });
+
+    it('still saves the reading when the push send fails', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+      push.notifyUsers.mockRejectedValue(new Error('expo down'));
+
+      await expect(
+        service.create(PATIENT_ID, critical, PATIENT_ID),
+      ).resolves.toBeDefined();
     });
   });
 

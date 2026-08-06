@@ -47,6 +47,22 @@ export const STORAGE_KEYS = {
   setupCompleted: 'bp.setup_completed',
   appLock: 'bp.app_lock_enabled',
   autoCapture: 'bp.auto_capture_enabled',
+
+  /**
+   * The Expo push token this **installation** last registered with the
+   * gateway.
+   *
+   * Not per user, and that is the whole point: an `ExponentPushToken[…]`
+   * identifies the app install, not the account, and the gateway's `PushToken`
+   * row is deliberately not session-scoped so it survives session rotation.
+   * The device therefore has to remember the token it registered, because
+   * logout is the one moment it must tell the gateway which row to delete and
+   * the OS may not hand the token back (permission revoked, no network).
+   *
+   * Not a credential — an Expo push token is a delivery address, not an
+   * authenticator — so AsyncStorage rather than SecureStore.
+   */
+  pushToken: 'bp.push_token',
 } as const;
 
 /**
@@ -66,6 +82,19 @@ export const reminderSettingsKey = (userId?: string): string =>
  */
 export const announcedInvitesKey = (userId?: string): string =>
   `bp.announced_invites.${userId ?? 'guest'}`;
+
+/**
+ * Whether this user has already been told, on this device, that notifications
+ * are switched off and critical alerts will not reach them.
+ *
+ * Per user rather than per install: the sentence is about *your* alerts, and
+ * on a shared handset the second account has never heard it. The flag exists
+ * so the app says it once and then stops — a launch-time nag about a
+ * permission the user deliberately declined is how an app earns being
+ * uninstalled rather than re-enabled.
+ */
+export const pushDenialNoticeKey = (userId?: string): string =>
+  `bp.push_denial_notice.${userId ?? 'guest'}`;
 
 /** What a key used to be called. Read once, then deleted. */
 export const LEGACY_STORAGE_KEYS = {
