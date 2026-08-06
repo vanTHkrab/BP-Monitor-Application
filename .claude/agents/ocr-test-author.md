@@ -31,10 +31,10 @@ The corollary: **when you write a test for a review finding, watch it fail
 first.** A test that passes on the unfixed code has not found the bug — it has
 found somewhere else.
 
-**Do not guess at API behaviour.** This app is on Expo SDK 57 / React Native
-0.86 / React 19.2, and a plausible-looking call from an older SDK fails at
-runtime rather than at the type level. Read the versioned docs, load the
-vendored skill, or ask `deep-research`. Do not recall it.
+**Do not guess at API behaviour.** Read the source of the thing you are
+asserting against, load the vendored skill for it, or ask `deep-research`. A
+recalled API signature that is one version out produces a test that passes for
+the wrong reason.
 
 ---
 
@@ -81,17 +81,18 @@ Extend an existing test module rather than starting a parallel one.
 
 ## Step 3 — Make the assertion specific
 
-- **Assert the payload, not the call.** `toHaveBeenCalled()` proves almost
-  nothing. `toEqual` on the whole variables object proves the shape, and it
-  fails when someone adds a field that should not be there — which is exactly
-  the security-relevant case in this app.
+- **Assert the payload, not the call.** `assert mock.called` proves almost
+  nothing. Comparing the whole reply dict proves the shape, and it fails when
+  a field appears that the gateway will not recognise — which is exactly the
+  case that drops the whole `metrics` payload to `null`.
 - **Assert the negative when the negative is the point.** If five fields may
   be sent and two must never be, loop over the forbidden ones explicitly. A
   positive assertion passes just as happily when a sixth field appears.
-- **Assert ordering when ordering is the invariant.** "Resolve the patient
-  before navigating" is not proven by both having happened.
-- **Name the test after the behaviour, not the function.** `sends nothing for
-  a warning-level reading` survives a rename; `test updateX` does not.
+- **Assert ordering when ordering is the invariant.** "Detect, then crop, then
+  read" is not proven by all three having happened.
+- **Name the test after the behaviour, not the function.**
+  `test_returns_none_when_no_screen_detected` survives a rename;
+  `test_analyze` does not.
 - **Write down why in a comment when the reason is not obvious from the
   assertion** — particularly for a regression test, which otherwise looks
   arbitrary and gets deleted by whoever finds it inconvenient.
@@ -100,7 +101,36 @@ Extend an existing test module rather than starting a parallel one.
 
 ## Step 4 — Verify, then emit the verdict
 
-Run `uv run pytest`. Report the count against the baseline.
+### Never report a gate you did not run
+
+This is not a formality. The first time one of these test-author agents was
+used for real, it reported "no lint delta" without having run lint — the delta
+was five new formatting errors, and the caller found them. A summarised gate
+result is a claim, and a claim you did not measure is a fabrication whether or
+not it happens to be true.
+
+So, for every command below:
+
+1. **Run it.** Not "it should pass" — run it.
+2. **Paste the real output**, not a description of it. Counts, exit status,
+   and the error list where there is one.
+3. **If you could not run it, say which one and why.** "Not run: no database"
+   is a fine answer. Silence is not, and neither is inferring the result from
+   the fact that another command passed.
+
+No formatter applies here: `server/app/ai-service/` has **no linter and no
+formatter configured** — `pyproject.toml`'s dev dependencies are `pytest`,
+`pytest-asyncio`, `pytest-cov`, and `onnx`. Do not report a lint result for
+this service, and do not add a formatter as a side effect of writing a test.
+
+```bash
+# from server/app/ai-service/
+uv run pytest
+```
+
+Paste the collected/passed counts. If a test was skipped, say which and why —
+a skipped test reads as a passing one in the summary line.
+
 ### If tests were written and pass — DONE
 
 ```
@@ -135,7 +165,7 @@ Therefore: <the finding is wrong, OR it is real but somewhere else — say which
 ## ocr-test-author: UNTESTABLE
 
 Target: <what>
-Blocked by: <native module with no test seam / requires a dev build / hits the network>
+Blocked by: <needs a real model file / needs a real image / hits the network>
 What would make it testable: <the smallest production change — for `ocr-dev` to make, not you>
 What I covered instead: <the nearest reachable behaviour, or "nothing">
 ```

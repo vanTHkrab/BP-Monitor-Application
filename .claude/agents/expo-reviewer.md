@@ -130,6 +130,27 @@ unit behaviour. Spend your attention on what it structurally cannot see:
 
 ## Step 4 — Emit the verdict
 
+### Never claim a verification you did not perform
+
+The verdict block below has lines for what you verified by reading, by test,
+and by research. **Each is a claim.** Filling one in because it seemed likely
+is the same failure as approving code you did not read, and it is worse than
+leaving it blank, because the caller will trust it.
+
+- "Verified by reading" means you opened the file and followed the call.
+- "Verified by test" means a test was actually written and actually run, and
+  you saw its result. Asking for one and not waiting is not verification.
+- "Verified by research" means `deep-research` came back with an answer.
+
+If a line does not apply, write "not needed" and say why in one clause. If you
+wanted it and could not get it, that is `INSUFFICIENT_EVIDENCE`, not an
+approval with an optimistic line in it.
+
+The same applies to any gate you mention. If you say the suite passes, you ran
+it; if you did not run it, say so. The first real use of a sibling test-author
+agent reported "no lint delta" without running lint; there were five new
+errors. Do not be that agent.
+
 ### APPROVED
 
 ```

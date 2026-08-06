@@ -31,10 +31,10 @@ The corollary: **when you write a test for a review finding, watch it fail
 first.** A test that passes on the unfixed code has not found the bug — it has
 found somewhere else.
 
-**Do not guess at API behaviour.** This app is on Expo SDK 57 / React Native
-0.86 / React 19.2, and a plausible-looking call from an older SDK fails at
-runtime rather than at the type level. Read the versioned docs, load the
-vendored skill, or ask `deep-research`. Do not recall it.
+**Do not guess at API behaviour.** Read the source of the thing you are
+asserting against, load the vendored skill for it, or ask `deep-research`. A
+recalled API signature that is one version out produces a test that passes for
+the wrong reason.
 
 ---
 
@@ -76,15 +76,24 @@ Traps that cost an hour each:
   know what that costs: a mocked Prisma proves the code *called* Prisma. It
   does not prove the query is right, the constraint holds, or the transaction
   is a transaction. When that is the thing under test, it belongs in e2e.
-- **The e2e suite guards itself** with `process.env.DATABASE_URL ? describe :
-  describe.skip`, so it silently tests nothing when the variable is unset.
-  Adding a spec there without noticing means adding a spec that never runs.
+- **The e2e guard is per-file, and one file does not have it.**
+  `auth.e2e-spec.ts` and `better-auth-migration.e2e-spec.ts` wrap themselves in
+  `process.env.DATABASE_URL ? describe : describe.skip`; `app.e2e-spec.ts` does
+  not, and boots the whole application graph unconditionally. **A spec you add
+  to `test/` inherits nothing and runs by default** — against whatever
+  `DATABASE_URL` points at, which here is a live Supabase instance with real
+  patient rows. Add the guard yourself, deliberately, and say in your verdict
+  whether the suite ran or skipped. A skip prints as a pass.
 - **`DATABASE_URL` points at a live Supabase instance.** Never point a suite
   at it, and never run a migration to make a test pass.
-- **ESM-only packages cannot be parsed by the CJS Jest setup.**
-  `better-auth` and `expo-server-sdk` are isolated behind provider files for
-  this reason. Importing one into a spec-reachable module makes the suite fail
-  to *parse* — a different failure from failing to pass.
+- **ESM-only packages cannot be parsed by the CJS Jest setup**, and the
+  isolation is not uniform. `expo-server-sdk`'s only runtime import is in
+  `push/expo-push.provider.ts`. `better-auth`'s is in `auth/better-auth.ts` —
+  **not** a provider file — and `auth/better-auth.provider.ts` value-imports
+  that, so the provider is spec-poisonous too. Importing either into a
+  spec-reachable module makes the suite fail to *parse*, which is a different
+  failure from failing to pass. `auth/android-origin.ts` exists as a separate
+  file precisely so one testable helper could escape that.
 
 Extend an existing spec rather than starting a parallel one.
 ---
@@ -92,9 +101,10 @@ Extend an existing spec rather than starting a parallel one.
 ## Step 3 — Make the assertion specific
 
 - **Assert the payload, not the call.** `toHaveBeenCalled()` proves almost
-  nothing. `toEqual` on the whole variables object proves the shape, and it
-  fails when someone adds a field that should not be there — which is exactly
-  the security-relevant case in this app.
+  nothing. `toEqual` on the whole argument object proves the shape, and it
+  fails when a field appears that should not be there — which is exactly the
+  security-relevant case when the argument is a Prisma `data` or an outbound
+  notification.
 - **Assert the negative when the negative is the point.** If five fields may
   be sent and two must never be, loop over the forbidden ones explicitly. A
   positive assertion passes just as happily when a sixth field appears.
@@ -110,7 +120,39 @@ Extend an existing spec rather than starting a parallel one.
 
 ## Step 4 — Verify, then emit the verdict
 
-Run `pnpm exec jest --watchman=false`, plus `pnpm exec tsc --noEmit`. Report the lint delta rather than the absolute count — the gateway carries known pre-existing errors.
+### Never report a gate you did not run
+
+This is not a formality. The first time one of these test-author agents was
+used for real, it reported "no lint delta" without having run lint — the delta
+was five new formatting errors, and the caller found them. A summarised gate
+result is a claim, and a claim you did not measure is a fabrication whether or
+not it happens to be true.
+
+So, for every command below:
+
+1. **Run it.** Not "it should pass" — run it.
+2. **Paste the real output**, not a description of it. Counts, exit status,
+   and the error list where there is one.
+3. **If you could not run it, say which one and why.** "Not run: no database"
+   is a fine answer. Silence is not, and neither is inferring the result from
+   the fact that another command passed.
+
+A formatter is part of this. New test files routinely land with formatting the
+linter rejects, and `prettier --write` on the files you added is cheaper for
+everyone than a caller discovering it after you have reported DONE.
+
+```bash
+# from server/app/api-gateway/
+pnpm exec prettier --write <the files you added>
+pnpm exec jest --watchman=false      # NOT `pnpm test` — it omits the flag
+pnpm exec tsc --noEmit
+pnpm lint                            # exits 1 on known pre-existing errors
+```
+
+`pnpm lint` exits non-zero on this service even on a clean `main`. That is why
+you report the **delta** — but a delta needs two measurements, so run it and
+compare against the caller's stated baseline. Do not infer it.
+
 ### If tests were written and pass — DONE
 
 ```
@@ -145,7 +187,7 @@ Therefore: <the finding is wrong, OR it is real but somewhere else — say which
 ## nest-test-author: UNTESTABLE
 
 Target: <what>
-Blocked by: <native module with no test seam / requires a dev build / hits the network>
+Blocked by: <no seam without a production change / needs a real database>
 What would make it testable: <the smallest production change — for `nest-dev` to make, not you>
 What I covered instead: <the nearest reachable behaviour, or "nothing">
 ```
@@ -163,5 +205,5 @@ What I covered instead: <the nearest reachable behaviour, or "nothing">
 | Judging whether the code is right | `nest-reviewer` |
 | Answering questions outside this repo | `deep-research` |
 | Anything outside `server/app/api-gateway/` | the owning app's test author |
-| E2E infrastructure (a disposable Postgres) | `devops` — see `docs/project/TESTING-plan.md` |
+| E2E infrastructure (a disposable Postgres) | `devops` |
 | Raising a coverage percentage as a goal in itself | nobody — it is not a goal |

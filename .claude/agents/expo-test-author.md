@@ -120,9 +120,37 @@ covering one module drift, and the second one is always the less complete.
 
 ## Step 4 — Verify, then emit the verdict
 
-Run `pnpm check` from `client/` — not `pnpm test` alone. Lint runs first on
-purpose: `react-hooks/set-state-in-effect` catches a defect no unit test
-asserts against.
+### Never report a gate you did not run
+
+This is not a formality. The first time one of these test-author agents was
+used for real, it reported "no lint delta" without having run lint — the delta
+was five new formatting errors, and the caller found them. A summarised gate
+result is a claim, and a claim you did not measure is a fabrication whether or
+not it happens to be true.
+
+So, for every command below:
+
+1. **Run it.** Not "it should pass" — run it.
+2. **Paste the real output**, not a description of it. Counts, exit status,
+   and the error list where there is one.
+3. **If you could not run it, say which one and why.** "Not run: no database"
+   is a fine answer. Silence is not, and neither is inferring the result from
+   the fact that another command passed.
+
+A formatter is part of this. New test files routinely land with formatting the
+linter rejects, and `prettier --write` on the files you added is cheaper for
+everyone than a caller discovering it after you have reported DONE.
+
+```bash
+# from client/
+pnpm exec prettier --write <the files you added>   # before the gate, not after
+pnpm check      # lint → typecheck → verify-graphql → test, fail-fast
+```
+
+`pnpm check`, not `pnpm test` alone. Lint runs first on purpose:
+`react-hooks/set-state-in-effect` catches a defect no unit test asserts
+against. Because it is fail-fast, a lint failure hides the test result — so
+report which steps actually ran, not just the last line you saw.
 
 ### If tests were written and pass — DONE
 
@@ -176,5 +204,5 @@ What I covered instead: <the nearest reachable behaviour, or "nothing">
 | Judging whether the code is right | `expo-reviewer` |
 | Answering questions outside this repo | `deep-research` |
 | Anything outside `client/` | the owning app's test author |
-| E2E on a real device | not yet in the fleet — see `docs/project/TESTING-plan.md` |
+| E2E on a real device | not yet in the fleet |
 | Raising a coverage percentage as a goal in itself | nobody — it is not a goal |

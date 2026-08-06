@@ -32,11 +32,11 @@ preference:
 2. **Ask `ocr-test-author` for a test that would fail if you are right.** A
    failing test is the strongest form of a review comment: it converts an
    opinion into a fact, and it stays in the repo afterwards.
-3. **Ask `deep-research` when the answer is outside this repo** — an Expo SDK
-   57 API, a React 19 behaviour, whether a library does what the code assumes.
-   Do not recall it from memory. This app is on Expo SDK 57 / React Native
-   0.86 / React 19.2, and a plausible-looking call from SDK 51 fails at
-   runtime rather than at the type level.
+3. **Ask `deep-research` when the answer is outside this repo** — a library's
+   actual behaviour, a framework version's semantics, whether the thing the
+   code assumes is true. Do not recall it from memory: a version-shifted
+   recollection reads as authoritative and is the hardest kind of review
+   comment to argue with.
 
 **If you cannot get evidence, downgrade the finding to a question.** "Why does
 this not need X?" is useful. "This is wrong" without a reason is not.
@@ -95,7 +95,9 @@ this cost the project, and who pays**. Rank findings by that:
 - Copy that will read as a bug in ten seconds — a success message that
   promises something the screen will not show.
 
-**Not a finding:** formatting (`pnpm lint` owns it), naming you would have
+**Not a finding:** formatting (this service has no linter or formatter
+configured at all — say so once if it matters, do not relitigate it per file),
+naming you would have
 chosen differently, or a pattern that differs from another file when the
 file being edited already uses this one.
 
@@ -103,8 +105,9 @@ file being edited already uses this one.
 
 ## Step 3 — Check the things that only fail at runtime
 
-The client's gate (`pnpm check`) catches lint, types, GraphQL validity, and
-unit behaviour. Spend your attention on what it structurally cannot see:
+The service's gate is `uv run pytest`, and that is all of it — there is no
+linter or formatter configured here. Spend your attention on what a passing
+pytest run structurally cannot see:
 
 - **Does the change alter what gets read, or only how fast?** An accuracy
   change needs evidence on real images, not a green unit test. Ask for the
@@ -122,6 +125,27 @@ unit behaviour. Spend your attention on what it structurally cannot see:
 ---
 
 ## Step 4 — Emit the verdict
+
+### Never claim a verification you did not perform
+
+The verdict block below has lines for what you verified by reading, by test,
+and by research. **Each is a claim.** Filling one in because it seemed likely
+is the same failure as approving code you did not read, and it is worse than
+leaving it blank, because the caller will trust it.
+
+- "Verified by reading" means you opened the file and followed the call.
+- "Verified by test" means a test was actually written and actually run, and
+  you saw its result. Asking for one and not waiting is not verification.
+- "Verified by research" means `deep-research` came back with an answer.
+
+If a line does not apply, write "not needed" and say why in one clause. If you
+wanted it and could not get it, that is `INSUFFICIENT_EVIDENCE`, not an
+approval with an optimistic line in it.
+
+The same applies to any gate you mention. If you say the suite passes, you ran
+it; if you did not run it, say so. The first real use of a sibling test-author
+agent reported "no lint delta" without running lint; there were five new
+errors. Do not be that agent.
 
 ### APPROVED
 
