@@ -1,0 +1,45 @@
+# The web image builds from the repository root so `next build` can read
+# `docs/`. Without this file that context would include every sibling app and
+# every node_modules tree in the repo — hundreds of megabytes shipped to the
+# daemon on each build, for two directories.
+#
+# Only `web/` and `docs/` are actually needed; everything else is excluded.
+# The other services build from their own directories and are unaffected.
+
+.git
+.github
+.idea
+.vscode
+
+# Sibling apps — not part of the web image.
+client
+client-old
+server
+infra
+.agents
+.claude
+.codex
+.devcontainer
+
+# Never ship an install from the host: the image runs its own.
+**/node_modules
+**/.next
+**/dist
+**/build
+**/__pycache__
+**/.venv
+**/.pytest_cache
+**/.turbo
+
+# Local environment and secrets.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Model weights are fetched from R2 at runtime, not baked in.
+**/*.onnx
+**/*.pt
+**/*.npz
+
+**/*.log
+**/.DS_Store

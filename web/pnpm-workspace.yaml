@@ -1,7 +1,17 @@
+# All three are transitive dependencies — none is declared in package.json —
+# and none needs its install script to run. `sharp` only matters for Next's
+# image optimizer, which this app does not use; `unrs-resolver` ships a
+# prebuilt binary; `msw` only writes a service-worker file for a mock server
+# nothing starts. Left unbuilt, matching ignoredBuiltDependencies below.
+#
+# These were committed as the literal string "set this to true or false" in
+# fd50eb18 — the approve-builds prompt was never answered, so the values were
+# not booleans at all. Inside Docker that made `pnpm install` fail outright
+# rather than merely warn.
 allowBuilds:
-  msw: true
-  sharp: true
-  unrs-resolver: true
+  msw: false
+  sharp: false
+  unrs-resolver: false
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
