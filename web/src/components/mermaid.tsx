@@ -26,9 +26,30 @@ function loadMermaid() {
     return mermaidPromise;
 }
 
-function readIsDark() {
-    if (typeof document === "undefined") return false;
+/**
+ * The colour scheme is external state — a class the theme toggle stamps on
+ * `<html>` — so it is subscribed to rather than copied into React state.
+ * Seeding a `useState` from inside an effect renders once with the wrong
+ * theme and throws that pass away, which is what
+ * `react-hooks/set-state-in-effect` objects to; here it also meant rendering
+ * the whole diagram in the wrong palette first.
+ */
+function subscribeToTheme(onChange: () => void) {
+    const observer = new MutationObserver(onChange);
+    observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+}
+
+function getIsDark() {
     return document.documentElement.classList.contains("dark");
+}
+
+/** No DOM on the server; light is the default the stylesheet assumes. */
+function getIsDarkOnServer() {
+    return false;
 }
 
 function ZoomControls() {
@@ -80,25 +101,32 @@ function ZoomControls() {
 }
 
 export function Mermaid({ chart, className, caption }: MermaidProps) {
-    const [svg, setSvg] = React.useState<string | null>(null);
-    const [error, setError] = React.useState<string | null>(null);
-    const [isDark, setIsDark] = React.useState<boolean>(false);
+    /**
+     * One piece of state, not two. The previous version cleared `error`
+     * synchronously at the top of the effect — the second thing
+     * `react-hooks/set-state-in-effect` flags — and the outcome of a render is
+     * genuinely one-or-the-other, so `svg` and `error` were never meaningfully
+     * independent. It is written once, from the async callback.
+     *
+     * Nothing resets it when `chart` or the theme changes: the previous
+     * diagram stays on screen while the next renders, which avoids both the
+     * synchronous setState and a flash of empty box on every theme toggle. The
+     * `cancelled` flag is what keeps a slow render from overwriting a newer
+     * one.
+     */
+    const [result, setResult] = React.useState<
+        { svg: string } | { error: string } | null
+    >(null);
+    const isDark = React.useSyncExternalStore(
+        subscribeToTheme,
+        getIsDark,
+        getIsDarkOnServer,
+    );
     const reactId = React.useId();
     const safeId = `mmd-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
     React.useEffect(() => {
-        setIsDark(readIsDark());
-        const observer = new MutationObserver(() => setIsDark(readIsDark()));
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ["class"],
-        });
-        return () => observer.disconnect();
-    }, []);
-
-    React.useEffect(() => {
         let cancelled = false;
-        setError(null);
 
         loadMermaid()
             .then(async (mermaid) => {
@@ -132,12 +160,12 @@ export function Mermaid({ chart, className, caption }: MermaidProps) {
                     `${safeId}-${isDark ? "d" : "l"}`,
                     chart,
                 );
-                if (!cancelled) setSvg(svg);
+                if (!cancelled) setResult({ svg });
             })
             .catch((err: unknown) => {
                 if (cancelled) return;
                 const message = err instanceof Error ? err.message : String(err);
-                setError(message);
+                setResult({ error: message });
             });
 
         return () => {
@@ -145,7 +173,7 @@ export function Mermaid({ chart, className, caption }: MermaidProps) {
         };
     }, [chart, isDark, safeId]);
 
-    if (error) {
+    if (result && "error" in result) {
         return (
             <div
                 className={cn(
@@ -155,7 +183,7 @@ export function Mermaid({ chart, className, caption }: MermaidProps) {
             >
                 <div className="font-medium">Diagram failed to render</div>
                 <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap">
-                    {error}
+                    {result.error}
                 </pre>
             </div>
         );
@@ -169,7 +197,7 @@ export function Mermaid({ chart, className, caption }: MermaidProps) {
             )}
         >
             <div className="relative h-[480px] w-full overflow-hidden rounded-md border bg-background md:h-[560px]">
-                {svg === null ? (
+                {result === null ? (
                     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                         Rendering diagram…
                     </div>
@@ -191,7 +219,9 @@ export function Mermaid({ chart, className, caption }: MermaidProps) {
                             <div
                                 className="mermaid-svg flex items-center justify-center p-4"
                                 aria-busy={false}
-                                dangerouslySetInnerHTML={{ __html: svg }}
+                                dangerouslySetInnerHTML={{
+                                    __html: result.svg,
+                                }}
                             />
                         </TransformComponent>
                     </TransformWrapper>

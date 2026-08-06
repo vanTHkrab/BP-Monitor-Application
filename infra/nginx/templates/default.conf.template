@@ -155,18 +155,45 @@ server {
         proxy_set_header X-Forwarded-Host $host;
     }
 
-    # Next.js dashboard — catch-all.
+    # Next.js service-status pages — gated.
     #
-    # Behind auth_basic because the dashboard is team-internal and its login
-    # form is credential-less by design (web/CLAUDE.md), while its server
-    # actions connect *directly* to Postgres, Redis and S3 (web/src/lib/
-    # db.ts, redis.ts, s3.ts). Un-gated on a public host, this route is a
-    # read-anything database inspector. The Basic Auth key is the only thing
-    # standing in front of it until the dashboard grows real auth.
-    location / {
+    # /admin/* lands here rather than in the catch-all below because nginx
+    # resolves plain prefix locations by longest match — position in this file
+    # does not matter, so do not "fix" the gate by reordering.
+    #
+    # What does matter: deleting this block does not fail loudly. It silently
+    # publishes the pages. There is no second gate behind it.
+    #
+    # Behind auth_basic because these pages' server actions connect *directly*
+    # to Postgres, Redis and S3 (web/src/lib/{db,redis,s3}.ts) and render
+    # session counts and user totals. The app itself has no authentication at
+    # all — no auth library is installed — so this credential is the only
+    # thing in front of a read-anything database inspector.
+    location /admin/ {
         auth_basic           "BP Monitor demo";
         auth_basic_user_file /etc/nginx/auth/.htpasswd;
 
+        proxy_pass http://web:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    # Next.js documentation site — catch-all, deliberately public.
+    #
+    # `/` used to be the dashboard and was gated wholesale. It now serves the
+    # project documentation, prerendered from `docs/**/*.md` at build time:
+    # architecture, decisions, guides, reference. There are no credentials,
+    # no patient data, and no datastore reads on these pages — they are static
+    # HTML — so gating them would only put a password in front of the thing
+    # the site exists to publish.
+    #
+    # The sensitive surface moved to /admin/*, gated above. If a future page
+    # under `/` starts reading a datastore, it belongs under /admin/ instead.
+    location / {
         proxy_pass http://web:3000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

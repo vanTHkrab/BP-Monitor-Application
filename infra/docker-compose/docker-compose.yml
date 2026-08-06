@@ -81,8 +81,11 @@ services:
 
   web:
     build:
-      context: ../../web
-      dockerfile: Dockerfile
+      # Repository root, not web/ — the docs site prerenders `docs/**/*.md`,
+      # and a context rooted at web/ cannot reach a sibling directory. The
+      # root `.dockerignore` keeps the widened context down to web/ + docs/.
+      context: ../..
+      dockerfile: web/Dockerfile
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       # Server Actions (web/src/lib/gateway.ts, web/src/lib/ai-service.ts)

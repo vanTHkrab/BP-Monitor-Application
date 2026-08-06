@@ -19,15 +19,15 @@ import {
 } from "@/components/ui/sidebar";
 
 // Stable mapping of pathnames → human breadcrumb labels. Keep this in sync
-// with the route group under src/app/(dashboard)/.
+// with the routes under src/app/admin/.
 const ROUTE_LABELS: Record<string, string> = {
-    "/overview": "Overview",
-    "/s3": "S3 Storage",
-    "/redis": "Redis",
-    "/database": "Database",
-    "/gateway": "API Gateway",
-    "/ai-service": "AI Service",
-    "/clients": "Clients",
+    "/admin/overview": "Overview",
+    "/admin/s3": "S3 Storage",
+    "/admin/redis": "Redis",
+    "/admin/database": "Database",
+    "/admin/gateway": "API Gateway",
+    "/admin/ai-service": "AI Service",
+    "/admin/clients": "Clients",
 };
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -45,7 +45,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                         <Breadcrumb>
                             <BreadcrumbList>
                                 <BreadcrumbItem className="hidden md:block">
-                                    <BreadcrumbLink href="/overview">BP Monitor</BreadcrumbLink>
+                                    <BreadcrumbLink href="/admin/overview">BP Monitor</BreadcrumbLink>
                                 </BreadcrumbItem>
                                 <BreadcrumbSeparator className="hidden md:block" />
                                 <BreadcrumbItem>

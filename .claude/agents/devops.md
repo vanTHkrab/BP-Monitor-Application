@@ -424,7 +424,9 @@ Static checks are necessary, not sufficient. Exercise the actual delivery path. 
 cd /home/vanthkrab/Workshops/edu-final-project/BP-Monitor-Application
 docker build -f server/app/api-gateway/Dockerfile -t bp-monitor/api-gateway:dev server/app/api-gateway
 docker build -f server/app/ai-service/Dockerfile -t bp-monitor/ai-service:dev server/app/ai-service
-docker build -f web/Dockerfile -t bp-monitor/web:dev web
+# Repo root as context, not web/ — the docs site prerenders docs/**/*.md,
+# which a context rooted at web/ cannot reach.
+docker build -f web/Dockerfile -t bp-monitor/web:dev .
 
 # Image size sanity (state in the verdict if it changed):
 docker images bp-monitor/api-gateway:dev --format '{{.Size}}'

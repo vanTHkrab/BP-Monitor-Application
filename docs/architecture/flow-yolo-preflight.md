@@ -1,0 +1,79 @@
+---
+title: On-device YOLO Pre-flight
+description: >-
+    Same model, same crop, two runtimes. A 10.7 MB ONNX detector runs on the
+    phone before every upload. It classifies the frame as ok / no-monitor /
+    missing-fields and (on ok) auto-crops around the monitor. The same model
+    file runs in the FastAPI AI service — SHA256 equality is enforced by a
+    prestart hook so the two sides cannot silently disagree.
+status: current
+updated: 2026-08-06
+owner: cross
+---
+
+## Decision tree
+
+Green = happy path; yellow = override path; red = blocking verdicts (visually
+only — the override edge always exists).
+
+```mermaid
+flowchart TD
+    A["Shutter tap"] --> B["preflightCheckImage(uri)"]
+    B --> C["letterbox + JPEG decode<br/>→ [1,3,512,512] float32 RGB"]
+    C --> D["onnxruntime InferenceSession<br/>yolo11n.onnx (10.7 MB)"]
+    D --> E["Decode [1, 4+C, anchors]<br/>per-class NMS<br/>(conf 0.25 / IoU 0.45)"]
+    E --> F{"Classify verdict"}
+
+    F -- "BP_Monitor or BP_Screen_Monitor<br/>+ sys + dia + pulse" --> OK["verdict = ok"]
+    F -- "no BP_Monitor / BP_Screen_Monitor" --> NM["verdict = no-monitor"]
+    F -- "missing sys / dia / pulse" --> MF["verdict = missing-fields"]
+
+    OK --> CROP["Auto-crop around monitor bbox + padding"]
+    CROP --> UPLOAD["Use cropped image for upload"]
+
+    NM --> WARN["Show Thai warning banner"]
+    MF --> WARN
+    WARN --> CHOICE{"User choice"}
+    CHOICE -- "ถ่ายใหม่" --> A
+    CHOICE -- "ส่งต่อไป (override)" --> UPLOAD_RAW["Use original image for upload"]
+
+    UPLOAD --> SAVE["Backend YOLO sees the same crop"]
+    UPLOAD_RAW --> SAVE
+
+    classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef warn fill:#fef3c7,stroke:#d97706,color:#92400e
+    classDef bad fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    class OK,CROP,UPLOAD,SAVE ok
+    class WARN,CHOICE,UPLOAD_RAW warn
+    class NM,MF bad
+```
+
+## Shared-model contract
+
+- **Byte-identical model file** — client/assets/models/yolo11n.onnx and
+  server/app/ai-service/models/yolo11n.onnx are the same bytes. pnpm
+  verify-models on every pnpm start asserts SHA256 equality against
+  server/app/ai-service/models/EXPECTED_HASHES.json.
+- **Class IDs are a wire contract** — 0 BP_Monitor / 1 BP_Screen_Monitor / 2
+  dia / 3 pulse / 4 sys — mirrored in
+  client/src/modules/capture/lib/detection.ts and
+  server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES. Change
+  one side, change the other.
+- **Thresholds in lock-step** — Confidence 0.25, IoU 0.45 — same on both sides.
+  If you tune the detector, tune both call sites; otherwise the phone and the
+  server make different calls.
+- **Retraining process** — Retrain in ai-service, regenerate
+  server/app/ai-service/models/EXPECTED_HASHES.json and upload the new bytes to
+  R2, then `cd client && pnpm sync-yolo-model`. Ship the manifest and the
+  refreshed bundled copies in one PR or the verify hook fails.
+
+## Why warn-not-block
+
+- **Field reality** — Glare, partial frames, low light — false negatives exist.
+  Blocking would create a support ticket per missed shot.
+- **Override is a single tap** — ส่งต่อไป hands the original (uncropped) image
+  to the backend. Backend YOLO + OCR may still succeed on a frame the on-device
+  pass rejected.
+- **Cost of override is cheap** — S3 PUT + one Redis publish. The user pays
+  slightly more data; the backend pays slightly more compute. Both are
+  acceptable to avoid stranding a patient.

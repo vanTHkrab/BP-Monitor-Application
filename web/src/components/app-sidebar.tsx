@@ -41,7 +41,7 @@ const sections: { label: string; items: NavItem[] }[] = [
         items: [
             {
                 title: "Overview",
-                url: "/overview",
+                url: "/admin/overview",
                 icon: <LayoutDashboardIcon />,
             },
         ],
@@ -49,16 +49,16 @@ const sections: { label: string; items: NavItem[] }[] = [
     {
         label: "Services",
         items: [
-            { title: "S3 Storage", url: "/s3", icon: <HardDriveIcon /> },
-            { title: "Redis", url: "/redis", icon: <CloudIcon /> },
-            { title: "Database", url: "/database", icon: <DatabaseIcon /> },
-            { title: "API Gateway", url: "/gateway", icon: <NetworkIcon /> },
-            { title: "AI Service", url: "/ai-service", icon: <BotIcon /> },
+            { title: "S3 Storage", url: "/admin/s3", icon: <HardDriveIcon /> },
+            { title: "Redis", url: "/admin/redis", icon: <CloudIcon /> },
+            { title: "Database", url: "/admin/database", icon: <DatabaseIcon /> },
+            { title: "API Gateway", url: "/admin/gateway", icon: <NetworkIcon /> },
+            { title: "AI Service", url: "/admin/ai-service", icon: <BotIcon /> },
         ],
     },
     {
         label: "Users",
-        items: [{ title: "Clients", url: "/clients", icon: <UsersIcon /> }],
+        items: [{ title: "Clients", url: "/admin/clients", icon: <UsersIcon /> }],
     },
 ];
 
@@ -78,7 +78,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             size="lg"
-                            render={<Link href="/overview" />}
+                            render={<Link href="/admin/overview" />}
                         >
                             <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                                 <HeartPulseIcon className="size-4" />
