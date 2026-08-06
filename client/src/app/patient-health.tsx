@@ -34,13 +34,15 @@
  * `ProfileField`, `DateField`), because the two screens writing the same
  * column must not name it differently.
  *
- * ## Two of the five start blank, and that is not a bug
+ * ## Only changed fields are sent
  *
- * `myPatients` carries `dob`, `weight` and `height` and not `gender` or
- * `congenitalDisease` — there is no query returning those two to a caregiver.
- * They start empty with a note saying so, and an untouched empty field is not
- * sent, so saving cannot erase a value the caregiver was never shown. See
- * `modules/caregivers/lib/health-form.ts` for the absent-vs-null mechanics.
+ * `myPatients` carries all five, so the form seeds every field it may write
+ * and nothing starts blank for want of a query. The submit is still a patch
+ * rather than a full write: two caregivers can look after the same patient,
+ * and sending the whole form would make every save an overwrite, so the
+ * second to submit would silently revert a field the first had just changed
+ * without either of them editing it. See `modules/caregivers/lib/health-form.ts`
+ * for the absent-vs-null mechanics.
  *
  * ## The permission check here is not the authority
  *

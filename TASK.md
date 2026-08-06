@@ -1,6 +1,6 @@
 # BP Monitor — Task Board
 
-_Last updated: 2026-08-06 · Updated by bp-task_
+_Last updated: 2026-08-07 · Updated by bp-task_
 
 ## Imports
 
@@ -20,8 +20,8 @@ _Last updated: 2026-08-06 · Updated by bp-task_
 - [x] **C-004** `high` Integrate on-device YOLO pre-flight result into camera UI warning banner — closed 2026-08-06 as superseded, not implemented: the live framing gate replaced the warning-banner design and already shipped (`docs/project/CLIENT-remaining.md` §10)
 - [ ] **C-005** `medium` Restore the caregiver "ดูข้อมูล" jump from invitations into a patient's readings — ship with the home/history tab port; `client/src/app/invitations.tsx` should set the viewing context in `client/src/modules/caregivers/`, not the auth store (see `docs/project/CLIENT-auth-structure.md`, "activePatientId")
 - [ ] **C-006** `medium` Stop `formatErrorMessage` leaking English into user-facing errors — `client/src/services/api.ts:107` prepends `"<OperationName> failed: "`, and `stripCode` in `client/src/lib/error-message.ts:23` is anchored (`/^\s*\[[A-Z_]+\]\s*/`) so it never strips the code; affects all six call sites (post, invitations ×3, post/[id] ×2, readings, community) — preferred fix is dropping the operation-name prefix, since it is developer data
-- [ ] **C-007** `medium` Add a severity filter to reading history (FR-03.2) — the requirement asks for period **or** severity; only period exists. `client/src/app/(tabs)/history.tsx:81` holds a single `timeFilter` and `filterByRange` is the only filter applied, and `history-list.tsx` carries no filter state at all, so a user wanting only high/critical readings must scroll and read the colour tints. `classifyReading` and the stored `status` column already exist, so the work is a filter predicate plus a pill row. Sub-point of the same task: the shipped buckets are `7days | 30days | 3months | 1year` (`client/src/modules/readings/lib/time-filter.ts:22-30`) against a requirement of daily / weekly / monthly — the substitutes are reasonable, but there is no daily bucket
-- [ ] **C-008** `low` Delete the stale comment at `client/src/app/patient-health.tsx:39-41` — it claims `myPatients` returns neither `gender` nor `congenitalDisease` and that those two fields therefore start blank with a note explaining why. Commit `e15b1118` added both to `PatientSummaryType` and deleted that note; all five fields now pre-populate. The comment describes the tree at `710000fd` and is now simply false (root rule 6)
+- [x] **C-007** `medium` Add a severity filter to reading history (FR-03.2) — done 2026-08-07, branch `client/history-severity-filter`, commit `84f427ca`, open as **PR #96**. Four pills that **partition** `BPStatus` rather than overlap: ทุกระดับ · ปกติ (`normal`) · เฝ้าระวัง (`low`, `elevated`) · สูง/สูงมาก (`high`, `critical`). `low` sits with เฝ้าระวัง because a taxonomy organised around the word "high" silently orphans hypotension; the partition is asserted against the exported `BP_STATUSES`, so a sixth status fails a test rather than landing in no group. **The severity filter scopes the list, not the chart** — the chart is fed from the time-filtered array only, because a trend line through only the critical points hides every normal reading between them and a mostly-fine patient would read as being in continuous crisis. That asymmetry is deliberate; do not "fix" it into consistency. `history-list.tsx` got severity but not period, and the group carries over as a **parsed** route param falling back to "everything", so a hand-edited deep link cannot render an empty list — that screen had no test file at all before. **The daily time bucket was considered and rejected, not overlooked:** a fifth time pill while a second filter row competes for the same vertical budget is the wrong trade against a 44dp tap target for an elderly-first audience; the reasoning is written up in `docs/project/CLIENT-history.md`. 56 suites / 713 tests (from 54 / 659); GraphQL operations held at 50, which was a requirement — the filter is local, so any movement would have meant the screen started asking the server to filter
+- [x] **C-008** `low` Delete the stale comment at `client/src/app/patient-health.tsx:39-41` — done 2026-08-07, same branch as C-007. It claimed `myPatients` returns neither `gender` nor `congenitalDisease` and that those two fields therefore start blank with a note explaining why; commit `e15b1118` had added both to `PatientSummaryType` and deleted that note. The comment is now rewritten rather than merely removed: it says all five fields seed, and explains that the submit is still a **patch** for a different reason — two caregivers can look after the same patient, so a full-form write would let the second to submit silently revert a field the first had just changed
 
 ### web
 
@@ -52,6 +52,7 @@ _Last updated: 2026-08-06 · Updated by bp-task_
 
 - [ ] **I-001** `medium` Add a `staging` compose profile that mirrors prod minus S3
 - [ ] **I-002** `low` Add healthcheck stanzas to all services in docker-compose.yml
+- [ ] **I-003** `high` Land the build config push notifications need before a caregiver can receive anything — A-009's gateway code shipped complete and tested in PR #95, but delivery is config-blocked, not code-blocked: there is no `eas.json`, no `google-services.json`, no `android.googleServicesFile` in `app.json`, and no FCM V1 credentials uploaded to EAS. The EAS `projectId` and the `expo-notifications` plugin **are** configured, so this is the remaining gap, not the whole setup. Filed separately rather than reopening A-009 so that a reader seeing A-009 closed does not conclude notifications are live — closed code plus missing config is a built feature, not a working one. `high` for exactly that reason
 
 ---
 
@@ -71,6 +72,13 @@ entry is not an implementation and neither is a doc claim.
 Should-have (gallery import) is DONE. The three PARTIALs are tracked as
 **A-009** (`high`), **C-007** (`medium`), and **A-010** (`medium`, a decision
 rather than a ticket).
+
+> **Moved since this snapshot (2026-08-07):** C-007 shipped (PR #96), so
+> FR-03.2's PARTIAL no longer holds as of that date. The score above is left
+> as it was measured at `baa013da` — a snapshot that gets silently updated
+> stops being evidence of anything. A-010 remains an open product-owner
+> decision, and A-009's code is closed but undeliverable until **I-003**'s
+> build config lands.
 
 ### Findings, not work items
 
