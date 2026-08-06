@@ -7,8 +7,13 @@ import type { GraphQLFormattedError } from 'graphql';
 import { join } from 'path';
 
 // Map a NestJS HttpException status to the Apollo-style string codes the
-// mobile client (client/lib/error-message.ts) keys off of. Mercurius doesn't
-// stamp these on its own.
+// mobile client keys off of. Mercurius doesn't stamp these on its own.
+//
+// The consumer is `client/src/modules/auth/lib/errors.ts`, which dispatches on
+// UNAUTHENTICATED, TOO_MANY_REQUESTS, FORBIDDEN, CONFLICT, and BAD_USER_INPUT.
+// (This comment used to name `client/lib/error-message.ts` — both the wrong
+// path and the wrong file. That one handles only the transport-level
+// NETWORK_TIMEOUT / NETWORK_FAILED and never sees a gateway code.)
 const httpStatusToGqlCode = (status: number): string => {
   switch (status) {
     case 400:
