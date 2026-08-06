@@ -125,10 +125,12 @@ The split is deliberate:
   prerendered from `docs/**/*.md` at build time. It is static HTML with no
   credentials, no patient data, and no datastore reads, so a password there
   would only guard the thing the site exists to publish.
-- **The prefix is what makes this expressible.** nginx matches the longest
-  prefix, so `/admin/` must stay above `location /` in
-  `infra/nginx/templates/default.conf.template`. Removing that block does not
-  fail loudly — it silently publishes the status pages. If a future page under
+- **The prefix is what makes this expressible.** nginx resolves plain prefix
+  locations by longest match, so `location /admin/` in
+  `infra/nginx/templates/default.conf.template` wins over `location /`
+  wherever it sits in the file — order is not the mechanism. What matters is
+  that removing that block does not fail loudly: it silently publishes the
+  status pages, and there is no second gate behind it. If a future page under
   `/` starts reading a datastore, move it under `/admin/` rather than adding a
   second gate.
 - **GraphiQL must be gated** and is additionally off by default in production.
@@ -140,6 +142,11 @@ The split is deliberate:
   `Authorization` is already taken. Adding Basic Auth would break every
   installed app. It keeps its own auth, its own throttle, and a per-IP
   `limit_req` in nginx (10 r/s, burst 40, real `429`) as a flood guard.
+
+> ⚠️ The gate matches `/admin/` with a trailing slash. Bare `/admin` falls
+> through to the docs catch-all and 404s today, because no page is defined
+> there — harmless now, but adding `web/src/app/admin/page.tsx` would serve it
+> ungated. If that page is ever wanted, widen the nginx match at the same time.
 
 So: browser visitors get the Basic Auth key, phone testers get a demo account.
 

@@ -157,10 +157,12 @@ server {
 
     # Next.js service-status pages — gated.
     #
-    # This block must stay ABOVE `location /`: nginx picks the longest
-    # matching prefix, so /admin/* lands here and everything else falls
-    # through to the public docs below. Deleting it does not fail loudly —
-    # it silently publishes the pages.
+    # /admin/* lands here rather than in the catch-all below because nginx
+    # resolves plain prefix locations by longest match — position in this file
+    # does not matter, so do not "fix" the gate by reordering.
+    #
+    # What does matter: deleting this block does not fail loudly. It silently
+    # publishes the pages. There is no second gate behind it.
     #
     # Behind auth_basic because these pages' server actions connect *directly*
     # to Postgres, Redis and S3 (web/src/lib/{db,redis,s3}.ts) and render
