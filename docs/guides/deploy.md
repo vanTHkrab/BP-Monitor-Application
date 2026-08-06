@@ -57,7 +57,7 @@ At minimum:
 DOMAIN_NAME=bp-monitor.example.com
 CERTBOT_EMAIL=you@example.com
 CERTBOT_STAGING=0        # 1 dry-runs against the staging CA: untrusted cert, no rate-limit risk
-GRAPHIQL_ENABLED=0       # 1 serves GraphiQL at /graphiql (still behind Basic Auth)
+GRAPHIQL_ENABLED=0       # 1/true/yes/on serves GraphiQL at /graphiql (still behind Basic Auth); anything else is off
 ```
 
 `DATABASE_URL`'s host must be `postgres` and Redis's must be `redis` — the
@@ -110,7 +110,7 @@ Docker daemon to reload a config file.
 | Route | Goes to | Gate |
 | --- | --- | --- |
 | `https://$DOMAIN_NAME/graphql` | api-gateway | **None** — JWT auth + nginx rate limit only |
-| `https://$DOMAIN_NAME/graphiql` | api-gateway | Basic Auth **and** `GRAPHIQL_ENABLED=1` |
+| `https://$DOMAIN_NAME/graphiql` | api-gateway | Basic Auth **and** `GRAPHIQL_ENABLED` set to `1`/`true`/`yes`/`on` |
 | `https://$DOMAIN_NAME/admin/*` | web — service status | Basic Auth |
 | `https://$DOMAIN_NAME/` | web — documentation | **None** — deliberately public |
 

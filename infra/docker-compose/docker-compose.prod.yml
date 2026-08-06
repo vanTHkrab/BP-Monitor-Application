@@ -14,8 +14,9 @@ services:
       # Mercurius GraphiQL UI. Defaults to OFF in production (see
       # src/app.module.ts) — a schema explorer with mutation access to a
       # live database is not something a public host should serve. Set to
-      # `1` in .env only for a demo; even then nginx keeps it behind the
-      # Basic Auth gate.
+      # `1` in .env only for a demo (`true`/`yes`/`on` also work; anything
+      # else, including an unrecognised value, leaves it off); even then
+      # nginx keeps it behind the Basic Auth gate.
       GRAPHIQL_ENABLED: ${GRAPHIQL_ENABLED:-0}
     # No `ports:` — nginx is the sole public ingress in prod (see the
     # `nginx` service below). Still reachable from other bp-net containers

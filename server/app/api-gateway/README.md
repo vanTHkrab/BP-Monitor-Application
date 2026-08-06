@@ -48,7 +48,7 @@ curl -s http://localhost:3000/graphql \
 | `S3_*` | if uploading | — | `S3_PROVIDER`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `S3_ENDPOINT`, `S3_DEFAULT_REGION` |
 | `REDIS_URL` *or* `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | no | `localhost` / `6379` | One resolution for all three clients (`src/redis/redis-connection.ts`). `REDIS_URL` wins and is the only form carrying credentials or TLS. AI features and rate limiting both degrade quietly when Redis is unreachable — quietly enough that a wrong host looks like a working system |
 | `PORT` | no | `3000` | |
-| `GRAPHIQL_ENABLED` | no | — | `1` forces GraphiQL on. Unset means on everywhere except `NODE_ENV=production` |
+| `GRAPHIQL_ENABLED` | no | — | `1`, `true`, `yes`, or `on` (case-insensitive, trimmed) forces GraphiQL on. **Any other non-empty value is off**, including unrecognised ones — the accepted set is closed on purpose. Unset or empty means on everywhere except `NODE_ENV=production` |
 | `BETTER_AUTH_URL` | in prod | `http://localhost:$PORT` | Origin only — `/api/auth` is appended |
 | `BETTER_AUTH_SECRET` | no | falls back to `JWT_SECRET` | Set explicitly in prod so rotating one doesn't rotate both |
 | `PASSKEY_RP_ID` | no | — | A bare registered domain. Passkeys are absent, not broken, when unset |
@@ -156,8 +156,15 @@ The identity model and why Better Auth:
 
 Two independent gates, and they fail differently:
 
-1. `GRAPHIQL_ENABLED=1` forces it on; unset means on everywhere except
-   `NODE_ENV=production`.
+1. `GRAPHIQL_ENABLED` forces it on when set to `1`, `true`, `yes`, or `on`
+   (case-insensitive, surrounding whitespace trimmed). Any other non-empty
+   value — `0`, `false`, `no`, `off`, or anything unrecognised — forces it
+   **off**. Unset or empty means on everywhere except `NODE_ENV=production`.
+
+   The accepted set is closed rather than a truthiness check, and that is the
+   security-relevant part: under a `Boolean(value)` reading,
+   `GRAPHIQL_ENABLED=false` would *serve* the explorer. `app.module.spec.ts`
+   pins the unrecognised-value cases so that regression cannot land quietly.
 2. In the prod stack, nginx additionally puts `/graphiql` behind HTTP Basic
    Auth.
 

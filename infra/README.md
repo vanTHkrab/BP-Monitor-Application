@@ -77,7 +77,7 @@ Services (all reached through nginx on 80/443 — see the port table below):
 | Public URL                                | Routed to                                                                | Access                                   |
 |-------------------------------------------|--------------------------------------------------------------------------|------------------------------------------|
 | `https://$DOMAIN_NAME/graphql`            | `api-gateway:3000/graphql` (GraphQL, incl. subscriptions over WebSocket) | Open — JWT auth + rate limit (see below) |
-| `https://$DOMAIN_NAME/graphiql`           | `api-gateway:3000/graphiql` (Mercurius GraphiQL UI)                      | Basic Auth **and** `GRAPHIQL_ENABLED=1`  |
+| `https://$DOMAIN_NAME/graphiql`           | `api-gateway:3000/graphiql` (Mercurius GraphiQL UI)                      | Basic Auth **and** `GRAPHIQL_ENABLED` on |
 | `https://$DOMAIN_NAME/` (everything else) | `web:3000` (Next.js dashboard)                                           | Basic Auth                               |
 
 `/graphql` is deliberately the one un-gated route — the mobile client has no
@@ -145,8 +145,9 @@ deliberate:
   connect directly to Postgres, Redis and S3. Un-gated on a public host it is a
   read-anything database inspector.
 - **`/graphiql` must be gated**, and is additionally off unless
-  `GRAPHIQL_ENABLED=1`: a schema explorer with mutation access to the live
-  database is not something to serve by default.
+  `GRAPHIQL_ENABLED` is `1`, `true`, `yes`, or `on`: a schema explorer with
+  mutation access to the live database is not something to serve by default.
+  Any other value — including an unrecognised one — leaves it off.
 - **`/graphql` cannot be gated.** The mobile client sends exactly
   `Content-Type` + `Authorization: Bearer <jwt>` (`client/src/services/api.ts`)
   with no hook for a second credential, and `Authorization` is already taken by
@@ -249,7 +250,7 @@ New in this change (prod only, consumed by `docker-compose.prod.yml` and
 | `DOMAIN_NAME` | `bp-monitor.example.com` | Domain nginx terminates TLS for and certbot issues the certificate against. Must have a DNS A/AAAA record pointing at the host before first issuance. |
 | `CERTBOT_EMAIL` | `admin@example.com` | Email Let's Encrypt sends expiry/problem notices to. |
 | `CERTBOT_STAGING` | `0` | Set to `1` to issue from Let's Encrypt's staging CA while testing the bootstrap flow (untrusted cert, no rate-limit risk). Leave `0` for real deploys. |
-| `GRAPHIQL_ENABLED` | `0` | Serves the Mercurius GraphiQL UI at `/graphiql` when `1`. Defaults to off in production only — outside production `graphiql` is on regardless, so dev is unaffected. Even at `1` the route stays behind Basic Auth. See "Public demo access". |
+| `GRAPHIQL_ENABLED` | `0` | Serves the Mercurius GraphiQL UI at `/graphiql` when set to `1`, `true`, `yes`, or `on` (case-insensitive, trimmed). Every other non-empty value is off, including unrecognised ones — a typo cannot accidentally open it. Empty or unset defaults to off in production only; outside production `graphiql` is on regardless, so dev is unaffected. Even when on, the route stays behind Basic Auth. See "Public demo access". |
 
 The Basic Auth credential file (`infra/nginx/auth/.htpasswd`) is **not** an env
 var — it's a gitignored file mounted into the nginx container. See "Public
@@ -305,9 +306,12 @@ Never commit a real `.env` — only `.env.example` is tracked.
   `api.$DOMAIN_NAME` if the gateway and dashboard ever need independent
   scaling, rate limiting, or WAF policy.
 - **GraphiQL now has two independent gates.** `app.module.ts` resolves
-  `graphiql` from `GRAPHIQL_ENABLED` (`1` = on), defaulting to on everywhere
-  except `NODE_ENV=production` — so a prod deploy does not serve a
-  mutation-capable schema explorer unless someone opts in. nginx puts
+  `graphiql` from `GRAPHIQL_ENABLED` (`1`/`true`/`yes`/`on` = on, any other
+  non-empty value = off, empty or unset defers to `NODE_ENV`), defaulting to
+  on everywhere except `NODE_ENV=production` — so a prod deploy does not serve
+  a mutation-capable schema explorer unless someone opts in. The accepted set
+  is closed rather than a truthiness test, so `GRAPHIQL_ENABLED=false` is off
+  rather than on. nginx puts
   `/graphiql` behind Basic Auth on top of that. Neither gate is redundant;
   they fail differently. (This note previously said `graphiql: true` was set
   unconditionally and that gating it was future `nest-dev` work — that work

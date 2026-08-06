@@ -114,8 +114,17 @@ field is non-whitelisted and gets rejected.
 everywhere *except* `NODE_ENV=production`, and the prod nginx config puts
 `/graphiql` behind Basic Auth.
 
-**Fix.** Set `GRAPHIQL_ENABLED=1` **and** authenticate. Both are deliberate;
-they fail differently.
+**Fix.** Set `GRAPHIQL_ENABLED` to `1`, `true`, `yes`, or `on` **and**
+authenticate. Both are deliberate; they fail differently.
+
+**If it is still missing with the variable set**, check the value itself.
+Only that four-value set turns GraphiQL on (case-insensitive, surrounding
+whitespace trimmed); every other non-empty value — `enabled`, `2`, `yep`, a
+stray quote — resolves to **off** rather than being read as truthy. That is
+the deliberate fail-safe direction: it is what stops `GRAPHIQL_ENABLED=false`
+from serving a mutation-capable schema explorer against live patient data.
+An empty value (`GRAPHIQL_ENABLED=`) is treated as unset and defers to
+`NODE_ENV`.
 
 ### Passkey registration fails on-device with a server-looking error
 

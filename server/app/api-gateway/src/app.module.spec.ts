@@ -34,15 +34,25 @@ type ErrorFormatter = (execution: {
   errors?: readonly GraphQLError[];
 }) => FormatterResult;
 
+type GraphQLOptions = {
+  errorFormatter: ErrorFormatter;
+  graphiql: unknown;
+};
+
 /**
- * The formatter is not exported: it is a closure inside the options object
- * passed to `GraphQLModule.forRoot()` in `app.module.ts`. Reach it through the
- * DynamicModule's provider list rather than re-declaring it here — a copy of
- * the mapping in the spec would pass forever regardless of what production
- * does, which is the failure mode these tests exist to prevent.
+ * Neither the formatter nor the `graphiql` flag is exported: both live in the
+ * options object passed to `GraphQLModule.forRoot()` in `app.module.ts`. Reach
+ * them through the DynamicModule's provider list rather than re-declaring them
+ * here — a copy of the mapping in the spec would pass forever regardless of
+ * what production does, which is the failure mode these tests exist to
+ * prevent.
+ *
+ * Takes the module class as an argument rather than closing over the
+ * top-level import, because the `graphiql` suite re-imports `app.module` under
+ * a different environment and must resolve options off the *fresh* class.
  */
-const resolveErrorFormatter = (): ErrorFormatter => {
-  const imports = Reflect.getMetadata('imports', AppModule) as unknown[];
+const resolveGraphQLOptions = (moduleClass: object): GraphQLOptions => {
+  const imports = Reflect.getMetadata('imports', moduleClass) as unknown[];
   const graphqlModule = imports.find(
     (entry): entry is { providers: { useValue?: unknown }[] } =>
       typeof entry === 'object' &&
@@ -54,7 +64,7 @@ const resolveErrorFormatter = (): ErrorFormatter => {
     throw new Error('GraphQLModule not found in AppModule imports');
   }
   const optionsProvider = graphqlModule.providers.find(
-    (provider): provider is { useValue: { errorFormatter: ErrorFormatter } } =>
+    (provider): provider is { useValue: GraphQLOptions } =>
       typeof provider?.useValue === 'object' &&
       provider.useValue !== null &&
       typeof (provider.useValue as { errorFormatter?: unknown })
@@ -63,8 +73,11 @@ const resolveErrorFormatter = (): ErrorFormatter => {
   if (!optionsProvider) {
     throw new Error('GraphQL options provider with errorFormatter not found');
   }
-  return optionsProvider.useValue.errorFormatter;
+  return optionsProvider.useValue;
 };
+
+const resolveErrorFormatter = (): ErrorFormatter =>
+  resolveGraphQLOptions(AppModule).errorFormatter;
 
 const wrap = (original: Error) =>
   new GraphQLError(original.message, { originalError: original });
@@ -306,5 +319,176 @@ describe('app.module errorFormatter', () => {
     it('normalises undefined data to null', () => {
       expect(formatter({ errors: [] }).response.data).toBeNull();
     });
+  });
+});
+
+describe('app.module graphiql gate', () => {
+  // GraphiQL is a mutation-capable schema explorer pointed at whatever
+  // database the process holds. Serving it from a production deploy exposes
+  // every mutation in the schema against live patient data, so the default
+  // must be off there. Nothing else in the suite asserts this: a mutant that
+  // inverts the gate compiles, boots, and passes every other test.
+  //
+  // The ternary evaluates once, at module load, inside the object literal
+  // passed to `GraphQLModule.forRoot()`. Mutating `process.env` afterwards
+  // and re-reading the resolved value proves nothing — each case must reset
+  // the module registry, set the environment, and re-import `app.module`.
+  const originalGraphiqlEnabled = process.env.GRAPHIQL_ENABLED;
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  const setEnv = (key: string, value: string | undefined) => {
+    if (value === undefined) {
+      // `delete`, not `= undefined`: assigning undefined stringifies to
+      // "undefined", which is truthy and would take the explicit-opt-in arm
+      // of the ternary in every case that runs after it.
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  };
+
+  /**
+   * Re-imports `app.module` under the given environment and returns the
+   * resolved `graphiql` option. `jest.requireActual` is used rather than a
+   * bare `require` for its type, and it un-mocks only `./app.module` itself —
+   * the `auth.module` / `push.module` mocks registered at the top of this file
+   * survive `resetModules()` and still shield the ESM-only graph.
+   */
+  const resolveGraphiql = (env: {
+    GRAPHIQL_ENABLED?: string;
+    NODE_ENV?: string;
+  }): unknown => {
+    setEnv('GRAPHIQL_ENABLED', env.GRAPHIQL_ENABLED);
+    setEnv('NODE_ENV', env.NODE_ENV);
+    jest.resetModules();
+    const fresh =
+      jest.requireActual<typeof import('./app.module')>('./app.module');
+    return resolveGraphQLOptions(fresh.AppModule).graphiql;
+  };
+
+  afterEach(() => {
+    setEnv('GRAPHIQL_ENABLED', originalGraphiqlEnabled);
+    setEnv('NODE_ENV', originalNodeEnv);
+    jest.resetModules();
+  });
+
+  it('keeps the auth/push mocks alive across resetModules', () => {
+    // The rest of this suite is only meaningful if re-importing app.module
+    // does not drag `better-auth` / `expo-server-sdk` into the CJS transform.
+    // If this ever fails, the other cases here fail as parse errors and the
+    // cause is not obvious from the output.
+    expect(() => resolveGraphiql({ NODE_ENV: 'production' })).not.toThrow();
+  });
+
+  describe('explicit GRAPHIQL_ENABLED overrides the NODE_ENV default', () => {
+    // The accepted set is closed: 1 / true / yes / on, case-insensitive and
+    // whitespace-trimmed. Widening it is a security decision, so each accepted
+    // spelling is pinned individually rather than generated from the
+    // production-side constant — deriving the cases from the code under test
+    // would make any widening self-approving.
+    it.each(['1', 'true', 'TRUE', 'True', 'yes', 'YES', 'on', '  true  '])(
+      'serves GraphiQL in production when GRAPHIQL_ENABLED=%j',
+      (value) => {
+        expect(
+          resolveGraphiql({ GRAPHIQL_ENABLED: value, NODE_ENV: 'production' }),
+        ).toBe(true);
+      },
+    );
+
+    it.each(['0', 'false', 'FALSE', 'no', 'off', ' off '])(
+      'withholds GraphiQL in development when GRAPHIQL_ENABLED=%j',
+      (value) => {
+        expect(
+          resolveGraphiql({ GRAPHIQL_ENABLED: value, NODE_ENV: 'development' }),
+        ).toBe(false);
+      },
+    );
+  });
+
+  describe('the NODE_ENV default when GRAPHIQL_ENABLED is unset', () => {
+    it('withholds GraphiQL in production', () => {
+      // The load-bearing assertion. Inverting the gate — `=== 'production'`
+      // instead of `!== 'production'` — makes only this case and the
+      // development case below fail.
+      expect(resolveGraphiql({ NODE_ENV: 'production' })).toBe(false);
+    });
+
+    it('serves GraphiQL in development', () => {
+      expect(resolveGraphiql({ NODE_ENV: 'development' })).toBe(true);
+    });
+
+    it('serves GraphiQL when NODE_ENV is unset too', () => {
+      // A bare `pnpm start` sets no NODE_ENV; the default must be the
+      // developer-friendly one rather than an accidental production posture.
+      expect(resolveGraphiql({})).toBe(true);
+    });
+
+    it('serves GraphiQL under the test environment', () => {
+      expect(resolveGraphiql({ NODE_ENV: 'test' })).toBe(true);
+    });
+  });
+
+  describe('an unrecognised value resolves to off, never to truthiness', () => {
+    // THE regression guard for this gate. A non-empty value is truthy, so any
+    // implementation that reaches for `Boolean(raw)` or "non-empty means the
+    // operator opted in" passes every other case in this file and then serves
+    // a mutation-capable schema explorer against live patient data for
+    // GRAPHIQL_ENABLED=false. Unrecognised must mean off, in BOTH directions:
+    // asserting only the production side would let a truthiness "fix" survive
+    // by looking correct wherever the NODE_ENV default already says off.
+    it.each(['maybe', 'enabled', '2', 'ON!', 'yes please', '-1', 'null'])(
+      'withholds GraphiQL in production when GRAPHIQL_ENABLED=%j',
+      (value) => {
+        expect(
+          resolveGraphiql({ GRAPHIQL_ENABLED: value, NODE_ENV: 'production' }),
+        ).toBe(false);
+      },
+    );
+
+    it.each(['maybe', 'enabled', '2', 'ON!', 'yes please', '-1', 'null'])(
+      'withholds GraphiQL in development too when GRAPHIQL_ENABLED=%j',
+      (value) => {
+        // In development the NODE_ENV default is on, so this case can only
+        // pass if the unrecognised value is actually being rejected rather
+        // than falling through.
+        expect(
+          resolveGraphiql({ GRAPHIQL_ENABLED: value, NODE_ENV: 'development' }),
+        ).toBe(false);
+      },
+    );
+  });
+
+  describe('an empty GRAPHIQL_ENABLED falls through to the NODE_ENV default', () => {
+    // `GRAPHIQL_ENABLED=` in a .env file yields '', which carries no opinion,
+    // so it is deliberately indistinguishable from unset — the committed
+    // `.env.example` ships exactly that line. Whitespace-only is trimmed to
+    // the same thing rather than being treated as an unrecognised value,
+    // because ` ` in a .env file is a typo, not an instruction.
+    it.each(['', ' ', '\t'])(
+      'withholds GraphiQL in production when GRAPHIQL_ENABLED=%j',
+      (value) => {
+        expect(
+          resolveGraphiql({ GRAPHIQL_ENABLED: value, NODE_ENV: 'production' }),
+        ).toBe(false);
+      },
+    );
+
+    it.each(['', ' ', '\t'])(
+      'serves GraphiQL in development when GRAPHIQL_ENABLED=%j',
+      (value) => {
+        expect(
+          resolveGraphiql({ GRAPHIQL_ENABLED: value, NODE_ENV: 'development' }),
+        ).toBe(true);
+      },
+    );
+  });
+
+  it('resolves to a boolean, never a bare string', () => {
+    // Mercurius treats any truthy value as "serve it". If the gate ever
+    // returned `process.env.GRAPHIQL_ENABLED` directly, '0' would be a truthy
+    // string and read as ON.
+    expect(
+      typeof resolveGraphiql({ GRAPHIQL_ENABLED: '0', NODE_ENV: 'production' }),
+    ).toBe('boolean');
   });
 });

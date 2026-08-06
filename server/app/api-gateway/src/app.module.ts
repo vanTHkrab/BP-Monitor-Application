@@ -36,6 +36,35 @@ const httpStatusToGqlCode = (status: number): string => {
   }
 };
 
+// The spellings of GRAPHIQL_ENABLED that mean "serve GraphiQL". This is a
+// closed allowlist, NOT a generic truthiness or boolean parse, and the
+// difference is load-bearing: GraphiQL is a mutation-capable schema explorer
+// pointed at live patient data, so an unrecognised value must resolve to OFF.
+// A truthiness check would read `GRAPHIQL_ENABLED=false` as ON.
+//
+// Do not "simplify" this to `Boolean(raw)` or a parse that treats any
+// non-empty value as a signal — `app.module.spec.ts` pins `false`, `no`,
+// `off`, and `maybe` as off precisely to catch that change.
+const GRAPHIQL_ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
+
+// Resolve the `graphiql` option from the environment.
+//
+// - A recognised value turns it on; ANY other non-empty value turns it off.
+// - Unset, empty, or whitespace-only defers to NODE_ENV: on everywhere except
+//   production. This is the default that keeps a prod deploy from serving the
+//   explorer to the internet.
+//
+// In the prod stack nginx additionally puts /graphiql behind Basic Auth — see
+// infra/nginx/templates/default.conf.template. The two gates are not
+// redundant; they fail differently.
+const resolveGraphiqlEnabled = (raw: string | undefined): boolean => {
+  const value = raw?.trim().toLowerCase() ?? '';
+  if (value === '') {
+    return process.env.NODE_ENV !== 'production';
+  }
+  return GRAPHIQL_ENABLED_VALUES.has(value);
+};
+
 import { AppResolver } from './app.resolver';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -62,12 +91,10 @@ import { PushModule } from './push/push.module';
       // GraphiQL is a schema explorer with full mutation access to whatever
       // database the process is pointed at, so it must not be served by
       // default on an internet-facing deploy. Off in production unless
-      // GRAPHIQL_ENABLED=1 is set explicitly; unchanged (on) everywhere else.
-      // In the prod stack nginx additionally puts /graphiql behind Basic Auth
-      // — see infra/nginx/templates/default.conf.template.
-      graphiql: process.env.GRAPHIQL_ENABLED
-        ? process.env.GRAPHIQL_ENABLED === '1'
-        : process.env.NODE_ENV !== 'production',
+      // GRAPHIQL_ENABLED is set to one of 1/true/yes/on; unchanged (on)
+      // everywhere else. See `resolveGraphiqlEnabled` above for why the
+      // accepted set is closed rather than a truthiness check.
+      graphiql: resolveGraphiqlEnabled(process.env.GRAPHIQL_ENABLED),
       subscription: true,
       errorFormatter: (execution) => {
         const errors = execution.errors?.map((err): GraphQLFormattedError => {
