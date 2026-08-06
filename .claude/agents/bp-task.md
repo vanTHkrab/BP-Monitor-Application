@@ -44,8 +44,7 @@ _Last updated: YYYY-MM-DD · Updated by bp-task_
 
 ## Imports
 
-@client/PLAN.md
-@server/app/api-gateway/PLAN.md
+@docs/project/api-gateway-plan.md
 
 ## Tasks
 

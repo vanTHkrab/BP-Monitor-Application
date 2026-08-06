@@ -6,7 +6,7 @@ _Last updated: 2026-08-06 · Updated by bp-task_
 
 <!-- bp-task resolves these at read time. Tasks from imported files are merged
      into the board with their scope prefix. Duplicates are skipped. -->
-@client/PLAN.md
+@docs/project/api-gateway-plan.md
 
 ---
 
