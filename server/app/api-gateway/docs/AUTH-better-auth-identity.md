@@ -160,7 +160,8 @@ phone number immediately after the OAuth callback, before the account is
 usable.
 
 Making `phone` nullable was rejected. It is not a profile field — it is
-how caregivers find patients (`addCaregiverPatient(patientPhone)`) and one
+how caregivers find patients (`addCaregiverPatient(patientContact:)`, which
+takes a phone number or an email) and one
 of the two credential routes. A user without one is a second class of
 account that every downstream feature would have to handle.
 

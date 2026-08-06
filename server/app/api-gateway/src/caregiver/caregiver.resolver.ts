@@ -33,17 +33,31 @@ export class CaregiverResolver {
     return this.caregiverService.myPatients(user.id);
   }
 
+  /**
+   * `patientContact` is one argument for two identifier kinds. The service
+   * decides which by looking for `@` — see `CaregiverService.add` for why
+   * that split is unambiguous for Thai phone numbers.
+   *
+   * This replaced `patientPhone` outright rather than being added beside it:
+   * a second optional argument would have introduced "both" and "neither"
+   * states with no useful meaning. Note that `CaregiverLinkType.patientPhone`
+   * is a different thing — the linked patient's phone on the result — and is
+   * unaffected.
+   */
   @Mutation(() => CaregiverLinkType, {
     description:
-      'ส่งคำเชิญผู้ป่วยด้วยเบอร์โทรศัพท์ (สถานะ pending รอผู้ป่วยตอบรับ)',
+      'ส่งคำเชิญผู้ป่วยด้วยเบอร์โทรศัพท์หรืออีเมล (สถานะ pending รอผู้ป่วยตอบรับ)',
   })
   @UseGuards(GqlAuthGuard)
   async addCaregiverPatient(
     @CurrentUser() user: { id: string },
-    @Args('patientPhone') patientPhone: string,
+    @Args('patientContact', {
+      description: 'เบอร์โทรศัพท์หรืออีเมลของผู้ป่วย',
+    })
+    patientContact: string,
     @Args('relationship', { defaultValue: 'caregiver' }) relationship: string,
   ): Promise<CaregiverLinkType> {
-    return this.caregiverService.add(user.id, patientPhone, relationship);
+    return this.caregiverService.add(user.id, patientContact, relationship);
   }
 
   /**

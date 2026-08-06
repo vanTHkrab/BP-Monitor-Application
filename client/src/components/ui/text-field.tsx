@@ -24,6 +24,11 @@ export type TextFieldProps = {
   keyboardType?: KeyboardTypeOptions;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   autoComplete?: 'tel' | 'email' | 'name' | 'password' | 'new-password' | 'off';
+  /**
+   * Defaults to RN's `true`. Pass `false` for anything the keyboard has no
+   * business improving — an email address, a code, an ID.
+   */
+  autoCorrect?: boolean;
   editable?: boolean;
   /**
    * Tri-state, and the empty string is meaningful:
@@ -44,6 +49,7 @@ export function TextField({
   keyboardType = 'default',
   autoCapitalize = 'none',
   autoComplete = 'off',
+  autoCorrect,
   editable = true,
   error,
   testID,
@@ -121,6 +127,7 @@ export function TextField({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoComplete={autoComplete}
+          autoCorrect={autoCorrect}
           editable={editable}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}

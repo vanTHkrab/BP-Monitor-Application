@@ -54,8 +54,8 @@ export const GQL_MY_PATIENTS = `
 `;
 
 export const GQL_ADD_CAREGIVER_PATIENT = `
-  mutation AddCaregiverPatient($patientPhone: String!, $relationship: String!) {
-    addCaregiverPatient(patientPhone: $patientPhone, relationship: $relationship) {
+  mutation AddCaregiverPatient($patientContact: String!, $relationship: String!) {
+    addCaregiverPatient(patientContact: $patientContact, relationship: $relationship) {
       caregiverId
       patientId
       relationship

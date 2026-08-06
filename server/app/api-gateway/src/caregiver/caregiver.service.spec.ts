@@ -10,6 +10,7 @@
  */
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -341,5 +342,190 @@ describe('CaregiverService.updatePermission — changing a grant after the fact'
       .catch((error: Error) => error.message);
 
     expect(missing).not.toEqual(pending);
+  });
+});
+
+/**
+ * A-005 — one polymorphic `patientContact` argument covering phone and email.
+ *
+ * The whole design rests on one assumption: a Thai phone number can never
+ * contain `@`, so `includes('@')` is a total, unambiguous split. These assert
+ * both branches route to the right column, and — because the failure a user
+ * actually sees is the error string — that each branch names back the kind of
+ * identifier they typed rather than a merged one.
+ */
+describe('CaregiverService.add — invite by phone or email', () => {
+  let service: CaregiverService;
+  let prisma: {
+    user: { findUnique: jest.Mock };
+    caregiverPatient: { findUnique: jest.Mock; create: jest.Mock };
+  };
+
+  const PHONE = '0812345678';
+  const EMAIL = 'somchai@gmail.com';
+
+  const users = {
+    caregiver: {
+      firstname: 'ก',
+      lastname: 'ข',
+      phone: '0810000000',
+      avatar: null,
+    },
+    patient: {
+      firstname: 'ค',
+      lastname: 'ง',
+      phone: PHONE,
+      avatar: null,
+    },
+  };
+
+  /** The `where` the user lookup was asked for, whatever it returned. */
+  const lookupWhere = () => {
+    const [args] = prisma.user.findUnique.mock.calls[0] as [
+      { where: Record<string, unknown> },
+    ];
+    return args.where;
+  };
+
+  /** What `create` was asked to write, whatever else it returned. */
+  const createdData = () => {
+    const [args] = prisma.caregiverPatient.create.mock.calls[0] as [
+      { data: Record<string, unknown> },
+    ];
+    return args.data;
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ id: PATIENT_ID }) },
+      caregiverPatient: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          caregiverId: CAREGIVER_ID,
+          patientId: PATIENT_ID,
+          relationship: 'child',
+          status: 'pending',
+          permission: 'full',
+          respondedAt: null,
+          ...users,
+        }),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CaregiverService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+
+    service = module.get<CaregiverService>(CaregiverService);
+  });
+
+  it('looks a contact without "@" up by phone', async () => {
+    await service.add(CAREGIVER_ID, PHONE, 'child');
+
+    expect(lookupWhere()).toEqual({ phone: PHONE });
+    expect(createdData()).toMatchObject({
+      caregiverId: CAREGIVER_ID,
+      patientId: PATIENT_ID,
+      status: 'pending',
+    });
+  });
+
+  it('looks a contact containing "@" up by email', async () => {
+    await service.add(CAREGIVER_ID, EMAIL, 'child');
+
+    expect(lookupWhere()).toEqual({ email: EMAIL });
+    expect(prisma.caregiverPatient.create).toHaveBeenCalled();
+  });
+
+  /**
+   * Better Auth stores email lowercase on every path that creates an account
+   * here, so lowercasing the input is what makes `Somchai@Gmail.com` find
+   * `somchai@gmail.com` — while still hitting the unique index. If this
+   * assertion ever fails, the lookup has stopped being case-insensitive for
+   * real users, not just stopped matching a mock.
+   */
+  it('lowercases an email before the lookup, and trims either kind', async () => {
+    await service.add(CAREGIVER_ID, '  Somchai@Gmail.com  ', 'child');
+
+    expect(lookupWhere()).toEqual({ email: EMAIL });
+  });
+
+  it('does not lowercase a phone number, which has no case to fold', async () => {
+    await service.add(CAREGIVER_ID, `  ${PHONE}  `, 'child');
+
+    expect(lookupWhere()).toEqual({ phone: PHONE });
+  });
+
+  // Naming back the wrong identifier kind reads as a client bug to the user.
+  it('names the email when no account has that email', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(service.add(CAREGIVER_ID, EMAIL, 'child')).rejects.toThrow(
+      new NotFoundException('ไม่พบผู้ใช้จากอีเมลนี้'),
+    );
+  });
+
+  it('names the phone number when no account has that phone', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(service.add(CAREGIVER_ID, PHONE, 'child')).rejects.toThrow(
+      new NotFoundException('ไม่พบผู้ใช้จากเบอร์โทรศัพท์นี้'),
+    );
+  });
+
+  // The message has to mention both, because either one is now accepted.
+  it.each([
+    ['empty', ''],
+    ['whitespace only', '   '],
+  ])(
+    'refuses a contact that is %s before touching the database',
+    async (_label, contact) => {
+      await expect(service.add(CAREGIVER_ID, contact, 'child')).rejects.toThrow(
+        new BadRequestException('กรุณากรอกเบอร์โทรศัพท์หรืออีเมลของผู้ป่วย'),
+      );
+
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a self-invite addressed by email', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: CAREGIVER_ID });
+
+    await expect(service.add(CAREGIVER_ID, EMAIL, 'child')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(prisma.caregiverPatient.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a duplicate link addressed by email', async () => {
+    prisma.caregiverPatient.findUnique.mockResolvedValue({
+      caregiverId: CAREGIVER_ID,
+      patientId: PATIENT_ID,
+    });
+
+    await expect(service.add(CAREGIVER_ID, EMAIL, 'child')).rejects.toThrow(
+      ConflictException,
+    );
+    expect(prisma.caregiverPatient.create).not.toHaveBeenCalled();
+  });
+
+  // Resolving by email and by phone must reach the same duplicate check —
+  // otherwise the same pair could be linked twice, once per identifier kind.
+  it('checks the duplicate on the resolved patient id, not the contact', async () => {
+    await service.add(CAREGIVER_ID, EMAIL, 'child');
+
+    expect(prisma.caregiverPatient.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          caregiverId_patientId: {
+            caregiverId: CAREGIVER_ID,
+            patientId: PATIENT_ID,
+          },
+        },
+      }),
+    );
   });
 });

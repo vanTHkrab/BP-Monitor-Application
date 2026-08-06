@@ -109,25 +109,59 @@ export class CaregiverService {
     return links.map((link) => this.toType(link));
   }
 
+  /**
+   * Invites a patient addressed by phone *or* email.
+   *
+   * The two are told apart by a plain `includes('@')`, and that is the
+   * load-bearing assumption of the whole design: a Thai phone number is
+   * digits with at most `+`, spaces or dashes around them, so it can never
+   * contain `@`, while an email address always does. Because the split can
+   * never be ambiguous, the mutation takes one polymorphic `patientContact`
+   * argument rather than two mutually exclusive optional ones — the client
+   * does not have to guess which field to fill, and there is no "both given"
+   * or "neither given" state to validate.
+   *
+   * The error messages stay split even though the lookup is unified: telling
+   * someone who typed an email that we could not find that *phone number*
+   * reads as a bug on the client.
+   */
   async add(
     caregiverId: string,
-    patientPhone: string,
+    patientContact: string,
     relationship: string,
   ): Promise<CaregiverLinkType> {
-    const cleanPhone = patientPhone.trim();
-    if (!cleanPhone) {
-      throw new BadRequestException('กรุณากรอกเบอร์โทรศัพท์ผู้ป่วย');
+    const contact = patientContact.trim();
+    if (!contact) {
+      throw new BadRequestException(
+        'กรุณากรอกเบอร์โทรศัพท์หรืออีเมลของผู้ป่วย',
+      );
     }
+
+    const isEmail = contact.includes('@');
 
     const relationshipEnum = parseRelationship(relationship);
 
+    // Emails are stored lowercase: Better Auth lowercases on every write path
+    // it owns (`/sign-up/email`, its `update-user` route, and the internal
+    // adapter's create/update), which is every path that currently creates an
+    // account here. So lowercasing the input is enough to make the match
+    // case-insensitive in practice, and the lookup still rides the `email`
+    // unique index — no `mode: 'insensitive'` sequential scan on a table that
+    // grows with every user.
+    //
+    // The one write that bypasses Better Auth is `AuthService.updateProfile`,
+    // which patches `email` straight through Prisma without normalising. It
+    // has not produced a mixed-case row yet, but it could; the fix belongs at
+    // that write, not in a slower read here.
     const patient = await this.prisma.user.findUnique({
-      where: { phone: cleanPhone },
+      where: isEmail ? { email: contact.toLowerCase() } : { phone: contact },
       select: { id: true },
     });
 
     if (!patient) {
-      throw new NotFoundException('ไม่พบผู้ใช้จากเบอร์โทรศัพท์นี้');
+      throw new NotFoundException(
+        isEmail ? 'ไม่พบผู้ใช้จากอีเมลนี้' : 'ไม่พบผู้ใช้จากเบอร์โทรศัพท์นี้',
+      );
     }
 
     if (patient.id === caregiverId) {

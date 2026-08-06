@@ -111,7 +111,14 @@ export type PatientLatestReading = {
 export type CaregiverPermission = 'view' | 'full';
 
 export type InvitePatientInput = {
-  /** Digits only — the gateway looks this up as an exact `User.phone` match. */
-  patientPhone: string;
+  /**
+   * A phone number or an email address — the gateway reads it as an email
+   * when it contains "@" and as a phone otherwise. Sent as typed; the API
+   * layer normalises it per branch (`lib/contact.ts`).
+   *
+   * Unrelated to `CaregiverLink.patientPhone`, which is still a phone and was
+   * not renamed: only the mutation *argument* became polymorphic.
+   */
+  patientContact: string;
   relationship: RelationshipType;
 };

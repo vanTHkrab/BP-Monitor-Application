@@ -395,8 +395,14 @@ type Mutation {
   """ลบค่าความดัน"""
   deleteReading(id: Int!): Boolean!
 
-  """ส่งคำเชิญผู้ป่วยด้วยเบอร์โทรศัพท์ (สถานะ pending รอผู้ป่วยตอบรับ)"""
-  addCaregiverPatient(patientPhone: String!, relationship: String! = "caregiver"): CaregiverLinkType!
+  """
+  ส่งคำเชิญผู้ป่วยด้วยเบอร์โทรศัพท์หรืออีเมล (สถานะ pending รอผู้ป่วยตอบรับ)
+  """
+  addCaregiverPatient(
+    """เบอร์โทรศัพท์หรืออีเมลของผู้ป่วย"""
+    patientContact: String!
+    relationship: String! = "caregiver"
+  ): CaregiverLinkType!
 
   """ผู้ป่วยตอบรับ/ปฏิเสธคำเชิญจาก caregiver"""
   respondToCaregiverInvite(

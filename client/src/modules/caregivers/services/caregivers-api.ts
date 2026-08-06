@@ -3,8 +3,8 @@
  * returns; it does not touch a store and it does not format errors.
  */
 import { graphqlRequest } from '@/services/api';
-import { stripPhoneDigits } from '@/utils/phone-format';
 
+import { prepareContact } from '../lib/contact';
 import {
   caregiverLinkFromGql,
   patientSummaryFromGql,
@@ -41,16 +41,17 @@ export async function fetchMyPatients(): Promise<PatientSummary[]> {
 }
 
 /**
- * The phone is stripped to digits here rather than in the form, because the
- * gateway does an exact `User.phone` lookup: a display-formatted
- * "081-234-5678" finds nobody and surfaces as "ไม่พบผู้ใช้จากเบอร์นี้", which
- * is a lie about why it failed.
+ * The contact is normalised here rather than in the form, so every caller
+ * gets it right: `prepareContact` strips a phone to digits (the gateway does
+ * an exact `User.phone` match, and "081-234-5678" finds nobody) and leaves an
+ * email intact beyond trim + lowercase. Stripping an address to digits would
+ * turn it into a phone lookup that cannot succeed.
  */
 export async function invitePatient(input: InvitePatientInput): Promise<CaregiverLink> {
   const data = await graphqlRequest<{ addCaregiverPatient: CaregiverLinkPayload }>(
     GQL_ADD_CAREGIVER_PATIENT,
     {
-      patientPhone: stripPhoneDigits(input.patientPhone),
+      patientContact: prepareContact(input.patientContact),
       relationship: input.relationship,
     },
   );

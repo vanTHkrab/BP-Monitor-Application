@@ -551,7 +551,7 @@ doesn't need a follow-up query.
 | --- | --- | --- |
 | `caregiverLinks` | Query | ✅ |
 | `myPatients` | Query | ✅ |
-| `addCaregiverPatient(patientPhone, relationship)` | Mutation | ✅ |
+| `addCaregiverPatient(patientContact, relationship)` | Mutation | ✅ |
 | `respondToCaregiverInvite(caregiverId, accept, permission)` | Mutation | ✅ |
 | `updateCaregiverPermission(caregiverId, permission)` | Mutation | ✅ |
 | `removeCaregiverPatient(caregiverId, patientId)` | Mutation | ✅ |
@@ -561,6 +561,16 @@ doesn't need a follow-up query.
   role the caller plays. `CaregiverLinkType` carries **both**
   `caregiverAvatar` and `patientAvatar` for the same reason: the resolver
   cannot know which side of the row the caller is on.
+- `addCaregiverPatient` takes **one** argument for the patient's
+  identifier. `patientContact` is read as an email when it contains `@`
+  and as a phone number otherwise — a Thai phone number can never contain
+  `@`, so the split is unambiguous and the client does not have to declare
+  which kind it is sending. Not-found errors name back the kind that was
+  sent (`ไม่พบผู้ใช้จากอีเมลนี้` vs `ไม่พบผู้ใช้จากเบอร์โทรศัพท์นี้`).
+  Email matching is case-insensitive; the input is lowercased before the
+  lookup. This replaced the older `patientPhone` **argument** outright —
+  there is no alias. Note `CaregiverLinkType.patientPhone` is a different
+  thing (the linked patient's phone on the result) and is unchanged.
 - `relationship` defaults to `"caregiver"` and can be overridden (e.g.
   `"spouse"`, `"child"`). An unrecognised value is stored as `other`
   rather than rejected, so send one the server knows.

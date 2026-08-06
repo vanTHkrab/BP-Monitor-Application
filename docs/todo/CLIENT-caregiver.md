@@ -126,10 +126,10 @@ Removed from the resolver and the service. `caregiverLinks` plus
 and the query is gone from it too. Nothing hand-edits that file; if a resolver
 change ever seems not to reach the schema, run the app rather than editing it.
 
-## 6. Gateway — **A-004 done**, A-005 open
+## 6. Gateway — **A-004 and A-005 both done**
 
-Both are cross-cutting (root `CLAUDE.md` rule 1: gateway and client ship
-together, with the reason in the PR body).
+Both were cross-cutting (root `CLAUDE.md` rule 1: gateway and client ship
+together, with the reason in the PR body), and both shipped that way.
 
 - **A-004 — done.** `schema.gql:380` defaults `relationship` to
   `"caregiver"`, which was **not** in `VALID_RELATIONSHIPS`, so every invite
@@ -140,10 +140,14 @@ together, with the reason in the PR body).
   offering a value the server rejects is the same class of silent-wrong-row
   bug in the other direction. `patient` stays out — this column says how the
   caregiver relates *to* the patient, and "patient" is not an answer to that.
-- **A-005 — invite by phone only.** `addCaregiverPatient` looks a patient up by
-  phone. Email would need an input object accepting either, the resolver /
-  service lookup, and then the form in
-  `modules/caregivers/components/invite-form.tsx`.
+- **A-005 — done.** `addCaregiverPatient` now takes one polymorphic
+  `patientContact` argument: read as an email when it contains `@`, as a phone
+  number otherwise. The old `patientPhone` **argument** is gone with no alias,
+  which is why the client shipped in the same change —
+  `modules/caregivers/components/invite-form.tsx` sends `patientContact`.
+  Note the argument is the only thing that was renamed: `CaregiverLinkType`
+  still exposes a `patientPhone` **field**, deliberately, because it really is
+  a phone number rather than a contact of unknown kind.
 
 ---
 
@@ -577,11 +581,50 @@ Covered by `modules/security/components/security-header.test.tsx` — including
 the case that matters most, that `subject="self"` stays silent while a patient
 *is* active.
 
-### 3. A-005 — invite by email as well as phone
+### ~~3. A-005 — invite by email as well as phone~~ — **done, both sides**
 
-`addCaregiverPatient(patientPhone:)` only. Needs an input object accepting
-either, the service lookup, and then
-`modules/caregivers/components/invite-form.tsx`. Cross-cutting.
+`addCaregiverPatient(patientContact:)` replaces
+`addCaregiverPatient(patientPhone:)` — one argument, split on `@` (a Thai
+phone number can never contain one), with the not-found message naming back
+whichever kind was sent (`ไม่พบผู้ใช้จากอีเมลนี้` /
+`ไม่พบผู้ใช้จากเบอร์โทรศัพท์นี้`). There was no back-compat alias, so
+`modules/caregivers/components/invite-form.tsx` shipped in the same release.
+Only the mutation **argument** moved; `CaregiverLinkType.patientPhone` is a
+field and stayed.
+
+**The `@` rule lives in one file on the client**, `modules/caregivers/lib/
+contact.ts`, together with the as-you-type formatter and a deliberately loose
+validator. That is the point of it: the form and the API layer decide "is this
+an email?" the same way, or they disagree and the user gets a phone-shaped
+error for an address they typed correctly.
+
+Two decisions that look like omissions and are not:
+
+- **One field, no phone/email toggle.** The caregiver should not have to
+  classify their own input — the server already does, on the same rule.
+- **`keyboardType` is a static `default`.** `phone-pad` cannot type `@`, so
+  switching to it for a phone-looking string strands the user on a keyboard
+  from which the email branch is unreachable. Phone entry on the default
+  keyboard is the cost, and it is the smaller one.
+
+Known trade-off, accepted rather than fixed: the email path widens account
+enumeration — `ไม่พบผู้ใช้จากอีเมลนี้` confirms whether an address has an
+account, and emails are far easier to guess than phone numbers. The honest
+error was kept over a generic one by explicit decision; rate-limiting the
+mutation is separate work and is now on the board as **A-007**.
+
+Two more things were found here and left alone under the no-drive-by rule,
+both on the board: **C-006** (`formatErrorMessage` prepends an English
+`"<OperationName> failed: "` and `stripCode` is anchored so it never strips
+the code — the user sees `AddCaregiverPatient failed: [NOT_FOUND] ไม่พบ…`,
+which contradicts the invariant `lib/error-message.ts` documents for itself,
+across all six call sites) and **A-006** (`AuthService.updateProfile` writes
+`email` without lowercasing, which could write a row A-005's `findUnique`
+lookup can never find).
+
+**Not exercised on a device** — no emulator was available. The outstanding
+manual pass is the `default` keyboard for phone entry, and typing `@` onto an
+already-formatted phone number.
 
 ### 4. C-001 — caregiver push notifications, still blocked
 
@@ -712,10 +755,10 @@ only. The paths most likely to behave differently on hardware:
 
 | | |
 | --- | --- |
-| client `pnpm check` | 43 suites / 520 tests |
-| gateway `pnpm test` | 17 suites / 140 tests |
-| `verify-graphql` | 45 operations, 0 invalid |
-| gateway `pnpm lint` | 7 errors — **pre-existing**, in `auth/android-origin.spec.ts` and `security/dto/passkey-register-verify.input.ts`, untouched by this work |
+| client `pnpm check` | 48 suites / 597 tests |
+| gateway `pnpm test` | 17 suites / 157 tests |
+| `verify-graphql` | 46 operations, 0 invalid |
+| gateway `pnpm lint` | 7 errors — **pre-existing**, spread across **four** files, not two: `auth/android-origin.spec.ts`, `security/dto/passkey-register-verify.input.ts`, `caregiver/caregiver.types.ts:37`, and `caregiver/caregiver.service.spec.ts:163`. All untouched by this work; lint delta is zero. |
 | Supabase | both migrations applied, schema up to date |
 
 ## Things a fresh session should know
