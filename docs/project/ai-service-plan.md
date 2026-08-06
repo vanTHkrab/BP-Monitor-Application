@@ -1,3 +1,11 @@
+---
+title: "ai-service roadmap: the YOLO plus strategy-pattern OCR pipeline"
+description: Milestones for the BP image analysis pipeline and the reasoning behind its architecture.
+status: current
+updated: 2026-08-05
+owner: ai-service
+---
+
 # ai-service — OCR pipeline plan (YOLO + Strategy-pattern OCR engines)
 
 Roadmap for the BP image analysis pipeline. Captures the *why* behind
@@ -422,7 +430,7 @@ the model lives outside `src/` as an asset.
       decided gateway PUTs the bytes — ai-service returns base64 in reply.
       Gateway-side `ai.process.ts` upload to `users/{userId}/bp/analysis/{jobId}_roi.{ext}`
       still pending. Listed as optional in PLAN; defer to Milestone 3.
-- [x] Update [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths" — done 2026-05-17
+- [x] Update [ai-service/CLAUDE.md](../../server/app/ai-service/CLAUDE.md) "Important paths" — done 2026-05-17
 
 ## Milestone 2 — Replace SSOCR with CRNN ONNX (2026-05-21)
 
@@ -588,7 +596,7 @@ contract stable (zero changes in `pipeline.py`).
 8. **Delete `prepare/`** wholesale. Already `.gitignore`'d; remove from disk to reclaim ~359 MB.
 9. **Run** `uv run pytest` end-to-end. Then smoke-test via `uv run fastapi dev main.py` + redis publish (or via integration test).
 10. **Update docs in same change**:
-    - [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths" — drop `ssocr.py`, add `crnn.py`, mention `models/crnn_int8.onnx`
+    - [ai-service/CLAUDE.md](../../server/app/ai-service/CLAUDE.md) "Important paths" — drop `ssocr.py`, add `crnn.py`, mention `models/crnn_int8.onnx`
     - PLAN.md checklist below
     - Root [CLAUDE.md](../../CLAUDE.md) AI-flow paragraph if any wire detail changed (we believe it doesn't — `model_version` keeps a value, only the source changes)
 
@@ -947,7 +955,7 @@ reinstall wipes it — fine for research phase.
 - [x] Extend `AnalyzerConfig` with `default_engine` + new `OCREngine` value
 - [x] Update `handlers.py` to parse `ocrEngine` + emit `engine` + `metrics`
 - [x] Smoke via `fastapi dev` with all 3 engine names + 1 unknown
-- [x] Update [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths"
+- [x] Update [ai-service/CLAUDE.md](../../server/app/ai-service/CLAUDE.md) "Important paths"
 
 #### PR 2 — api-gateway
 

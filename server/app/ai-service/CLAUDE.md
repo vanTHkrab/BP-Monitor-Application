@@ -222,6 +222,6 @@ without the other will silently break the AI flow.
 ## Pointers
 
 - [README.md](./README.md) — onboarding & ops
-- [PLAN.md](./PLAN.md) — roadmap for real OCR pipeline
+- [PLAN.md](../../../docs/project/ai-service-plan.md) — roadmap for real OCR pipeline
 - [../api-gateway/CLAUDE.md](../api-gateway/CLAUDE.md) — counterpart context
 - Root [CLAUDE.md](../../../CLAUDE.md) — monorepo guideline

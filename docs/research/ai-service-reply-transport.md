@@ -1,3 +1,11 @@
+---
+title: "ai-service reply transport: pub/sub to a durable consumer"
+description: Why the Redis pub/sub reply path makes ai-service a singleton, and the explicit trigger for replacing it.
+status: current
+updated: 2026-06-22
+owner: ai-service
+---
+
 # Plan — AI-service reply transport (pub/sub → durable consumer)
 
 Status: **DEFERRED (not actionable in dev mode)** · Last updated: 2026-06-22

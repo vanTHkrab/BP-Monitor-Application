@@ -153,6 +153,6 @@ uv run pytest tests/test_handlers.py  # single file
 ## See also
 
 - [CLAUDE.md](./CLAUDE.md) — guideline for AI-assisted edits
-- [PLAN.md](./PLAN.md) — roadmap: OCR engine comparison framework (M2.2)
+- [PLAN.md](../../../docs/project/ai-service-plan.md) — roadmap: OCR engine comparison framework (M2.2)
 - [api-gateway README](../api-gateway/README.md) — gateway side of the pipeline
 - Root [CLAUDE.md](../../../CLAUDE.md) — monorepo guideline

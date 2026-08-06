@@ -1,3 +1,11 @@
+---
+title: "S3 key layout v1: hard cut-over from the legacy prefixes"
+description: Why the object store moved to a user-rooted key layout in one cut rather than a dual-read migration, plus the old-to-new key mapping.
+status: current
+updated: 2026-05-15
+owner: api-gateway
+---
+
 # S3 layout migration — legacy → v1
 
 One-off migration moving every object out of the legacy feature-rooted

@@ -1,3 +1,11 @@
+---
+title: "Client: the onboarding flow"
+description: How a new account gets from registered to using the app, and the rules a new onboarding step must respect.
+status: current
+updated: 2026-08-06
+owner: client
+---
+
 # Client: the onboarding flow
 
 How a new account gets from "registered" to "using the app", and the rules a

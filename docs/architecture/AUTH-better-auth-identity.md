@@ -1,3 +1,11 @@
+---
+title: "Auth migration: custom JWT to Better Auth"
+description: Identity model, account-linking rules, and the Better Auth feature set the gateway adopted, with the alternatives rejected.
+status: current
+updated: 2026-08-06
+owner: api-gateway
+---
+
 # Auth migration — custom JWT → Better Auth: identity, linking, and feature set
 
 Design decisions for replacing the hand-rolled auth in

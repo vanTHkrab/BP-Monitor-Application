@@ -1,3 +1,11 @@
+---
+title: "Client: what is left after the screen ports"
+description: The sub-screen features and infrastructure the client-old ports worked around, plus the decisions already closed.
+status: current
+updated: 2026-08-06
+owner: client
+---
+
 # Client: what is left after the screen ports
 
 Every screen client-old had now exists here for real, except `app/debug.tsx`.

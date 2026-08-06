@@ -136,7 +136,7 @@ AppModule
 
 ถ้า message เป็นภาษาไทยอยู่แล้ว (เช่น `"เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว"`)
 client จะ display message ตรงๆ โดยไม่ map (ดู
-[client/lib/error-message.ts](../../../client/lib/error-message.ts) ฟังก์ชัน
+[client/lib/error-message.ts](../../../client/src/lib/error-message.ts) ฟังก์ชัน
 `containsThai`)
 
 ---
@@ -162,6 +162,6 @@ client จะ display message ตรงๆ โดยไม่ map (ดู
 ## ดูเพิ่มเติม
 
 - [CLAUDE.md](./CLAUDE.md) — guideline สำหรับ AI-assisted edits
-- [PLAN.md](./PLAN.md) — งานที่เหลือ
+- [PLAN.md](../../../docs/project/api-gateway-plan.md) — งานที่เหลือ
 - [README.md](./README.md) — onboarding
 - [MEMORY.md](./MEMORY.md) — facts ที่ควรจำข้าม session

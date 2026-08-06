@@ -1,3 +1,11 @@
+---
+title: "Client: the caregiver role"
+description: How the caregiver role works end to end, the permission model, and what is still open.
+status: current
+updated: 2026-08-06
+owner: client
+---
+
 # Client: the caregiver role
 
 > **Status: the role works end to end and is instrumented.** A caregiver can

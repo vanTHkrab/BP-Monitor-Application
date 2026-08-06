@@ -1,3 +1,11 @@
+---
+title: Competition infographic prompt (A4 portrait)
+description: The fill-in-the-blanks prompt for generating the BP Monitor competition submission infographic.
+status: current
+updated: 2026-06-22
+owner: cross
+---
+
 # Infographic Design Prompt — BP Monitor (สิ่งประดิษฐ์/นวัตกรรม Competition, A4 Portrait)
 
 Use this prompt with an AI image/design tool (e.g. Claude with image generation,

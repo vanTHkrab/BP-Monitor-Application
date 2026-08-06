@@ -1,8 +1,17 @@
+---
+title: Cross-cutting plans and recorded architectural debt
+description: Index of the investigations here, each with its status and the trigger condition for acting on it.
+status: current
+updated: 2026-06-22
+owner: cross
+---
+
 # Plans
 
 Cross-cutting, forward-looking plans and recorded architectural-debt items that
 don't belong to a single service's own `PLAN.md`. Per-service roadmaps live in
-`server/app/api-gateway/PLAN.md`, `server/app/ai-service/PLAN.md`, and
+[`api-gateway-plan.md`](../project/api-gateway-plan.md),
+[`ai-service-plan.md`](../project/ai-service-plan.md), and
 `client/PLAN.md`.
 
 Each plan states its status and, when deferred, an explicit **trigger

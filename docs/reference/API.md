@@ -1,3 +1,11 @@
+---
+title: BP Monitor GraphQL API contract
+description: Endpoint, auth, error codes, and the operation catalogue client developers build against.
+status: current
+updated: 2026-08-06
+owner: api-gateway
+---
+
 # BP Monitor — GraphQL API
 
 The contract between the API gateway (`server/app/api-gateway`) and both

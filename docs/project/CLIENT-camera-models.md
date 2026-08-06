@@ -1,3 +1,11 @@
+---
+title: "Client: the camera tab and the on-device models"
+description: Record of the shipped capture flow, the framing gate, and the model decisions worth not re-litigating.
+status: current
+updated: 2026-08-02
+owner: client
+---
+
 # Client: the camera tab and the on-device models
 
 **Ported.** `app/(tabs)/camera.tsx` is the real screen, `modules/bp-vision/` is

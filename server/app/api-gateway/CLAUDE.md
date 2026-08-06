@@ -180,7 +180,7 @@ traps, in the order people hit them:
   describes. `updateMany` (not `update`) is used so a missing Image
   row — already swept by the cleanup cron — does not fail the
   analysis. The Python side mirrors this contract in
-  [ai-service/src/ai_service/handlers.py](../../ai-service/src/ai_service/handlers.py)
+  [ai-service/src/ai_service/handlers.py](../ai-service/src/ai_service/handlers.py)
   — changing one side requires updating the other.
 - M2.2 telemetry — when ai-service replies with `engine` + `metrics`,
   `AiProcessor` forwards a JSONL row to S3 via
@@ -205,6 +205,6 @@ traps, in the order people hit them:
 - [STRUCTURE.md](./STRUCTURE.md) — feature module layout convention (DTO / types / module / resolver / service split). Follow `storage/` and `ai/` as templates.
 - [README.md](./README.md) — onboarding & ops
 - [AGENT.md](./AGENT.md) — agent-style architecture overview
-- [PLAN.md](./PLAN.md) — roadmap and known gaps
+- [PLAN.md](../../../docs/project/api-gateway-plan.md) — roadmap and known gaps
 - [MEMORY.md](./MEMORY.md) — durable facts worth remembering across sessions
 - [../../../docs/reference/API.md](../../../docs/reference/API.md) — GraphQL contract reference for client developers (auth, error codes, operation catalogue, image-upload flow)

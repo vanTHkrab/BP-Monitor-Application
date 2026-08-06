@@ -1,3 +1,11 @@
+---
+title: "Client: typography, the typeface, and the open scale decision"
+description: The app-wide ThemedText sweep that shipped, and the type-scale decision it exposed that still needs a human.
+status: current
+updated: 2026-08-06
+owner: client
+---
+
 # Client: typography, the typeface, and what the sweep left behind
 
 > **Status: the mechanism is done and applied app-wide; the *design* decision

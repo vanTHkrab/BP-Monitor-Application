@@ -1,3 +1,11 @@
+---
+title: "Client: integrating the Better Auth gateway"
+description: The mobile-side work that follows the gateway auth migration, and the gateway decisions that constrain it.
+status: current
+updated: 2026-07-31
+owner: client
+---
+
 # Client: integrate the Better Auth gateway
 
 Picking this up in a fresh session. The gateway side is done and merged

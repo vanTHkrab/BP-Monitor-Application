@@ -1,3 +1,11 @@
+---
+title: "Client: CSV and PDF export"
+description: Record of the shipped export path, its three callers, and what was ported from client-old.
+status: current
+updated: 2026-08-05
+owner: client
+---
+
 # Client: CSV / PDF export
 
 > **Status: shipped.** All three callers are wired, the builders are tested,

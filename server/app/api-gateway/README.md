@@ -147,6 +147,6 @@ AI service (FastAPI) ฟัง Redis pub/sub ที่ port 6379 ตามที
 
 - [CLAUDE.md](./CLAUDE.md) — guideline สำหรับ AI-assisted edits
 - [AGENT.md](./AGENT.md) — รายละเอียดสถาปัตยกรรมของ gateway agent
-- [PLAN.md](./PLAN.md) — roadmap, work in progress, upcoming changes
+- [PLAN.md](../../../docs/project/api-gateway-plan.md) — roadmap, work in progress, upcoming changes
 - [MEMORY.md](./MEMORY.md) — ข้อมูลที่ควรจำข้ามรอบ session
 - Root [CLAUDE.md](../../../CLAUDE.md) — guideline ระดับ monorepo

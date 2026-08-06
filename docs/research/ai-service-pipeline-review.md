@@ -1,3 +1,11 @@
+---
+title: "ai-service pipeline review: detect, rectify, and OCR findings"
+description: Code-verified review of the analysis pipeline, with each finding's verification status and source location.
+status: current
+updated: 2026-06-22
+owner: ai-service
+---
+
 # Plan — AI-service pipeline review backlog (OCR / detect / rectify)
 
 Status: **BACKLOG (dev mode — measure before optimizing)** · Last updated: 2026-06-22

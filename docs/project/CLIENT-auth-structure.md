@@ -1,3 +1,11 @@
+---
+title: "Client: auth file structure and migration order"
+description: Where the mobile auth code lives and in what order to move it, companion to the integration plan.
+status: current
+updated: 2026-08-01
+owner: client
+---
+
 # Client: auth file structure and migration plan
 
 Companion to [CLIENT-auth-integration.md](./CLIENT-auth-integration.md), which

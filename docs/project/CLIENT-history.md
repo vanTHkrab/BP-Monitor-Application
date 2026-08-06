@@ -1,3 +1,11 @@
+---
+title: "Client: the history tab"
+description: The shipped history screens, the readings layer they sit on, and the export work that closed with them.
+status: current
+updated: 2026-08-06
+owner: client
+---
+
 # Client: the history tab
 
 > **Status: the screens have shipped.** `app/(tabs)/history.tsx`,

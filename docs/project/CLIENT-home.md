@@ -1,3 +1,11 @@
+---
+title: "Client: the home tab and the readings layer under it"
+description: Why the readings module and home screen are shaped the way they are, and what is still deferred.
+status: current
+updated: 2026-08-05
+owner: client
+---
+
 # Client: the home tab, and the readings layer under it
 
 > **Status: both steps have shipped.** `modules/readings/` landed in `a2cb8e4`

@@ -1,3 +1,11 @@
+---
+title: "CI: validate the GraphQL contract against a running gateway"
+description: The gap left by verifying client operations against a committed schema.gql, and what a real contract check in CI would need.
+status: draft
+updated: 2026-08-02
+owner: cross
+---
+
 # CI: validate the GraphQL contract against a running gateway
 
 > **Status: not started.** The cheap half shipped —

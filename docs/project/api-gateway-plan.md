@@ -1,3 +1,11 @@
+---
+title: API gateway roadmap, known gaps, and risks
+description: What is done, what is outstanding, and what is a risk in the NestJS gateway.
+status: current
+updated: 2026-08-06
+owner: api-gateway
+---
+
 # API Gateway — PLAN
 
 Roadmap, known gaps, และ work-in-progress ของ gateway. ใช้สำหรับ alignment

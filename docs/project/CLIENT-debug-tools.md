@@ -1,3 +1,11 @@
+---
+title: "Client: the debug screen and the dev instruments"
+description: What should live behind the dev-gated debug route, and where each candidate came from.
+status: draft
+updated: 2026-08-02
+owner: client
+---
+
 # Client: the debug screen and the dev instruments
 
 `app/debug.tsx` is the last `ScreenPlaceholder` in the tree. It is reachable
