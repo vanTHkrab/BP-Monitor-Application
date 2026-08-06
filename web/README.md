@@ -2,7 +2,7 @@
 
 Next.js App Router dashboard the **development team** uses to inspect the BP
 Monitor backend. It surfaces live service health for each backend and renders
-the system's architecture diagrams.
+the repo's `docs/**/*.md` — architecture diagrams included — as a static site.
 
 > ⚠️ This is not a patient- or clinician-facing app, and it has **no
 > authentication**. No auth library is installed; `/` is an unmodified shadcn
@@ -43,10 +43,7 @@ web/src/
 ├── app/
 │   ├── page.tsx               # redirects to /docs
 │   ├── (docs)/docs/           # the documentation site — renders docs/**/*.md
-│   ├── admin/                 # overview · gateway · database · redis · s3 · ai-service · clients
-│   └── (diagram)/diagrams/    # 10 Mermaid pages: architecture, ER, use-case,
-│                              #   sequence (auth, bp-capture), flow (offline-sync,
-│                              #   yolo-preflight), state (camera, reading-lifecycle)
+│   └── admin/                 # overview · gateway · database · redis · s3 · ai-service · clients
 ├── actions/                   # Server Actions — every backend call
 ├── components/                # docs + dashboard shells, sidebars, markdown & mermaid renderers, shadcn ui/
 ├── hooks/                     # use-mobile

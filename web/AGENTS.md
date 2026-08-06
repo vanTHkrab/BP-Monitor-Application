@@ -20,8 +20,8 @@ Two things in one Next.js app, with different audiences:
 
 1. **The project documentation site**, at `/` and `/docs` — the public face,
    rendered from the repo's `docs/**/*.md` at build time.
-2. **An internal service-status dashboard and diagram viewer**, under
-   `/admin` — for the development team.
+2. **An internal service-status dashboard**, under `/admin` — for the
+   development team.
 
 Read that literally. It is smaller and more specific than "web dashboard"
 suggests, and it is **not** a clinical product.
@@ -32,8 +32,14 @@ What exists, in full:
 | --- | --- |
 | `(docs)` | The documentation site at `/docs` — one prerendered page per file in the repo's `docs/**/*.md`, read at build time. **This app holds no copy of that content** |
 | `admin/` | 7 service-status pages: `/admin/{overview,gateway,database,redis,s3,ai-service,clients}` |
-| `(diagram)` | 10 hand-written Mermaid pages under `diagrams/` — architecture, ER, use-case, two sequence, two flow, two state. Still TSX; the Markdown renderer supports ```mermaid fences, so they are candidates to move into `docs/` |
 | `/` | `src/app/page.tsx` — redirects to `/docs` |
+
+That is the whole app. The 10 hand-written Mermaid pages that used to live in
+a `(diagram)` route group are now `docs/architecture/*.md` and render through
+the same `/docs` pipeline as everything else. The `/diagrams/*` URLs no longer
+exist and **no redirects were added** — this is an internal site with no
+external consumers, so a 404 on a stale bookmark is cheaper than a redirect
+table nobody maintains. That is a decision, not an oversight.
 
 > ⚠️ **There is no clinical UI and no authentication anywhere in this app.**
 > No auth library is installed. The `/admin` pages are not "authenticated" —
@@ -98,7 +104,6 @@ There is no test suite here. The gate is `pnpm lint` plus
 | `src/lib/docs.ts` | Reads `docs/**/*.md` at build time. The build needs the repo root in scope — hence the Docker context |
 | `src/components/markdown.tsx` | Markdown renderer: routes ```mermaid fences to `<Mermaid>`, rewrites relative `.md` links |
 | `src/app/admin/` | The 7 service-status pages |
-| `src/app/(diagram)/diagrams/` | The 10 Mermaid diagram pages |
 | `src/actions/` | Server Actions — every backend call lives here |
 | `src/lib/` | Thin clients, one per backend (see the topology table) |
 | `src/lib/redis-channels.ts` | Channel-name constants, standalone so client components can import them without bundling `ioredis` |
@@ -144,11 +149,11 @@ Components or Server Actions. Copy `.env.example` to `.env.local`.
   gateway — a probe, never a boot dependency.
 - **shadcn/ui first.** Reuse `src/components/ui/` before installing another
   component library.
-- **Diagrams are Mermaid**, rendered by `src/components/mermaid.tsx`. Prefer
-  a ```mermaid fence in a `docs/**/*.md` file — the Markdown renderer routes
-  it to the same component, and the diagram then stays readable on GitHub, in
-  an editor, and to an agent grepping the repo. The remaining TSX pages under
-  `src/app/(diagram)/diagrams/` predate that and are candidates to move.
+- **Diagrams are Mermaid**, rendered by `src/components/mermaid.tsx`. A
+  ```mermaid fence in a `docs/**/*.md` file is the only place a diagram
+  belongs — the Markdown renderer routes it to the same component, and the
+  diagram stays readable on GitHub, in an editor, and to an agent grepping the
+  repo. Don't put Mermaid source back into a `.tsx` template string.
 - **The docs site holds no copy of the content.** `src/lib/docs.ts` reads
   `docs/` at build time. Never paste documentation prose into a `.tsx` — a
   second copy is how two documents describing the same thing start
@@ -175,8 +180,9 @@ here:
 - **`pg` and `ioredis` are direct drivers, not the gateway's.** This app does
   not use Prisma Client; `src/lib/db.ts` issues raw SQL against a small pool
   sized so dashboard reads don't crowd out the gateway on shared infra.
-- **`mermaid` is client-side only.** The diagram pages are the only thing
-  importing it.
+- **`mermaid` is client-side only.** `src/components/mermaid.tsx` is the only
+  thing importing it, and `src/components/markdown.tsx` is the only thing
+  importing that.
 - **No auth library is installed**, and there is no login form — the orphaned
   shadcn template that used to sit at `/` was removed once `/` became the docs
   index. Access control is the nginx rule on `/admin/`. If a future change

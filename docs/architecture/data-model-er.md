@@ -1,11 +1,21 @@
-import {
-    DiagramPage,
-    DiagramSection,
-    InsightList,
-} from "@/components/diagram-page";
-import { Mermaid } from "@/components/mermaid";
+---
+title: ER Diagram (Prisma schema)
+description: >-
+    Postgres tables and relations as Prisma sees them. The gateway is the only
+    writer to Postgres. Every relation here is enforced at the DB level via
+    Prisma. UUIDs for users (so clients can generate them offline if needed);
+    auto-increment ints for everything else.
+status: current
+updated: 2026-08-06
+owner: api-gateway
+---
 
-const chart = `erDiagram
+## Full schema
+
+Source of truth: server/app/api-gateway/prisma/schema.prisma.
+
+```mermaid
+erDiagram
     User ||--o{ UserSession : "owns"
     User ||--o{ BloodPressureReading : "records"
     User ||--o{ Image : "uploads"
@@ -131,54 +141,22 @@ const chart = `erDiagram
         int comment_id PK,FK
         timestamp created_at
     }
-`;
+```
 
-export default function ErPage() {
-    return (
-        <DiagramPage
-            title="ER Diagram (Prisma schema)"
-            subtitle="Postgres tables and relations as Prisma sees them"
-            description="The gateway is the only writer to Postgres. Every relation here is enforced at the DB level via Prisma. UUIDs for users (so clients can generate them offline if needed); auto-increment ints for everything else."
-            tags={["Data model", "Prisma"]}
-        >
-            <DiagramSection
-                title="Full schema"
-                description="Source of truth: server/app/api-gateway/prisma/schema.prisma."
-            >
-                <Mermaid chart={chart} />
-            </DiagramSection>
+## Things worth a second look
 
-            <DiagramSection title="Things worth a second look">
-                <InsightList
-                    items={[
-                        {
-                            label: "client_id on readings and posts",
-                            detail:
-                                "Unique nullable string from the mobile client (createClientId). The dedupe seam between offline create and server insert — re-syncing the same local row never creates a duplicate.",
-                        },
-                        {
-                            label: "Image.reading_id is nullable + unique",
-                            detail:
-                                "An image can exist before its reading row (uploaded during capture, attached on confirm) but at most one reading per image. SetNull on delete keeps history rather than cascading.",
-                        },
-                        {
-                            label: "CaregiverPatient is self-relation on User",
-                            detail:
-                                "Composite PK (caregiver_id, patient_id). The same row pairs a caregiver and a patient with a typed relationship. Cascades on either side delete the link, not the people.",
-                        },
-                        {
-                            label: "user_sessions, not session cookies",
-                            detail:
-                                "Every authenticated request validates the session row exists with is_active=true. Logout flips the flag; sessions table is also the data behind the device-history screen.",
-                        },
-                        {
-                            label: "PostComment.parent_id self-relation",
-                            detail:
-                                "Threaded replies one level deep are modelled with parent_id pointing back to PostComment. parent_id IS NULL means top-level.",
-                        },
-                    ]}
-                />
-            </DiagramSection>
-        </DiagramPage>
-    );
-}
+- **client_id on readings and posts** — Unique nullable string from the mobile
+  client (createClientId). The dedupe seam between offline create and server
+  insert — re-syncing the same local row never creates a duplicate.
+- **Image.reading_id is nullable + unique** — An image can exist before its
+  reading row (uploaded during capture, attached on confirm) but at most one
+  reading per image. SetNull on delete keeps history rather than cascading.
+- **CaregiverPatient is self-relation on User** — Composite PK (caregiver_id,
+  patient_id). The same row pairs a caregiver and a patient with a typed
+  relationship. Cascades on either side delete the link, not the people.
+- **user_sessions, not session cookies** — Every authenticated request
+  validates the session row exists with is_active=true. Logout flips the flag;
+  sessions table is also the data behind the device-history screen.
+- **PostComment.parent_id self-relation** — Threaded replies one level deep are
+  modelled with parent_id pointing back to PostComment. parent_id IS NULL means
+  top-level.
