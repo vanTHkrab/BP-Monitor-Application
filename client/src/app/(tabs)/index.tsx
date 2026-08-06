@@ -22,7 +22,7 @@
  *
  * **Caregiver mode is the original's branch**, now wired to a real store:
  * `modules/caregivers`'s session-scoped `activePatientId` (the C-005 item
- * that `docs/todo/CLIENT-auth-structure.md` deferred until something read
+ * that `docs/project/CLIENT-auth-structure.md` deferred until something read
  * it). The gateway remains the actual gate — `readings(patientId:)` needs an
  * accepted link — so this only decides what to ask for.
  *
@@ -30,7 +30,7 @@
  * `app/settings.tsx` and `app/(tabs)/history.tsx`, which ask. The card says
  * "PDF" on its face, so asking would be asking the user to confirm what they
  * just read. All three go through `useExportReadings`, so the document itself
- * cannot differ between them. See `docs/todo/CLIENT-export.md`.
+ * cannot differ between them. See `docs/project/CLIENT-export.md`.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

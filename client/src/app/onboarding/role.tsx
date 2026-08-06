@@ -4,7 +4,7 @@
  * This is where the role is chosen for *every* sign-up path. It is not in
  * the registration form on purpose: a Google sign-up never sees
  * `RegisterInput`, so a form field would have left OAuth users permanently
- * patients. See docs/todo/CLIENT-onboarding.md.
+ * patients. See docs/project/CLIENT-onboarding.md.
  *
  * No skip button. `role` decides which app the user gets, and a default
  * chosen by silence is the one outcome that cannot be corrected by someone

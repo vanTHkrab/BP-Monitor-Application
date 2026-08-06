@@ -16,7 +16,7 @@ still empty — this is a greenfield layout, not a refactor of existing files.
 
 **1. `login` and `register` stay on GraphQL.** They keep calling `GQL_LOGIN` /
 `GQL_REGISTER` exactly as before. This follows
-[AUTH-better-auth-identity.md](../../server/app/api-gateway/docs/AUTH-better-auth-identity.md)
+[AUTH-better-auth-identity.md](../architecture/AUTH-better-auth-identity.md)
 "What this changes for the client": the resolvers are thin wrappers over
 `auth.api.*`, so the token they return *is* a Better Auth session token — the
 same one the bearer bridge accepts.
@@ -314,7 +314,7 @@ button disabled long after the server would accept a retry.
 (`app/(auth)/verify-email.tsx`) is fully wired and reachable — it needed
 no `@better-auth/expo` at all, since it went straight at Better Auth's REST
 endpoints via `modules/auth/services/email-otp-api.ts` (see
-[docs/01-api/API.md](../01-api/API.md)). The phone onboarding step
+[docs/reference/API.md](../reference/API.md)). The phone onboarding step
 (`app/(auth)/onboarding-phone.tsx`) is built and unit-verified but not yet
 reachable — nothing routes to it, because there is no OAuth callback
 handler to route from. The Google refusal copy

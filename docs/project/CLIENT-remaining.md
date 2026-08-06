@@ -193,7 +193,7 @@ paths that do:
 | `constants/colors.ts` (status classification) | `src/modules/readings/lib/status.ts` |
 | `types/graphql.ts` | per-module `types.ts` + `lib/mappers.ts` |
 
-Files touched: `docs/01-api/API.md`, `infra/README.md`,
+Files touched: `docs/reference/API.md`, `infra/README.md`,
 `server/app/api-gateway/{CLAUDE,README,PLAN}.md`,
 `server/app/ai-service/PLAN.md`. The root `CLAUDE.md` was already
 reconciled in an earlier pass.

@@ -87,7 +87,7 @@ makes the local check meaningful. If only one ships, ship 3.
 - [`server/app/api-gateway/CLAUDE.md`](../../server/app/api-gateway/CLAUDE.md)
   — "Update `*.types.ts` first … run `pnpm start:dev` briefly to regenerate
   `schema.gql`, then commit both." The manual step CI would enforce.
-- [`docs/01-api/API.md`](../01-api/API.md) — documents the contract by hand;
+- [`docs/reference/API.md`](../reference/API.md) — documents the contract by hand;
   it had `recordedBy { id firstname lastname }` right the whole time, which
   is a reminder that prose docs are not a substitute for a machine check but
   are worth grepping when something disagrees.

@@ -3,7 +3,7 @@
 Picking this up in a fresh session. The gateway side is done and merged
 behind `server/better-auth`; this is the mobile work that follows it.
 
-Read first: [server/app/api-gateway/docs/AUTH-better-auth-identity.md](../../server/app/api-gateway/docs/AUTH-better-auth-identity.md)
+Read first: [docs/architecture/AUTH-better-auth-identity.md](../architecture/AUTH-better-auth-identity.md)
 — it carries the decisions and the reasons, and several of them constrain
 what the client may do.
 
@@ -80,7 +80,7 @@ REST endpoints (`/api/auth/email-otp/*`) rather than through
 `@better-auth/expo`'s client — see "P0" in
 [CLIENT-auth-structure.md](./CLIENT-auth-structure.md) for why that client
 is still not installable, and the API reference in
-[docs/01-api/API.md](../01-api/API.md) for the endpoint shapes. `UserType`
+[docs/reference/API.md](../reference/API.md) for the endpoint shapes. `UserType`
 gained `emailVerified: Boolean!` (gateway + client both) so the cache write
 on a successful verify has somewhere to land.
 

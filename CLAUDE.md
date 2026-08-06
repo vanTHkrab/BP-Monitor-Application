@@ -16,7 +16,8 @@ persists data and brokers requests, and an AI service runs analysis on top.
 | ------------------------ | --------------------------------------------------------------------------------------------- |
 | Mobile app               | [client/CLAUDE.md](./client/CLAUDE.md)                                                        |
 | Web dashboard            | [web/CLAUDE.md](./web/CLAUDE.md) (which imports `web/AGENTS.md`)                              |
-| API gateway / AI service | [server/CLAUDE.md](./server/CLAUDE.md) — and per-service file under `server/app/*/CLAUDE.md`  |
+| API gateway              | [server/app/api-gateway/CLAUDE.md](./server/app/api-gateway/CLAUDE.md)                        |
+| AI service               | [server/app/ai-service/CLAUDE.md](./server/app/ai-service/CLAUDE.md)                          |
 | Docker / local infra     | [infra/README.md](./infra/README.md)                                                          |
 
 Each per-project `CLAUDE.md` owns its own commands, conventions, and rules.

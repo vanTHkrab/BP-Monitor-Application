@@ -1,8 +1,7 @@
 # API Gateway — Claude Context
 
 This file gives AI-assisted edits inside `server/app/api-gateway/` enough
-context to act safely. It supplements the root `CLAUDE.md` and
-`server/CLAUDE.md`.
+context to act safely. It supplements the root `CLAUDE.md`.
 
 ## What this service is
 
@@ -142,7 +141,7 @@ traps, in the order people hit them:
   *audience* — the array's first entry stays the web client, because that
   is what the browser redirect uses as `client_id`.
 - **The challenge is a cookie.** See the `challengeToken` note in
-  [docs/01-api/API.md](../../../docs/01-api/API.md#511-passkeys--security)
+  [docs/reference/API.md](../../../docs/reference/API.md#511-passkeys--security)
   before changing anything in `src/security/`.
 
 ## Cross-cutting concerns
@@ -208,4 +207,4 @@ traps, in the order people hit them:
 - [AGENT.md](./AGENT.md) — agent-style architecture overview
 - [PLAN.md](./PLAN.md) — roadmap and known gaps
 - [MEMORY.md](./MEMORY.md) — durable facts worth remembering across sessions
-- [../../../docs/01-api/API.md](../../../docs/01-api/API.md) — GraphQL contract reference for client developers (auth, error codes, operation catalogue, image-upload flow)
+- [../../../docs/reference/API.md](../../../docs/reference/API.md) — GraphQL contract reference for client developers (auth, error codes, operation catalogue, image-upload flow)

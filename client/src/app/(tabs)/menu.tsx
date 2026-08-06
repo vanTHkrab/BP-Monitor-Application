@@ -15,7 +15,7 @@
  * client-old's debug tool is a tabbed mini-app of its own (diff / file /
  * sqlite / storage / store / uploads inspectors, ~1,300 lines), so it is its
  * own task rather than part of this screen — see
- * docs/todo/CLIENT-debug-tools.md.
+ * docs/project/CLIENT-debug-tools.md.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

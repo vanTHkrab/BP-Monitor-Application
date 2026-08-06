@@ -7,7 +7,7 @@
  * Local on purpose — none of this is server state. A reinstall losing the
  * font size is correct behaviour, not a bug, and it is why the first-run
  * setup step is gated on a *local* flag while the role step is gated on a
- * server column. See docs/todo/CLIENT-onboarding.md.
+ * server column. See docs/project/CLIENT-onboarding.md.
  *
  * Theme is **not** here: it lives in ColorSchemeProvider, because NativeWind
  * has to own the light/dark resolution. This store persists everything else

@@ -93,7 +93,7 @@ src/
   ภายใต้ชื่อ `GQL_*` — ไม่มีไฟล์รวมส่วนกลางแล้ว
 - `pnpm check` ฝั่ง client รัน `verify-graphql` ซึ่ง validate ทุก operation
   กับ `src/schema.gql` ที่ commit ไว้ — schema ที่ยังไม่ได้ regenerate จึงทำให้
-  ผ่านทั้งที่ผิด ดู [docs/todo/CI-graphql-contract.md](../../../docs/todo/CI-graphql-contract.md)
+  ผ่านทั้งที่ผิด ดู [docs/project/CI-graphql-contract.md](../../../docs/project/CI-graphql-contract.md)
 - Schema ถูก generate อัตโนมัติจาก decorators ลงใน `src/schema.gql`
   ห้ามแก้ไฟล์นี้มือ — แก้ที่ `*.types.ts` หรือ `*.resolver.ts` แทน
 - Error response มาตรฐาน: HTTP 200 + body `{ errors: [{ message, extensions: { code } }] }`

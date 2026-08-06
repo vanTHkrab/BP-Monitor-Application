@@ -152,4 +152,4 @@ Roadmap, known gaps, และ work-in-progress ของ gateway. ใช้ส�
 - เพิ่ม class-validator decorators กับ `@InputType` ทุกตัว — pipe เปิด
   `forbidNonWhitelisted` ดังนั้น field ที่ไม่ระบุจะถูก reject
 - ห้ามแก้ `src/schema.gql` มือ
-- ดู [CLAUDE.md](./CLAUDE.md) ก่อน edit
+- ดู [CLAUDE.md](../../server/app/api-gateway/CLAUDE.md) ก่อน edit

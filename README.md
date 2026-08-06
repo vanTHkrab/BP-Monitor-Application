@@ -110,8 +110,7 @@ uv run fastapi dev main.py
 ## Existing Subproject Docs
 
 - `client/README.md`
-- `server/README.md` — server tier overview + cross-service architecture
-- `docs/01-api/API.md` — GraphQL contract reference for client developers
+- `docs/reference/API.md` — GraphQL contract reference for client developers
 - `server/app/api-gateway/README.md`
 - `server/app/ai-service/README.md`
 - `web/README.md`

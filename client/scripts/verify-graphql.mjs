@@ -33,7 +33,7 @@
  * so a stale checkout means a stale answer. That is the trade: this catches
  * a client that disagrees with the *committed* schema, cheaply, on every
  * `pnpm check`. Catching a client that disagrees with a *running* gateway
- * needs the gateway running — see `docs/todo/CI-graphql-contract.md`.
+ * needs the gateway running — see `docs/project/CI-graphql-contract.md`.
  *
  * Same cross-app read as `verify-models.mjs`, for the same reason: the
  * contract has one owner and it is not this app.

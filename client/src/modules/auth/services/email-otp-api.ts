@@ -5,7 +5,7 @@
  *
  * `@better-auth/expo@1.6.25` does not type-check against `better-auth@1.6.25`
  * (confirmed again on 1.7.0-rc.2, still broken — see
- * docs/todo/CLIENT-auth-structure.md, "P0"), so the dependency is not
+ * docs/project/CLIENT-auth-structure.md, "P0"), so the dependency is not
  * installed. Email OTP has no deep-link or cookie-jar requirement — it is a
  * plain JSON request/response pair — so it does not need that client at all.
  * Google OAuth is the part that genuinely needs `@better-auth/expo` (or a

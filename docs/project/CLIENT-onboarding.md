@@ -165,7 +165,7 @@ top-level screens.
 `selectRole(input: { role })` — authenticated, returns `UserType`.
 `role` is `UserRoleInput` (`patient | caregiver`); `developer` is not a
 member and cannot be self-assigned from any surface. Full reference in
-[docs/01-api/API.md](../01-api/API.md) and the rationale in
-[AUTH-better-auth-identity.md](../../server/app/api-gateway/docs/AUTH-better-auth-identity.md).
+[docs/reference/API.md](../reference/API.md) and the rationale in
+[AUTH-better-auth-identity.md](../architecture/AUTH-better-auth-identity.md).
 
 Shipped in PR #87 against `client/optimize`.

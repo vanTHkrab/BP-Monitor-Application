@@ -278,7 +278,7 @@ don't need the GUI libs, saves ~200 MB.
 
 `src/prepare/*.py` imports `cv2`, `numpy`, `ultralytics`, and `torch`
 but none are declared in `pyproject.toml` (only `fastapi` + `redis`).
-This violates root [CLAUDE.md](../../../CLAUDE.md) rule 13 ("No ghost
+This violates root [CLAUDE.md](../../CLAUDE.md) rule 13 ("No ghost
 packages"). The dep list above must be installed via
 `uv add <pkg>` (NOT manual `pyproject.toml` edits — rule 10) **before**
 any pipeline code runs.
@@ -418,7 +418,7 @@ the model lives outside `src/` as an asset.
 - [x] Add tests (92 collected: config / fetch / handlers / pipeline / validation / yolo)
 - [ ] Add fixture BP images under `tests/fixtures/` (blurry / occluded / decimal edge)
 - [ ] **ROI overlay upload** — pipeline still sets `roi_image_url=None`
-      (see [pipeline.py:198](./src/ai_service/analyzer/pipeline.py)). PLAN
+      (see [pipeline.py:198](../../server/app/ai-service/src/ai_service/analyzer/pipeline.py)). PLAN
       decided gateway PUTs the bytes — ai-service returns base64 in reply.
       Gateway-side `ai.process.ts` upload to `users/{userId}/bp/analysis/{jobId}_roi.{ext}`
       still pending. Listed as optional in PLAN; defer to Milestone 3.
@@ -504,11 +504,11 @@ per process.
 
 The CRNN may emit `"12O"` (O misread as a letter), `"1.20"`, or
 `"1 20"` due to CTC mid-sequence noise. The teammate's regex extractor
-( [crnn/backend.py:30](./prepare/ocr/crnn/backend.py) ) prefers
+( [crnn/backend.py:30](../../server/app/ai-service/prepare/ocr/crnn/backend.py) ) prefers
 2-3 digit groups inside the clinical range — keep that logic as-is so
 the empirically-tuned behaviour ports over.
 
-### Config changes ([config.py](./src/ai_service/config.py))
+### Config changes ([config.py](../../server/app/ai-service/src/ai_service/config.py))
 
 ```python
 class OCREngine(StrEnum):
@@ -526,7 +526,7 @@ class AnalyzerConfig(BaseSettings):
 Env var: `AI_CRNN_PATH` (mirrors `AI_DETECTOR_PATH` pattern). Default
 resolves against `AI_SERVICE_ROOT` (not cwd) per existing convention.
 
-### Lifespan wiring ([main.py](./src/ai_service/main.py))
+### Lifespan wiring ([main.py](../../server/app/ai-service/src/ai_service/main.py))
 
 ```python
 detector = await asyncio.to_thread(
@@ -590,7 +590,7 @@ contract stable (zero changes in `pipeline.py`).
 10. **Update docs in same change**:
     - [ai-service/CLAUDE.md](./CLAUDE.md) "Important paths" — drop `ssocr.py`, add `crnn.py`, mention `models/crnn_int8.onnx`
     - PLAN.md checklist below
-    - Root [CLAUDE.md](../../../CLAUDE.md) AI-flow paragraph if any wire detail changed (we believe it doesn't — `model_version` keeps a value, only the source changes)
+    - Root [CLAUDE.md](../../CLAUDE.md) AI-flow paragraph if any wire detail changed (we believe it doesn't — `model_version` keeps a value, only the source changes)
 
 ### Implementation checklist (Milestone 2)
 
@@ -821,7 +821,7 @@ that reports the process-lifetime peak, not the request delta).
 
 | Surface | Behaviour |
 | --- | --- |
-| Settings screen → "About" or app logo | 7-tap within 2 seconds → toggle `devMode` boolean in [preferences store](../../../client/src/stores/preferences.store.ts) |
+| Settings screen → "About" or app logo | 7-tap within 2 seconds → toggle `devMode` boolean in [preferences store](../../client/src/stores/preferences.store.ts) |
 | Camera screen | If `devMode === true`, render segmented control above shutter: `[ssocr, ssocr+cnn, crnn]`. Default selection = `crnn`. Persist `selectedOcrEngine` per session, not across reinstalls |
 | `submitBPReading` mutation | Include `ocrEngine: selectedOcrEngine` only when `devMode === true`. Production users send no field → server falls back to default |
 | Reading detail / result card | If response has `engine + metrics`, render a `<DevMetricsChip>` showing `{engine} · {total_ms}ms · +{rss_delta_mb}MB`. Otherwise hide |
@@ -841,7 +841,7 @@ reinstall wipes it — fine for research phase.
 2. Port `prepare/ocr/cnn/onnx_runtime.py` + KNN bits from
    `prepare/ocr/ssocr/ssocr.py` → `src/ai_service/analyzer/ocr/cnn_classifiers.py`
    (ONNX CNN inference, numpy KNN cosine similarity, brand detection).
-3. Refactor [src/ai_service/analyzer/ocr/ssocr.py](./src/ai_service/analyzer/ocr/ssocr.py):
+3. Refactor [src/ai_service/analyzer/ocr/ssocr.py](../../server/app/ai-service/src/ai_service/analyzer/ocr/ssocr.py):
    replace `_load_cnn*` / `_classify_by_cnn*` calls with
    `cnn_classifiers.classify_by_cnn_2ch_onnx`. Replace `_load_knn_data`
    / `_classify_by_knn` with `cnn_classifiers.classify_by_knn`. Remove
@@ -859,7 +859,7 @@ reinstall wipes it — fine for research phase.
    `pyproject.toml` deps).
 7. Update `AnalyzerConfig`: add `default_engine: OCREngine = OCREngine.CRNN`.
    Add `OCREngine.SSOCR_CNN` to the enum.
-8. Update [handlers.py](./src/ai_service/handlers.py): parse `ocrEngine`
+8. Update [handlers.py](../../server/app/ai-service/src/ai_service/handlers.py): parse `ocrEngine`
    from payload, dispatch via `registry.get()`, attach `engine` + `metrics`
    to reply. Use `reply_error(..., "unknown engine: ...")` on bad name.
 9. Tests:
@@ -872,20 +872,20 @@ reinstall wipes it — fine for research phase.
 
 #### PR 2 — api-gateway (passthrough + S3 logger)
 
-1. [types/ai.types.ts](../api-gateway/src/ai/types/ai.types.ts):
+1. [types/ai.types.ts](../../server/app/api-gateway/src/ai/types/ai.types.ts):
    - Add `ocrEngine?: string` to `AnalysisJobPayload`
    - Add `engine?: string` and `metrics?: AnalysisMetricsObject` to result type
-2. [ai.types.ts](../api-gateway/src/ai/types/ai.types.ts) /
-   [dto/analysis-job.object.ts](../api-gateway/src/ai/dto/analysis-job.object.ts):
+2. [ai.types.ts](../../server/app/api-gateway/src/ai/types/ai.types.ts) /
+   [dto/analysis-job.object.ts](../../server/app/api-gateway/src/ai/dto/analysis-job.object.ts):
    add GraphQL `AnalysisMetricsObject` (`fetchMs`, `detectMs`, `ocrMs`,
    `totalMs`, `rssDeltaMb`, `imageSizeBytes`) and `engine: String`
 3. GraphQL input: `submitBPReading(input: { ..., ocrEngine?: String })`
-4. [ai.service.ts](../api-gateway/src/ai/ai.service.ts): forward
+4. [ai.service.ts](../../server/app/api-gateway/src/ai/ai.service.ts): forward
    `ocrEngine` into Redis payload when present
 5. New: `src/ai/metrics-logger.ts` — `appendRow(row: MetricsRow)` that
    reads the day's JSONL from S3, appends, puts back. Uses existing
    `S3StorageClient`
-6. [ai.process.ts](../api-gateway/src/ai/ai.process.ts): after
+6. [ai.process.ts](../../server/app/api-gateway/src/ai/ai.process.ts): after
    `parseAiResponse`, call `metricsLogger.appendRow(...)` before persisting
    the reading. Failures in metrics upload are warning-logged but not
    propagated — must never block the user-facing path
@@ -893,7 +893,7 @@ reinstall wipes it — fine for research phase.
 
 #### PR 3 — client (dev gesture + UI)
 
-1. [preferences store](../../../client/src/stores/preferences.store.ts):
+1. [preferences store](../../client/src/stores/preferences.store.ts):
    add `devMode: boolean` (default `false`),
    `selectedOcrEngine: 'crnn' | 'ssocr_cnn' | 'ssocr'` (default `'crnn'`)
 2. Settings screen: 7-tap gesture on app logo / title within 2 seconds
@@ -901,12 +901,12 @@ reinstall wipes it — fine for research phase.
 3. Camera screen: render `<OcrEngineSelector>` (segmented control)
    above shutter when `devMode === true`. Selector writes
    `selectedOcrEngine`
-4. [use-camera-analysis.ts](../../../client/src/modules/capture/hooks/use-camera-analysis.ts):
+4. [use-camera-analysis.ts](../../client/src/modules/capture/hooks/use-camera-analysis.ts):
    pass `ocrEngine: selectedOcrEngine` to `analyze()` only when
    `devMode === true`. Otherwise omit the field — the parameter already
    exists and is already omitted when unset
 5. The `engine` / `metrics` selection set is already requested by
-   [analysis-api.ts](../../../client/src/modules/capture/services/analysis-api.ts)
+   [analysis-api.ts](../../client/src/modules/capture/services/analysis-api.ts)
 6. Result card: render `<DevMetricsChip>` if response.engine present.
    Compact display: `crnn · 419ms · +18MB`
 7. Tests: not strictly required for hidden dev surface; smoke via Expo
@@ -1002,8 +1002,8 @@ reinstall wipes it — fine for research phase.
 
 - Treat the wire protocol (`analyze_bp_image` + reply payload shape)
   as a hard contract — any change must update both
-  [src/ai_service/main.py](./src/ai_service/main.py) and
-  [api-gateway/src/ai/](../api-gateway/src/ai/) in the same PR.
+  [src/ai_service/main.py](../../server/app/ai-service/src/ai_service/main.py) and
+  [api-gateway/src/ai/](../../server/app/api-gateway/src/ai/) in the same PR.
 - Real OCR work belongs in `src/ai_service/analyzer/` (with engines
   under `analyzer/ocr/`) and `storage/` per the layout above. Keep
   `main.py` thin — only `lifespan`, FastAPI app instance, and the

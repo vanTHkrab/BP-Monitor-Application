@@ -139,7 +139,7 @@ Inventory, and what happened to each part:
 
 `alerts` / `markAlertRead` / `markAllAlertsRead` back the notification list.
 `AlertType.reading` embeds a snapshot of the triggering reading, so the bell
-does **not** need a second query — see [API.md §5.5](../01-api/API.md). They
+does **not** need a second query — see [API.md §5.5](../reference/API.md). They
 live in `modules/readings/` rather than a module of their own, since
 `bpReadingId` is non-null and every alert is about a reading by construction.
 

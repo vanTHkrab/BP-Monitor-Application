@@ -4,11 +4,11 @@ The contract between the API gateway (`server/app/api-gateway`) and both
 clients (`client/` mobile + `web/` dashboard). This is a reference for
 client developers — not a guide to changing the schema. The authoritative
 schema is generated at
-[`server/app/api-gateway/src/schema.gql`](../server/app/api-gateway/src/schema.gql).
+[`server/app/api-gateway/src/schema.gql`](../../server/app/api-gateway/src/schema.gql).
 
 > ⚠️ Schema-first via decorators — edit fields in `*.types.ts` /
 > `*.resolver.ts` only; the gateway regenerates `schema.gql` at boot. See
-> [api-gateway/CLAUDE.md](../server/app/api-gateway/CLAUDE.md).
+> [api-gateway/CLAUDE.md](../../server/app/api-gateway/CLAUDE.md).
 
 ---
 
@@ -23,10 +23,10 @@ schema is generated at
 | GraphiQL | `GET /graphiql` (dev only) |
 
 The mobile client resolves the URL via
-[`client/src/services/endpoint.ts`](../client/src/services/endpoint.ts) →
+[`client/src/services/endpoint.ts`](../../client/src/services/endpoint.ts) →
 `getGraphqlEndpoint()`, re-exported from
-[`client/src/services/api.ts`](../client/src/services/api.ts). The web dashboard calls the gateway from server
-actions under [`web/src/actions/`](../web/src/actions/).
+[`client/src/services/api.ts`](../../client/src/services/api.ts). The web dashboard calls the gateway from server
+actions under [`web/src/actions/`](../../web/src/actions/).
 
 ---
 
@@ -43,10 +43,10 @@ Authorization: Bearer <jwt>
 - The mobile client stores the token via `expo-secure-store`
   (`AsyncStorage` on the web preview). Don't read storage directly — use
   `setAuthToken` / `getAuthToken` / `clearAuthToken` from
-  [`client/src/services/auth-token.ts`](../client/src/services/auth-token.ts),
+  [`client/src/services/auth-token.ts`](../../client/src/services/auth-token.ts),
   also re-exported from `client/src/services/api.ts`.
 - Token validity is set by `JWT_EXPIRES_IN`; see
-  [`auth.config.ts`](../server/app/api-gateway/src/auth/auth.config.ts).
+  [`auth.config.ts`](../../server/app/api-gateway/src/auth/auth.config.ts).
 - Every authenticated request is guarded: the JWT must verify **and** the
   matching row in `userSession` must have `isActive = true`. `logout`
   flips that flag, so a still-valid token is rejected the moment its
@@ -96,7 +96,7 @@ match on `message` — the human-readable text is Thai and may change.
 | ≥ 500 | `INTERNAL_SERVER_ERROR` | Gateway crash, Prisma error |
 
 > Source: `httpStatusToGqlCode()` in
-> [`api-gateway/src/app.module.ts`](../server/app/api-gateway/src/app.module.ts).
+> [`api-gateway/src/app.module.ts`](../../server/app/api-gateway/src/app.module.ts).
 > 409 and 429 fall through to `BAD_REQUEST` today; both clients
 > disambiguate primarily via `retryAfterSec` in extensions (see §3.2).
 
@@ -121,7 +121,7 @@ match on `message` — the human-readable text is Thai and may change.
 In non-production builds, the formatter also surfaces class-validator's
 constraint array under `extensions.validationErrors` so the failing field
 is visible from logs (see
-[`app.module.ts`](../server/app/api-gateway/src/app.module.ts)). The array is
+[`app.module.ts`](../../server/app/api-gateway/src/app.module.ts)). The array is
 intentionally suppressed in production to avoid leaking schema details.
 
 ### 3.2 Throttled errors (login / verifyPassword)
@@ -161,12 +161,12 @@ Both surface a 429 with `extensions.code = "TOO_MANY_REQUESTS"` and
 ### 3.3 Client-side mapping
 
 - **Mobile**: `graphqlRequest` throws
-  [`ApiError`](../client/src/services/api-error.ts) carrying
+  [`ApiError`](../../client/src/services/api-error.ts) carrying
   `{ code, httpStatus, retryAfterSec }`. The login / register flow
   dispatches via
-  [`formatAuthError`](../client/src/modules/auth/lib/errors.ts); every
+  [`formatAuthError`](../../client/src/modules/auth/lib/errors.ts); every
   other flow goes through
-  [`formatErrorMessage`](../client/src/lib/error-message.ts).
+  [`formatErrorMessage`](../../client/src/lib/error-message.ts).
 - Never render the raw `message` in production — translate via the
   formatter first.
 
@@ -389,7 +389,7 @@ The mobile client calls these directly with `fetch` — see
 rather than through `@better-auth/expo`'s client, which does not
 type-check against the installed `better-auth` version (still true as of
 `1.7.0-rc.2`; see
-[`docs/todo/CLIENT-auth-structure.md`](../todo/CLIENT-auth-structure.md),
+[`docs/project/CLIENT-auth-structure.md`](../project/CLIENT-auth-structure.md),
 "P0"). Email OTP has no deep-link or cookie-jar requirement, so it does not
 need that client at all; Google OAuth does, and stays blocked on it.
 
@@ -412,7 +412,7 @@ mutation CreateReading($input: CreateReadingInput!) {
 
 - `status` is the BP category (`normal` / `elevated` / `high-stage-1` /
   …). The client computes it before submitting; see
-  [`client/src/modules/readings/lib/status.ts`](../client/src/modules/readings/lib/status.ts)
+  [`client/src/modules/readings/lib/status.ts`](../../client/src/modules/readings/lib/status.ts)
   (the colours for each category live in `client/src/theme/tokens.js`).
 - `s3Key` is optional and only set when the reading came from the image
   flow (after `analyzeBPImage` returns). The gateway enforces that the
@@ -666,10 +666,10 @@ pnpm --dir server/app/api-gateway start:dev
 
 ## 8. See also
 
-- [server/CLAUDE.md](../server/CLAUDE.md) — server-wide context
-- [api-gateway/CLAUDE.md](../server/app/api-gateway/CLAUDE.md) — gateway conventions
-- [api-gateway/STRUCTURE.md](../server/app/api-gateway/STRUCTURE.md) — feature-module layout
-- [api-gateway/AGENT.md](../server/app/api-gateway/AGENT.md) — architecture overview
-- [client/CLAUDE.md](../client/CLAUDE.md) — mobile error-handling rules
-- AI ↔ gateway wire contract — [ai-service/src/ai_service/handlers.py](../server/app/ai-service/src/ai_service/handlers.py)
+- [server/app/api-gateway/CLAUDE.md](../../server/app/api-gateway/CLAUDE.md) — gateway context
+- [api-gateway/CLAUDE.md](../../server/app/api-gateway/CLAUDE.md) — gateway conventions
+- [api-gateway/STRUCTURE.md](../../server/app/api-gateway/STRUCTURE.md) — feature-module layout
+- [api-gateway/AGENT.md](../../server/app/api-gateway/AGENT.md) — architecture overview
+- [client/CLAUDE.md](../../client/CLAUDE.md) — mobile error-handling rules
+- AI ↔ gateway wire contract — [ai-service/src/ai_service/handlers.py](../../server/app/ai-service/src/ai_service/handlers.py)
   (Redis channels `analyze_bp_image` / `analyze_bp_image.reply`; `handle_message` owns the reply schema and `ocrEngine` dispatch)

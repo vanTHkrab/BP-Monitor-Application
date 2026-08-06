@@ -1,7 +1,7 @@
 # Auth migration — custom JWT → Better Auth: identity, linking, and feature set
 
 Design decisions for replacing the hand-rolled auth in
-[`src/auth/`](../src/auth/) with [Better Auth](https://better-auth.com)
+[`src/auth/`](../../server/app/api-gateway/src/auth/) with [Better Auth](https://better-auth.com)
 `1.6.25`. This document settles **identity, account linking, and which
 Better Auth features are adopted** — the parts that are expensive to
 change once accounts exist. Endpoint wiring, the Fastify mount, and the
@@ -225,7 +225,7 @@ Better Auth's built-in `rateLimit` replaces `login-throttle.guard.ts` (since
 deleted), backed by the `ioredis` client the gateway already has.
 
 The counter itself no longer lives in this file. Since 2026-08-06 it is
-[`RateLimitService`](../src/redis/rate-limit.service.ts) in `src/redis/`, and
+[`RateLimitService`](../../server/app/api-gateway/src/redis/rate-limit.service.ts) in `src/redis/`, and
 `better-auth.ts` holds only the adapter — `rateLimit.betterAuthStorage()` —
 plus the per-route rules. It moved because `addCaregiverPatient` needed the
 same budget primitive and a second copy would have meant a second answer to
@@ -277,7 +277,7 @@ declaration wins over `user.additionalFields`; passing `role` to
 set`. The plugin's `schema` option cannot undo it — `InferOptionSchema`
 only renames columns.
 
-`SELF_ASSIGNABLE_ROLES` in [`types/auth.types.ts`](../src/auth/types/auth.types.ts)
+`SELF_ASSIGNABLE_ROLES` in [`types/auth.types.ts`](../../server/app/api-gateway/src/auth/types/auth.types.ts)
 is `['patient', 'caregiver']`, and `normalizeSelfAssignedRole` collapses
 anything else — `developer`, an unknown string, a non-string, or a missing
 value — to `patient`. `AuthService.selectRole` runs it on the write.
@@ -330,7 +330,7 @@ Sessions stay database-backed and revocable, as they are today.
 
 **This is not a performance regression, but it is not the win previously
 recorded here either.** The current
-[`auth.guard.ts`](../src/auth/auth.guard.ts) already read the database on
+[`auth.guard.ts`](../../server/app/api-gateway/src/auth/auth.guard.ts) already read the database on
 every authenticated request — the JWT was an envelope around a stateful
 lookup, not a stateless check — so the cost is unchanged.
 
@@ -352,7 +352,7 @@ sessions" screen shows revoked devices as history. Better Auth's
 `/sign-out` deletes the session; `preserveSessionInDatabase` keeps the row
 so that screen still has something to show.
 
-[`auth.guard.ts`](../src/auth/auth.guard.ts) is rewritten against Better
+[`auth.guard.ts`](../../server/app/api-gateway/src/auth/auth.guard.ts) is rewritten against Better
 Auth's session API. Its externally visible contract must not change: the
 gateway still returns `extensions.code === 'UNAUTHENTICATED'`, because
 the mobile client keys its global logout on exactly that value.
@@ -398,7 +398,7 @@ That keeps three things the REST-only alternative would have cost:
   callback.
 - `extensions.code` keeps coming from the existing `errorFormatter`
   rather than needing a second mapping for REST responses.
-- [`docs/01-api/API.md`](../../../../docs/01-api/API.md) needs edits, not
+- [`docs/reference/API.md`](../reference/API.md) needs edits, not
   a rewritten auth section.
 
 The cost is ten wrappers to maintain, and a rule that has to hold: a

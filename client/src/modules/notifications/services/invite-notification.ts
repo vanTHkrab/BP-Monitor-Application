@@ -3,7 +3,7 @@
  *
  * **This is not a push.** The gateway has no push infrastructure at all — no
  * token column, no registration mutation, nothing that sends (C-001, see
- * docs/todo/CLIENT-caregiver.md). What this does is post a local notification
+ * docs/project/CLIENT-caregiver.md). What this does is post a local notification
  * the moment *this device* learns about a new invite, which happens on a
  * foreground fetch. A patient whose phone is asleep learns about the invite
  * when they next open the app, not before.

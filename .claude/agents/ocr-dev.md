@@ -419,7 +419,7 @@ If a question requires deep reading across these or the source itself, delegate 
 ## Cross-reference notes
 
 - Root cross-cutting rules and shared YOLO contract: `/CLAUDE.md`
-- Server-area context: `/server/CLAUDE.md`
+- Server-area context: `/server/app/api-gateway/CLAUDE.md` and `/server/app/ai-service/CLAUDE.md`
 - Shared YOLO detector spec (mobile mirror): `/CLAUDE.md`
   ("Shared YOLO detector"), backed by `client/src/modules/capture/lib/detection.ts`
   and the native module `client/modules/bp-vision/`

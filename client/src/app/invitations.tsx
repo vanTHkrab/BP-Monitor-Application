@@ -33,7 +33,7 @@
  *
  * The "you are in someone else's account" banner ships with it and is not
  * optional — see `modules/caregivers/components/active-patient-banner.tsx`
- * for why. docs/todo/CLIENT-caregiver.md has the whole picture.
+ * for why. docs/project/CLIENT-caregiver.md has the whole picture.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';

@@ -2,7 +2,7 @@
 
 One-off migration moving every object out of the legacy feature-rooted
 prefixes into the user-rooted layout defined in
-[`src/storage/types/storage.types.ts`](../src/storage/types/storage.types.ts).
+[`src/storage/types/storage.types.ts`](../../server/app/api-gateway/src/storage/types/storage.types.ts).
 
 ## Layout diff
 
@@ -128,9 +128,9 @@ WHERE avatar ~ '^(?:app/profile-images|profiles)/';
 Once the smoke test passes:
 
 1. Remove the legacy entries from `ALLOWED_IMAGE_PREFIXES` in
-   [`storage.types.ts`](../src/storage/types/storage.types.ts).
+   [`storage.types.ts`](../../server/app/api-gateway/src/storage/types/storage.types.ts).
 2. Remove the legacy fallbacks from `resolveBloodPressurePrefix` in
-   [`storage.service.ts`](../src/storage/storage.service.ts).
+   [`storage.service.ts`](../../server/app/api-gateway/src/storage/storage.service.ts).
 3. Run a delete-by-prefix on the old roots:
 
 ```bash

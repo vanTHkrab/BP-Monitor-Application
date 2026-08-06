@@ -1,8 +1,7 @@
 # AI Service — Claude Context
 
 This file gives AI-assisted edits inside `server/app/ai-service/` enough
-context to act safely. It supplements the root `CLAUDE.md` and
-`server/CLAUDE.md`.
+context to act safely. It supplements the root `CLAUDE.md`.
 
 ## What this service is
 

@@ -31,7 +31,7 @@ Every Markdown file the team ships:
 
 ```text
 - root /CLAUDE.md, /README.md, /MEMORY.md, /TASK.md, /PLAN.md, /STRUCTURE.md, /API.md
-- per-project /CLAUDE.md  (client/, web/, server/CLAUDE.md, server/app/api-gateway/CLAUDE.md,
+- per-project /CLAUDE.md  (client/, web/, server/app/api-gateway/CLAUDE.md,
                            server/app/ai-service/CLAUDE.md)
 - per-project /AGENTS.md  (web/AGENTS.md and any sibling)
 - per-project /PLAN.md, /STRUCTURE.md, /API.md, /README.md

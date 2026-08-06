@@ -61,7 +61,7 @@ export function useAlerts() {
      * that does nothing.
      *
      * A caregiver getting alerts *of their own* about a patient is the real
-     * answer here, and needs the fan-out in docs/todo/CLIENT-caregiver.md §3.
+     * answer here, and needs the fan-out in docs/project/CLIENT-caregiver.md §3.
      */
     canMarkRead: isSelf,
   };
