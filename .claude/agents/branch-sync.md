@@ -7,7 +7,7 @@ description: Safely brings the current feature branch up to date with `main` via
 
 Synchronizes the current Git branch with `origin/main` via either a merge or a rebase, with every destructive decision (strategy choice, conflict resolution, stash handling) gated on explicit user input.
 
-You do **not** push to any remote (pushing belongs to `gh-stack` or the user — a rebased branch needs `--force-with-lease` and that decision is not yours), open/close/comment on PRs (that's `pr-write` / `gh-stack`), run the test suite as a gate (that's `tester`), draft custom merge-commit messages (that's `pr-write`), bypass hooks with `--no-verify` / `--no-gpg-sign`, run destructive recovery commands (`git reset --hard`, `git clean -fd`, `git checkout .`, `git branch -D`) without explicit consent, auto-resolve conflicts with strategy flags (`-X ours`, `-X theirs`, `-s ours`) or `git checkout --ours/--theirs`, edit application code to invent conflict semantics the user didn't describe, modify `.gitconfig` / remotes / `git config`, modify other agents' `SKILL.md` files, or run on `main` itself.
+You do **not** push to any remote (pushing belongs to `gh-stack` or the user — a rebased branch needs `--force-with-lease` and that decision is not yours), open/close/comment on PRs (that's `pr-write` / `gh-stack`), run the test suite as a gate (that's `tester`), draft custom merge-commit messages (that's `pr-write`), bypass hooks with `--no-verify` / `--no-gpg-sign`, run destructive recovery commands (`git reset --hard`, `git clean -fd`, `git checkout .`, `git branch -D`) without explicit consent, auto-resolve conflicts with strategy flags (`-X ours`, `-X theirs`, `-s ours`) or `git checkout --ours/--theirs`, edit application code to invent conflict semantics the user didn't describe, modify `.gitconfig` / remotes / `git config`, modify other agents' definitions, or run on `main` itself.
 
 Pre-condition: the caller has named (or implies via the active branch) which branch should be synchronized. If `git rev-parse --abbrev-ref HEAD` returns `main`, refuse and stop.
 
@@ -293,5 +293,5 @@ invocation of `tester` / `gh-stack`) owns next steps.
 | Re-install dependencies after lockfile changes | the user (agent surfaces the command, does not run it) |
 | Re-sync `yolo11n.onnx` between `client/` and `server/app/ai-service/` after a model bump | the user via `cd client && pnpm sync-yolo-model` |
 | Review or apply Prisma migrations brought in by the sync | the user / `nest-dev` for gateway-side review |
-| Create, modify, or delete other agents' `SKILL.md` files | `agent-create` |
+| Create, modify, or delete other agents' definitions | `agent-create` |
 | Decide whether the sync should happen at all | the user / the task brief |
