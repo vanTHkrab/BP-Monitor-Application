@@ -21,7 +21,7 @@ import expo.modules.kotlin.views.ExpoView
  * No torch / zoom / ratio — none were used.
  *
  * `PreviewView.ScaleType.FILL_CENTER` is cover-fit, matching what `expo-camera`
- * rendered, so the guide frame overlay and `utils/crop-to-viewport.ts` still
+ * rendered, so the guide frame overlay and `capture/lib/crop-to-viewport.ts` still
  * align with what the sensor actually captured.
  */
 class BPVisionCameraView(context: Context, appContext: AppContext) :

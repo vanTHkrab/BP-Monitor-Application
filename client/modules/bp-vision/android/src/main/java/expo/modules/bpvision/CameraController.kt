@@ -44,7 +44,7 @@ import kotlin.math.min
  * **WYSIWYG parity is the load-bearing detail.** `expo-camera`'s
  * `takePictureAsync({ quality: 0.8 })` returns an *upright* JPEG whose
  * `width`/`height` match the orientation the preview showed, and
- * `utils/crop-to-viewport.ts` depends on that (its reverse-cover crop math
+ * `capture/lib/crop-to-viewport.ts` depends on that (its reverse-cover crop math
  * lines the photo aspect up with the on-screen `viewportAspect`). CameraX hands
  * back a sensor-oriented buffer plus a `rotationDegrees` hint, so we bake that
  * rotation into the pixels and report the *rotated* dimensions — never EXIF —

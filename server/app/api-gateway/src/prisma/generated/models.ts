@@ -9,7 +9,10 @@
  * 🟢 You can import this file directly.
  */
 export type * from './models/User.js'
+export type * from './models/Passkey.js'
 export type * from './models/UserSession.js'
+export type * from './models/Account.js'
+export type * from './models/Verification.js'
 export type * from './models/CaregiverPatient.js'
 export type * from './models/Image.js'
 export type * from './models/Alert.js'

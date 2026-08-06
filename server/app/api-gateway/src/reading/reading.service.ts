@@ -101,8 +101,8 @@ export class ReadingService {
       include: READING_INCLUDE,
     });
 
-    // Alerts belong to the reading's owner (the patient) — a critical
-    // caregiver-recorded value must alert the patient, not the caregiver.
+    // The patient always gets one; their accepted caregivers get their own
+    // copy. See `createAlertForReading`.
     await this.createAlertForReading(targetUserId, reading.id, {
       systolic: data.systolic,
       diastolic: data.diastolic,
@@ -123,8 +123,30 @@ export class ReadingService {
     return this.prisma.bloodPressureReading.delete({ where: { id } });
   }
 
+  /**
+   * Raises the alert for a reading — one row for the patient, plus one for
+   * each caregiver with an accepted link to them.
+   *
+   * **Why a row per recipient rather than one shared row.** `readAt` lives on
+   * the alert, so a shared row means shared read state: a caregiver marking
+   * an alert read would mark it read for the patient too, hiding a critical
+   * value from the person it is about. Duplicated rows cost storage; shared
+   * read state costs correctness, and only one of those is recoverable.
+   *
+   * It is also what makes a caregiver's own notification bell work at all.
+   * Before this, `Alert.userId` was only ever the patient, so the entire
+   * premise of the role — somebody else is watching — had no passive path:
+   * a caregiver learned nothing unless they opened the app and went looking.
+   *
+   * The caregiver's copy names the patient, because "ค่าความดันของคุณสูง"
+   * arriving on someone else's phone is worse than no alert.
+   *
+   * Best-effort on the fan-out only: if the caregiver lookup or their inserts
+   * fail, the patient's alert has already been written and the reading save
+   * must not be rolled back for a notification.
+   */
   private async createAlertForReading(
-    userId: string,
+    patientId: string,
     readingId: number,
     data: {
       systolic: number;
@@ -139,16 +161,75 @@ export class ReadingService {
 
     const alertLevel: AlertLevel =
       data.status === 'critical' ? 'critical' : 'warning';
-    const alertMessage = this.getAlertMessage(data.status, data);
 
     await this.prisma.alert.create({
       data: {
-        userId,
+        userId: patientId,
         bpReadingId: readingId,
         alertLevel,
-        alertMessage,
+        alertMessage: this.getAlertMessage(data.status, data),
       },
     });
+
+    try {
+      const links = await this.prisma.caregiverPatient.findMany({
+        where: { patientId, status: 'accepted' },
+        select: { caregiverId: true },
+      });
+      if (links.length === 0) return;
+
+      const patient = await this.prisma.user.findUnique({
+        where: { id: patientId },
+        select: { firstname: true, lastname: true },
+      });
+      const patientName =
+        `${patient?.firstname ?? ''} ${patient?.lastname ?? ''}`.trim() ||
+        'ผู้ป่วยที่คุณดูแล';
+
+      await this.prisma.alert.createMany({
+        data: links.map((link) => ({
+          userId: link.caregiverId,
+          bpReadingId: readingId,
+          alertLevel,
+          alertMessage: this.getCaregiverAlertMessage(
+            data.status,
+            data,
+            patientName,
+          ),
+        })),
+        // A reading is created once, so this is defensive rather than a live
+        // path — but a partial retry must not double a caregiver's bell.
+        skipDuplicates: true,
+      });
+    } catch {
+      // Swallowed on purpose: the patient has been alerted, the reading is
+      // saved, and a failed fan-out must not surface as a failed save.
+    }
+  }
+
+  /**
+   * The caregiver-facing wording. Leads with the patient's name — the
+   * recipient's first question is *who*, not *what*.
+   */
+  private getCaregiverAlertMessage(
+    status: string,
+    data: { systolic: number; diastolic: number; pulse: number },
+    patientName: string,
+  ) {
+    const valueText = `${data.systolic}/${data.diastolic} mmHg ชีพจร ${data.pulse} bpm`;
+
+    switch (status) {
+      case 'low':
+        return `คุณ${patientName} มีค่าความดันค่อนข้างต่ำ (${valueText})`;
+      case 'elevated':
+        return `คุณ${patientName} มีค่าความดันเริ่มสูง (${valueText})`;
+      case 'high':
+        return `คุณ${patientName} มีค่าความดันสูง (${valueText}) ควรติดตามอาการ`;
+      case 'critical':
+        return `คุณ${patientName} มีค่าความดันสูงมาก (${valueText}) หากมีอาการผิดปกติควรพบแพทย์หรือโทร 1669`;
+      default:
+        return `คุณ${patientName} มีผลการวัดใหม่ (${valueText})`;
+    }
   }
 
   private getAlertMessage(

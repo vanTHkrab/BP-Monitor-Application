@@ -31,7 +31,9 @@ describe('ReadingService', () => {
       delete: jest.Mock;
     };
     image: { findUnique: jest.Mock };
-    alert: { create: jest.Mock };
+    alert: { create: jest.Mock; createMany: jest.Mock };
+    caregiverPatient: { findMany: jest.Mock };
+    user: { findUnique: jest.Mock };
   };
 
   beforeEach(async () => {
@@ -50,7 +52,20 @@ describe('ReadingService', () => {
         delete: jest.fn(),
       },
       image: { findUnique: jest.fn() },
-      alert: { create: jest.fn().mockResolvedValue({ id: 1 }) },
+      alert: {
+        create: jest.fn().mockResolvedValue({ id: 1 }),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      // Present even for the tests that do not care: `createAlertForReading`
+      // swallows fan-out failures so a notification cannot fail a save, which
+      // means a missing mock would make these tests pass while the fan-out
+      // silently did nothing.
+      caregiverPatient: { findMany: jest.fn().mockResolvedValue([]) },
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ firstname: 'สมชาย', lastname: 'ใจดี' }),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -58,6 +73,86 @@ describe('ReadingService', () => {
     }).compile();
 
     service = module.get<ReadingService>(ReadingService);
+  });
+
+  describe('create — alert fan-out to caregivers', () => {
+    const abnormal = { ...baseInput, systolic: 185, status: 'critical' };
+
+    it('gives each accepted caregiver their own alert row', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+
+      await service.create(PATIENT_ID, abnormal, PATIENT_ID);
+
+      // The patient's row and the caregiver's row are separate writes, which
+      // is the whole point: `readAt` lives on the row, so a shared one would
+      // let a caregiver mark an alert read for the patient it is about.
+      expect(prisma.alert.create.mock.calls[0][0].data.userId).toBe(PATIENT_ID);
+      const fanned = prisma.alert.createMany.mock.calls[0][0].data;
+      expect(fanned).toHaveLength(1);
+      expect(fanned[0].userId).toBe(CAREGIVER_ID);
+      expect(fanned[0].bpReadingId).toBe(
+        prisma.alert.create.mock.calls[0][0].data.bpReadingId,
+      );
+    });
+
+    it('names the patient in the caregiver copy', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+
+      await service.create(PATIENT_ID, abnormal, PATIENT_ID);
+
+      // "ค่าความดันของคุณสูงมาก" landing on someone else's phone is worse
+      // than no alert at all.
+      expect(
+        prisma.alert.createMany.mock.calls[0][0].data[0].alertMessage,
+      ).toContain('สมชาย ใจดี');
+      expect(
+        prisma.alert.create.mock.calls[0][0].data.alertMessage,
+      ).not.toContain('สมชาย ใจดี');
+    });
+
+    it('only fans out to accepted links', async () => {
+      await service.create(PATIENT_ID, abnormal, PATIENT_ID);
+
+      expect(
+        prisma.caregiverPatient.findMany.mock.calls[0][0].where,
+      ).toMatchObject({
+        patientId: PATIENT_ID,
+        status: 'accepted',
+      });
+    });
+
+    it('writes nothing extra when the patient has no caregivers', async () => {
+      await service.create(PATIENT_ID, abnormal, PATIENT_ID);
+
+      expect(prisma.alert.createMany).not.toHaveBeenCalled();
+    });
+
+    it('raises no alert at all for a normal reading', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+
+      await service.create(PATIENT_ID, baseInput, PATIENT_ID);
+
+      expect(prisma.alert.create).not.toHaveBeenCalled();
+      expect(prisma.alert.createMany).not.toHaveBeenCalled();
+    });
+
+    // The patient has already been alerted and the reading is saved by this
+    // point; a failed notification must not surface as a failed save.
+    it('still saves the reading when the fan-out throws', async () => {
+      prisma.caregiverPatient.findMany.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.create(PATIENT_ID, abnormal, PATIENT_ID),
+      ).resolves.toBeDefined();
+
+      expect(prisma.alert.create).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('create — attribution (recordedById)', () => {

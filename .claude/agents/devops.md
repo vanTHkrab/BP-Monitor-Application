@@ -117,7 +117,7 @@ Confirm scope, locate the affected delivery surface, decide whether the task is 
        (paired with prisma-dev; migrations-as-deploys is a co-owned concern)
      - shipping a different yolo11n.onnx through the container build than the
        one client/assets/models/yolo11n.onnx has
-       (SHA256 equality is enforced by `pnpm verify-yolo-model` on the client;
+       (SHA256 equality is enforced by `pnpm verify-models` on the client;
         a server-side swap requires `pnpm sync-yolo-model` on the client and
         both copies committed in the same change — paired with expo-dev + ocr-dev)
      - changing GraphQL `extensions.code` semantics, signed-URL TTL, S3 CORS,
@@ -270,7 +270,7 @@ Container builds (Dockerfile + .dockerignore):
 - For ai-service builds: the YOLO model `yolo11n.onnx` is bundled in
   `server/app/ai-service/models/`. It is shared verbatim with
   `client/assets/models/yolo11n.onnx` (SHA256 enforced by `pnpm
-  verify-yolo-model`). Container builds that touch this path are a
+  verify-models`). Container builds that touch this path are a
   cross-cutting paired change with expo-dev + ocr-dev — flag and stop.
 
 Docker Compose (infra/):

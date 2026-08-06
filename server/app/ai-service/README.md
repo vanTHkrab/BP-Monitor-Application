@@ -46,8 +46,8 @@ curl -s http://localhost:8000/health
 | `AI_DETECTOR_PATH` | – | `models/yolo11n.onnx` | Path to YOLO ONNX weights (resolved from ai-service root) |
 | `AI_CRNN_PATH` | – | `models/crnn.onnx` | Path to CRNN ONNX weights |
 | `AI_DEFAULT_ENGINE` | – | `crnn` | Default OCR engine: `crnn` / `ssocr_cnn` / `ssocr` |
-| `AI_CONFIDENCE_THRESHOLD` | – | `0.25` | YOLO detection confidence floor. **Mirrors `client/lib/yolo/types.ts` `DEFAULT_CONF_THRESHOLD`** — cross-process wire contract; change both sides together. |
-| `AI_IOU_THRESHOLD` | – | `0.45` | YOLO per-class NMS IoU threshold. **Mirrors `client/lib/yolo/types.ts` `DEFAULT_IOU_THRESHOLD`** — same wire-contract rule. |
+| `AI_CONFIDENCE_THRESHOLD` | – | `0.25` | YOLO detection confidence floor. **Mirrors `client/src/modules/capture/lib/detection.ts` `DEFAULT_CONF_THRESHOLD`** — cross-process wire contract; change both sides together. |
+| `AI_IOU_THRESHOLD` | – | `0.45` | YOLO per-class NMS IoU threshold. **Mirrors `client/src/modules/capture/lib/detection.ts` `DEFAULT_IOU_THRESHOLD`** — same wire-contract rule. |
 | `AI_IMAGE_FETCH_TIMEOUT_S` | – | `5` | Timeout for presigned-URL image download |
 | `AI_OCR_FIELD_TIMEOUT_S` | – | `5` | Per-field OCR wall-clock cap (asyncio) |
 | `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout enforced in `handle_message` |

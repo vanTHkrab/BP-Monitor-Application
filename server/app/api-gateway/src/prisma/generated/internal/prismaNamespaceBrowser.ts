@@ -52,7 +52,10 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
+  Passkey: 'Passkey',
   UserSession: 'UserSession',
+  Account: 'Account',
+  Verification: 'Verification',
   CaregiverPatient: 'CaregiverPatient',
   Image: 'Image',
   Alert: 'Alert',
@@ -82,11 +85,19 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
+  emailVerified: 'emailVerified',
+  name: 'name',
   firstname: 'firstname',
   lastname: 'lastname',
   phone: 'phone',
+  phoneNumberVerified: 'phoneNumberVerified',
   passwordHash: 'passwordHash',
   role: 'role',
+  roleSelectedAt: 'roleSelectedAt',
+  lastLoginMethod: 'lastLoginMethod',
+  banned: 'banned',
+  banReason: 'banReason',
+  banExpires: 'banExpires',
   dob: 'dob',
   gender: 'gender',
   weight: 'weight',
@@ -100,18 +111,71 @@ export const UserScalarFieldEnum = {
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
 
 
-export const UserSessionScalarFieldEnum = {
+export const PasskeyScalarFieldEnum = {
   id: 'id',
+  name: 'name',
+  publicKey: 'publicKey',
   userId: 'userId',
-  deviceLabel: 'deviceLabel',
-  userAgent: 'userAgent',
-  isActive: 'isActive',
-  revokedAt: 'revokedAt',
-  lastActiveAt: 'lastActiveAt',
+  credentialID: 'credentialID',
+  counter: 'counter',
+  deviceType: 'deviceType',
+  backedUp: 'backedUp',
+  transports: 'transports',
+  aaguid: 'aaguid',
   createdAt: 'createdAt'
 } as const
 
+export type PasskeyScalarFieldEnum = (typeof PasskeyScalarFieldEnum)[keyof typeof PasskeyScalarFieldEnum]
+
+
+export const UserSessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  token: 'token',
+  expiresAt: 'expiresAt',
+  ipAddress: 'ipAddress',
+  userAgent: 'userAgent',
+  impersonatedBy: 'impersonatedBy',
+  deviceLabel: 'deviceLabel',
+  isActive: 'isActive',
+  revokedAt: 'revokedAt',
+  lastActiveAt: 'lastActiveAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
 export type UserSessionScalarFieldEnum = (typeof UserSessionScalarFieldEnum)[keyof typeof UserSessionScalarFieldEnum]
+
+
+export const AccountScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  providerId: 'providerId',
+  userId: 'userId',
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  idToken: 'idToken',
+  accessTokenExpiresAt: 'accessTokenExpiresAt',
+  refreshTokenExpiresAt: 'refreshTokenExpiresAt',
+  scope: 'scope',
+  password: 'password',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AccountScalarFieldEnum = (typeof AccountScalarFieldEnum)[keyof typeof AccountScalarFieldEnum]
+
+
+export const VerificationScalarFieldEnum = {
+  id: 'id',
+  identifier: 'identifier',
+  value: 'value',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type VerificationScalarFieldEnum = (typeof VerificationScalarFieldEnum)[keyof typeof VerificationScalarFieldEnum]
 
 
 export const CaregiverPatientScalarFieldEnum = {
@@ -119,6 +183,7 @@ export const CaregiverPatientScalarFieldEnum = {
   patientId: 'patientId',
   relationship: 'relationship',
   status: 'status',
+  permission: 'permission',
   createdAt: 'createdAt',
   respondedAt: 'respondedAt'
 } as const

@@ -23,10 +23,42 @@ export * from './enums.js';
  */
 export type User = Prisma.UserModel
 /**
- * Model UserSession
+ * Model Passkey
+ * Better Auth's `passkey` model (from `@better-auth/passkey`).
  * 
+ * One row per registered authenticator, not per user: the same account can
+ * hold a phone's screen-lock credential and a hardware key, and revoking one
+ * must not touch the other.
+ * 
+ * Field names are Better Auth's — the plugin addresses them through the
+ * Prisma adapter, so renaming one here breaks the plugin even though
+ * `@map` keeps the column snake_case like the rest of this schema.
+ */
+export type Passkey = Prisma.PasskeyModel
+/**
+ * Model UserSession
+ * Better Auth's `session` model, mapped onto the existing table.
+ * 
+ * Better Auth deletes a session on sign-out; this app flips `isActive`
+ * instead so the login-sessions screen can show revoked devices as history.
+ * `preserveSessionInDatabase` keeps that behaviour — see
+ * docs/AUTH-better-auth-identity.md.
  */
 export type UserSession = Prisma.UserSessionModel
+/**
+ * Model Account
+ * Better Auth's `account` model — one row per credential or social identity.
+ * 
+ * The password lives here under `providerId = 'credential'`, not on `users`.
+ * A Google sign-in adds a second row for the same user.
+ */
+export type Account = Prisma.AccountModel
+/**
+ * Model Verification
+ * Better Auth's `verification` model — email OTPs and password-reset tokens.
+ * Rows are short-lived; `expiresAt` is enforced by Better Auth, not the DB.
+ */
+export type Verification = Prisma.VerificationModel
 /**
  * Model CaregiverPatient
  * 

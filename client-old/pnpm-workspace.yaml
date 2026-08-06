@@ -1,0 +1,9 @@
+allowBuilds:
+  unrs-resolver: true
+
+nodeLinker: hoisted
+
+onlyBuiltDependencies:
+  - '@firebase/util'
+  - protobufjs
+  - unrs-resolver

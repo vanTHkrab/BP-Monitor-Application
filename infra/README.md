@@ -141,7 +141,7 @@ deliberate:
   `GRAPHIQL_ENABLED=1`: a schema explorer with mutation access to the live
   database is not something to serve by default.
 - **`/graphql` cannot be gated.** The mobile client sends exactly
-  `Content-Type` + `Authorization: Bearer <jwt>` (`client/constants/api.ts`)
+  `Content-Type` + `Authorization: Bearer <jwt>` (`client/src/services/api.ts`)
   with no hook for a second credential, and `Authorization` is already taken by
   the JWT — adding Basic Auth would break every installed app. It keeps its own
   JWT auth and login throttle, plus a per-IP `limit_req` in nginx
@@ -181,8 +181,8 @@ So: **browser visitors get the key, phone testers get a demo account.**
    its obscurity.
 
 3. **Build the client against the domain.** No source change is needed —
-   `client/constants/api.ts` honours `EXPO_PUBLIC_API_URL` verbatim before
-   falling back to Expo's LAN-host derivation:
+   `client/src/services/endpoint.ts` honours `EXPO_PUBLIC_API_URL` verbatim
+   before falling back to Expo's LAN-host derivation:
 
    ```bash
    EXPO_PUBLIC_API_URL=https://$DOMAIN_NAME/graphql pnpm --dir client android

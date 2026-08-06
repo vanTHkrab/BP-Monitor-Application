@@ -91,57 +91,39 @@ Key boundaries and design choices a senior should respect:
 - **YOLO detector is shared verbatim** — the same `yolo11n.onnx` runs in
   both the backend (downloaded into `server/app/ai-service/models/` from R2
   on first start) and the mobile app (bundled at
-  `client/assets/models/yolo11n.onnx`), loaded on the mobile side by the
-  native Kotlin `bp-vision` module (`client/modules/bp-vision/android/`) —
-  see the "Note" below. **The older JS-side pre-flight path (a second,
-  separate on-device detector implemented with `onnxruntime-react-native`
-  and driven from `client/app/(tabs)/camera.tsx`) has been removed, not
-  just unwired.** `client/services/preflight-detection.service.ts`,
-  `client/hooks/use-live-preflight.ts`, and `client/lib/yolo/session.ts`
-  were deleted because `onnxruntime-react-native` was dropped as a
-  dependency in an earlier commit on this line of work, leaving that path
-  permanently broken (`session.ts` imported a package that no longer
-  existed) rather than a working "small revert." `client/lib/yolo/types.ts`
-  survives — it's still a live shared type consumed by the native module's
-  TS wrapper (`client/modules/bp-vision/index.ts`) — but
-  `client/lib/yolo/detect.ts`/`postprocess.ts` and
-  `client/components/live-preflight-overlay.tsx` are now fully orphaned
-  (kept as inert reference code, imported by nothing), and
-  `client/lib/yolo/preprocess.ts` has since been deleted outright — it
-  was the letterbox + JPEG-decode step and the only consumer of
-  `jpeg-js`, so keeping it meant carrying a dependency for dead code.
-  **The on-device
-  pre-flight gate has since been rebuilt against the native module** — a
-  CameraX `ImageAnalysis` stream in `bp-vision` feeding a live framing
-  gate + auto-capture on the camera screen (see "Live framing gate" in
-  [client/CLAUDE.md](./client/CLAUDE.md)). Extend that, don't revive the
-  JS path. The **canonical
-  sha256 lives in `server/app/ai-service/models/EXPECTED_HASHES.json`** —
-  the binary itself is no longer tracked in git on the backend side. SHA256
-  equality between the bundled mobile copy and the backend manifest entry
-  is enforced on every `pnpm start` by `client/scripts/verify-models.mjs`
-  (which now verifies the bundled CRNN OCR model too — see the Note below)
-  regardless of whether the UI calls the detector; if you retrain the
-  detector, regenerate `EXPECTED_HASHES.json`, upload the new bytes to R2,
-  and on the mobile side `cd client && pnpm sync-yolo-model` to refresh the
-  bundled copy + companion hash file — all in the same change. Class IDs
-  and confidence thresholds (`0.25` / IoU `0.45`) in
-  `client/lib/yolo/types.ts` mirror
-  `server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES` —
-  they remain a wire contract even with the pre-flight UI unwired, since a
-  future revert must not silently drift from the backend.
+  `client/assets/models/yolo11n.onnx`). On the phone it is loaded **only** by
+  the native Kotlin `bp-vision` module (`client/modules/bp-vision/android/`),
+  which also runs the CRNN OCR pipeline and the CameraX `ImageAnalysis`
+  stream behind the live framing gate on the camera screen. There is no
+  JS-side inference path: `onnxruntime-react-native` is not a dependency of
+  this app, and the JS detector client-old once had was deleted rather than
+  left broken. Extend the native module; don't revive it. (`client-old/`
+  still contains that history and its own docs describe it — read them as
+  the legacy tree, not as this app's layout.)
 
-  > Note: the backend stopped tracking the binaries and switched to R2 +
-  > manifest. The mobile-side scripts now read the expected SHA256 straight
-  > from `EXPECTED_HASHES.json` (no longer `sha256sum`ing a backend copy):
-  > `client/scripts/verify-models.mjs` (renamed from `verify-yolo-model.mjs`)
-  > verifies **both** bundled on-device models — `yolo11n.onnx` and the
-  > `crnn.onnx` CRNN OCR model — against the manifest on every
-  > `pnpm start` / `pnpm android` / `pnpm ios`, and `pnpm sync-yolo-model`
-  > refreshes both from `server/app/ai-service/models/`. The CRNN runs the
-  > on-device OCR pipeline in the `client/modules/bp-vision` native module
-  > (Android); like YOLO it is a shared-verbatim wire contract with the
-  > backend (`analyzer/ocr/crnn.py`) — retrain one side, refresh the other.
+  The **canonical sha256 lives in
+  `server/app/ai-service/models/EXPECTED_HASHES.json`** — the binaries
+  themselves are no longer tracked in git on the backend side. SHA256
+  equality between the bundled mobile copies and the manifest is enforced on
+  every `pnpm start` / `pnpm android` / `pnpm ios` by
+  `client/scripts/verify-models.mjs`, for **both** `yolo11n.onnx` and
+  `crnn.onnx`, regardless of whether the UI calls them. If you retrain
+  either model: regenerate `EXPECTED_HASHES.json`, upload the new bytes to
+  R2, and run `cd client && pnpm sync-yolo-model` to refresh the bundled
+  copies — all in the same change.
+
+  Class IDs and thresholds (conf `0.25` / IoU `0.45`) live in
+  `client/src/modules/capture/lib/detection.ts` and mirror
+  `server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES` and
+  `analyzer/ocr/crnn.py`. They are a wire contract: change one side, change
+  the other, or the phone approves a framing the server cannot read.
+
+  > Note: the config plugin `client/modules/bp-vision/plugin/withBpVisionModels.js`
+  > copies both `.onnx` files into `android/app/src/main/assets/models/` at
+  > **prebuild** time, which is the only time it runs. `client/android/` is
+  > generated output in this tree (gitignored), so a plugin change takes
+  > effect on the next `expo prebuild -p android`, not on the next Metro
+  > reload.
 
 ## Cross-cutting rules
 
@@ -271,7 +253,7 @@ small, the surface area is wide, and one careless change can cross three
 processes — work like the senior on the team, not like an autocompleter.
 
 - **Hold the system in your head before editing the file.** A change in
-  `client/store/slices/readings.slice.ts` may interact with a SQLite queue,
+  `client/src/modules/readings/lib/sync.ts` may interact with a SQLite queue,
   a Mercurius resolver, a Redis payload, and a Prisma migration. If you
   don't know which of those are in scope, slow down and trace the path
   before writing code.
@@ -309,13 +291,23 @@ The repo has a handful of high-leverage / high-blast-radius surfaces. These
 are the parts where a senior eye matters most — they look ordinary but
 misbehave subtly when changed without context:
 
-- **Offline-first integrity (mobile).** The SQLite mirror + sync mutexes in
-  `client/store/slices/` are the contract between "user tapped save" and
-  "server confirmed save." `pending_readings` doubles as the synced-row
-  mirror (`syncStatus` distinguishes queue vs cache), so a sync now marks
-  rows synced in place rather than deleting them — partial sync, duplicate
-  sync, lost mutex releases, **and** stale-mirror drift all manifest as
-  data loss visible only to the patient.
+- **Offline-first integrity (mobile).** The queue, the mirror, and the sync
+  mutex in `client/src/modules/readings/` are the contract between "user
+  tapped save" and "server confirmed save." They are **two tables**:
+  `pending_readings` is the outbox and `readings` is the mirror of what the
+  server confirmed, and a sync promotes a row from one to the other inside a
+  single transaction. (The old client kept both in `pending_readings` behind
+  a `syncStatus` column; that design is gone, and the split is why the
+  promotion has to be transactional.) Partial sync, duplicate sync, lost
+  mutex releases, **and** stale-mirror drift all manifest as data loss
+  visible only to the patient.
+- **Readings sync is triggered in exactly one place (mobile).**
+  `modules/readings/hooks/use-readings-sync.tsx` owns the app's only
+  `AppState` and `NetInfo` listeners and the only automatic pull. Screens
+  call `useReadingsSync()` and never `useFetchReadings` / `useSyncReadings`,
+  which are module-internal. Wiring either one into a screen again
+  reintroduces both original bugs: duplicated listeners, and a pull that
+  only ever runs when the user drags the screen down.
 - **Gateway ↔ AI Redis wire.** The `analyze_bp_image` /
   `analyze_bp_image.reply` channels are typed only by convention. A field
   rename on one side and a stale deploy on the other will fail silently —
@@ -341,6 +333,15 @@ misbehave subtly when changed without context:
 - **Auth / session lifecycle.** Token storage straddles SecureStore (native)
   and AsyncStorage (web); session-expired handling is centralised in the
   transports. Re-implementing it per-slice is a recurring failure mode.
+- **Passkeys are a four-way configuration.** A working passkey needs the
+  gateway's `PASSKEY_RP_ID`, the signing-key fingerprint (which becomes both
+  `assetlinks.json` and the `android:apk-key-hash:` origin), a real HTTPS
+  domain, and the app's package name to agree. Three out of four fails at
+  the device with an error that reads like a server bug. The gateway hides
+  the feature entirely when unconfigured, and the mobile client branches on
+  `securityOverview.passkeySupported` rather than probing — see the
+  "Passkeys and on-device Google sign-in" section in
+  [api-gateway/CLAUDE.md](./server/app/api-gateway/CLAUDE.md).
 - **Cross-document drift.** Paths, commands, env vars, and route names are
   mentioned across `README.md`, multiple `CLAUDE.md` files, and
   `infra/README.md`. Rule 6 exists because one rename routinely needs to

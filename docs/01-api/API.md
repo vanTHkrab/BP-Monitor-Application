@@ -23,8 +23,9 @@ schema is generated at
 | GraphiQL | `GET /graphiql` (dev only) |
 
 The mobile client resolves the URL via
-[`client/constants/api.ts`](../client/constants/api.ts) →
-`getGraphQLEndpoint()`. The web dashboard calls the gateway from server
+[`client/src/services/endpoint.ts`](../client/src/services/endpoint.ts) →
+`getGraphqlEndpoint()`, re-exported from
+[`client/src/services/api.ts`](../client/src/services/api.ts). The web dashboard calls the gateway from server
 actions under [`web/src/actions/`](../web/src/actions/).
 
 ---
@@ -42,7 +43,8 @@ Authorization: Bearer <jwt>
 - The mobile client stores the token via `expo-secure-store`
   (`AsyncStorage` on the web preview). Don't read storage directly — use
   `setAuthToken` / `getAuthToken` / `clearAuthToken` from
-  `client/constants/api.ts`.
+  [`client/src/services/auth-token.ts`](../client/src/services/auth-token.ts),
+  also re-exported from `client/src/services/api.ts`.
 - Token validity is set by `JWT_EXPIRES_IN`; see
   [`auth.config.ts`](../server/app/api-gateway/src/auth/auth.config.ts).
 - Every authenticated request is guarded: the JWT must verify **and** the
@@ -55,6 +57,12 @@ Authorization: Bearer <jwt>
 - `Query.hello`
 - `Mutation.register`
 - `Mutation.login`
+- `Mutation.loginWithGoogle`
+- `Mutation.passkeyAuthOptions`
+- `Mutation.passkeyAuthVerify`
+
+The last three are public by necessity — they are how a caller with no
+session proves who they are.
 
 Every other operation requires a Bearer token; absence yields
 `UNAUTHENTICATED`.
@@ -141,12 +149,13 @@ Login throttle: 5 attempts per 15 minutes per phone number. See
 
 ### 3.3 Client-side mapping
 
-- **Mobile**: `graphqlRequest` throws `GraphQLClientError` carrying
+- **Mobile**: `graphqlRequest` throws
+  [`ApiError`](../client/src/services/api-error.ts) carrying
   `{ code, httpStatus, retryAfterSec }`. The login / register flow
   dispatches via
-  [`formatAuthError`](../client/store/shared/error-format.ts); every
+  [`formatAuthError`](../client/src/modules/auth/lib/errors.ts); every
   other flow goes through
-  [`formatError`](../client/lib/error-message.ts).
+  [`formatErrorMessage`](../client/src/lib/error-message.ts).
 - Never render the raw `message` in production — translate via the
   formatter first.
 
@@ -204,14 +213,56 @@ ISO string directly.
 | `hello` | Query | ❌ | Health ping |
 | `me` | Query | ✅ | Current user's profile |
 | `loginSessions` | Query | ✅ | Every session on the account |
-| `register` | Mutation | ❌ | Creates the account → `AuthPayload` |
+| `register` | Mutation | ❌ | Creates the account → `AuthPayload`. Always `patient` |
 | `login` | Mutation | ❌ | → `AuthPayload`; throttled |
+| `selectRole` | Mutation | ✅ | Onboarding role choice → `UserType` |
 | `updateProfile` | Mutation | ✅ | Partial update (every field optional) |
 | `changePassword` | Mutation | ✅ | Requires `currentPassword`; throttled |
 | `verifyPassword` | Mutation | ✅ | Unlocks sensitive screens; throttled |
 | `logout` | Mutation | ✅ | Flips `isActive=false` on the current session |
 | `logoutAllDevices` | Mutation | ✅ | Flips every session |
 | `deleteMyData` | Mutation | ✅ | Cascading account + data deletion |
+| `loginWithGoogle` | Mutation | ❌ | Exchanges a Google ID token from the device account picker → `AuthPayload`. The gateway verifies signature, issuer, and audience |
+
+`UserType.lastLoginMethod` is **not** exposed — read it from
+`securityOverview` instead. The login screen cannot use it anyway: it has no
+session, and answering "which method does this account use" to an
+unauthenticated caller would leak account existence. The client keeps its own
+device-local hint for that (`modules/auth/lib/last-login-method.ts`).
+
+### 5.1.1 Passkeys & security
+
+Passkey operations 404 into `NOT_IMPLEMENTED` (HTTP 501) when the deployment
+has no `PASSKEY_RP_ID`; `securityOverview.passkeySupported` is the flag a
+client should branch on rather than probing.
+
+| Op | Type | Auth | Description |
+| --- | --- | --- | --- |
+| `securityOverview` | Query | ✅ | One-shot summary for the security screen: `lastLoginMethod`, `passkeyCount`, `activeSessionCount`, `hasPassword`, `hasGoogleAccount`, `emailVerified`, `passkeySupported` |
+| `passkeys` | Query | ✅ | Registered authenticators. Never returns `publicKey` / `counter` / `credentialID` |
+| `passkeyRegisterOptions` | Mutation | ✅ | Step 1 of adding a passkey → `{ optionsJson, challengeToken }` |
+| `passkeyRegisterVerify` | Mutation | ✅ | Step 2 → `PasskeyType` |
+| `passkeyAuthOptions` | Mutation | ❌ | Step 1 of signing in → `{ optionsJson, challengeToken }` |
+| `passkeyAuthVerify` | Mutation | ❌ | Step 2 → `AuthPayload` |
+| `renamePasskey` | Mutation | ✅ | → `PasskeyType` |
+| `deletePasskey` | Mutation | ✅ | Refuses (`BAD_USER_INPUT`) when it is the account's last sign-in method and there is no password |
+
+**Why `challengeToken` exists.** Better Auth joins the two calls of a WebAuthn
+ceremony with a signed cookie. The mobile client authenticates with a bearer
+token and has no cookie jar, so the gateway lifts the cookie out of the
+response and returns it as an ordinary field; the client sends it back
+verbatim on the verify call. Treat it as opaque and short-lived — it carries a
+single-use challenge.
+
+**Why the options calls are mutations.** They mint that single-use challenge.
+A GraphQL client is entitled to cache a query, and a replayed challenge fails
+verification with an error that points at the authenticator rather than at the
+cache.
+
+`optionsJson` and `credentialJson` are JSON **strings**, not object graphs —
+the payload is a deep W3C-specified shape this service only passes through,
+and mirroring it in the schema would mean maintaining a copy of the spec that
+fails silently when it drifts.
 
 #### Example — `login`
 
@@ -232,6 +283,105 @@ mutation Login($input: LoginInput!) {
 `deviceLabel` is persisted on `userSession.deviceLabel` and shown in
 `loginSessions`. Pass any human-readable string the client chooses.
 
+#### Example — `register`
+
+```graphql
+mutation Register($input: RegisterInput!) {
+  register(input: $input) {
+    token
+    user { id firstname lastname phone email role }
+  }
+}
+```
+
+Required: `firstname`, `lastname`, `phone`, `password`, `email`.
+Optional: `avatar`, `dob`, `gender`, `weight`, `height`,
+`congenitalDisease`, `deviceLabel`.
+
+Two things are easy to get wrong:
+
+- **`email` is required.** It was optional before the Better Auth
+  migration. It is the ownership proof account linking depends on, so a
+  registration without one is rejected before it reaches the resolver.
+- **`register` takes no `role`.** Sending one is a validation error. Every
+  account is created as `patient` with `roleSelectedAt` null; the role is
+  chosen afterwards via `selectRole`. See below.
+
+#### Onboarding — `selectRole`
+
+```graphql
+mutation SelectRole($input: SelectRoleInput!) {
+  selectRole(input: $input) { id role roleSelectedAt }
+}
+```
+
+```jsonc
+// variables
+{ "input": { "role": "caregiver" } }   // patient | caregiver
+```
+
+Authenticated. Call it once after registration, as the first step of
+onboarding — a Google sign-up reaches it the same way, which is the reason
+the choice does not live in the registration form.
+
+- `role` is `UserRoleInput` (`patient | caregiver`), **not** the full
+  `UserRole`. `developer` is not a member and cannot be self-assigned from
+  any surface, including a direct `POST /api/auth/sign-up/*`. Raising
+  someone to `developer` is an admin action.
+- `roleSelectedAt` on `UserType` is what a client should gate its
+  onboarding on — **not** `role`. `role` defaults to `patient`, so it
+  cannot tell "chose patient" from "never chose". The field is stamped on
+  every call, including a choice equal to the default.
+- The mutation is re-callable, so a settings screen can reuse it. `role`
+  selects a UI mode; it is not an access-control boundary — reading another
+  user's data requires an *accepted* caregiver link, which the patient
+  approves.
+
+#### `UserType.emailVerified`
+
+`Boolean!`, mirroring the `email_verified` column Better Auth owns. Gates
+one thing — linking a Google account — and nothing else; verification is
+never required to use the app. See email OTP below for how a client flips
+it.
+
+### Email verification — REST, not GraphQL
+
+Better Auth's `emailOTP` plugin mounts its own routes under
+`/api/auth/email-otp/*` via `BetterAuthController`
+([`better-auth.controller.ts`](../../server/app/api-gateway/src/auth/better-auth.controller.ts)).
+These are **not** behind the GraphQL `errorFormatter` — error bodies come
+back in Better Auth's own shape (`{ code, message }`), not
+`extensions.code`.
+
+```http
+POST /api/auth/email-otp/send-verification-otp
+Content-Type: application/json
+
+{ "email": "user@example.com", "type": "email-verification" }
+```
+
+```http
+POST /api/auth/email-otp/verify-email
+Content-Type: application/json
+
+{ "email": "user@example.com", "otp": "123456" }
+```
+
+Rate-limited server-side to 3 requests / 15 min on the send endpoint (see
+`customRules` in
+[`better-auth.ts`](../../server/app/api-gateway/src/auth/better-auth.ts)).
+Error codes worth mapping client-side: `INVALID_OTP`, `OTP_EXPIRED`,
+`TOO_MANY_ATTEMPTS`.
+
+The mobile client calls these directly with `fetch` — see
+[`client/src/modules/auth/services/email-otp-api.ts`](../../client/src/modules/auth/services/email-otp-api.ts) —
+rather than through `@better-auth/expo`'s client, which does not
+type-check against the installed `better-auth` version (still true as of
+`1.7.0-rc.2`; see
+[`docs/todo/CLIENT-auth-structure.md`](../todo/CLIENT-auth-structure.md),
+"P0"). Email OTP has no deep-link or cookie-jar requirement, so it does not
+need that client at all; Google OAuth does, and stays blocked on it.
+
 ### 5.2 Readings (BP records)
 
 | Op | Type | Auth |
@@ -251,16 +401,21 @@ mutation CreateReading($input: CreateReadingInput!) {
 
 - `status` is the BP category (`normal` / `elevated` / `high-stage-1` /
   …). The client computes it before submitting; see
-  `client/constants/colors.ts`.
+  [`client/src/modules/readings/lib/status.ts`](../client/src/modules/readings/lib/status.ts)
+  (the colours for each category live in `client/src/theme/tokens.js`).
 - `s3Key` is optional and only set when the reading came from the image
   flow (after `analyzeBPImage` returns). The gateway enforces that the
   key is owned by the calling user.
 - **Caregiver on-behalf writes** — `CreateReadingInput.patientId: ID`
   (nullable) creates the reading for that patient instead of the caller.
-  Requires an **accepted** `CaregiverPatient` link, the same rule as the
-  `readings(patientId:)` query; otherwise 403 `FORBIDDEN`
-  ("ไม่มีสิทธิ์เข้าถึงข้อมูลของผู้ป่วยรายนี้"). Omitting `patientId`
-  (or passing your own id) is a normal self-entry.
+  Requires an accepted `CaregiverPatient` link **whose `permission` is
+  `full`** — stricter than the `readings(patientId:)` query, which any
+  accepted link may run. The two guards raise different messages on
+  purpose, because "you are not linked" and "you are linked, read-only"
+  have different fixes: 403 `FORBIDDEN`
+  ("ไม่มีสิทธิ์เข้าถึงข้อมูลของผู้ป่วยรายนี้") versus the read-only
+  refusal from `assertCanRecordForPatient`. Omitting `patientId` (or
+  passing your own id) is a normal self-entry.
 - **Attribution** — `ReadingType.recordedBy` (nullable
   `ReadingRecordedByType { id firstname lastname }`) is set only when
   someone other than the reading's owner entered it (caregiver flow).
@@ -307,8 +462,9 @@ mutation CreateReading($input: CreateReadingInput!) {
 | 6 | `createReading(input: { …, s3Key })` | Reuse the existing key — **don't** re-upload |
 
 See the mobile-side workflow at
-[`client/services/camera.service.ts`](../client/services/camera.service.ts)
-(`analyzeImage`).
+[`client/src/modules/capture/services/analysis-api.ts`](../../client/src/modules/capture/services/analysis-api.ts)
+(`analyzeImage`), which delegates steps 1-3 to
+[`client/src/services/upload-image.ts`](../../client/src/services/upload-image.ts).
 
 #### Image rendering — signed URLs (no public bucket endpoint)
 
@@ -369,7 +525,7 @@ mints inline via `StorageService.signImageKey`. Default TTL is 10 minutes.
 
 | Op | Type | Auth |
 | --- | --- | --- |
-| `alerts(limit, offset, unreadOnly)` | Query | ✅ |
+| `alerts(limit, offset, unreadOnly, patientId)` | Query | ✅ |
 | `markAlertRead(id)` | Mutation | ✅ |
 | `markAllAlertsRead` | Mutation | ✅ |
 
@@ -377,23 +533,85 @@ mints inline via `StorageService.signImageKey`. Default TTL is 10 minutes.
 the alert (`AlertReadingType`, a subset of `ReadingType`) so the client
 doesn't need a follow-up query.
 
+- **`patientId`** scopes the query to a patient the caller has an accepted
+  link to, guarded by the same check as `readings(patientId:)`. Without it
+  a caregiver viewing a patient sees that patient's readings beside their
+  own unread count — two people's data on one screen.
+- **An abnormal reading fans out.** The patient always gets a row; each of
+  their accepted caregivers gets their own, worded to lead with the
+  patient's name. Read state is therefore per person — `markAlertRead` is
+  scoped to the alert's owner, so a caregiver clearing their copy cannot
+  hide anything from the patient it is about. That also means
+  `markAlertRead` on a row fetched through `alerts(patientId:)` matches
+  nothing and returns `false`.
+
 ### 5.6 Caregiver links
 
 | Op | Type | Auth |
 | --- | --- | --- |
 | `caregiverLinks` | Query | ✅ |
-| `addCaregiverPatient(patientPhone, relationship)` | Mutation | ✅ |
+| `myPatients` | Query | ✅ |
+| `addCaregiverPatient(patientContact, relationship)` | Mutation | ✅ |
+| `respondToCaregiverInvite(caregiverId, accept, permission)` | Mutation | ✅ |
+| `updateCaregiverPermission(caregiverId, permission)` | Mutation | ✅ |
 | `removeCaregiverPatient(caregiverId, patientId)` | Mutation | ✅ |
 
 - Links are symmetric — the same query returns both the caregiver-side
   and patient-side view. Compare `caregiverId === me.id` to know which
-  role the caller plays.
+  role the caller plays. `CaregiverLinkType` carries **both**
+  `caregiverAvatar` and `patientAvatar` for the same reason: the resolver
+  cannot know which side of the row the caller is on.
+- `addCaregiverPatient` takes **one** argument for the patient's
+  identifier. `patientContact` is read as an email when it contains `@`
+  and as a phone number otherwise — a Thai phone number can never contain
+  `@`, so the split is unambiguous and the client does not have to declare
+  which kind it is sending. Not-found errors name back the kind that was
+  sent (`ไม่พบผู้ใช้จากอีเมลนี้` vs `ไม่พบผู้ใช้จากเบอร์โทรศัพท์นี้`).
+  Email matching is case-insensitive; the input is lowercased before the
+  lookup. This replaced the older `patientPhone` **argument** outright —
+  there is no alias. Note `CaregiverLinkType.patientPhone` is a different
+  thing (the linked patient's phone on the result) and is unchanged.
 - `relationship` defaults to `"caregiver"` and can be overridden (e.g.
-  `"spouse"`, `"child"`).
-- An **accepted** link is the authorization for both caregiver data
-  access paths: reading the patient's data (`readings(patientId:)`) and
-  writing on their behalf (`createReading(input: { patientId })` — see
-  §5.2). Pending/rejected links grant nothing.
+  `"spouse"`, `"child"`). An unrecognised value is stored as `other`
+  rather than rejected, so send one the server knows.
+- **An accepted link is no longer a single level of access.**
+  `CaregiverPatient.permission` is `view` or `full`, defaulting to `full`:
+
+  | Guard | Accepts | Used by |
+  | --- | --- | --- |
+  | `assertCanViewPatient` | any accepted link | `readings(patientId:)`, `alerts(patientId:)` |
+  | `assertCanRecordForPatient` | accepted **and** `full` | `createReading` |
+
+  Pending and rejected links grant nothing either way.
+- **The patient chooses the permission when accepting**, via
+  `respondToCaregiverInvite(permission: CaregiverPermission)`. It is an
+  enum, not a String — an unrecognised value fails validation before the
+  resolver runs, because the fallback that is acceptable for
+  `relationship` would here decide who may write into a medical record.
+  The argument defaults to `full` so a client predating it grants exactly
+  what it granted before, and is ignored when `accept: false`.
+- **The patient can change the grant afterwards**, via
+  `updateCaregiverPermission(caregiverId, permission)`. There is deliberately
+  no `patientId` argument — it comes from the session, which is what makes
+  the mutation patient-only: a caregiver calling it can only ever address a
+  link where *they* are the patient. It accepts **accepted links only**
+  (`NOT_FOUND` for no such link, `BAD_REQUEST` for one still pending or
+  rejected), and `permission` is required here rather than defaulted, unlike
+  on `respondToCaregiverInvite` — that default exists for clients written
+  before the argument did, while changing a grant to an unstated value is not
+  a request anyone makes. Before this, the only route from `full` back to
+  `view` was deleting the link and being re-invited.
+- `CaregiverLinkType` carries `permission` as well, so **both** sides can see
+  what was granted — the patient's link list had no other source, since
+  `myPatients` is caregiver-only. It is meaningful only once `status` is
+  `accepted`; a pending row holds the column default, not an answer. Typed as
+  the `CaregiverPermission` enum, whereas `PatientSummaryType.permission` is
+  still a `String!` that predates the enum being registered; both serialise
+  identically.
+- `myPatients` returns `PatientSummaryType`, which carries the link's
+  `permission` and the patient's `latestReading` — one grouped query, so a
+  caregiver's patient list is not N+1. Clients use `permission` to refuse a
+  write before the measurement is taken; the gateway refuses it either way.
 
 ---
 

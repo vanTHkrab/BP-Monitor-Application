@@ -4,9 +4,9 @@
  * Backed by `BPVisionCameraView.kt` in the bp-vision module. `capture()` is a
  * native view function reachable through the component ref; it resolves with an
  * upright JPEG `{ uri, width, height }`, matching `expo-camera`'s
- * `takePictureAsync` contract so `utils/crop-to-viewport.ts` needs no changes.
+ * `takePictureAsync` contract so `capture/lib/crop-to-viewport.ts` needs no changes.
  *
- * Consumers should go through `components/bp-camera-view.tsx`, which picks this
+ * Consumers should go through `capture/components/bp-camera-view.tsx`, which picks this
  * only when the bp-vision native module is linked (an Android dev/prod build)
  * and falls back to `expo-camera` otherwise — including Android Expo Go, where
  * no custom native modules exist. Don't render this directly on iOS / web /

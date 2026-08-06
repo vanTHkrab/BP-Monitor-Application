@@ -20,7 +20,7 @@ class ImageDecodeException(path: String) :
 
 /**
  * JS-facing shape of [YoloDetector.Detection] — field names and types match
- * `client/lib/yolo/types.ts`'s `Detection` interface exactly, so downstream
+ * `client/src/modules/capture/lib/detection.ts`'s `Detection` interface exactly, so downstream
  * TS code needs zero shape translation.
  */
 class DetectionRecord : Record {
@@ -111,10 +111,10 @@ class BPVisionModule : Module() {
 
     // On-device BP-display OCR. Runs YOLO pass 1 -> Stage-2 rotation -> YOLO
     // pass 2 -> per-field CRNN -> validate -> aggregate, and returns a value
-    // shaped EXACTLY like `client/lib/ocr/types.ts`'s `OnDeviceOcrResult`:
+    // shaped EXACTLY like `client/src/modules/capture/lib/ocr/types.ts`'s `OnDeviceOcrResult`:
     //   success     -> { sys, dia, pulse, confidence }
     //   otherwise   -> { unavailable: true, reason }
-    // so `lib/ocr/read.ts` is a thin pass-through. Never throws for ordinary
+    // so `capture/lib/ocr/read.ts` is a thin pass-through. Never throws for ordinary
     // failures (model load, undecodable image, no monitor, unreadable fields,
     // out-of-range, sys<=dia) — those come back as `unavailable`.
     AsyncFunction("readBp") { imageUri: String ->

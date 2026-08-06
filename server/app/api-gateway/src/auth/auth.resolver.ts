@@ -5,12 +5,13 @@ import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
 import { AuthPayloadObject } from './dto/auth-payload.object';
 import { ChangePasswordInput } from './dto/change-password.input';
+import { GoogleSignInInput } from './dto/google-sign-in.input';
 import { LoginInput } from './dto/login.input';
 import { RegisterInput } from './dto/register.input';
+import { SelectRoleInput } from './dto/select-role.input';
 import { SessionObject } from './dto/session.object';
 import { UpdateProfileInput } from './dto/update-profile.input';
 import { UserObject } from './dto/user.object';
-import { LoginThrottleGuard } from './login-throttle.guard';
 
 interface GraphQLContextWithRequest {
   req?: { headers?: Record<string, string | string[] | undefined> };
@@ -34,10 +35,7 @@ const readUserAgent = (
 
 @Resolver()
 export class AuthResolver {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly loginThrottle: LoginThrottleGuard,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Mutation(() => AuthPayloadObject, { description: 'ลงทะเบียนผู้ใช้ใหม่' })
   async register(
@@ -47,25 +45,46 @@ export class AuthResolver {
     return this.authService.register(input, readUserAgent(context));
   }
 
+  // Throttling is Better Auth's now — `rateLimit.customRules` covers
+  // /sign-in/phone-number and /sign-in/email alike, so adding a credential
+  // route no longer means remembering to guard it.
   @Mutation(() => AuthPayloadObject, { description: 'เข้าสู่ระบบ' })
-  @UseGuards(LoginThrottleGuard)
   async login(
     @Args('input') input: LoginInput,
     @Context() context: GraphQLContextWithRequest,
   ): Promise<AuthPayloadObject> {
-    const result = await this.authService.login(input, readUserAgent(context));
-    // Successful login → reset the per-phone counter so legitimate retries
-    // after a typo don't accumulate against the user. Fire-and-forget: a
-    // failed Redis DEL shouldn't block returning a successful login, and the
-    // counter has a TTL so it self-heals.
-    void this.loginThrottle.reset(input.phone);
-    return result;
+    return this.authService.login(input, readUserAgent(context));
+  }
+
+  @Mutation(() => AuthPayloadObject, {
+    description: 'เข้าสู่ระบบด้วยบัญชี Google บนอุปกรณ์ (One Tap)',
+  })
+  async loginWithGoogle(
+    @Args('input') input: GoogleSignInInput,
+    @Context() context: GraphQLContextWithRequest,
+  ): Promise<AuthPayloadObject> {
+    return this.authService.loginWithGoogleIdToken(
+      input.idToken,
+      readUserAgent(context),
+      input.deviceLabel,
+    );
   }
 
   @Query(() => UserObject, { description: 'ดึงข้อมูลผู้ใช้ปัจจุบัน' })
   @UseGuards(GqlAuthGuard)
   async me(@CurrentUser() user: { id: string }): Promise<UserObject> {
     return this.authService.me(user.id);
+  }
+
+  @Mutation(() => UserObject, {
+    description: 'เลือกบทบาทของตัวเอง (ขั้นตอนหลังสมัคร)',
+  })
+  @UseGuards(GqlAuthGuard)
+  async selectRole(
+    @CurrentUser() user: { id: string },
+    @Args('input') input: SelectRoleInput,
+  ): Promise<UserObject> {
+    return this.authService.selectRole(user.id, input.role);
   }
 
   @Mutation(() => UserObject, { description: 'แก้ไขโปรไฟล์' })

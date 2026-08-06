@@ -1,9 +1,4 @@
 allowBuilds:
+  better-sqlite3: true
+  esbuild: true
   unrs-resolver: true
-
-nodeLinker: hoisted
-
-onlyBuiltDependencies:
-  - '@firebase/util'
-  - protobufjs
-  - unrs-resolver

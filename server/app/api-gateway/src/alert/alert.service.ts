@@ -13,6 +13,8 @@ type AlertWithReading = {
   createdAt: Date;
   reading?: {
     id: number;
+    /** The reading's owner — the *patient*, not this alert's recipient. */
+    userId: string;
     systolic: number;
     diastolic: number;
     pulse: number;
@@ -47,6 +49,7 @@ export class AlertService {
         reading: {
           select: {
             id: true,
+            userId: true,
             systolic: true,
             diastolic: true,
             pulse: true,
@@ -92,6 +95,7 @@ export class AlertService {
       reading: alert.reading
         ? {
             id: alert.reading.id,
+            userId: alert.reading.userId,
             systolic: alert.reading.systolic,
             diastolic: alert.reading.diastolic,
             pulse: alert.reading.pulse,

@@ -144,8 +144,9 @@ Roadmap, known gaps, และ work-in-progress ของ gateway. ใช้ส�
 
 ## Notes for AI agents
 
-- ทุกครั้งที่เพิ่ม resolver/field ใหม่ → อัปเดต `client/constants/api.ts`
-  (`GQL_*` strings) + types ใน `client/types/graphql.ts` คู่กัน
+- ทุกครั้งที่เพิ่ม resolver/field ใหม่ → อัปเดต `GQL_*` strings ใน
+  `services/operations.ts` ของ module ที่เกี่ยวข้องฝั่ง client + types ที่
+  module นั้นถืออยู่ (`types.ts` / `lib/mappers.ts`) คู่กัน
 - เพิ่ม class-validator decorators กับ `@InputType` ทุกตัว — pipe เปิด
   `forbidNonWhitelisted` ดังนั้น field ที่ไม่ระบุจะถูก reject
 - ห้ามแก้ `src/schema.gql` มือ

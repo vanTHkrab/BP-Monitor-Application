@@ -1,22 +1,30 @@
 /**
- * bp-vision — local Expo module (Android-only) for on-device BP-monitor
- * computer vision: YOLOv11n detection and CRNN digit OCR, both running the
- * same ONNX models the backend uses (bundled verbatim in
- * `client/assets/models/`, SHA256-gated by `scripts/verify-models.mjs`).
+ * bp-vision — the app's local Expo module (Android only).
  *
- * The native implementation lives in `android/src/main/java/expo/modules/
- * bpvision/`. `requireOptionalNativeModule` returns `null` on iOS / web /
- * Expo Go where the module isn't linked, so every export degrades gracefully
- * instead of throwing at import time — callers fall through to their
- * online/manual paths.
+ * Runs YOLOv11n detection and CRNN digit OCR on the device, against the same
+ * ONNX files the backend uses: bundled verbatim in `client/assets/models/` and
+ * SHA256-gated by `scripts/verify-models.mjs` on every `pnpm start`. The native
+ * implementation lives in `android/src/main/java/expo/modules/bpvision/`.
+ *
+ * **Every export degrades instead of throwing.** `requireOptionalNativeModule`
+ * returns `null` on iOS, web, and Expo Go, where the module is not linked, so
+ * the import itself is safe everywhere and callers fall through to their online
+ * or manual paths. "No detector on this platform" is a supported mode of the
+ * camera screen, not an error case.
+ *
+ * This directory sits at the **project root**, not under `src/modules/`, because
+ * Expo's autolinking scans `<root>/modules` for local native modules. The name
+ * collision with the feature modules in `src/modules/` is unfortunate and
+ * deliberate — moving it would mean carrying a non-default autolinking config
+ * that no Expo doc mentions.
  */
 import { requireOptionalNativeModule } from 'expo';
 
-import type { OnDeviceOcrResult } from '@/lib/ocr/types';
-import type { Detection } from '@/lib/yolo/types';
+import type { Detection } from '@/modules/capture/lib/detection';
+import type { OnDeviceOcrResult } from '@/modules/capture/lib/ocr/types';
 
 interface BPVisionNativeModule {
-  /** YOLO detection in source-image pixel coords; `[]` shape matches `Detection`. */
+  /** YOLO detection in source-image pixel coords. Shape matches `Detection`. */
   detect(
     imageUri: string,
     sourceWidth: number,
@@ -35,12 +43,12 @@ export type DetectorProvider = (typeof DETECTOR_PROVIDERS)[number];
 
 const BPVision = requireOptionalNativeModule<BPVisionNativeModule>('BPVision');
 
-/** True when the native module is linked (Android dev/prod build), false on Expo Go / iOS / web. */
+/** True when the native module is linked — an Android dev/prod build. */
 export const isBpVisionAvailable = (): boolean => BPVision != null;
 
 /**
- * Run on-device YOLO detection. Returns `[]` when the module is unavailable so
- * pre-flight callers can treat "no module" the same as "nothing detected".
+ * Run on-device YOLO detection. Returns `[]` when the module is unavailable, so
+ * a caller can treat "no module" exactly like "nothing in shot".
  */
 export async function detectInImage(
   imageUri: string,
@@ -53,20 +61,27 @@ export async function detectInImage(
 }
 
 /**
- * Run the on-device OCR pipeline. Returns the `OnDeviceOcrResult` union
- * verbatim from native; when the module is unavailable, reports
- * `{ unavailable: true }` so `lib/ocr/read.ts` stays a thin pass-through.
+ * Run the on-device OCR pipeline. Reports `{ unavailable: true }` rather than
+ * throwing when the module is missing, so `capture/lib/ocr/read.ts` stays a
+ * pass-through.
  */
+export async function readBpOnDevice(imageUri: string): Promise<OnDeviceOcrResult> {
+  if (!BPVision || typeof BPVision.readBp !== 'function') {
+    return { unavailable: true, reason: 'module-unavailable' };
+  }
+  return BPVision.readBp(imageUri);
+}
+
 /**
  * Rebuild the YOLO session on a different ONNX backend and report which one
- * took effect. Which backend is fastest is a per-device fact that has to be
- * measured on the hardware in question, so this exists to let the dev
- * benchmark compare them without a native rebuild per candidate.
+ * took effect.
  *
- * `__DEV__`-gated: production builds never switch backends, they use the
- * default the measurements settled on. Returns `null` when the switch isn't
- * available (production bundle, or module not linked) so callers can show
- * that plainly instead of implying a change that never happened.
+ * Which backend is fastest is a per-device fact that has to be measured on the
+ * hardware in question, so this exists to let a benchmark compare them without
+ * a native rebuild per candidate. `__DEV__`-gated: production builds use the
+ * default the measurements settled on. Returns `null` when the switch is not
+ * available, so a caller can say so plainly instead of implying a change that
+ * never happened.
  */
 export async function setDetectorProvider(
   provider: DetectorProvider,
@@ -75,13 +90,4 @@ export async function setDetectorProvider(
     return null;
   }
   return BPVision.setDetectorProvider(provider);
-}
-
-export async function readBpOnDevice(
-  imageUri: string,
-): Promise<OnDeviceOcrResult> {
-  if (!BPVision || typeof BPVision.readBp !== 'function') {
-    return { unavailable: true, reason: 'module-unavailable' };
-  }
-  return BPVision.readBp(imageUri);
 }

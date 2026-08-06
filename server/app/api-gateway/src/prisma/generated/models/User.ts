@@ -39,11 +39,19 @@ export type UserSumAggregateOutputType = {
 export type UserMinAggregateOutputType = {
   id: string | null
   email: string | null
+  emailVerified: boolean | null
+  name: string | null
   firstname: string | null
   lastname: string | null
   phone: string | null
+  phoneNumberVerified: boolean | null
   passwordHash: string | null
   role: $Enums.UserRole | null
+  roleSelectedAt: Date | null
+  lastLoginMethod: string | null
+  banned: boolean | null
+  banReason: string | null
+  banExpires: Date | null
   dob: Date | null
   gender: $Enums.Gender | null
   weight: number | null
@@ -57,11 +65,19 @@ export type UserMinAggregateOutputType = {
 export type UserMaxAggregateOutputType = {
   id: string | null
   email: string | null
+  emailVerified: boolean | null
+  name: string | null
   firstname: string | null
   lastname: string | null
   phone: string | null
+  phoneNumberVerified: boolean | null
   passwordHash: string | null
   role: $Enums.UserRole | null
+  roleSelectedAt: Date | null
+  lastLoginMethod: string | null
+  banned: boolean | null
+  banReason: string | null
+  banExpires: Date | null
   dob: Date | null
   gender: $Enums.Gender | null
   weight: number | null
@@ -75,11 +91,19 @@ export type UserMaxAggregateOutputType = {
 export type UserCountAggregateOutputType = {
   id: number
   email: number
+  emailVerified: number
+  name: number
   firstname: number
   lastname: number
   phone: number
+  phoneNumberVerified: number
   passwordHash: number
   role: number
+  roleSelectedAt: number
+  lastLoginMethod: number
+  banned: number
+  banReason: number
+  banExpires: number
   dob: number
   gender: number
   weight: number
@@ -105,11 +129,19 @@ export type UserSumAggregateInputType = {
 export type UserMinAggregateInputType = {
   id?: true
   email?: true
+  emailVerified?: true
+  name?: true
   firstname?: true
   lastname?: true
   phone?: true
+  phoneNumberVerified?: true
   passwordHash?: true
   role?: true
+  roleSelectedAt?: true
+  lastLoginMethod?: true
+  banned?: true
+  banReason?: true
+  banExpires?: true
   dob?: true
   gender?: true
   weight?: true
@@ -123,11 +155,19 @@ export type UserMinAggregateInputType = {
 export type UserMaxAggregateInputType = {
   id?: true
   email?: true
+  emailVerified?: true
+  name?: true
   firstname?: true
   lastname?: true
   phone?: true
+  phoneNumberVerified?: true
   passwordHash?: true
   role?: true
+  roleSelectedAt?: true
+  lastLoginMethod?: true
+  banned?: true
+  banReason?: true
+  banExpires?: true
   dob?: true
   gender?: true
   weight?: true
@@ -141,11 +181,19 @@ export type UserMaxAggregateInputType = {
 export type UserCountAggregateInputType = {
   id?: true
   email?: true
+  emailVerified?: true
+  name?: true
   firstname?: true
   lastname?: true
   phone?: true
+  phoneNumberVerified?: true
   passwordHash?: true
   role?: true
+  roleSelectedAt?: true
+  lastLoginMethod?: true
+  banned?: true
+  banReason?: true
+  banExpires?: true
   dob?: true
   gender?: true
   weight?: true
@@ -245,12 +293,20 @@ export type UserGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
 
 export type UserGroupByOutputType = {
   id: string
-  email: string | null
+  email: string
+  emailVerified: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified: boolean
+  passwordHash: string | null
   role: $Enums.UserRole
+  roleSelectedAt: Date | null
+  lastLoginMethod: string | null
+  banned: boolean | null
+  banReason: string | null
+  banExpires: Date | null
   dob: Date | null
   gender: $Enums.Gender | null
   weight: number | null
@@ -286,12 +342,20 @@ export type UserWhereInput = {
   OR?: Prisma.UserWhereInput[]
   NOT?: Prisma.UserWhereInput | Prisma.UserWhereInput[]
   id?: Prisma.UuidFilter<"User"> | string
-  email?: Prisma.StringNullableFilter<"User"> | string | null
+  email?: Prisma.StringFilter<"User"> | string
+  emailVerified?: Prisma.BoolFilter<"User"> | boolean
+  name?: Prisma.StringFilter<"User"> | string
   firstname?: Prisma.StringFilter<"User"> | string
   lastname?: Prisma.StringFilter<"User"> | string
   phone?: Prisma.StringFilter<"User"> | string
-  passwordHash?: Prisma.StringFilter<"User"> | string
+  phoneNumberVerified?: Prisma.BoolFilter<"User"> | boolean
+  passwordHash?: Prisma.StringNullableFilter<"User"> | string | null
   role?: Prisma.EnumUserRoleFilter<"User"> | $Enums.UserRole
+  roleSelectedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
+  lastLoginMethod?: Prisma.StringNullableFilter<"User"> | string | null
+  banned?: Prisma.BoolNullableFilter<"User"> | boolean | null
+  banReason?: Prisma.StringNullableFilter<"User"> | string | null
+  banExpires?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   dob?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   gender?: Prisma.EnumGenderNullableFilter<"User"> | $Enums.Gender | null
   weight?: Prisma.FloatNullableFilter<"User"> | number | null
@@ -300,6 +364,7 @@ export type UserWhereInput = {
   avatar?: Prisma.StringNullableFilter<"User"> | string | null
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
+  accounts?: Prisma.AccountListRelationFilter
   images?: Prisma.ImageListRelationFilter
   alerts?: Prisma.AlertListRelationFilter
   caregiverLinks?: Prisma.CaregiverPatientListRelationFilter
@@ -311,16 +376,25 @@ export type UserWhereInput = {
   postCommentLikes?: Prisma.PostCommentLikeListRelationFilter
   postLikes?: Prisma.PostLikeListRelationFilter
   sessions?: Prisma.UserSessionListRelationFilter
+  passkeys?: Prisma.PasskeyListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
   id?: Prisma.SortOrder
-  email?: Prisma.SortOrderInput | Prisma.SortOrder
+  email?: Prisma.SortOrder
+  emailVerified?: Prisma.SortOrder
+  name?: Prisma.SortOrder
   firstname?: Prisma.SortOrder
   lastname?: Prisma.SortOrder
   phone?: Prisma.SortOrder
-  passwordHash?: Prisma.SortOrder
+  phoneNumberVerified?: Prisma.SortOrder
+  passwordHash?: Prisma.SortOrderInput | Prisma.SortOrder
   role?: Prisma.SortOrder
+  roleSelectedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastLoginMethod?: Prisma.SortOrderInput | Prisma.SortOrder
+  banned?: Prisma.SortOrderInput | Prisma.SortOrder
+  banReason?: Prisma.SortOrderInput | Prisma.SortOrder
+  banExpires?: Prisma.SortOrderInput | Prisma.SortOrder
   dob?: Prisma.SortOrderInput | Prisma.SortOrder
   gender?: Prisma.SortOrderInput | Prisma.SortOrder
   weight?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -329,6 +403,7 @@ export type UserOrderByWithRelationInput = {
   avatar?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  accounts?: Prisma.AccountOrderByRelationAggregateInput
   images?: Prisma.ImageOrderByRelationAggregateInput
   alerts?: Prisma.AlertOrderByRelationAggregateInput
   caregiverLinks?: Prisma.CaregiverPatientOrderByRelationAggregateInput
@@ -340,6 +415,7 @@ export type UserOrderByWithRelationInput = {
   postCommentLikes?: Prisma.PostCommentLikeOrderByRelationAggregateInput
   postLikes?: Prisma.PostLikeOrderByRelationAggregateInput
   sessions?: Prisma.UserSessionOrderByRelationAggregateInput
+  passkeys?: Prisma.PasskeyOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -349,10 +425,18 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   AND?: Prisma.UserWhereInput | Prisma.UserWhereInput[]
   OR?: Prisma.UserWhereInput[]
   NOT?: Prisma.UserWhereInput | Prisma.UserWhereInput[]
+  emailVerified?: Prisma.BoolFilter<"User"> | boolean
+  name?: Prisma.StringFilter<"User"> | string
   firstname?: Prisma.StringFilter<"User"> | string
   lastname?: Prisma.StringFilter<"User"> | string
-  passwordHash?: Prisma.StringFilter<"User"> | string
+  phoneNumberVerified?: Prisma.BoolFilter<"User"> | boolean
+  passwordHash?: Prisma.StringNullableFilter<"User"> | string | null
   role?: Prisma.EnumUserRoleFilter<"User"> | $Enums.UserRole
+  roleSelectedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
+  lastLoginMethod?: Prisma.StringNullableFilter<"User"> | string | null
+  banned?: Prisma.BoolNullableFilter<"User"> | boolean | null
+  banReason?: Prisma.StringNullableFilter<"User"> | string | null
+  banExpires?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   dob?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   gender?: Prisma.EnumGenderNullableFilter<"User"> | $Enums.Gender | null
   weight?: Prisma.FloatNullableFilter<"User"> | number | null
@@ -361,6 +445,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   avatar?: Prisma.StringNullableFilter<"User"> | string | null
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
+  accounts?: Prisma.AccountListRelationFilter
   images?: Prisma.ImageListRelationFilter
   alerts?: Prisma.AlertListRelationFilter
   caregiverLinks?: Prisma.CaregiverPatientListRelationFilter
@@ -372,16 +457,25 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   postCommentLikes?: Prisma.PostCommentLikeListRelationFilter
   postLikes?: Prisma.PostLikeListRelationFilter
   sessions?: Prisma.UserSessionListRelationFilter
+  passkeys?: Prisma.PasskeyListRelationFilter
 }, "id" | "email" | "phone">
 
 export type UserOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
-  email?: Prisma.SortOrderInput | Prisma.SortOrder
+  email?: Prisma.SortOrder
+  emailVerified?: Prisma.SortOrder
+  name?: Prisma.SortOrder
   firstname?: Prisma.SortOrder
   lastname?: Prisma.SortOrder
   phone?: Prisma.SortOrder
-  passwordHash?: Prisma.SortOrder
+  phoneNumberVerified?: Prisma.SortOrder
+  passwordHash?: Prisma.SortOrderInput | Prisma.SortOrder
   role?: Prisma.SortOrder
+  roleSelectedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastLoginMethod?: Prisma.SortOrderInput | Prisma.SortOrder
+  banned?: Prisma.SortOrderInput | Prisma.SortOrder
+  banReason?: Prisma.SortOrderInput | Prisma.SortOrder
+  banExpires?: Prisma.SortOrderInput | Prisma.SortOrder
   dob?: Prisma.SortOrderInput | Prisma.SortOrder
   gender?: Prisma.SortOrderInput | Prisma.SortOrder
   weight?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -402,12 +496,20 @@ export type UserScalarWhereWithAggregatesInput = {
   OR?: Prisma.UserScalarWhereWithAggregatesInput[]
   NOT?: Prisma.UserScalarWhereWithAggregatesInput | Prisma.UserScalarWhereWithAggregatesInput[]
   id?: Prisma.UuidWithAggregatesFilter<"User"> | string
-  email?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  email?: Prisma.StringWithAggregatesFilter<"User"> | string
+  emailVerified?: Prisma.BoolWithAggregatesFilter<"User"> | boolean
+  name?: Prisma.StringWithAggregatesFilter<"User"> | string
   firstname?: Prisma.StringWithAggregatesFilter<"User"> | string
   lastname?: Prisma.StringWithAggregatesFilter<"User"> | string
   phone?: Prisma.StringWithAggregatesFilter<"User"> | string
-  passwordHash?: Prisma.StringWithAggregatesFilter<"User"> | string
+  phoneNumberVerified?: Prisma.BoolWithAggregatesFilter<"User"> | boolean
+  passwordHash?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   role?: Prisma.EnumUserRoleWithAggregatesFilter<"User"> | $Enums.UserRole
+  roleSelectedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
+  lastLoginMethod?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  banned?: Prisma.BoolNullableWithAggregatesFilter<"User"> | boolean | null
+  banReason?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  banExpires?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   dob?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   gender?: Prisma.EnumGenderNullableWithAggregatesFilter<"User"> | $Enums.Gender | null
   weight?: Prisma.FloatNullableWithAggregatesFilter<"User"> | number | null
@@ -420,12 +522,20 @@ export type UserScalarWhereWithAggregatesInput = {
 
 export type UserCreateInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -434,6 +544,7 @@ export type UserCreateInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -445,16 +556,25 @@ export type UserCreateInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -463,6 +583,7 @@ export type UserUncheckedCreateInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -474,16 +595,25 @@ export type UserUncheckedCreateInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -492,6 +622,7 @@ export type UserUpdateInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
@@ -503,16 +634,25 @@ export type UserUpdateInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -521,6 +661,7 @@ export type UserUncheckedUpdateInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
@@ -532,16 +673,25 @@ export type UserUncheckedUpdateInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -554,12 +704,20 @@ export type UserCreateManyInput = {
 
 export type UserUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -572,12 +730,20 @@ export type UserUpdateManyMutationInput = {
 
 export type UserUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -591,11 +757,19 @@ export type UserUncheckedUpdateManyInput = {
 export type UserCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   email?: Prisma.SortOrder
+  emailVerified?: Prisma.SortOrder
+  name?: Prisma.SortOrder
   firstname?: Prisma.SortOrder
   lastname?: Prisma.SortOrder
   phone?: Prisma.SortOrder
+  phoneNumberVerified?: Prisma.SortOrder
   passwordHash?: Prisma.SortOrder
   role?: Prisma.SortOrder
+  roleSelectedAt?: Prisma.SortOrder
+  lastLoginMethod?: Prisma.SortOrder
+  banned?: Prisma.SortOrder
+  banReason?: Prisma.SortOrder
+  banExpires?: Prisma.SortOrder
   dob?: Prisma.SortOrder
   gender?: Prisma.SortOrder
   weight?: Prisma.SortOrder
@@ -614,11 +788,19 @@ export type UserAvgOrderByAggregateInput = {
 export type UserMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   email?: Prisma.SortOrder
+  emailVerified?: Prisma.SortOrder
+  name?: Prisma.SortOrder
   firstname?: Prisma.SortOrder
   lastname?: Prisma.SortOrder
   phone?: Prisma.SortOrder
+  phoneNumberVerified?: Prisma.SortOrder
   passwordHash?: Prisma.SortOrder
   role?: Prisma.SortOrder
+  roleSelectedAt?: Prisma.SortOrder
+  lastLoginMethod?: Prisma.SortOrder
+  banned?: Prisma.SortOrder
+  banReason?: Prisma.SortOrder
+  banExpires?: Prisma.SortOrder
   dob?: Prisma.SortOrder
   gender?: Prisma.SortOrder
   weight?: Prisma.SortOrder
@@ -632,11 +814,19 @@ export type UserMaxOrderByAggregateInput = {
 export type UserMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   email?: Prisma.SortOrder
+  emailVerified?: Prisma.SortOrder
+  name?: Prisma.SortOrder
   firstname?: Prisma.SortOrder
   lastname?: Prisma.SortOrder
   phone?: Prisma.SortOrder
+  phoneNumberVerified?: Prisma.SortOrder
   passwordHash?: Prisma.SortOrder
   role?: Prisma.SortOrder
+  roleSelectedAt?: Prisma.SortOrder
+  lastLoginMethod?: Prisma.SortOrder
+  banned?: Prisma.SortOrder
+  banReason?: Prisma.SortOrder
+  banExpires?: Prisma.SortOrder
   dob?: Prisma.SortOrder
   gender?: Prisma.SortOrder
   weight?: Prisma.SortOrder
@@ -666,6 +856,10 @@ export type StringFieldUpdateOperationsInput = {
   set?: string
 }
 
+export type BoolFieldUpdateOperationsInput = {
+  set?: boolean
+}
+
 export type NullableStringFieldUpdateOperationsInput = {
   set?: string | null
 }
@@ -676,6 +870,10 @@ export type EnumUserRoleFieldUpdateOperationsInput = {
 
 export type NullableDateTimeFieldUpdateOperationsInput = {
   set?: Date | string | null
+}
+
+export type NullableBoolFieldUpdateOperationsInput = {
+  set?: boolean | null
 }
 
 export type NullableEnumGenderFieldUpdateOperationsInput = {
@@ -694,6 +892,20 @@ export type DateTimeFieldUpdateOperationsInput = {
   set?: Date | string
 }
 
+export type UserCreateNestedOneWithoutPasskeysInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutPasskeysInput, Prisma.UserUncheckedCreateWithoutPasskeysInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutPasskeysInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutPasskeysNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutPasskeysInput, Prisma.UserUncheckedCreateWithoutPasskeysInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutPasskeysInput
+  upsert?: Prisma.UserUpsertWithoutPasskeysInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutPasskeysInput, Prisma.UserUpdateWithoutPasskeysInput>, Prisma.UserUncheckedUpdateWithoutPasskeysInput>
+}
+
 export type UserCreateNestedOneWithoutSessionsInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutSessionsInput, Prisma.UserUncheckedCreateWithoutSessionsInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutSessionsInput
@@ -706,6 +918,20 @@ export type UserUpdateOneRequiredWithoutSessionsNestedInput = {
   upsert?: Prisma.UserUpsertWithoutSessionsInput
   connect?: Prisma.UserWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSessionsInput, Prisma.UserUpdateWithoutSessionsInput>, Prisma.UserUncheckedUpdateWithoutSessionsInput>
+}
+
+export type UserCreateNestedOneWithoutAccountsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutAccountsInput, Prisma.UserUncheckedCreateWithoutAccountsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutAccountsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutAccountsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutAccountsInput, Prisma.UserUncheckedCreateWithoutAccountsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutAccountsInput
+  upsert?: Prisma.UserUpsertWithoutAccountsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutAccountsInput, Prisma.UserUpdateWithoutAccountsInput>, Prisma.UserUncheckedUpdateWithoutAccountsInput>
 }
 
 export type UserCreateNestedOneWithoutCaregiverLinksInput = {
@@ -850,14 +1076,22 @@ export type UserUpdateOneRequiredWithoutPostLikesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutPostLikesInput, Prisma.UserUpdateWithoutPostLikesInput>, Prisma.UserUncheckedUpdateWithoutPostLikesInput>
 }
 
-export type UserCreateWithoutSessionsInput = {
+export type UserCreateWithoutPasskeysInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -866,6 +1100,7 @@ export type UserCreateWithoutSessionsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -876,16 +1111,25 @@ export type UserCreateWithoutSessionsInput = {
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
 }
 
-export type UserUncheckedCreateWithoutSessionsInput = {
+export type UserUncheckedCreateWithoutPasskeysInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -894,6 +1138,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -904,6 +1149,175 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutPasskeysInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutPasskeysInput, Prisma.UserUncheckedCreateWithoutPasskeysInput>
+}
+
+export type UserUpsertWithoutPasskeysInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutPasskeysInput, Prisma.UserUncheckedUpdateWithoutPasskeysInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutPasskeysInput, Prisma.UserUncheckedCreateWithoutPasskeysInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutPasskeysInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutPasskeysInput, Prisma.UserUncheckedUpdateWithoutPasskeysInput>
+}
+
+export type UserUpdateWithoutPasskeysInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  images?: Prisma.ImageUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutPasskeysInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutSessionsInput = {
+  id?: string
+  email: string
+  emailVerified?: boolean
+  name: string
+  firstname: string
+  lastname: string
+  phone: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
+  role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  images?: Prisma.ImageCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
+  posts?: Prisma.PostCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutSessionsInput = {
+  id?: string
+  email: string
+  emailVerified?: boolean
+  name: string
+  firstname: string
+  lastname: string
+  phone: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
+  role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
+  posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -924,12 +1338,188 @@ export type UserUpdateToOneWithWhereWithoutSessionsInput = {
 
 export type UserUpdateWithoutSessionsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  images?: Prisma.ImageUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutSessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
+  weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  congenitalDisease?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
+  alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
+  readings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutUserNestedInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedUpdateManyWithoutRecordedByNestedInput
+  posts?: Prisma.PostUncheckedUpdateManyWithoutUserNestedInput
+  postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
+  postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutAccountsInput = {
+  id?: string
+  email: string
+  emailVerified?: boolean
+  name: string
+  firstname: string
+  lastname: string
+  phone: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
+  role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  images?: Prisma.ImageCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingCreateNestedManyWithoutRecordedByInput
+  posts?: Prisma.PostCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutAccountsInput = {
+  id?: string
+  email: string
+  emailVerified?: boolean
+  name: string
+  firstname: string
+  lastname: string
+  phone: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
+  role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  dob?: Date | string | null
+  gender?: $Enums.Gender | null
+  weight?: number | null
+  height?: number | null
+  congenitalDisease?: string | null
+  avatar?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
+  alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
+  caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
+  patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
+  readings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutUserInput
+  recordedReadings?: Prisma.BloodPressureReadingUncheckedCreateNestedManyWithoutRecordedByInput
+  posts?: Prisma.PostUncheckedCreateNestedManyWithoutUserInput
+  postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
+  postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
+  postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutAccountsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutAccountsInput, Prisma.UserUncheckedCreateWithoutAccountsInput>
+}
+
+export type UserUpsertWithoutAccountsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutAccountsInput, Prisma.UserUncheckedUpdateWithoutAccountsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutAccountsInput, Prisma.UserUncheckedCreateWithoutAccountsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutAccountsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutAccountsInput, Prisma.UserUncheckedUpdateWithoutAccountsInput>
+}
+
+export type UserUpdateWithoutAccountsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  firstname?: Prisma.StringFieldUpdateOperationsInput | string
+  lastname?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -948,16 +1538,26 @@ export type UserUpdateWithoutSessionsInput = {
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
-export type UserUncheckedUpdateWithoutSessionsInput = {
+export type UserUncheckedUpdateWithoutAccountsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -976,16 +1576,26 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutCaregiverLinksInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -994,6 +1604,7 @@ export type UserCreateWithoutCaregiverLinksInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
@@ -1004,16 +1615,25 @@ export type UserCreateWithoutCaregiverLinksInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutCaregiverLinksInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1022,6 +1642,7 @@ export type UserUncheckedCreateWithoutCaregiverLinksInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
@@ -1032,6 +1653,7 @@ export type UserUncheckedCreateWithoutCaregiverLinksInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutCaregiverLinksInput = {
@@ -1041,12 +1663,20 @@ export type UserCreateOrConnectWithoutCaregiverLinksInput = {
 
 export type UserCreateWithoutPatientLinksInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1055,6 +1685,7 @@ export type UserCreateWithoutPatientLinksInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -1065,16 +1696,25 @@ export type UserCreateWithoutPatientLinksInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutPatientLinksInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1083,6 +1723,7 @@ export type UserUncheckedCreateWithoutPatientLinksInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -1093,6 +1734,7 @@ export type UserUncheckedCreateWithoutPatientLinksInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutPatientLinksInput = {
@@ -1113,12 +1755,20 @@ export type UserUpdateToOneWithWhereWithoutCaregiverLinksInput = {
 
 export type UserUpdateWithoutCaregiverLinksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1127,6 +1777,7 @@ export type UserUpdateWithoutCaregiverLinksInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
@@ -1137,16 +1788,25 @@ export type UserUpdateWithoutCaregiverLinksInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutCaregiverLinksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1155,6 +1815,7 @@ export type UserUncheckedUpdateWithoutCaregiverLinksInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
@@ -1165,6 +1826,7 @@ export type UserUncheckedUpdateWithoutCaregiverLinksInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserUpsertWithoutPatientLinksInput = {
@@ -1180,12 +1842,20 @@ export type UserUpdateToOneWithWhereWithoutPatientLinksInput = {
 
 export type UserUpdateWithoutPatientLinksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1194,6 +1864,7 @@ export type UserUpdateWithoutPatientLinksInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
@@ -1204,16 +1875,25 @@ export type UserUpdateWithoutPatientLinksInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPatientLinksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1222,6 +1902,7 @@ export type UserUncheckedUpdateWithoutPatientLinksInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
@@ -1232,16 +1913,25 @@ export type UserUncheckedUpdateWithoutPatientLinksInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutImagesInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1250,6 +1940,7 @@ export type UserCreateWithoutImagesInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
@@ -1260,16 +1951,25 @@ export type UserCreateWithoutImagesInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutImagesInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1278,6 +1978,7 @@ export type UserUncheckedCreateWithoutImagesInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
@@ -1288,6 +1989,7 @@ export type UserUncheckedCreateWithoutImagesInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutImagesInput = {
@@ -1308,12 +2010,20 @@ export type UserUpdateToOneWithWhereWithoutImagesInput = {
 
 export type UserUpdateWithoutImagesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1322,6 +2032,7 @@ export type UserUpdateWithoutImagesInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
@@ -1332,16 +2043,25 @@ export type UserUpdateWithoutImagesInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutImagesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1350,6 +2070,7 @@ export type UserUncheckedUpdateWithoutImagesInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
@@ -1360,16 +2081,25 @@ export type UserUncheckedUpdateWithoutImagesInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAlertsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1378,6 +2108,7 @@ export type UserCreateWithoutAlertsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutPatientInput
@@ -1388,16 +2119,25 @@ export type UserCreateWithoutAlertsInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAlertsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1406,6 +2146,7 @@ export type UserUncheckedCreateWithoutAlertsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
   patientLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutPatientInput
@@ -1416,6 +2157,7 @@ export type UserUncheckedCreateWithoutAlertsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAlertsInput = {
@@ -1436,12 +2178,20 @@ export type UserUpdateToOneWithWhereWithoutAlertsInput = {
 
 export type UserUpdateWithoutAlertsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1450,6 +2200,7 @@ export type UserUpdateWithoutAlertsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUpdateManyWithoutPatientNestedInput
@@ -1460,16 +2211,25 @@ export type UserUpdateWithoutAlertsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAlertsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1478,6 +2238,7 @@ export type UserUncheckedUpdateWithoutAlertsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
   patientLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutPatientNestedInput
@@ -1488,16 +2249,25 @@ export type UserUncheckedUpdateWithoutAlertsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutReadingsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1506,6 +2276,7 @@ export type UserCreateWithoutReadingsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -1516,16 +2287,25 @@ export type UserCreateWithoutReadingsInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutReadingsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1534,6 +2314,7 @@ export type UserUncheckedCreateWithoutReadingsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -1544,6 +2325,7 @@ export type UserUncheckedCreateWithoutReadingsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutReadingsInput = {
@@ -1553,12 +2335,20 @@ export type UserCreateOrConnectWithoutReadingsInput = {
 
 export type UserCreateWithoutRecordedReadingsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1567,6 +2357,7 @@ export type UserCreateWithoutRecordedReadingsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -1577,16 +2368,25 @@ export type UserCreateWithoutRecordedReadingsInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutRecordedReadingsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1595,6 +2395,7 @@ export type UserUncheckedCreateWithoutRecordedReadingsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -1605,6 +2406,7 @@ export type UserUncheckedCreateWithoutRecordedReadingsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutRecordedReadingsInput = {
@@ -1625,12 +2427,20 @@ export type UserUpdateToOneWithWhereWithoutReadingsInput = {
 
 export type UserUpdateWithoutReadingsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1639,6 +2449,7 @@ export type UserUpdateWithoutReadingsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
@@ -1649,16 +2460,25 @@ export type UserUpdateWithoutReadingsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutReadingsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1667,6 +2487,7 @@ export type UserUncheckedUpdateWithoutReadingsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
@@ -1677,6 +2498,7 @@ export type UserUncheckedUpdateWithoutReadingsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserUpsertWithoutRecordedReadingsInput = {
@@ -1692,12 +2514,20 @@ export type UserUpdateToOneWithWhereWithoutRecordedReadingsInput = {
 
 export type UserUpdateWithoutRecordedReadingsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1706,6 +2536,7 @@ export type UserUpdateWithoutRecordedReadingsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
@@ -1716,16 +2547,25 @@ export type UserUpdateWithoutRecordedReadingsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutRecordedReadingsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1734,6 +2574,7 @@ export type UserUncheckedUpdateWithoutRecordedReadingsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
@@ -1744,16 +2585,25 @@ export type UserUncheckedUpdateWithoutRecordedReadingsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutPostsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1762,6 +2612,7 @@ export type UserCreateWithoutPostsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -1772,16 +2623,25 @@ export type UserCreateWithoutPostsInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutPostsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1790,6 +2650,7 @@ export type UserUncheckedCreateWithoutPostsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -1800,6 +2661,7 @@ export type UserUncheckedCreateWithoutPostsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutPostsInput = {
@@ -1820,12 +2682,20 @@ export type UserUpdateToOneWithWhereWithoutPostsInput = {
 
 export type UserUpdateWithoutPostsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1834,6 +2704,7 @@ export type UserUpdateWithoutPostsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
@@ -1844,16 +2715,25 @@ export type UserUpdateWithoutPostsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPostsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1862,6 +2742,7 @@ export type UserUncheckedUpdateWithoutPostsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
@@ -1872,16 +2753,25 @@ export type UserUncheckedUpdateWithoutPostsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutPostCommentsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1890,6 +2780,7 @@ export type UserCreateWithoutPostCommentsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -1900,16 +2791,25 @@ export type UserCreateWithoutPostCommentsInput = {
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutPostCommentsInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -1918,6 +2818,7 @@ export type UserUncheckedCreateWithoutPostCommentsInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -1928,6 +2829,7 @@ export type UserUncheckedCreateWithoutPostCommentsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutPostCommentsInput = {
@@ -1948,12 +2850,20 @@ export type UserUpdateToOneWithWhereWithoutPostCommentsInput = {
 
 export type UserUpdateWithoutPostCommentsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1962,6 +2872,7 @@ export type UserUpdateWithoutPostCommentsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
@@ -1972,16 +2883,25 @@ export type UserUpdateWithoutPostCommentsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPostCommentsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -1990,6 +2910,7 @@ export type UserUncheckedUpdateWithoutPostCommentsInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
@@ -2000,16 +2921,25 @@ export type UserUncheckedUpdateWithoutPostCommentsInput = {
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutPostCommentLikesInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -2018,6 +2948,7 @@ export type UserCreateWithoutPostCommentLikesInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -2028,16 +2959,25 @@ export type UserCreateWithoutPostCommentLikesInput = {
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutPostCommentLikesInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -2046,6 +2986,7 @@ export type UserUncheckedCreateWithoutPostCommentLikesInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -2056,6 +2997,7 @@ export type UserUncheckedCreateWithoutPostCommentLikesInput = {
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postLikes?: Prisma.PostLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutPostCommentLikesInput = {
@@ -2076,12 +3018,20 @@ export type UserUpdateToOneWithWhereWithoutPostCommentLikesInput = {
 
 export type UserUpdateWithoutPostCommentLikesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -2090,6 +3040,7 @@ export type UserUpdateWithoutPostCommentLikesInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
@@ -2100,16 +3051,25 @@ export type UserUpdateWithoutPostCommentLikesInput = {
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPostCommentLikesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -2118,6 +3078,7 @@ export type UserUncheckedUpdateWithoutPostCommentLikesInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
@@ -2128,16 +3089,25 @@ export type UserUncheckedUpdateWithoutPostCommentLikesInput = {
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postLikes?: Prisma.PostLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutPostLikesInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -2146,6 +3116,7 @@ export type UserCreateWithoutPostLikesInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   images?: Prisma.ImageCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientCreateNestedManyWithoutCaregiverInput
@@ -2156,16 +3127,25 @@ export type UserCreateWithoutPostLikesInput = {
   postComments?: Prisma.PostCommentCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutPostLikesInput = {
   id?: string
-  email?: string | null
+  email: string
+  emailVerified?: boolean
+  name: string
   firstname: string
   lastname: string
   phone: string
-  passwordHash: string
+  phoneNumberVerified?: boolean
+  passwordHash?: string | null
   role?: $Enums.UserRole
+  roleSelectedAt?: Date | string | null
+  lastLoginMethod?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
   dob?: Date | string | null
   gender?: $Enums.Gender | null
   weight?: number | null
@@ -2174,6 +3154,7 @@ export type UserUncheckedCreateWithoutPostLikesInput = {
   avatar?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   images?: Prisma.ImageUncheckedCreateNestedManyWithoutUserInput
   alerts?: Prisma.AlertUncheckedCreateNestedManyWithoutUserInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedCreateNestedManyWithoutCaregiverInput
@@ -2184,6 +3165,7 @@ export type UserUncheckedCreateWithoutPostLikesInput = {
   postComments?: Prisma.PostCommentUncheckedCreateNestedManyWithoutUserInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  passkeys?: Prisma.PasskeyUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutPostLikesInput = {
@@ -2204,12 +3186,20 @@ export type UserUpdateToOneWithWhereWithoutPostLikesInput = {
 
 export type UserUpdateWithoutPostLikesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -2218,6 +3208,7 @@ export type UserUpdateWithoutPostLikesInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUpdateManyWithoutCaregiverNestedInput
@@ -2228,16 +3219,25 @@ export type UserUpdateWithoutPostLikesInput = {
   postComments?: Prisma.PostCommentUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPostLikesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  name?: Prisma.StringFieldUpdateOperationsInput | string
   firstname?: Prisma.StringFieldUpdateOperationsInput | string
   lastname?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  phoneNumberVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  roleSelectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginMethod?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dob?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gender?: Prisma.NullableEnumGenderFieldUpdateOperationsInput | $Enums.Gender | null
   weight?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
@@ -2246,6 +3246,7 @@ export type UserUncheckedUpdateWithoutPostLikesInput = {
   avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   images?: Prisma.ImageUncheckedUpdateManyWithoutUserNestedInput
   alerts?: Prisma.AlertUncheckedUpdateManyWithoutUserNestedInput
   caregiverLinks?: Prisma.CaregiverPatientUncheckedUpdateManyWithoutCaregiverNestedInput
@@ -2256,6 +3257,7 @@ export type UserUncheckedUpdateWithoutPostLikesInput = {
   postComments?: Prisma.PostCommentUncheckedUpdateManyWithoutUserNestedInput
   postCommentLikes?: Prisma.PostCommentLikeUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  passkeys?: Prisma.PasskeyUncheckedUpdateManyWithoutUserNestedInput
 }
 
 
@@ -2264,6 +3266,7 @@ export type UserUncheckedUpdateWithoutPostLikesInput = {
  */
 
 export type UserCountOutputType = {
+  accounts: number
   images: number
   alerts: number
   caregiverLinks: number
@@ -2275,9 +3278,11 @@ export type UserCountOutputType = {
   postCommentLikes: number
   postLikes: number
   sessions: number
+  passkeys: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  accounts?: boolean | UserCountOutputTypeCountAccountsArgs
   images?: boolean | UserCountOutputTypeCountImagesArgs
   alerts?: boolean | UserCountOutputTypeCountAlertsArgs
   caregiverLinks?: boolean | UserCountOutputTypeCountCaregiverLinksArgs
@@ -2289,6 +3294,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   postCommentLikes?: boolean | UserCountOutputTypeCountPostCommentLikesArgs
   postLikes?: boolean | UserCountOutputTypeCountPostLikesArgs
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
+  passkeys?: boolean | UserCountOutputTypeCountPasskeysArgs
 }
 
 /**
@@ -2299,6 +3305,13 @@ export type UserCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensi
    * Select specific fields to fetch from the UserCountOutputType
    */
   select?: Prisma.UserCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountAccountsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AccountWhereInput
 }
 
 /**
@@ -2378,15 +3391,30 @@ export type UserCountOutputTypeCountSessionsArgs<ExtArgs extends runtime.Types.E
   where?: Prisma.UserSessionWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountPasskeysArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.PasskeyWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   email?: boolean
+  emailVerified?: boolean
+  name?: boolean
   firstname?: boolean
   lastname?: boolean
   phone?: boolean
+  phoneNumberVerified?: boolean
   passwordHash?: boolean
   role?: boolean
+  roleSelectedAt?: boolean
+  lastLoginMethod?: boolean
+  banned?: boolean
+  banReason?: boolean
+  banExpires?: boolean
   dob?: boolean
   gender?: boolean
   weight?: boolean
@@ -2395,6 +3423,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   avatar?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   images?: boolean | Prisma.User$imagesArgs<ExtArgs>
   alerts?: boolean | Prisma.User$alertsArgs<ExtArgs>
   caregiverLinks?: boolean | Prisma.User$caregiverLinksArgs<ExtArgs>
@@ -2406,17 +3435,26 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   postCommentLikes?: boolean | Prisma.User$postCommentLikesArgs<ExtArgs>
   postLikes?: boolean | Prisma.User$postLikesArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
+  passkeys?: boolean | Prisma.User$passkeysArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
 export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   email?: boolean
+  emailVerified?: boolean
+  name?: boolean
   firstname?: boolean
   lastname?: boolean
   phone?: boolean
+  phoneNumberVerified?: boolean
   passwordHash?: boolean
   role?: boolean
+  roleSelectedAt?: boolean
+  lastLoginMethod?: boolean
+  banned?: boolean
+  banReason?: boolean
+  banExpires?: boolean
   dob?: boolean
   gender?: boolean
   weight?: boolean
@@ -2430,11 +3468,19 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
 export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   email?: boolean
+  emailVerified?: boolean
+  name?: boolean
   firstname?: boolean
   lastname?: boolean
   phone?: boolean
+  phoneNumberVerified?: boolean
   passwordHash?: boolean
   role?: boolean
+  roleSelectedAt?: boolean
+  lastLoginMethod?: boolean
+  banned?: boolean
+  banReason?: boolean
+  banExpires?: boolean
   dob?: boolean
   gender?: boolean
   weight?: boolean
@@ -2448,11 +3494,19 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
 export type UserSelectScalar = {
   id?: boolean
   email?: boolean
+  emailVerified?: boolean
+  name?: boolean
   firstname?: boolean
   lastname?: boolean
   phone?: boolean
+  phoneNumberVerified?: boolean
   passwordHash?: boolean
   role?: boolean
+  roleSelectedAt?: boolean
+  lastLoginMethod?: boolean
+  banned?: boolean
+  banReason?: boolean
+  banExpires?: boolean
   dob?: boolean
   gender?: boolean
   weight?: boolean
@@ -2463,8 +3517,9 @@ export type UserSelectScalar = {
   updatedAt?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "firstname" | "lastname" | "phone" | "passwordHash" | "role" | "dob" | "gender" | "weight" | "height" | "congenitalDisease" | "avatar" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "emailVerified" | "name" | "firstname" | "lastname" | "phone" | "phoneNumberVerified" | "passwordHash" | "role" | "roleSelectedAt" | "lastLoginMethod" | "banned" | "banReason" | "banExpires" | "dob" | "gender" | "weight" | "height" | "congenitalDisease" | "avatar" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   images?: boolean | Prisma.User$imagesArgs<ExtArgs>
   alerts?: boolean | Prisma.User$alertsArgs<ExtArgs>
   caregiverLinks?: boolean | Prisma.User$caregiverLinksArgs<ExtArgs>
@@ -2476,6 +3531,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   postCommentLikes?: boolean | Prisma.User$postCommentLikesArgs<ExtArgs>
   postLikes?: boolean | Prisma.User$postLikesArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
+  passkeys?: boolean | Prisma.User$passkeysArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -2484,6 +3540,7 @@ export type UserIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
 export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "User"
   objects: {
+    accounts: Prisma.$AccountPayload<ExtArgs>[]
     images: Prisma.$ImagePayload<ExtArgs>[]
     alerts: Prisma.$AlertPayload<ExtArgs>[]
     caregiverLinks: Prisma.$CaregiverPatientPayload<ExtArgs>[]
@@ -2495,20 +3552,60 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     postCommentLikes: Prisma.$PostCommentLikePayload<ExtArgs>[]
     postLikes: Prisma.$PostLikePayload<ExtArgs>[]
     sessions: Prisma.$UserSessionPayload<ExtArgs>[]
+    passkeys: Prisma.$PasskeyPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
-    email: string | null
+    email: string
+    emailVerified: boolean
+    name: string
     firstname: string
     lastname: string
     phone: string
-    passwordHash: string
+    phoneNumberVerified: boolean
+    /**
+     * Legacy bcrypt hash, retained only until the credential backfill is
+     * verified against real sign-ins, then dropped.
+     * 
+     * Nullable because Better Auth never writes it: credentials live on
+     * `accounts.password` (providerId = 'credential'), so every account
+     * created from now on has no legacy hash at all.
+     */
+    passwordHash: string | null
     role: $Enums.UserRole
+    /**
+     * When the user picked their own role in onboarding.
+     * 
+     * Needed because `role` defaults to `patient`, so the column alone cannot
+     * tell "chose patient" from "never chose" — and the app has to know which,
+     * or someone who force-quits mid-onboarding is either asked forever or
+     * never asked at all. Null means the onboarding role step is still due.
+     * 
+     * Not set by an admin using `/admin/set-role`: that is a grant, not a
+     * choice, and it should not silently satisfy the user's own step.
+     */
+    roleSelectedAt: Date | null
+    /**
+     * Which method the user last signed in with — 'email', 'phone-number',
+     * 'google', or 'passkey'. Written by Better Auth's `lastLoginMethod`
+     * plugin (`storeInDatabase: true`).
+     * 
+     * Stored server-side rather than read from the plugin's cookie: the
+     * mobile client authenticates with a bearer token and never sends
+     * cookies, so the cookie the plugin sets by default is invisible to it.
+     */
+    lastLoginMethod: string | null
+    banned: boolean | null
+    banReason: string | null
+    banExpires: Date | null
     dob: Date | null
     gender: $Enums.Gender | null
     weight: number | null
     height: number | null
     congenitalDisease: string | null
+    /**
+     * Mapped to Better Auth's `image` field.
+     */
     avatar: string | null
     createdAt: Date
     updatedAt: Date
@@ -2906,6 +4003,7 @@ readonly fields: UserFieldRefs;
  */
 export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  accounts<T extends Prisma.User$accountsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$accountsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AccountPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   images<T extends Prisma.User$imagesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$imagesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ImagePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   alerts<T extends Prisma.User$alertsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$alertsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AlertPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   caregiverLinks<T extends Prisma.User$caregiverLinksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$caregiverLinksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CaregiverPatientPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -2917,6 +4015,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   postCommentLikes<T extends Prisma.User$postCommentLikesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$postCommentLikesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PostCommentLikePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   postLikes<T extends Prisma.User$postLikesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$postLikesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PostLikePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  passkeys<T extends Prisma.User$passkeysArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$passkeysArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PasskeyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2948,11 +4047,19 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
 export interface UserFieldRefs {
   readonly id: Prisma.FieldRef<"User", 'String'>
   readonly email: Prisma.FieldRef<"User", 'String'>
+  readonly emailVerified: Prisma.FieldRef<"User", 'Boolean'>
+  readonly name: Prisma.FieldRef<"User", 'String'>
   readonly firstname: Prisma.FieldRef<"User", 'String'>
   readonly lastname: Prisma.FieldRef<"User", 'String'>
   readonly phone: Prisma.FieldRef<"User", 'String'>
+  readonly phoneNumberVerified: Prisma.FieldRef<"User", 'Boolean'>
   readonly passwordHash: Prisma.FieldRef<"User", 'String'>
   readonly role: Prisma.FieldRef<"User", 'UserRole'>
+  readonly roleSelectedAt: Prisma.FieldRef<"User", 'DateTime'>
+  readonly lastLoginMethod: Prisma.FieldRef<"User", 'String'>
+  readonly banned: Prisma.FieldRef<"User", 'Boolean'>
+  readonly banReason: Prisma.FieldRef<"User", 'String'>
+  readonly banExpires: Prisma.FieldRef<"User", 'DateTime'>
   readonly dob: Prisma.FieldRef<"User", 'DateTime'>
   readonly gender: Prisma.FieldRef<"User", 'Gender'>
   readonly weight: Prisma.FieldRef<"User", 'Float'>
@@ -3354,6 +4461,30 @@ export type UserDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Internal
 }
 
 /**
+ * User.accounts
+ */
+export type User$accountsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Account
+   */
+  select?: Prisma.AccountSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Account
+   */
+  omit?: Prisma.AccountOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AccountInclude<ExtArgs> | null
+  where?: Prisma.AccountWhereInput
+  orderBy?: Prisma.AccountOrderByWithRelationInput | Prisma.AccountOrderByWithRelationInput[]
+  cursor?: Prisma.AccountWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AccountScalarFieldEnum | Prisma.AccountScalarFieldEnum[]
+}
+
+/**
  * User.images
  */
 export type User$imagesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -3615,6 +4746,30 @@ export type User$sessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalA
   take?: number
   skip?: number
   distinct?: Prisma.UserSessionScalarFieldEnum | Prisma.UserSessionScalarFieldEnum[]
+}
+
+/**
+ * User.passkeys
+ */
+export type User$passkeysArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Passkey
+   */
+  select?: Prisma.PasskeySelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Passkey
+   */
+  omit?: Prisma.PasskeyOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.PasskeyInclude<ExtArgs> | null
+  where?: Prisma.PasskeyWhereInput
+  orderBy?: Prisma.PasskeyOrderByWithRelationInput | Prisma.PasskeyOrderByWithRelationInput[]
+  cursor?: Prisma.PasskeyWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.PasskeyScalarFieldEnum | Prisma.PasskeyScalarFieldEnum[]
 }
 
 /**

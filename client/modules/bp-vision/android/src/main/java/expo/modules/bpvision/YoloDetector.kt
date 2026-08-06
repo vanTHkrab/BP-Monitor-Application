@@ -13,10 +13,12 @@ import kotlin.math.round
 /**
  * On-device YOLOv11n detector for BP-monitor photos.
  *
- * Kotlin port of `client/lib/yolo/preprocess.ts` + `postprocess.ts` — same
- * letterbox math, same channel-major decode, same per-class NMS, so
- * on-device results don't drift from what the JS reference produced (which
- * itself mirrors `server/app/ai-service/src/ai_service/analyzer/yolo.py`).
+ * Same letterbox math, channel-major decode, and per-class NMS as
+ * `server/app/ai-service/src/ai_service/analyzer/yolo.py`, which is the point:
+ * the two run the same model file, so a detection here has to mean what a
+ * detection there means. (An earlier JS implementation of this, driven by
+ * `onnxruntime-react-native`, was removed once the package was dropped — this
+ * is the only on-device inference path now.)
  * Per root CLAUDE.md rule 5, the class layout and thresholds below are a
  * wire contract with the backend even though this is on-device inference,
  * not the Redis wire — change one side, change the other.
@@ -26,7 +28,7 @@ import kotlin.math.round
  * bundled asset materialized to a file, a pushed test file, a future
  * asset-pipeline path) or an already-open [OrtSession]. This class never
  * touches the filesystem itself; that glue belongs at the call site
- * (see `BPVisionModule.loadModel`).
+ * (see `BPVisionModule.readModelAsset` / `ensureDetector`).
  */
 class YoloDetector private constructor(
   private val env: OrtEnvironment,
@@ -89,7 +91,7 @@ class YoloDetector private constructor(
     const val DEFAULT_IOU_THRESHOLD = 0.45f
 
     /**
-     * Mirrors `lib/yolo/types.ts` CLASS_NAMES / `analyzer/yolo.py` CLASS_NAMES:
+     * Mirrors `capture/lib/detection.ts` CLASS_NAMES / `analyzer/yolo.py` CLASS_NAMES:
      * 0 BP_Monitor, 1 BP_Screen_Monitor, 2 dia, 3 pulse, 4 sys.
      */
     val CLASS_NAMES = arrayOf("BP_Monitor", "BP_Screen_Monitor", "dia", "pulse", "sys")
@@ -187,7 +189,7 @@ class YoloDetector private constructor(
     }
   }
 
-  /** Inverse-letterbox pad info — mirrors `lib/yolo/types.ts` LetterboxPad. */
+  /** Inverse-letterbox pad info — mirrors `capture/lib/detection.ts` LetterboxPad. */
   data class LetterboxPad(
     val top: Int,
     val bottom: Int,
@@ -196,7 +198,7 @@ class YoloDetector private constructor(
     val scale: Float,
   )
 
-  /** Mirrors `lib/yolo/types.ts` Detection — source-image pixel coords (xyxy), clamped. */
+  /** Mirrors `capture/lib/detection.ts` Detection — source-image pixel coords (xyxy), clamped. */
   data class Detection(
     val x1: Float,
     val y1: Float,

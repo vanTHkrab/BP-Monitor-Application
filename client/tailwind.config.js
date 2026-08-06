@@ -1,67 +1,45 @@
-const { hairlineWidth, platformSelect } = require('nativewind/theme');
+const plugin = require('tailwindcss/plugin');
+const { semantic, status, palette, hexToRgbChannels } = require('./src/theme/tokens');
+
+/**
+ * Emits the semantic colours as CSS variables so `bg-surface` is correct in
+ * both themes without a `dark:` prefix at every call site.
+ *
+ * `.dark:root` (not `.dark`) is the selector NativeWind resolves on native.
+ */
+const themeVariables = plugin(({ addBase }) => {
+  const toVars = (colors) =>
+    Object.fromEntries(
+      Object.entries(colors).map(([name, hex]) => [`--${name}`, hexToRgbChannels(hex)]),
+    );
+
+  addBase({
+    ':root': toVars(semantic.light),
+    '.dark:root': toVars(semantic.dark),
+  });
+});
+
+/** `surface` → `rgb(var(--surface) / <alpha-value>)`, so `bg-surface/50` works. */
+const semanticColors = Object.fromEntries(
+  Object.keys(semantic.light).map((name) => [name, `rgb(var(--${name}) / <alpha-value>)`]),
+);
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  // NOTE: Update this to include the paths to all of your component files.
-  darkMode: 'class', // Enable manual toggling of dark mode
-  content: ['./app/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}'],
+  // Driven by src/theme/color-scheme.tsx, which lets the user pick
+  // light / dark / system rather than always following the OS.
+  darkMode: 'class',
+  content: ['./src/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
       colors: {
-        border: withOpacity('border'),
-        input: withOpacity('input'),
-        ring: withOpacity('ring'),
-        background: withOpacity('background'),
-        foreground: withOpacity('foreground'),
-        primary: {
-          DEFAULT: withOpacity('primary'),
-          foreground: withOpacity('primary-foreground'),
-        },
-        secondary: {
-          DEFAULT: withOpacity('secondary'),
-          foreground: withOpacity('secondary-foreground'),
-        },
-        destructive: {
-          DEFAULT: withOpacity('destructive'),
-          foreground: withOpacity('destructive-foreground'),
-        },
-        muted: {
-          DEFAULT: withOpacity('muted'),
-          foreground: withOpacity('muted-foreground'),
-        },
-        accent: {
-          DEFAULT: withOpacity('accent'),
-          foreground: withOpacity('accent-foreground'),
-        },
-        popover: {
-          DEFAULT: withOpacity('popover'),
-          foreground: withOpacity('popover-foreground'),
-        },
-        card: {
-          DEFAULT: withOpacity('card'),
-          foreground: withOpacity('card-foreground'),
-        },
-      },
-      borderWidth: {
-        hairline: hairlineWidth(),
+        ...semanticColors,
+        // Mode-independent: a "high" reading is the same red in both themes.
+        status,
+        brand: palette,
       },
     },
   },
-  plugins: [],
+  plugins: [themeVariables],
 };
-
-function withOpacity(variableName) {
-  return ({ opacityValue }) => {
-    if (opacityValue !== undefined) {
-      return platformSelect({
-        ios: `rgb(var(--${variableName}) / ${opacityValue})`,
-        android: `rgb(var(--android-${variableName}) / ${opacityValue})`,
-      });
-    }
-    return platformSelect({
-      ios: `rgb(var(--${variableName}))`,
-      android: `rgb(var(--android-${variableName}))`,
-    });
-  };
-}

@@ -19,6 +19,13 @@ const httpStatusToGqlCode = (status: number): string => {
       return 'FORBIDDEN';
     case 404:
       return 'NOT_FOUND';
+    // Both of these used to fall through to BAD_REQUEST, which the client
+    // renders as a generic validation failure: a duplicate phone showed the
+    // wrong message, and a throttled request showed no countdown.
+    case 409:
+      return 'CONFLICT';
+    case 429:
+      return 'TOO_MANY_REQUESTS';
     default:
       return status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST';
   }
@@ -37,6 +44,8 @@ import { CommentModule } from './comment/comment.module';
 import { AlertModule } from './alert/alert.module';
 import { CaregiverModule } from './caregiver/caregiver.module';
 import { DebugModule } from './debug/debug.module';
+import { SecurityModule } from './security/security.module';
+import { WellKnownController } from './well-known.controller';
 
 @Module({
   imports: [
@@ -145,7 +154,9 @@ import { DebugModule } from './debug/debug.module';
     AlertModule,
     CaregiverModule,
     DebugModule,
+    SecurityModule,
   ],
   providers: [AppService, AppResolver],
+  controllers: [WellKnownController],
 })
 export class AppModule {}
