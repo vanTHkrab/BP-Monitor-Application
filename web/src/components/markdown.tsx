@@ -28,31 +28,66 @@ import { cn } from "@/lib/utils";
  * the site would be broken everywhere else.
  */
 
-/** `../decisions/ADR-001-foo.md#why` → `/docs/decisions/ADR-001-foo#why` */
-function toDocHref(href: string, fromSlug: string[]): string {
-    if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//")) return href;
-    if (href.startsWith("#")) return href;
+type ResolvedLink =
+    /** A page on this site. */
+    | { kind: "route"; href: string }
+    /** An absolute URL or a bare `#anchor`. */
+    | { kind: "passthrough"; href: string }
+    /**
+     * A repo file that this site does not publish — `../../client/CLAUDE.md`,
+     * a `.ts` source file, anything outside `docs/`. Rendered as text, not as
+     * a link, because every URL we could invent for it would be wrong.
+     */
+    | { kind: "source"; path: string };
+
+/**
+ * `../decisions/ADR-001-foo.md#why` → `/docs/decisions/ADR-001-foo#why`
+ *
+ * The `..` handling is the part to be careful with. An earlier version popped
+ * segments without tracking underflow, so a link like `../../client/CLAUDE.md`
+ * from `docs/project/x.md` popped `project`, silently no-op'd on the empty
+ * array, then pushed `client/CLAUDE` — producing `/docs/client/CLAUDE`, a
+ * confident-looking route that 404s. Escaping `docs/` has to be *detected*,
+ * not inferred from the final length, because the common escape climbs out
+ * and back down into a sibling and so never lands on length zero.
+ */
+function resolveLink(href: string, fromSlug: string[]): ResolvedLink {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//")) {
+        return { kind: "passthrough", href };
+    }
+    if (href.startsWith("#")) return { kind: "passthrough", href };
 
     const [rawPath, hash] = href.split("#");
-    if (!rawPath.endsWith(".md")) return href;
 
-    // Resolve against the *directory* of the linking doc, the same way the
-    // filesystem does, so `./x.md` and `../y/z.md` both land where the author
-    // meant. `fromSlug` is the doc's own segments, so its directory is all but
-    // the last one.
-    const segments = [...fromSlug.slice(0, -1)];
-    for (const part of rawPath.replace(/\.md$/, "").split("/")) {
+    // Resolve against the *directory* of the linking doc, the way the
+    // filesystem does: `fromSlug` is the doc's own segments, so its directory
+    // is all but the last.
+    const segments = fromSlug.slice(0, -1);
+    const parts = rawPath.replace(/\.md$/, "").split("/");
+
+    for (const part of parts) {
         if (part === "." || part === "") continue;
-        if (part === "..") segments.pop();
-        else segments.push(part);
+        if (part !== "..") {
+            segments.push(part);
+            continue;
+        }
+        if (segments.length === 0) {
+            // Climbed above `docs/`. Whatever this points at, it is repo
+            // source rather than a page here.
+            return { kind: "source", path: rawPath };
+        }
+        segments.pop();
     }
 
-    // A link that climbed out of `docs/` points at repo source, not at a page.
-    // Leave it as written — a broken-looking path is more honest than a route
-    // that 404s and implies the document should exist here.
-    if (segments.length === 0) return href;
+    // Only `.md` files become pages; a link to `theme.ts` or a shell script is
+    // source even when it never leaves `docs/`.
+    if (!rawPath.endsWith(".md")) return { kind: "source", path: rawPath };
+    if (segments.length === 0) return { kind: "source", path: rawPath };
 
-    return `/docs/${segments.join("/")}${hash ? `#${hash}` : ""}`;
+    return {
+        kind: "route",
+        href: `/docs/${segments.join("/")}${hash ? `#${hash}` : ""}`,
+    };
 }
 
 export function Markdown({
@@ -97,18 +132,37 @@ export function Markdown({
                         );
                     },
                     a({ href, children, ...props }) {
-                        const resolved = toDocHref(href ?? "", slug);
-                        if (resolved.startsWith("/docs/")) {
+                        const link = resolveLink(href ?? "", slug);
+
+                        if (link.kind === "route") {
                             return (
-                                <Link href={resolved} {...props}>
+                                <Link href={link.href} {...props}>
                                     {children}
                                 </Link>
                             );
                         }
+
+                        if (link.kind === "source") {
+                            // Not a link. The target is a repo file this site
+                            // does not serve, and a dead `<a>` reads as a bug
+                            // in the docs rather than as "go look in the repo".
+                            // The path stays visible and copy-pasteable.
+                            return (
+                                <span
+                                    className="text-muted-foreground"
+                                    title={`Repository file, not published here: ${link.path}`}
+                                >
+                                    {children}{" "}
+                                    <code className="text-xs">{link.path}</code>
+                                </span>
+                            );
+                        }
+
+                        const external = /^[a-z][a-z0-9+.-]*:/i.test(link.href);
                         return (
                             <a
-                                href={resolved}
-                                {...(resolved.startsWith("http")
+                                href={link.href}
+                                {...(external
                                     ? {
                                           target: "_blank",
                                           rel: "noreferrer noopener",
