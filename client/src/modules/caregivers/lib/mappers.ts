@@ -9,8 +9,17 @@
 // and the two answer completely different questions. Deep import to avoid the
 // caregivers → readings → caregivers cycle the barrel would create.
 import { parseStatus as parseBpStatus } from '../../readings/lib/status';
+// Deep import for the reason `types.ts` gives: `@/modules/auth`'s barrel
+// reaches AsyncStorage through `bootstrap.ts`, and a mapper must stay pure.
+import type { Gender } from '../../auth/types';
 import { parseRelationship } from './relationship';
-import type { CaregiverLink, CaregiverLinkStatus, PatientSummary } from '../types';
+import type {
+  CaregiverLink,
+  CaregiverLinkStatus,
+  PatientHealthProfile,
+  PatientSummary,
+  ProfileChangeLogEntry,
+} from '../types';
 
 export type CaregiverLinkPayload = {
   caregiverId: string;
@@ -101,5 +110,74 @@ export function patientSummaryFromGql(payload: PatientSummaryPayload): PatientSu
       : undefined,
     weight: payload.weight ?? undefined,
     height: payload.height ?? undefined,
+  };
+}
+
+export type PatientHealthProfilePayload = {
+  patientId: string;
+  dob: string | null;
+  gender: string | null;
+  weight: number | null;
+  height: number | null;
+  congenitalDisease: string | null;
+};
+
+export type ProfileChangeLogPayload = {
+  id: string;
+  actorId: string | null;
+  actorName: string;
+  byPatient: boolean;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  changedAt: string;
+};
+
+/**
+ * Unknown gender values collapse to `undefined` rather than being passed
+ * through: the form renders gender as a fixed set of choices, and a value
+ * outside that set would select nothing while still counting as "set" — so
+ * saving the form would silently rewrite the column to whatever *was*
+ * selected. `undefined` makes the field honestly blank.
+ */
+function parseGender(value: string | null): Gender | undefined {
+  return value === 'male' || value === 'female' || value === 'other' ? value : undefined;
+}
+
+export function patientHealthProfileFromGql(
+  payload: PatientHealthProfilePayload,
+): PatientHealthProfile {
+  return {
+    patientId: payload.patientId,
+    dob: payload.dob ? new Date(payload.dob) : undefined,
+    gender: parseGender(payload.gender),
+    weight: payload.weight ?? undefined,
+    height: payload.height ?? undefined,
+    congenitalDisease: payload.congenitalDisease ?? undefined,
+  };
+}
+
+/**
+ * `field` is passed through unnarrowed on purpose.
+ *
+ * Every row this app writes carries one of the five `HEALTH_FIELDS`, but the
+ * gateway owns that list and could add a sixth before this client ships
+ * again. Collapsing an unrecognised name to a placeholder would tell the
+ * patient a change happened to something the screen refuses to name, which is
+ * worse than the raw column name in a log whose entire job is oversight —
+ * `healthFieldLabel` falls back to it for exactly that reason.
+ */
+export function profileChangeLogEntryFromGql(
+  payload: ProfileChangeLogPayload,
+): ProfileChangeLogEntry {
+  return {
+    id: payload.id,
+    actorId: payload.actorId ?? undefined,
+    actorName: payload.actorName,
+    byPatient: payload.byPatient,
+    field: payload.field,
+    oldValue: payload.oldValue ?? undefined,
+    newValue: payload.newValue ?? undefined,
+    changedAt: new Date(payload.changedAt),
   };
 }

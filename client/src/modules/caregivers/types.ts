@@ -9,6 +9,11 @@
 // Deep import for the same cycle reason as `patient-switcher-sheet.tsx`:
 // the readings barrel reaches back into this module for `useSubject`.
 import type { BPStatus } from '../readings/types';
+// Deep import too, but for a different reason: `@/modules/auth`'s barrel pulls
+// in `bootstrap.ts` → AsyncStorage → a native module, and a file of type
+// aliases must not drag one in behind it. Same call as
+// `modules/profile/lib/validation.ts`.
+import type { Gender } from '../auth/types';
 
 /** Matches the gateway's `CaregiverLinkStatus`. */
 export type CaregiverLinkStatus = 'pending' | 'accepted' | 'rejected';
@@ -121,4 +126,84 @@ export type InvitePatientInput = {
    */
   patientContact: string;
   relationship: RelationshipType;
+};
+
+/**
+ * The five columns `updatePatientHealth` may write, in the order the audit
+ * trail lists them.
+ *
+ * Mirrors `EDITABLE_HEALTH_FIELDS` in `caregiver.service.ts`. It is a closed
+ * union rather than `string` so that a screen cannot render a label for a
+ * field this path does not reach — the whole point of the gateway giving this
+ * mutation its own input type is that `email` and `phone` are unreachable,
+ * and a `string` here would quietly re-open the question on the client side.
+ */
+export const HEALTH_FIELDS = [
+  'dob',
+  'gender',
+  'weight',
+  'height',
+  'congenitalDisease',
+] as const;
+
+export type HealthFieldName = (typeof HEALTH_FIELDS)[number];
+
+/**
+ * The mutation's variables, as they go on the wire.
+ *
+ * Every key is optional **and** nullable, and the two mean different things:
+ * an absent key leaves the column alone, an explicit `null` clears it. That
+ * is the gateway's contract (`if (submitted === undefined) continue`), and it
+ * is load-bearing here because the client cannot read `gender` or
+ * `congenitalDisease` before writing them — see `lib/health-form.ts`.
+ *
+ * `dob` is a `YYYY-MM-DD` string, not a `Date`: the gateway's `DateTime`
+ * scalar parses either, but a birthday is a calendar day and
+ * `Date.toISOString()` on the picker's local midnight stores the previous day
+ * in negative-offset timezones. Same reason as `changedFields` in
+ * `modules/profile`.
+ */
+export type UpdatePatientHealthInput = {
+  dob?: string | null;
+  gender?: Gender | null;
+  weight?: number | null;
+  height?: number | null;
+  congenitalDisease?: string | null;
+};
+
+/** What `updatePatientHealth` returns — the patient's five columns after the write. */
+export type PatientHealthProfile = {
+  patientId: string;
+  dob?: Date;
+  gender?: Gender;
+  weight?: number;
+  height?: number;
+  congenitalDisease?: string;
+};
+
+/**
+ * One field's worth of change, as the patient reads it back.
+ *
+ * `oldValue` / `newValue` are the *rendered* strings the gateway stored, not
+ * typed columns: the five fields span four types, and typed columns would
+ * mean four nullable pairs of which three are always null. `undefined` on
+ * either side means the field was empty then or is empty now.
+ *
+ * `byPatient` is the gateway's own answer to "was this me?" — computed from
+ * `actorId === patientId` there rather than compared here, because `actorId`
+ * is nullable (a deleted caregiver's rows keep `actorName` and lose the id)
+ * and comparing `undefined` to the session id would silently attribute every
+ * such row to someone else.
+ */
+export type ProfileChangeLogEntry = {
+  id: string;
+  /** Absent once the actor's account is deleted — `actorName` survives. */
+  actorId?: string;
+  actorName: string;
+  byPatient: boolean;
+  /** A `HealthFieldName` for every row this app writes; widened so a row from a newer gateway renders rather than crashes. */
+  field: HealthFieldName | string;
+  oldValue?: string;
+  newValue?: string;
+  changedAt: Date;
 };

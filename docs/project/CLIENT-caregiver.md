@@ -12,8 +12,10 @@ owner: client
 > enter a patient, always sees whose data they are on, switches between
 > patients in two taps, is alerted about their patients, and is held to a
 > read/write permission the patient chooses when accepting the invite **and
-> can change afterwards**. Whose data is on screen is stated on every route
-> that shows it, inside the tabs and out. What is left is listed under "What
+> can change afterwards**. A `full` caregiver can now also edit the patient's
+> five health fields, and the patient can read back who changed what. Whose
+> data is on screen is stated on every route that shows it, inside the tabs
+> and out. What is left is listed under "What
 > is left, in order" — nothing there blocks the role from being usable.
 >
 > **Both migrations are applied to the Supabase dev database**
@@ -47,6 +49,8 @@ Verified against the tree, not inferred from the earlier docs:
 | People vs. requests, as two tabs | `app/invitations.tsx` — `TabButtons`, plus a pointer banner so a waiting request is never only behind a tab |
 | A person as a card, with their real face | `components/person-card.tsx`; avatars ride on `CaregiverLinkType.caregiverAvatar` / `patientAvatar` |
 | "someone asked to be your caregiver" | `hooks/use-invite-alerts.ts` → `modules/notifications` — **local**, not push (§4) |
+| **Editing a patient's health information** | `app/patient-health.tsx`, entered from a chip on the patient's card in `app/invitations.tsx` (§7) |
+| The patient's audit trail of those edits | `app/profile-changes.tsx`, entered from a row on `app/invitations.tsx` (§7) |
 
 Every caregiver operation the gateway exposes is now wired — the one that was
 not (`myPendingInvites`) was deleted rather than adopted, see §5. The gateway
@@ -639,7 +643,117 @@ lookup can never find).
 manual pass is the `default` keyboard for phone entry, and typing `@` onto an
 already-formatted phone number.
 
-### 4. C-001 — caregiver push notifications, still blocked
+### ~~4. A caregiver cannot maintain the patient's health information~~ — **done**
+
+A caregiver looking after an elderly or low-literacy patient often knows the
+health details better than the patient can maintain them, but `updateProfile`
+takes its id from `@CurrentUser()`. The gateway added
+`updatePatientHealth(patientId, input)` behind an **accepted** link with
+`permission: full`, plus `myProfileChangeLog(limit)` for the patient to read
+back what happened.
+
+#### Five fields, and the input type is the fence
+
+`UpdatePatientHealthInput` carries `dob`, `gender`, `weight`, `height`,
+`congenitalDisease` and nothing else. `email` and `phone` are absent **by
+construction**: both are unique login identities, and a caregiver who could
+change the email could request a password reset and take the account.
+
+The client half of that fence is `modules/caregivers/lib/health-form.ts`,
+which builds the patch by iterating `HEALTH_FIELDS` rather than the form
+object, and `app/patient-health.tsx`, which is a separate screen rather than
+`app/profile.tsx` with inputs hidden. Sharing that form would leave
+`firstname`, `lastname`, `phone` and the avatar one render condition away from
+the wire. What *is* shared is the vocabulary — `GENDER_OPTIONS`,
+`formatBirthday`, `ProfileField`, `DateField`, `validateMeasurement`,
+`validateDob`, now in `modules/profile/lib/display.ts` and
+`.../validation.ts` — because two screens writing the same column must not
+name or validate it differently.
+
+#### Two of the five cannot be read back, and that shapes the form
+
+`myPatients` (`PatientSummaryType`) carries `dob`, `weight` and `height`. It
+does **not** carry `gender` or `congenitalDisease`, and no query returns those
+two to a caregiver — `PatientHealthProfileType` exists only as the mutation's
+return value. `caregiver.resolver.ts` says a caregiver "can read the current
+values from `myPatients`", which is true of three fields out of five.
+
+The gateway distinguishes an **absent** key ("leave this column alone") from
+an explicit `null` ("clear it"), so the client sends only fields that differ
+from what the form was seeded with. Those two therefore start blank, and a
+blank field that started blank is not in the patch — saving cannot erase a
+value the caregiver was never shown. The screen says so in a notice rather
+than only in a comment, because a blank "โรคประจำตัว" otherwise reads as
+"this patient has none".
+
+The accepted cost: a caregiver cannot *clear* a congenital disease they cannot
+see. Refusing to erase data you were not shown is the right side of that trade
+for a medical record. **Closing the gap is a gateway change** — add `gender`
+and `congenitalDisease` to `PatientSummaryType` — and was out of scope here.
+
+#### The permission check on the client is not the authority
+
+`canEditPatientHealth(patient)` decides whether to *offer* the chip and the
+edit button; the gateway decides whether the write lands. It checks status
+before permission, because the column defaults to `full` and a *pending*
+invite already carries it. The patient can downgrade at any moment via
+`updateCaregiverPermission`, so a refusal can arrive for a form that rendered
+honestly a second earlier — and when it does, `formatErrorMessage` renders the
+server's Thai message verbatim rather than a local guess. `extensions.code`
+never reaches the user.
+
+#### The trail is the patient's, and only the patient's
+
+`myProfileChangeLog` has no caregiver-facing counterpart, not even one scoped
+to "rows I wrote". Every row carries the health values on both sides of the
+change, so a caregiver later downgraded to `view` would keep a readable window
+onto data they can no longer see; filtering by actor does not help, because
+those are exactly the rows holding the data.
+
+`app/profile-changes.tsx` therefore mounts `SecurityHeader` with
+`subject="self"`, and its entry point on `app/invitations.tsx` is hidden while
+`isViewingPatient` — the query answers about the *session*, so in caregiver
+mode the row would offer the caregiver their own log from under a banner
+naming somebody else.
+
+One row per field, translated: the gateway stores `"weight"`, `"60"`, `"80"`
+as raw strings (the five fields span four types), and
+`modules/caregivers/lib/health-fields.ts` turns that back into
+"น้ำหนัก · 60 กก. → 80 กก." for a reader who is checking what a relative did to
+their record. `dob` is parsed as a **local** midnight before formatting;
+parsed as UTC it would render the previous day in a negative-offset zone,
+indistinguishable on that screen from the caregiver having saved the wrong
+day. Attribution is stated in words as well as colour ("คุณแก้ไขเอง" vs
+"ผู้ดูแล คุณ… แก้ไขให้"), from the gateway's own `byPatient` — `actorId` is
+null once the actor's account is deleted, and comparing it locally would
+re-attribute the patient's own old edits to a stranger.
+
+#### The consent copy moved with it
+
+`PERMISSION_OPTIONS`'s `full` consequence now names the five fields and states
+the exclusion. Reusing `full` rather than adding a permission level
+retroactively widens what patients who already granted it agreed to; what
+makes that acceptable is that they can downgrade at any time, which only works
+if they know what they are choosing. Those Thai strings **are** the consent
+UI, on both sides of the wire.
+
+### 4b. `PatientSummaryType` cannot show a caregiver two of the five fields
+
+Left open by §4 and **it is a gateway change**, so it was not made here.
+`myPatients` returns `dob`, `weight` and `height`; `gender` and
+`congenitalDisease` are returned nowhere a caregiver can read them, so
+`app/patient-health.tsx` renders those two blank and can only *set* them,
+never show or clear them. `caregiver.resolver.ts`'s own comment — "a caregiver
+who wants to know the current values can read them from `myPatients`" — is
+true of three fields out of five.
+
+The fix is two fields on `PatientSummaryType` and two lines in
+`patientSummaryFromGql`; the client seeding (`healthFormFromPatient`) already
+prefers a known value over a blank and would pick them up unchanged. Until
+then the blank is deliberate and the screen says so, because a form that
+submitted them anyway would erase two columns nobody was shown.
+
+### 5. C-001 — caregiver push notifications, still blocked
 
 Unchanged: **the gateway has no push infrastructure at all.** No token
 column, no device registration, nothing that sends. `grep -r "expoPushToken\|pushToken" server/app/api-gateway/src` returns nothing.
@@ -679,7 +793,7 @@ A preference screen before any of that persists a value no system reads —
 which is exactly what `app/settings.tsx` refused to port client-old's
 "สำรองข้อมูลอัตโนมัติ" switch for.
 
-### ~~5. An on-behalf row outlives the caregiver's session~~ — **the premise was wrong**
+### ~~6. An on-behalf row outlives the caregiver's session~~ — **the premise was wrong**
 
 Recorded here as a correction rather than deleted, because the wrong version
 was reasoned from a real observation and the next person will make the same
@@ -709,18 +823,24 @@ What was actually worth fixing was smaller and is done:
 **The lesson worth keeping:** "function X has the wrong filter" is only a bug
 if something calls X. Check the callers before writing the finding down.
 
-### 6. No audit trail for caregiver access
+### 7. No audit trail for caregiver *access*
 
-The only record that anyone acted on a patient's behalf is `recordedBy` on a
-reading. Nothing records **who viewed whose history**, who accepted or revoked
-a link, or who changed a permission. A caregiver can read a full medical
+**Narrowed by §4, not closed.** `ProfileChangeLog` now records every edit to
+the five health fields, by whom and when, readable by the patient. That is the
+first audit table in this schema and the template for the rest — but it covers
+*writes to a profile* and nothing else.
+
+Still unrecorded: **who viewed whose history**, who accepted or revoked a
+link, and who changed a permission. A caregiver can read a full medical
 history and leave no trace, and a revoked link leaves no evidence it ever
 existed.
 
 For health data that is a real gap rather than a nice-to-have, and it is the
-one item here with no partial implementation to build on. It is also the only
 one that gets *worse* with time: an audit log added later cannot reconstruct
-what happened before it existed.
+what happened before it existed. §4 at least establishes the shape — one row
+per thing that changed, values rendered as text, `actorId` nullable with
+`SetNull` beside a denormalised `actorName`, and the trail readable by the
+subject rather than by the actor.
 
 Where it goes: the gateway, next to the guards that already know the answer.
 `assertCanViewPatient` and `assertCanRecordForPatient` are the single choke
@@ -738,7 +858,7 @@ Non-obvious parts:
 - **The log is itself patient data.** Whatever reads it needs its own
   authorization story; do not expose it through the caregiver surfaces.
 
-### 7. Two structural smells worth fixing before they bite again
+### 8. Two structural smells worth fixing before they bite again
 
 - **`@/modules/auth`'s barrel imports a native module at import time**
   (`use-google-sign-in` → `@react-native-google-signin`). Anything reaching
@@ -753,7 +873,7 @@ Non-obvious parts:
   it is about "who is the app acting for", which is arguably session state
   rather than caregiver state.
 
-### 8. Nothing here has run on a device
+### 9. Nothing here has run on a device
 
 Everything in this file is verified by `pnpm check` and the gateway suite
 only. The paths most likely to behave differently on hardware:
@@ -768,9 +888,9 @@ only. The paths most likely to behave differently on hardware:
 
 | | |
 | --- | --- |
-| client `pnpm check` | 48 suites / 597 tests |
+| client `pnpm check` | 51 suites / 641 tests |
 | gateway `pnpm test` | 17 suites / 157 tests |
-| `verify-graphql` | 46 operations, 0 invalid |
+| `verify-graphql` | 48 operations, 0 invalid |
 | gateway `pnpm lint` | 7 errors — **pre-existing**, spread across **four** files, not two: `auth/android-origin.spec.ts`, `security/dto/passkey-register-verify.input.ts`, `caregiver/caregiver.types.ts:37`, and `caregiver/caregiver.service.spec.ts:163`. All untouched by this work; lint delta is zero. |
 | Supabase | both migrations applied, schema up to date |
 

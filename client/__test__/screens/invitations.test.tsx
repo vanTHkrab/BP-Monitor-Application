@@ -86,6 +86,7 @@ const myCaregiver = (over: Record<string, unknown> = {}) =>
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(router, 'replace').mockImplementation(() => {});
+  jest.spyOn(router, 'push').mockImplementation(() => {});
   useActivePatientStore.setState({ patientId: null, patient: null });
   mockPatients.current = [patient()];
   mockLinks.current = [link()];
@@ -243,5 +244,97 @@ describe('InvitationsScreen — changing a caregiver permission', () => {
     await fireEvent.press(view.getByTestId('caregiver-c2-permission'));
 
     expect(router.replace).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The two entry points the health-edit feature adds, from opposite sides of
+ * the same link.
+ *
+ * Both are gated, and the gates are what is asserted — an affordance offered
+ * where it will be refused teaches people the app is broken, and one offered
+ * in the wrong context (`myProfileChangeLog` answers about the *session*)
+ * would show one person's data under another person's name.
+ */
+describe('InvitationsScreen — editing a patient\'s health information', () => {
+  it('offers the edit affordance for a `full` link', async () => {
+    mockPatients.current = [patient({ permission: 'full' })];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    expect(view.getByTestId('patient-p1-edit-health')).toBeOnTheScreen();
+  });
+
+  /*
+   * The gateway refuses a `view` caregiver, so offering the button would only
+   * ever produce a rejection. This is not the authority — the server
+   * re-decides on submit, because the patient can downgrade between this
+   * render and the save — it just avoids a round trip nobody wanted.
+   */
+  it('offers nothing for a `view` link', async () => {
+    mockPatients.current = [patient({ permission: 'view' })];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    expect(view.queryByTestId('patient-p1-edit-health')).toBeNull();
+    // The row itself stays: read-only access is still access.
+    expect(view.getByTestId('patient-p1')).toBeOnTheScreen();
+  });
+
+  /*
+   * The store is set before navigating, exactly like `openPatient`:
+   * `app/patient-health.tsx` reads whose data it is about from `useSubject()`
+   * rather than from a route parameter, so the other order renders one frame
+   * of a form aimed at nobody.
+   */
+  it('sets the viewing context before pushing the edit screen', async () => {
+    mockPatients.current = [patient({ permission: 'full' })];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    await fireEvent.press(view.getByTestId('patient-p1-edit-health'));
+
+    expect(useActivePatientStore.getState().patientId).toBe('p1');
+    expect(router.push).toHaveBeenCalledWith('/patient-health');
+    // A task on top of the list, not the mode switch `openPatient` performs.
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  // The fallback row renders before `myPatients` resolves and carries no
+  // `PatientSummary` — nothing to put in the store, so nothing to offer.
+  it('offers nothing before the patient record has loaded', async () => {
+    mockPatients.current = [];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    expect(view.queryByTestId('patient-p1-edit-health')).toBeNull();
+  });
+});
+
+describe('InvitationsScreen — the patient\'s audit trail', () => {
+  it('offers the way into the change log', async () => {
+    const view = await renderScreen(<InvitationsScreen />);
+
+    await fireEvent.press(view.getByTestId('invitations-profile-changes'));
+
+    expect(router.push).toHaveBeenCalledWith('/profile-changes');
+  });
+
+  /*
+   * `myProfileChangeLog` answers about the signed-in account. A caregiver
+   * inside a patient would be offered their *own* log from under a banner
+   * naming somebody else — the "two people's data on one screen" failure
+   * `use-subject.ts` exists to prevent, inverted.
+   */
+  it('hides it while a caregiver is inside a patient', async () => {
+    useActivePatientStore.setState({ patientId: 'p1', patient: patient() as never });
+    const view = await renderScreen(<InvitationsScreen />);
+
+    expect(view.queryByTestId('invitations-profile-changes')).toBeNull();
+  });
+
+  // Offered whether or not a caregiver currently exists: an edit made by
+  // someone since unlinked is exactly the entry someone comes looking for.
+  it('stays available when there are no caregivers left', async () => {
+    mockLinks.current = [];
+    const view = await renderScreen(<InvitationsScreen />);
+
+    expect(view.getByTestId('invitations-profile-changes')).toBeOnTheScreen();
   });
 });

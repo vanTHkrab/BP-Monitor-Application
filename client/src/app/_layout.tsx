@@ -219,6 +219,17 @@ function RootStack() {
         name="security"
         options={{ animation: 'slide_from_right' }}
       />
+      {/* Both pushed from `invitations`, from opposite sides of the same
+          link: `patient-health` is the caregiver editing the patient's health
+          information, `profile-changes` is the patient reading who did. */}
+      <Stack.Screen
+        name="patient-health"
+        options={{ animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
+        name="profile-changes"
+        options={{ animation: 'slide_from_right' }}
+      />
       <Stack.Screen name="reminders" options={{ animation: 'slide_from_right' }} />
       {/* Pushed from the home screen's bell. Was a <Modal> in client-old. */}
       <Stack.Screen name="alerts" options={{ animation: 'slide_from_right' }} />

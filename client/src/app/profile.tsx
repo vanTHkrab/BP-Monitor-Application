@@ -50,17 +50,19 @@ import {
   formatAuthError,
   useSession,
   useUpdateProfile,
-  type Gender,
   type User,
 } from '@/modules/auth';
 import {
   DateField,
+  GENDER_OPTIONS,
   ProfileField,
   ProfileGroup,
   ProfileHero,
   ProfileLinkRow,
   changedFields,
+  formatBirthday,
   formFromUser,
+  genderLabel,
   hasChanges,
   useProfileAvatar,
   validateProfile,
@@ -70,20 +72,6 @@ import {
 import { SecurityHeader } from '@/modules/security';
 import { status as statusColor } from '@/theme';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
-
-const GENDER_OPTIONS: { value: Gender; label: string }[] = [
-  { value: 'male', label: 'ชาย' },
-  { value: 'female', label: 'หญิง' },
-  { value: 'other', label: 'อื่น ๆ' },
-];
-
-const genderLabel = (gender?: Gender | null): string =>
-  GENDER_OPTIONS.find((option) => option.value === gender)?.label ?? '';
-
-const formatThaiDate = (date?: Date | null): string =>
-  date
-    ? date.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
-    : '';
 
 export default function ProfileScreen() {
   const colors = useTheme();
@@ -236,12 +224,12 @@ export default function ProfileScreen() {
           </ProfileGroup>
 
           <ProfileGroup title="ข้อมูลสุขภาพ">
-            <ProfileField label="วันเกิด" value={formatThaiDate(user?.dob)} isEditing={isEditing}>
+            <ProfileField label="วันเกิด" value={formatBirthday(user?.dob)} isEditing={isEditing}>
               <DateField
                 testID="profile-dob"
                 value={form?.dob ?? null}
                 onChange={(value) => patch('dob', value)}
-                displayValue={formatThaiDate(form?.dob)}
+                displayValue={formatBirthday(form?.dob)}
                 placeholder="เลือกวันเกิด"
                 error={errors.dob}
                 maximumDate={new Date()}
