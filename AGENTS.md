@@ -200,15 +200,47 @@ gateway at all.
     dependency in the same change. Adding one? The diff must include the
     import that justifies it.
 14. **Offer the right specialized agent before handling inline** — This
-    project's own agents live in **[`.claude/agents/`](./.claude/agents/)**
-    (`nest-dev`, `expo-dev`, `ocr-dev`, `prisma-dev`, `redis-dev`, `devops`,
-    `ux-ui-designer`, `pr-write`, `pr-review`, `gh-stack`, `bp-task`,
-    `branch-sync`, `deep-research`, `tester`, `writing-guide`,
-    `agent-create`). When a prompt clearly matches one but the user did not
-    invoke it, ask once whether to delegate — naming the agent and why it
-    fits. Don't silently delegate, and don't silently answer inline when a
-    clearly better-fitting agent exists. If the match is ambiguous, proceed
-    inline without asking.
+    project's own agents live in **[`.claude/agents/`](./.claude/agents/)**.
+    Five domains have a three-role team:
+
+    | Domain | Writes code | Reviews it | Writes its tests |
+    | --- | --- | --- | --- |
+    | `client/` | `expo-dev` | `expo-reviewer` | `expo-test-author` |
+    | api-gateway | `nest-dev` | `nest-reviewer` | `nest-test-author` |
+    | ai-service | `ocr-dev` | `ocr-reviewer` | `ocr-test-author` |
+    | Prisma / migrations | `prisma-dev` | `prisma-reviewer` | `prisma-test-author` |
+    | Redis, anywhere | `redis-dev` | `redis-reviewer` | `redis-test-author` |
+
+    Shared across all of them: `deep-research` (any question whose answer is
+    not already in this repo — there is deliberately **no** per-domain
+    research agent, one is enough and five would drift), `tester` (runs the
+    canonical suite as the **ship gate** — distinct from the `*-test-author`
+    agents, which *write* tests and never decide whether a branch ships),
+    `ux-ui-designer`, `devops`, `pr-write`, `pr-review` (reviews the PR
+    *write-up*; the `*-reviewer` agents review the *code*), `gh-stack`,
+    `bp-task`, `branch-sync`, `writing-guide`, `agent-create`.
+
+    When a prompt clearly matches one but the user did not invoke it, ask once
+    whether to delegate — naming the agent and why it fits. Don't silently
+    delegate, and don't silently answer inline when a clearly better-fitting
+    agent exists. If the match is ambiguous, proceed inline without asking.
+15. **Cross-team requests go through the caller, not between agents** — A
+    domain agent that needs something from another domain **stops and says
+    so**; it does not reach across. `expo-dev` needing a new field on a
+    GraphQL type reports `OUT_OF_SCOPE` naming the field and why, and the
+    caller routes it to `nest-dev`. There is no coordinator agent, and that is
+    deliberate: coordination needs to see the whole run, and a freshly spawned
+    agent starts cold.
+
+    Two rules make the handoff cheap:
+
+    - **Say what you need in the other domain's vocabulary.** "`myPatients`
+      needs `gender` and `congenitalDisease` on `PatientSummaryType`, because
+      the edit form can write five fields and can only read three" is
+      actionable. "The API is missing something" is not.
+    - **Say what it costs to not have it**, so the caller can decide whether
+      to block or work around. A workaround shipped without that sentence is
+      how a gap becomes permanent.
 
 ## Which file is which
 
@@ -218,7 +250,7 @@ Three different things in this repo are called "agent". They are not related:
 | --- | --- | --- |
 | `AGENTS.md` (root and per-app) | **Instructions to you.** Canonical, hand-written. | Yes — keep in sync with the code |
 | `CLAUDE.md` (root and per-app) | A one-line `@AGENTS.md` pointer. Exists so Claude Code's native lookup finds the same content. | Only to change the pointer |
-| [`.claude/agents/`](./.claude/agents/) | **Sub-agent definitions** — the 16 specialists rule 14 lists | Via the `agent-create` agent |
+| [`.claude/agents/`](./.claude/agents/) | **Sub-agent definitions** — the specialists rule 14 lists | Via the `agent-create` agent |
 | [`.agents/skills/`](./.agents/skills/) | **57 vendored third-party skills** (Expo, Prisma, Redis, Nativewind). Mirrored into `.claude/skills/` by symlink. | **Never.** Not ours. |
 
 > **Note:** `pr-write`, `pr-review`, and `gh-stack` exist as *both* a project
