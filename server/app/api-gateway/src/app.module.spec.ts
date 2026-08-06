@@ -8,7 +8,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { GraphQLError, type GraphQLFormattedError } from 'graphql';
+import { GraphQLError, Source, type GraphQLFormattedError } from 'graphql';
 
 // `auth.module` and `push.module` pull in `better-auth` and `expo-server-sdk`,
 // which are ESM-only and cannot be parsed by the CJS Jest setup. They are
@@ -87,9 +87,11 @@ describe('app.module errorFormatter', () => {
   });
 
   describe('status → extensions.code mapping', () => {
-    // These strings are a client-visible API: client/lib/error-message.ts and
-    // client/src/services/api.ts dispatch on them (401 fan-out, throttle
-    // countdown, inline form errors). Renaming any right-hand value, or
+    // These strings are a client-visible API. `client/src/modules/auth/lib/
+    // errors.ts` dispatches on UNAUTHENTICATED, TOO_MANY_REQUESTS, FORBIDDEN,
+    // CONFLICT, and BAD_USER_INPUT; `client/src/services/api.ts` reads
+    // `extensions.retryAfterSec` generically for every operation (401 fan-out,
+    // throttle countdown, inline form errors). Renaming any right-hand value, or
     // remapping a status, is a breaking change for the mobile app and must
     // fail here.
     const cases: [string, HttpException, string][] = [
@@ -271,10 +273,17 @@ describe('app.module errorFormatter', () => {
       const error = new GraphQLError('duplicate phone', {
         originalError: new ConflictException('duplicate phone'),
         path: ['register'],
+        // `positions` + `source` are what make `locations` non-empty. Without
+        // them the test name promised `locations` and never checked it — a
+        // reviewer's mutant replacing it with `undefined` survived. A test
+        // name is a claim in exactly the way a comment is.
+        positions: [7],
+        source: new Source('{ register }'),
       });
       const [formatted] = format([error]).response.errors ?? [];
       expect(formatted.message).toBe('duplicate phone');
       expect(formatted.path).toEqual(['register']);
+      expect(formatted.locations).toEqual([{ line: 1, column: 8 }]);
     });
 
     it('formats every error in the execution, not just the first', () => {
