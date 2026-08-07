@@ -6,6 +6,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import type { GraphQLFormattedError } from 'graphql';
 import { join } from 'path';
 
+import { isProduction } from './env';
+
 // Map a NestJS HttpException status to the Apollo-style string codes the
 // mobile client keys off of. Mercurius doesn't stamp these on its own.
 //
@@ -60,7 +62,7 @@ const GRAPHIQL_ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const resolveGraphiqlEnabled = (raw: string | undefined): boolean => {
   const value = raw?.trim().toLowerCase() ?? '';
   if (value === '') {
-    return process.env.NODE_ENV !== 'production';
+    return !isProduction();
   }
   return GRAPHIQL_ENABLED_VALUES.has(value);
 };
@@ -131,10 +133,7 @@ import { PushModule } from './push/push.module';
                   continue;
                 }
                 if (key === 'message') {
-                  if (
-                    process.env.NODE_ENV !== 'production' &&
-                    Array.isArray(value)
-                  ) {
+                  if (!isProduction() && Array.isArray(value)) {
                     extraExtensions.validationErrors = value;
                   }
                   continue;

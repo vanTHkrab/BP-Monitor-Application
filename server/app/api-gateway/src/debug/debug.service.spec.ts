@@ -135,6 +135,26 @@ describe('DebugService.getMyStorage — the production kill switch', () => {
     await expect(service.getMyStorage(USER_ID)).resolves.toBeDefined();
   });
 
+  it.each(['PRODUCTION', 'Production', '  production  '])(
+    'refuses when NODE_ENV is %j — the gate normalises before comparing',
+    async (env) => {
+      // `'PRODUCTION' !== 'production'`, so the original exact comparison
+      // served this endpoint — an O(N) S3 HEAD amplification that returns raw
+      // storage keys — to a production deploy whose NODE_ENV was merely
+      // miscased. Nothing errored and nothing was logged.
+      const { service, prisma, s3 } = makeService({ avatar: 'users/u1/a.jpg' });
+      prisma.image.findMany.mockResolvedValue([imageRow()]);
+      process.env.NODE_ENV = env;
+
+      await expect(service.getMyStorage(USER_ID)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.image.findMany).not.toHaveBeenCalled();
+      expect(s3.head).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(['development', 'test', 'staging'])(
     'serves the diff when NODE_ENV is %s',
     async (env) => {
