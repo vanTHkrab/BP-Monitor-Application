@@ -1,6 +1,7 @@
 import { All, Controller, Logger, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import { isProduction } from '../env';
 import { BETTER_AUTH, InjectBetterAuth } from './better-auth.provider';
 import type { BetterAuthInstance } from './better-auth';
 
@@ -31,7 +32,7 @@ export class BetterAuthController {
     // A misconfigured baseURL makes every route 404 while the app looks
     // healthy — nothing logged, no type violated. This is the only place that
     // mismatch is visible. Never in production: these paths carry tokens.
-    if (process.env.NODE_ENV !== 'production' && response.status === 404) {
+    if (!isProduction() && response.status === 404) {
       this.logger.debug(
         `${request.method} ${request.url} -> 404. Check that BETTER_AUTH_URL ` +
           'resolves to this origin.',

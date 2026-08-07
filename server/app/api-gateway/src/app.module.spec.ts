@@ -251,6 +251,20 @@ describe('app.module errorFormatter', () => {
       });
     });
 
+    it.each(['PRODUCTION', 'Production', '  production  '])(
+      'withholds validationErrors when NODE_ENV is %j',
+      (env) => {
+        // The gate normalises before comparing. Under the original exact
+        // comparison a miscased NODE_ENV echoed the class-validator constraint
+        // array — which quotes the caller's raw input back at them — into
+        // `extensions` on a production deploy.
+        process.env.NODE_ENV = env;
+        expect(extensionsOf(validationException())).toEqual({
+          code: 'BAD_USER_INPUT',
+        });
+      },
+    );
+
     it('never lifts a scalar message, even outside production', () => {
       process.env.NODE_ENV = 'development';
       const exception = new BadRequestException({
@@ -415,6 +429,25 @@ describe('app.module graphiql gate', () => {
 
     it('serves GraphiQL in development', () => {
       expect(resolveGraphiql({ NODE_ENV: 'development' })).toBe(true);
+    });
+
+    it.each(['PRODUCTION', 'Production', '  production  '])(
+      'withholds GraphiQL when NODE_ENV is %j',
+      (value) => {
+        // NODE_ENV is normalised — trimmed and lowercased — before the
+        // comparison, so a miscased or padded value is still production. The
+        // original exact comparison served a mutation-capable schema explorer
+        // against live patient data for `NODE_ENV=PRODUCTION`.
+        expect(resolveGraphiql({ NODE_ENV: value })).toBe(false);
+      },
+    );
+
+    it('serves GraphiQL for a value that merely resembles production', () => {
+      // Normalisation trims and lowercases; it does not fuzzy-match. Pinned so
+      // that a future "be generous" change to the helper — prefix matching, or
+      // a startsWith — has to fail a test rather than silently widening what
+      // counts as production across all eight gates it feeds.
+      expect(resolveGraphiql({ NODE_ENV: 'prod' })).toBe(true);
     });
 
     it('serves GraphiQL when NODE_ENV is unset too', () => {

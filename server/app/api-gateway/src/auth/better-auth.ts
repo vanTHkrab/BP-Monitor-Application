@@ -19,6 +19,7 @@ import type Redis from 'ioredis';
 
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RateLimitService } from '../redis/rate-limit.service';
+import { isProduction } from '../env';
 import { androidOriginsFromFingerprints } from './android-origin';
 import {
   BCRYPT_SALT_ROUNDS,
@@ -36,9 +37,6 @@ import { normalizeSelfAssignedRole } from './types/auth.types';
  */
 
 const logger = new Logger('BetterAuth');
-
-/** True unless running in production — gates the delivery stubs' output. */
-const isDevelopment = () => process.env.NODE_ENV !== 'production';
 
 /** Where BetterAuthController is mounted. Both sides must agree. */
 export const AUTH_BASE_PATH = '/api/auth';
@@ -83,7 +81,7 @@ function resolveAuthBaseURL(): string {
     return `${origin}${AUTH_BASE_PATH}`;
   }
 
-  if (!isDevelopment()) {
+  if (isProduction()) {
     throw new Error(
       'BETTER_AUTH_URL is not set. Refusing to boot — OAuth redirects and ' +
         'verification links would point at localhost. Set it to the public ' +
@@ -534,7 +532,7 @@ async function deliverEmail(message: {
   subject: string;
   body: string;
 }): Promise<void> {
-  if (!isDevelopment()) {
+  if (isProduction()) {
     throw new Error(
       'No email provider is configured. Email verification and password ' +
         'reset cannot be delivered. See docs/architecture/AUTH-better-auth-identity.md.',
@@ -552,7 +550,7 @@ async function deliverSms(message: {
   to: string;
   body: string;
 }): Promise<void> {
-  if (!isDevelopment()) {
+  if (isProduction()) {
     throw new Error('No SMS provider is configured.');
   }
 

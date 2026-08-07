@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { isProduction } from '../env';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3StorageClient } from '../storage/s3-storage.client';
 import { DebugMyStorageType, DebugStorageItemType } from './debug.types';
@@ -24,7 +25,7 @@ export class DebugService {
    * storage keys, neither of which we want on the prod surface.
    */
   async getMyStorage(userId: string): Promise<DebugMyStorageType> {
-    if (process.env.NODE_ENV === 'production') {
+    if (isProduction()) {
       throw new ForbiddenException('Debug queries are disabled in production');
     }
 
