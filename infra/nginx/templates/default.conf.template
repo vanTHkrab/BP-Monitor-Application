@@ -139,7 +139,8 @@ server {
     #      `graphiql` from GRAPHIQL_ENABLED, defaulting OFF when
     #      NODE_ENV=production. With it off the gateway 404s this path, so
     #      the UI is not merely hidden behind a proxy — it isn't served.
-    #   2. Here: auth_basic, so that turning GRAPHIQL_ENABLED=1 for a demo
+    #      (GRAPHIQL_ENABLED accepts 1/true/yes/on; any other value is off.)
+    #   2. Here: auth_basic, so that turning GRAPHIQL_ENABLED on for a demo
     #      doesn't hand an anonymous visitor a schema explorer with mutation
     #      access to a live database.
     location /graphiql {

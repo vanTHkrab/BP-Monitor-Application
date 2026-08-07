@@ -64,7 +64,7 @@ files; reorganising inside a module is a manual refactor.
 pnpm start:dev                # hot-reload
 pnpm build                    # tsc → dist/
 pnpm exec tsc --noEmit        # type-check only
-pnpm exec jest --watchman=false   # unit: 20 suites / 245 tests. NOT `pnpm test`
+pnpm exec jest --watchman=false   # unit: 21 suites / 310 tests. NOT `pnpm test`
 pnpm test:e2e                 # e2e (needs DB)
 pnpm prisma migrate dev       # apply pending migrations
 ```
@@ -75,9 +75,14 @@ pnpm prisma migrate dev       # apply pending migrations
   resolver + types file. Do **not** hand-edit `src/schema.gql` — it's
   regenerated on boot by `autoSchemaFile`.
 - **GraphiQL is env-gated.** `graphiql` in `app.module.ts` resolves from
-  `GRAPHIQL_ENABLED` (`1` = on), defaulting to on everywhere except
+  `GRAPHIQL_ENABLED` via `resolveGraphiqlEnabled()`: `1` / `true` / `yes` /
+  `on` (case-insensitive, trimmed) = on, **any other non-empty value = off**,
+  unset or empty defers to `NODE_ENV` — on everywhere except
   `NODE_ENV=production`. Dev is unaffected; a prod deploy does not serve a
-  mutation-capable schema explorer unless someone opts in. The prod nginx
+  mutation-capable schema explorer unless someone opts in. The accepted set is
+  a closed allowlist, not a truthiness check, so an unrecognised value fails
+  safe; don't "simplify" it to `Boolean(raw)`, which would read
+  `GRAPHIQL_ENABLED=false` as on. The prod nginx
   config additionally puts `/graphiql` behind HTTP Basic Auth
   (`infra/nginx/templates/default.conf.template`) — don't treat either gate
   as redundant, they fail differently.
@@ -132,8 +137,8 @@ pnpm prisma migrate dev       # apply pending migrations
   free-form, use `@IsString()` + `@MaxLength()` at minimum.
 - **Don't migrate the DB without `pnpm prisma migrate dev`.** Manually
   editing the database in dev causes drift.
-- **Add a service-level unit test with new behavior.** The suite is 20 files
-  / 245 tests and `auth/` is covered (`auth.service.spec.ts`,
+- **Add a service-level unit test with new behavior.** The suite is 21 files
+  / 310 tests and `auth/` is covered (`auth.service.spec.ts`,
   `android-origin.spec.ts`, `dto/select-role.input.spec.ts`,
   `types/auth.types.spec.ts`). Mock `PrismaService`; never hit a real DB from
   a unit test.

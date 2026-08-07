@@ -51,7 +51,7 @@ path in it refuses to start, on purpose.
 | `DATABASE_URL` | Required | PostgreSQL connection string. Prisma owns the schema here; this is the source of truth for every other store. |
 | `PORT` | Optional | Defaults to `3000`. Also the port `BETTER_AUTH_URL` falls back to in development. |
 | `NODE_ENV` | Optional | Anything other than `production` counts as development, which is what enables the email/SMS delivery stubs that log instead of sending. |
-| `GRAPHIQL_ENABLED` | Prod care | `1` forces the schema explorer on. It has full mutation access to the live database — leave unset in production, where it defaults off. |
+| `GRAPHIQL_ENABLED` | Prod care | `1`, `true`, `yes`, or `on` (case-insensitive, trimmed) forces the schema explorer on. Any other non-empty value forces it off — the accepted set is a closed allowlist, so an unrecognised value or a typo fails safe rather than being read as truthy. It has full mutation access to the live database — leave unset in production, where it defaults off. |
 | `JWT_SECRET` | Required | Minimum 32 characters; the gateway refuses to boot on a shorter one. Also the fallback for `BETTER_AUTH_SECRET`. |
 | `JWT_EXPIRES_IN` | Optional | Defaults to `7d`. |
 | `BETTER_AUTH_URL` | Prod required | **Origin only.** `/api/auth` is appended automatically; any other path is discarded with a warning. Getting this wrong costs nothing at boot and 404s every auth route afterwards. |
