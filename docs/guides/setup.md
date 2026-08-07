@@ -2,7 +2,7 @@
 title: Setting up a development environment
 description: Getting all four apps installed and talking to each other, in the dev container or on a local machine.
 status: current
-updated: 2026-08-06
+updated: 2026-08-07
 owner: cross
 ---
 
@@ -97,6 +97,16 @@ falls back to deriving the LAN host from Expo. The value **must include the
 # a physical device cannot reach the dev machine's loopback.
 EXPO_PUBLIC_API_URL=http://192.168.1.20:3000/graphql
 ```
+
+### Building Android natively needs one more file
+
+Expo Go needs nothing further. But `pnpm expo prebuild -p android`,
+`pnpm android`, and any EAS Android build all need
+**`client/google-services.json`**, which is not in the repo yet — `app.json`
+references it via `android.googleServicesFile` and prebuild throws when it is
+missing. The error names Firebase and reads like a push-notification problem;
+it blocks all Android native work. Obtaining the file is step 2 of
+[push-notifications-setup.md](./push-notifications-setup.md).
 
 ## Verify
 
