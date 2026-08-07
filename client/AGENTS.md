@@ -189,13 +189,22 @@ for what the manifest cannot express: the non-obvious choices and their traps.
 
 ## Where tests live
 
-Two places, and the split is by what is under test:
+Three places, and the split is by what is under test:
 
 - **`src/**/*.test.ts(x)`** — colocated with the code. Pure logic, stores,
   repositories, single hooks.
 - **`__test__/screens/*.test.tsx`** — whole-screen render tests. Note the
   directory is `screens` (plural) and sits outside `src/`, so a
   `find src -name '*.test.tsx'` will not show it.
+- **`__test__/components/*.test.tsx`** — component render tests. **New
+  component tests go here**, not beside the component. Five predate this
+  convention and are still colocated (`src/components/themed-text.test.tsx`,
+  three under `modules/caregivers/components/`, one under
+  `modules/security/components/`); they were left in place because moving
+  them is a refactor, not a test. Don't take them as the pattern to follow.
+  `__test__/components/host-tree.ts` holds the shared `toJSON()` tree-walk
+  helper for nodes with no testID and no accessibility role — RNTL v14
+  removed `UNSAFE_getByType`, so there is no built-in way to reach them.
 
 Screen tests render through **`__test__/test-utils.tsx` → `renderScreen`**,
 which mounts the same provider tree as `app/_layout.tsx` (safe-area, Tamagui,
