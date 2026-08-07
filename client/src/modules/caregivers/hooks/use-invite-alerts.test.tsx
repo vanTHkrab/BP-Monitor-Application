@@ -23,7 +23,7 @@ jest.mock('@/modules/notifications', () => ({
 }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { announcedInvitesKey } from '@/config';
 
@@ -112,7 +112,21 @@ it('remembers across a remount', async () => {
   const first = await renderWith([]);
   await first.rerender({ list: [invite('c1')] });
   await waitFor(() => expect(mockNotifyNewInvites).toHaveBeenCalledTimes(1));
-  first.unmount();
+
+  // `unmount()` is async in RNTL v14 and has to be awaited inside `act`.
+  // Called bare it returns before React has run the effect cleanups, which
+  // leaves React's act scope unbalanced — and the damage lands on whichever
+  // test runs *next*, not on this one: `rerender` there resolves without ever
+  // flushing, so the hook never sees the new list and `notifyNewInvites` is
+  // never called.
+  //
+  // Declaration order hid it, because this is the last test in the file. Under
+  // `--randomize` it fails at 4 of 5 seeds, and it fails as "a new invite was
+  // not announced" — which reads as the alerting feature being broken rather
+  // than as a test-harness mistake.
+  await act(async () => {
+    first.unmount();
+  });
 
   const second = await renderWith([invite('c1')]);
   await second.rerender({ list: [invite('c1')] });
