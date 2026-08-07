@@ -21,8 +21,10 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.project.bpmonitor",
       "versionCode": 1,
+      "googleServicesFile": "./google-services.json",
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {

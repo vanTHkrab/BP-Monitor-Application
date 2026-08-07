@@ -137,8 +137,8 @@ scoped exception with a justification, never a raised warning ceiling.
 - **Don't bypass `pnpm verify-models`.** It is the only thing keeping the
   phone and server on the same detector.
 - **Don't edit `client/android/` expecting it to persist as hand-written
-  code** — `expo prebuild` regenerates it. But **do** commit the diff: those
-  files are tracked (see below).
+  code** — `expo prebuild` regenerates it, and it is untracked (see below).
+  Express the change as `app.json` config or a config plugin instead.
 - **Don't add a JS inference path.** `onnxruntime-react-native` is not a
   dependency, deliberately.
 - **Don't reach for `new Blob([Uint8Array])`.** It type-checks and throws on
@@ -146,11 +146,20 @@ scoped exception with a justification, never a raised warning ceiling.
 - **Use `pnpm expo install`** for packages Expo Go bundles a native version
   of. `pnpm add` takes the latest npm release and mismatches crash at runtime.
 
-> ⚠️ **`client/android/` is tracked in git**, despite `client/.gitignore:47`
-> listing `/android`. 52 files were committed deliberately (`72c431b5`,
-> "track native android project") and a `.gitignore` rule does not apply to
-> already-tracked files. This has already caused one false alarm in code
-> review. The prebuild caveat is still real: a config-plugin change only
+> ⚠️ **`client/android/` must stay untracked, and `git add -A` is how it stops
+> being.** A `.gitignore` rule does not apply to files already tracked, so once
+> the folder is in the index the ignore rule at `client/.gitignore:47` goes
+> quiet and the mistake persists. It was tracked for a while (52 files, from
+> `72c431b5` "track native android project", later hollowed out by an SDK
+> upgrade that dropped `MainApplication.kt` / `MainActivity.kt` from the index)
+> and it broke push delivery silently: `eas-cli` decides managed-vs-bare by
+> asking whether the native files are git-ignored, so a tracked `android/`
+> makes EAS skip prebuild and quietly ignore every `app.json` native setting.
+> `git rm -r --cached client/android` reversed it. See
+> [push-notifications-setup.md](../docs/guides/push-notifications-setup.md)
+> for the detection commands.
+>
+> The prebuild caveat is separate and still real: a config-plugin change only
 > takes effect on the next `expo prebuild -p android`, not on a Metro reload.
 
 ## Dependencies worth knowing about

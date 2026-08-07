@@ -2,7 +2,7 @@
 title: Troubleshooting
 description: Failures that look like something other than what they are, grouped by where the symptom shows up.
 status: current
-updated: 2026-08-06
+updated: 2026-08-07
 owner: cross
 ---
 
@@ -41,10 +41,21 @@ and nothing changed after a Metro reload.
 
 **Fix.** `cd client && pnpm expo prebuild -p android`.
 
-> **Note:** `client/android/` is **tracked** in git (52 files, deliberately —
-> commit `72c431b5`). `client/.gitignore`'s `/android` rule does not apply to
-> files already tracked. Prebuild regenerates them, so review that diff rather
-> than assuming it is untracked noise.
+**If that command fails with a Firebase error instead**, you have hit a
+different problem: `app.json` sets `android.googleServicesFile`, and prebuild
+throws when the file is absent. Any Android build needs
+`client/google-services.json`, which is not in the repo yet — see step 2 of
+[push-notifications-setup.md](./push-notifications-setup.md). The error names
+Firebase, but it blocks all Android native work, not just push.
+
+> **Note:** `client/android/` is generated output and is **untracked** — it is
+> covered by `client/.gitignore:47`. It was tracked for a period, which broke
+> EAS Build silently (`eas-cli` reads managed-vs-bare from whether the native
+> files are git-ignored, so a tracked `android/` makes it skip prebuild and
+> drop every `app.json` native setting, push credentials included). Do not
+> re-add it — `git rm -r --cached client/android` is the undo, and
+> [push-notifications-setup.md](./push-notifications-setup.md) has the
+> detection commands.
 
 ## Mobile client
 

@@ -2,7 +2,7 @@
 title: "Client: the caregiver role"
 description: How the caregiver role works end to end, the permission model, and what is still open.
 status: current
-updated: 2026-08-06
+updated: 2026-08-07
 owner: client
 ---
 
@@ -136,7 +136,9 @@ client still owes:
 `expo-notifications` — merely importing it there fires an auto-registration
 side effect. C-001 needs a dev build. The gateway degrades honestly in the
 meantime: a caregiver with no registered token is an ordinary outcome there,
-not an error.
+not an error. Building it — and the Firebase side that has to exist before a
+token is worth anything — is
+[push-notifications-setup.md](../guides/push-notifications-setup.md) (`I-003`).
 
 `modules/notifications` today schedules **local** reminders only, which is a
 different feature and works.

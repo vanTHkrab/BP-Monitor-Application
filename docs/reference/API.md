@@ -2,7 +2,7 @@
 title: BP Monitor GraphQL API contract
 description: Endpoint, auth, error codes, and the operation catalogue client developers build against.
 status: current
-updated: 2026-08-06
+updated: 2026-08-07
 owner: api-gateway
 ---
 
@@ -601,7 +601,9 @@ is a `token` Expo's own validator rejects.
 - **No token registered is not an error.** Expo Go on Android cannot obtain a
   push token at all (remote push was dropped in SDK 53), so this feature needs
   a dev build. The gateway treats "no device to notify" as an ordinary
-  outcome; nothing fails and nothing is logged as an error.
+  outcome; nothing fails and nothing is logged as an error. Producing that
+  build, and the Firebase/FCM V1 credentials it needs, is
+  [push-notifications-setup.md](../guides/push-notifications-setup.md).
 - **Dead tokens are pruned server-side.** A `DeviceNotRegistered` in either
   the send ticket or the later delivery receipt deletes the row. Clients do
   not need to clean up after an uninstall.

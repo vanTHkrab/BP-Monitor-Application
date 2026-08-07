@@ -2,7 +2,7 @@
 title: Guides
 description: Index of the how-to material — setup, run, deploy, and troubleshoot.
 status: current
-updated: 2026-08-06
+updated: 2026-08-07
 owner: cross
 ---
 
@@ -17,6 +17,7 @@ If you are asking "what is the contract" or "why is it like this", you want
 | [setup.md](./setup.md) | Fresh clone — install, configure, verify |
 | [run.md](./run.md) | Day-to-day commands, and which check is the real ship gate |
 | [deploy.md](./deploy.md) | Putting the backend on a host, TLS, and the access model |
+| [push-notifications-setup.md](./push-notifications-setup.md) | Turning the already-built push code into actual delivery — Firebase, FCM V1, and the ways this config fails without saying so |
 | [troubleshooting.md](./troubleshooting.md) | Something failed in a way that points at the wrong cause |
 
 These guides own the how-to steps. Where a per-app README or

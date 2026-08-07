@@ -166,8 +166,13 @@ tree and mock the transport.
 
 **Deliberately last**, and be honest about why: it is the most expensive tier
 to build and the most expensive to keep alive, and this project does not yet
-have the prerequisite. Push notifications need a dev build that does not exist
-(`I-003`), and the same build is what a Maestro or Detox run would need.
+have the prerequisite. Push notifications need a dev build, and the builds on
+EAS are all too old to use — they predate the SDK 57 upgrade (`I-003`). The
+same build is what a Maestro or Detox run would need. The `development` profile
+in `client/eas.json` now defines it; the current inventory and the command to
+check it live in
+[push-notifications-setup.md](../guides/push-notifications-setup.md), which is
+the one place that fact is maintained.
 
 **When it happens, the first flow to cover** is capture → OCR → confirm → save
 → appears in history, because it crosses every boundary the app has: native
