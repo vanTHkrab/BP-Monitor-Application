@@ -14,7 +14,14 @@
  */
 import { AppState } from 'react-native';
 
-jest.mock('@/database', () => ({ getDb: () => ({ __db: true }) }));
+/**
+ * One identifiable handle, handed out by a spy. Both are needed by the
+ * delegation tests at the bottom: the identity shows *which* handle a port
+ * passed on, and the call count shows *when* it asked for one.
+ */
+const mockDb = { __db: true };
+const mockGetDb = jest.fn(() => mockDb);
+jest.mock('@/database', () => ({ getDb: () => mockGetDb() }));
 
 jest.mock('@/modules/auth', () => require('./__fixtures__/identity').authModuleMock());
 
@@ -232,6 +239,84 @@ describe('the ports', () => {
       .catch((error: unknown) => error);
 
     expect(caught).toBe(original);
+  });
+});
+
+/**
+ * The rest of `createPorts` is one-line delegation, and most of it really is
+ * protected by the type checker: `promote(clientId, row)`,
+ * `recordImageUploaded(clientId, imageId)`, `forgetImage(clientId)` and
+ * `releaseImage(clientId)` all take arguments of distinct types or take one
+ * argument, so a transposition does not compile.
+ *
+ * `recordFailure` is the exception, and it is the reason this block exists.
+ * `recordQueueFailure(db, clientId, attempts, message)` takes **two strings**,
+ * and swapping them type-checks perfectly. The result is a queue row keyed by
+ * an error message: rule 5 of the drain then counts attempts against a client
+ * id that matches nothing, so the reading never reaches its retry ceiling and
+ * never surfaces as failed — it just stops making progress, silently, on the
+ * patient's phone.
+ *
+ * `createReading` is deliberately left uncovered here. Reaching it means
+ * mocking `services/readings-api` as well, and it is a single-argument
+ * delegation of a typed payload — the one shape in this file where "the type
+ * checker has it" is true without qualification.
+ */
+describe('the repository delegations', () => {
+  /** The ports, as the hook handed them to the drain. */
+  const portsAfterOneSync = async (): Promise<SyncPorts> => {
+    const view = await renderSync();
+    await view.result.current.sync();
+    return portsFromLastRun();
+  };
+
+  it('puts the client id and the error message in the slots they belong in', async () => {
+    const ports = await portsAfterOneSync();
+
+    await ports.recordFailure('local-7', 3, 'S3 PUT failed with 403');
+
+    // Positional and explicit. Both middle arguments are strings, so this
+    // assertion is the only thing standing between the queue and a row keyed
+    // by its own error text.
+    expect(mockQueue.recordQueueFailure).toHaveBeenCalledWith(
+      mockDb,
+      'local-7',
+      3,
+      'S3 PUT failed with 403',
+    );
+  });
+
+  it('asks for the database when a port is used, not when the ports are built', async () => {
+    const ports = await portsAfterOneSync();
+
+    // Mounting the hook and running a pass must not open SQLite. `getDb()` is
+    // lazy by design (see `client/AGENTS.md`), and a `createPorts` that
+    // captured a handle would both open the database on first mount and hold
+    // a stale one across a reset.
+    expect(mockGetDb).not.toHaveBeenCalled();
+
+    await ports.listQueued(SELF.id);
+
+    expect(mockGetDb).toHaveBeenCalledTimes(1);
+    expect(mockQueue.listQueuedReadings).toHaveBeenCalledWith(mockDb, SELF.id);
+  });
+
+  it('hands every port the same live handle, one lookup per call', async () => {
+    const ports = await portsAfterOneSync();
+
+    const row = { id: 1 } as unknown as Parameters<SyncPorts['promote']>[1];
+    await ports.promote('local-7', row);
+    await ports.recordImageUploaded('local-7', 77);
+    await ports.forgetImage('local-7');
+    await ports.releaseImage!('local-7');
+
+    expect(mockPromoteToMirror).toHaveBeenCalledWith(mockDb, 'local-7', row);
+    expect(mockQueue.markQueuedImageUploaded).toHaveBeenCalledWith(mockDb, 'local-7', 77);
+    expect(mockQueue.forgetQueuedImage).toHaveBeenCalledWith(mockDb, 'local-7');
+    // `releaseImage` is the odd one out: it touches the file system, not the
+    // database, so it takes no handle at all.
+    expect(mockReleasePendingImage).toHaveBeenCalledWith('local-7');
+    expect(mockGetDb).toHaveBeenCalledTimes(3);
   });
 });
 

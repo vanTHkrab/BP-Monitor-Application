@@ -86,10 +86,11 @@
 <header>
   <h1>Client test programme</h1>
   <p class="lede">
-    2026-08-07 → 08 · three passes, 105 new test files, no production code changed ·
+    2026-08-07 → 08 · four passes, 120 new test files, no production code changed ·
     <code>test/client-render-coverage</code> (PR #107) ·
-    <code>test/client-service-layer</code> (PR #108) ·
-    <code>test/client-hooks</code>
+    <code>test/client-service-layer</code> (#108) ·
+    <code>test/client-hooks</code> (#109) ·
+    <code>test/client-hooks-remaining</code>
   </p>
 </header>
 
@@ -101,22 +102,23 @@
   test.
 </p>
 <p>
-  The work came in three passes. <strong>Pass one</strong> covered the render layer:
+  The work came in four passes. <strong>Pass one</strong> covered the render layer:
   every Expo Router screen and the component tree. <strong>Pass two</strong> covered
   the function layer: <code>modules/**/{lib,services}</code> and
   <code>src/services/**</code> (<code>src/lib/**</code> was surveyed and needed nothing,
-  already at 91.7%). <strong>Pass three</strong> covered the readings, auth, and
-  security hooks — and turned <code>--randomize</code> into a gate the repo can actually
-  run, which is where most of its findings came from.
+  already at 91.7%). <strong>Passes three and four</strong> covered the hook layer —
+  readings, auth and security first, then capture, community, notifications, profile,
+  caregivers and onboarding. Pass three also turned <code>--randomize</code> into a gate
+  the repo can actually run, which is where most of its findings came from.
 </p>
 
 <h2>Result</h2>
 
 <div class="cards">
-  <div class="card"><div class="k">Suites</div><div class="v">161</div><div class="d">was 56 · +105</div></div>
-  <div class="card"><div class="k">Tests</div><div class="v">2000</div><div class="d">was 713 · +1287</div></div>
-  <div class="card"><div class="k">Branches</div><div class="v">71.52%</div><div class="d">was 38.98% · +32.54</div></div>
-  <div class="card"><div class="k">Statements</div><div class="v">70.04%</div><div class="d">was 39.24% · +30.80</div></div>
+  <div class="card"><div class="k">Suites</div><div class="v">176</div><div class="d">was 56 · +120</div></div>
+  <div class="card"><div class="k">Tests</div><div class="v">2227</div><div class="d">was 713 · +1514</div></div>
+  <div class="card"><div class="k">Branches</div><div class="v">75.24%</div><div class="d">was 38.98% · +36.26</div></div>
+  <div class="card"><div class="k">Statements</div><div class="v">78.15%</div><div class="d">was 39.24% · +38.91</div></div>
 </div>
 
 <div class="scroll">
@@ -125,16 +127,16 @@
     <tr>
       <th>Metric</th><th class="num">Start</th>
       <th class="num">After render</th><th class="num">After function</th>
-      <th class="num">After hooks</th><th class="num">Δ total</th>
+      <th class="num">Hooks 1</th><th class="num">Hooks 2</th><th class="num">Δ total</th>
     </tr>
   </thead>
   <tbody>
-    <tr><td>Statements</td><td class="num">39.24%</td><td class="num">50.86%</td><td class="num">63.04%</td><td class="num">70.04%</td><td class="num up">+30.80</td></tr>
-    <tr><td>Branches</td><td class="num">38.98%</td><td class="num">58.39%</td><td class="num">68.18%</td><td class="num">71.52%</td><td class="num up">+32.54</td></tr>
-    <tr><td>Functions</td><td class="num">34.97%</td><td class="num">44.67%</td><td class="num">55.25%</td><td class="num">63.86%</td><td class="num up">+28.89</td></tr>
-    <tr><td>Lines</td><td class="num">39.32%</td><td class="num">51.63%</td><td class="num">63.59%</td><td class="num">70.75%</td><td class="num up">+31.43</td></tr>
-    <tr><td>Test suites</td><td class="num">56</td><td class="num">120</td><td class="num">143</td><td class="num">161</td><td class="num up">+105</td></tr>
-    <tr><td>Tests</td><td class="num">713</td><td class="num">1191</td><td class="num">1746</td><td class="num">2000</td><td class="num up">+1287</td></tr>
+    <tr><td>Statements</td><td class="num">39.24%</td><td class="num">50.86%</td><td class="num">63.04%</td><td class="num">70.04%</td><td class="num">78.15%</td><td class="num up">+38.91</td></tr>
+    <tr><td>Branches</td><td class="num">38.98%</td><td class="num">58.39%</td><td class="num">68.18%</td><td class="num">71.52%</td><td class="num">75.24%</td><td class="num up">+36.26</td></tr>
+    <tr><td>Functions</td><td class="num">34.97%</td><td class="num">44.67%</td><td class="num">55.25%</td><td class="num">63.86%</td><td class="num">72.11%</td><td class="num up">+37.14</td></tr>
+    <tr><td>Lines</td><td class="num">39.32%</td><td class="num">51.63%</td><td class="num">63.59%</td><td class="num">70.75%</td><td class="num">78.72%</td><td class="num up">+39.40</td></tr>
+    <tr><td>Test suites</td><td class="num">56</td><td class="num">120</td><td class="num">143</td><td class="num">161</td><td class="num">176</td><td class="num up">+120</td></tr>
+    <tr><td>Tests</td><td class="num">713</td><td class="num">1191</td><td class="num">1746</td><td class="num">2000</td><td class="num">2227</td><td class="num up">+1514</td></tr>
   </tbody>
 </table>
 </div>
@@ -790,7 +792,7 @@
 
 <pre><code>cd client
 
-pnpm test          # 161 suites / 2000 tests — coverage collected by default
+pnpm test          # 176 suites / 2227 tests — coverage collected by default
 pnpm test --randomize --seed=7   # NOTE: no `--`. See the warning above.
 pnpm lint          # exit 0
 pnpm typecheck     # exit 0
