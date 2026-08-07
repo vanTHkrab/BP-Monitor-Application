@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BP Monitor — client render-test programme, 2026-08-07</title>
+<title>BP Monitor — client test programme, 2026-08-07</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -63,12 +63,17 @@
   .card .v { font-size: 1.6rem; font-variant-numeric: tabular-nums; margin-top: .15rem; }
   .card .d { font-size: .8rem; color: var(--accent); }
   .note {
-    border-left: 3px solid var(--rule); padding: .1rem 0 .1rem 1rem;
-    margin: 1.25rem 0; color: var(--muted);
+    background: var(--card); border: 1px solid var(--rule); border-radius: 6px;
+    padding: .9rem 1.1rem; margin: 1.5rem 0; color: var(--muted);
   }
-  .note.warn { border-left-color: var(--warn); }
-  .note.bad { border-left-color: var(--bad); }
   .note strong { color: var(--fg); }
+  .note::before {
+    content: "Note"; display: block; font-size: .7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    margin-bottom: .35rem;
+  }
+  .note.warn::before { content: "Watch out"; color: var(--warn); }
+  .note.bad::before { content: "Correction"; color: var(--bad); }
   ol.problems { padding-left: 1.25rem; }
   ol.problems > li { margin-bottom: 1.5rem; }
   ol.problems > li > strong { display: block; margin-bottom: .25rem; }
@@ -79,41 +84,55 @@
 <div class="wrap">
 
 <header>
-  <h1>Client render-test programme</h1>
+  <h1>Client test programme</h1>
   <p class="lede">
-    Branch <code>test/client-render-coverage</code> · 2026-08-07 ·
-    64 new test files, no production code changed
+    2026-08-07 · two passes, 87 new test files, no production code changed ·
+    <code>test/client-render-coverage</code> (merged, PR #107) and
+    <code>test/client-service-layer</code>
   </p>
 </header>
 
 <p>
   This document is the deliverable for the client testing task: what was built, what
   was decided, what was fixed, and — at greater length than the rest — what went wrong
-  along the way. The problems section is the part worth reading. Most of them are
-  specific to this codebase and will be hit again by anyone writing the next test.
+  along the way. The problems sections are the part worth reading. Most of what is in
+  them is specific to this codebase and will be hit again by whoever writes the next
+  test.
+</p>
+<p>
+  The work came in two passes. <strong>Pass one</strong> covered the render layer:
+  every Expo Router screen and the component tree. <strong>Pass two</strong> covered
+  the function layer: <code>modules/**/{lib,services}</code> and
+  <code>src/services/**</code>. <code>src/lib/**</code> was surveyed and needed
+  nothing — it was already at 91.7%. Hooks were deliberately excluded from both
+  and remain the largest untested surface.
 </p>
 
 <h2>Result</h2>
 
 <div class="cards">
-  <div class="card"><div class="k">Suites</div><div class="v">120</div><div class="d">was 56 · +64</div></div>
-  <div class="card"><div class="k">Tests</div><div class="v">1191</div><div class="d">was 713 · +478</div></div>
-  <div class="card"><div class="k">Branches</div><div class="v">58.39%</div><div class="d">was 38.98% · +19.41</div></div>
-  <div class="card"><div class="k">Statements</div><div class="v">50.86%</div><div class="d">was 39.24% · +11.62</div></div>
+  <div class="card"><div class="k">Suites</div><div class="v">143</div><div class="d">was 56 · +87</div></div>
+  <div class="card"><div class="k">Tests</div><div class="v">1746</div><div class="d">was 713 · +1033</div></div>
+  <div class="card"><div class="k">Branches</div><div class="v">68.18%</div><div class="d">was 38.98% · +29.20</div></div>
+  <div class="card"><div class="k">Statements</div><div class="v">63.04%</div><div class="d">was 39.24% · +23.80</div></div>
 </div>
 
 <div class="scroll">
 <table>
   <thead>
-    <tr><th>Metric</th><th class="num">Before</th><th class="num">After</th><th class="num">Δ</th></tr>
+    <tr>
+      <th>Metric</th><th class="num">Start</th>
+      <th class="num">After render pass</th><th class="num">After function pass</th>
+      <th class="num">Δ total</th>
+    </tr>
   </thead>
   <tbody>
-    <tr><td>Statements</td><td class="num">39.24% (1862/4744)</td><td class="num">50.86% (2421/4760)</td><td class="num up">+11.62</td></tr>
-    <tr><td>Branches</td><td class="num">38.98% (1400/3591)</td><td class="num">58.39% (2111/3615)</td><td class="num up">+19.41</td></tr>
-    <tr><td>Functions</td><td class="num">34.97% (484/1384)</td><td class="num">44.67% (621/1390)</td><td class="num up">+9.70</td></tr>
-    <tr><td>Lines</td><td class="num">39.32% (1659/4219)</td><td class="num">51.63% (2184/4230)</td><td class="num up">+12.31</td></tr>
-    <tr><td>Test suites</td><td class="num">56</td><td class="num">120</td><td class="num up">+64</td></tr>
-    <tr><td>Tests</td><td class="num">713</td><td class="num">1191</td><td class="num up">+478</td></tr>
+    <tr><td>Statements</td><td class="num">39.24%</td><td class="num">50.86%</td><td class="num">63.04%</td><td class="num up">+23.80</td></tr>
+    <tr><td>Branches</td><td class="num">38.98%</td><td class="num">58.39%</td><td class="num">68.18%</td><td class="num up">+29.20</td></tr>
+    <tr><td>Functions</td><td class="num">34.97%</td><td class="num">44.67%</td><td class="num">55.25%</td><td class="num up">+20.28</td></tr>
+    <tr><td>Lines</td><td class="num">39.32%</td><td class="num">51.63%</td><td class="num">63.59%</td><td class="num up">+24.27</td></tr>
+    <tr><td>Test suites</td><td class="num">56</td><td class="num">120</td><td class="num">143</td><td class="num up">+87</td></tr>
+    <tr><td>Tests</td><td class="num">713</td><td class="num">1191</td><td class="num">1746</td><td class="num up">+1033</td></tr>
   </tbody>
 </table>
 </div>
@@ -411,6 +430,141 @@
   and it reproduces with the new tests absent and <code>jest.setup.js</code> reverted.
 </p>
 
+<h2>Pass two — the function layer</h2>
+
+<p>
+  Three batches over <code>modules/**/{lib,services}</code> and
+  <code>src/services/**</code>: 23 new files and 4 extended, 1191 → 1746 tests. The
+  shared <code>lib/</code> trees were surveyed and needed nothing —
+  <code>src/lib</code> was already at 91.7% and <code>src/utils</code> at 94.1%. What
+  was missing was almost the entire <code>services/</code> layer and the offline-first
+  storage code.
+</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Area</th><th class="num">Before</th><th class="num">After</th></tr></thead>
+  <tbody>
+    <tr><td><code>readings/lib/pending-image-store.ts</code></td><td class="num">11.9%</td><td class="num">98.5%</td></tr>
+    <tr><td><code>readings/lib/image-cache.ts</code></td><td class="num">30.8%</td><td class="num">100%</td></tr>
+    <tr><td><code>readings/services/export-file.ts</code></td><td class="num">3.1%</td><td class="num">100%</td></tr>
+    <tr><td><code>repository/queue.ts</code> · <code>mirror.ts</code></td><td class="num">69% · 77%</td><td class="num">100% · 100%</td></tr>
+    <tr><td>the ten <code>services/*-api.ts</code> wrappers</td><td class="num">0–14%</td><td class="num">90–100%</td></tr>
+    <tr><td><code>notifications/services/reminder-service.ts</code></td><td class="num">8.0%</td><td class="num">98.9%</td></tr>
+    <tr><td><code>src/services/auth-token.ts</code></td><td class="num">9%</td><td class="num">100%</td></tr>
+    <tr><td><code>src/services/upload-image.ts</code></td><td class="num">16%</td><td class="num">100%</td></tr>
+    <tr><td><code>src/services/api.ts</code></td><td class="num">69%</td><td class="num">96.9%</td></tr>
+    <tr><td><code>capture/lib/crop-to-viewport.ts</code> · <code>image-prepare.ts</code></td><td class="num">0% · 0%</td><td class="num">100% · 100%</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>The assertion in this pass that matters most</h3>
+<p>
+  In <code>pending-image-store.ts</code>, if the query that asks “which photos are still
+  claimed by a reading” rejects, the orphan sweep must delete <em>nothing</em>. Someone
+  “fixing” that catch by defaulting to an empty active set would make one bad
+  launch-time database read delete the photo of every unsent reading on the device. It
+  is the most destructive single mutation available in that file, and it now has a test
+  named for it.
+</p>
+
+<h3>The Blob trap, and what a test can honestly claim about it</h3>
+<p>
+  <code>src/services/upload-image.ts</code> contains the project's most documented
+  runtime trap: <code>new Blob([Uint8Array])</code> type-checks and then throws at
+  runtime on native, which is why the binary PUT goes through
+  <code>expo-file-system/legacy</code>'s <code>uploadAsync</code>.
+</p>
+<p>
+  <strong>That throw is not reproducible under jest</strong> — jest's <code>Blob</code>
+  is Node's, and Node's accepts a <code>Uint8Array</code> happily. A test claiming to
+  reproduce it would be lying. So the guard is structural instead: the whole
+  <code>uploadAsync</code> argument list is asserted with <code>toEqual</code> —
+  <em>the URI, not bytes</em> — and a negative test replaces
+  <code>globalThis.Blob</code> with a recording constructor and <code>fetch</code> with
+  a spy, so reintroducing a fetch-and-Blob PUT goes red immediately. It was verified
+  that way: putting the old shape back turns <strong>14 tests red</strong>.
+</p>
+<p>
+  One detail worth keeping: <code>FileSystemUploadType</code> is mocked with
+  <strong>sentinel strings, not the real numbers</strong>. Upstream,
+  <code>BINARY_CONTENT</code> is <code>0</code> and <code>MULTIPART</code> is
+  <code>1</code>, so a numeric assertion would pass against a hardcoded <code>0</code>.
+  Do not simplify the sentinels back to numbers.
+</p>
+
+<h3>Problems specific to this pass</h3>
+
+<ol class="problems">
+  <li>
+    <strong><code>process.env.EXPO_OS</code> is inlined as a literal by Expo's Babel
+    preset.</strong> Assigning it in a test does nothing, so a function switching on it
+    can only ever be exercised on one platform — <code>deviceLabel()</code> in both
+    <code>auth-api.ts</code> and <code>security-api.ts</code> is reachable only on its
+    iOS arm. The first attempt read the failure as a mock problem. Same class applies to
+    <code>EXPO_PUBLIC_API_URL</code>. <code>Platform.OS</code> is mockable;
+    <code>EXPO_OS</code> is not.
+  </li>
+  <li>
+    <strong><code>await import('expo-notifications')</code> always fails under
+    jest.</strong> It survives Babel as a real dynamic import and jest's CJS VM rejects
+    it with <code>ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG</code>;
+    <code>jest.mock</code> does not help, because the failure is in the import mechanism
+    rather than resolution. So <code>loadNotifications</code> always takes its catch and
+    always returns <code>null</code>. <em>Nothing in the suite is silently vacuous
+    because of it</em> — all three consumer suites mock <code>./notifications-module</code>,
+    the loader boundary, and a repo-wide grep finds nothing mocking the package
+    directly. The rule that saves this: mock the boundary, not the package.
+  </li>
+  <li>
+    <strong><code>jest.resetModules()</code> is unusable in this tree.</strong> It
+    re-triggers Expo's lazy <code>fetch</code> global, which re-evaluates the
+    react-native barrel and dies inside <code>react-native-css-interop</code> on
+    <code>Appearance.getColorScheme</code>. It reads as a mock bug and is a
+    global-reinstall bug. <code>jest.isolateModules</code> is the working shape — and a
+    file-level <code>jest.mock('react-native', …)</code> kills the suite at load for the
+    same reason, so platform mocks must be <code>jest.doMock</code> <em>inside</em> the
+    isolate.
+  </li>
+  <li>
+    <strong><code>jest.mock</code> factories run during hoisted imports, before a
+    <code>const</code> initialises.</strong> A factory returning
+    <code>{ env: mockEnv }</code> captured <code>undefined</code> forever — 23 failures
+    reading <code>Cannot read properties of undefined</code>. A getter
+    (<code>get env() { return mockEnv; }</code>) fixes it.
+  </li>
+  <li>
+    <strong><code>jest.clearAllMocks()</code> does not drain a
+    <code>mockResolvedValueOnce</code> queue.</strong> A test that rejected before its
+    second call left a response queued; the <em>next</em> test consumed it, and the
+    symptom appeared three tests later as an unrelated undefined-property error.
+    <code>mockReset()</code> on that one mock.
+  </li>
+  <li>
+    <strong>Two <code>tsc</code> catches while the suite was green</strong> — an
+    <code>OcrEngine</code> literal that is not in the union (the real set is
+    <code>crnn | ssocr_cnn | ssocr</code>) and a <code>PostCategory</code> of
+    <code>'question'</code> where the value is <code>qa</code>. Both passed under jest
+    because the mock does not care what the literal is. That is the third and fourth
+    time in this programme that the type checker was the only gate to notice something.
+  </li>
+</ol>
+
+<div class="note bad">
+  <strong>Two comments in this pass claimed more than their tests delivered, and both
+  were caught in review.</strong> One labelled a real prototype-chain bug
+  <code>DEFECT:</code> with a patient-facing consequence — but the path is closed twice
+  server-side, because <code>relationship</code> is a Postgres enum and the service
+  normalises writes through an allow-list, so the value cannot physically arrive. The
+  other claimed a memoisation guard was covered; the reviewer made exactly that typo in
+  production and the suite reported <strong>12 passed, 0 failed</strong>. Both comments
+  are corrected. This is worth recording because it is the same defect the whole
+  programme exists to prevent, one level up: a test that does not assert what it says is
+  bad, and a <em>comment</em> that says a mutant is covered when it is not is worse —
+  the missing test at least tells the truth about being missing.
+</div>
+
 <h2>Findings — reported, not fixed</h2>
 
 <p>No production code was changed anywhere in this work. These are for follow-up.</p>
@@ -449,10 +603,48 @@
     </tr>
     <tr>
       <td>Worker exit warning</td>
-      <td><code>A worker process has failed to exit gracefully</code> is present at baseline and unchanged. <code>--detectOpenHandles</code> reported nothing. Source still unidentified.</td>
+      <td><code>A worker process has failed to exit gracefully</code> is present at baseline and unchanged throughout. It comes from the <code>@jest-environment node</code> better-sqlite3 suite. <code>--detectOpenHandles</code> reported nothing.</td>
+    </tr>
+    <tr>
+      <td><code>auth-token.ts</code> migration can destroy the token</td>
+      <td>The legacy→SecureStore promotion is <code>try { setItemAsync } finally { removeLegacyToken() }</code> with <strong>no catch</strong>. A transient keystore failure deletes the only surviving copy before the caller sees the rejection, so a one-launch failure becomes a permanent logout. Pinned as current behaviour with an update-don't-delete instruction.</td>
+    </tr>
+    <tr>
+      <td><code>caregivers/lib/mappers.ts</code> narrows <code>gender</code> in one function and not its sibling</td>
+      <td><code>patientHealthProfileFromGql</code> narrows, with a comment explaining that an out-of-set value “would select nothing while still counting as set, so saving the form would silently rewrite the column”. <code>patientSummaryFromGql</code> does not, and <code>lib/health-form.ts:117</code> casts the summary value straight to <code>Gender</code> — so the failure that comment describes is reachable via <code>myPatients</code>.</td>
+    </tr>
+    <tr>
+      <td><code>relationship.ts</code> walks the prototype chain</td>
+      <td><code>parseRelationship</code> guards with <code>value in LABELS</code>, so an inherited property such as <code>toString</code> passes and <code>relationshipLabel</code> resolves it to a function, which is not nullish and defeats the <code>?? LABELS.other</code> fallback. <strong>Not currently reachable</strong> — the gateway stores <code>relationship</code> in a Postgres enum and normalises writes. The defect is that these functions are unsafe for untrusted input while typed as if they were not, resting on a server-side guarantee the client does not own. <code>Object.hasOwn</code> closes it.</td>
+    </tr>
+    <tr>
+      <td>Five files are untestable — <code>jest.moduleNameMapper</code></td>
+      <td>Only <code>^@/(.*)$ → src/$1</code> is mapped, so the <code>@/native/*</code> and <code>@/assets/*</code> tsconfig aliases do not resolve and the general pattern shadows them; <code>{ virtual: true }</code> does not work around it. This blocks <code>capture/lib/ocr/read.ts</code>, <code>bp-camera-view.tsx</code>, both <code>animated-icon</code> files, and <code>web-badge.tsx</code>. The fix is two entries above the general one, and it was verified in review to break nothing — but it is a whole-suite config change and is <strong>not</strong> in this branch.</td>
+    </tr>
+    <tr>
+      <td>Web keeps an orphaned legacy token</td>
+      <td>The legacy read and delete both sit inside the <code>useSecureStore</code> arm, so an upgrading web user's <code>bp:auth-token</code> is never migrated and never cleaned. Web is a dev target, so recorded rather than raised.</td>
+    </tr>
+    <tr>
+      <td><code>email-otp-api.ts</code> has no retry countdown</td>
+      <td>The GraphQL transport reads <code>Retry-After</code> and <code>extensions.retryAfterSec</code>; this module has its own transport and sets only <code>code</code> and <code>httpStatus</code>, so a 429 on OTP resend reaches the UI with <code>retryAfterSec: null</code> and the screen can only say “try again later”. Better Auth rate-limits this at 3 per 15 minutes.</td>
     </tr>
   </tbody>
 </table>
+</div>
+
+<div class="note">
+  <strong>Some properties are not assertable from outside, and that is a design finding
+  rather than a coverage gap.</strong> The distinction produced the most useful output of
+  the whole programme. Three examples worth keeping: <code>promoteToMirror</code> takes no
+  lock of its own and relies entirely on the SQLite transaction (the real
+  <code>inFlight</code> mutex lives one layer up in <code>lib/sync.ts:250</code>);
+  <code>persistPendingImage</code> and <code>releasePendingImage</code> are
+  <code>async</code> but contain no <code>await</code>, so “app killed between step one
+  and step two” is unreachable in a test and only the orphan sweep's <em>result</em> can
+  be asserted; and <code>analysis-api.ts</code> exports nothing but
+  <code>analyzeImage</code>, so its poll interval and timeout are hard-coded in the tests
+  and a retune leaves them green but slower.
 </div>
 
 <div class="note bad">
@@ -468,6 +660,12 @@
 <h2 id="uncovered">Not covered, and why</h2>
 
 <ul>
+  <li><strong>Hooks — the largest remaining surface.</strong> Excluded from both passes by
+    scope. <code>use-create-reading</code>, <code>use-passkey-sign-in</code>,
+    <code>use-onboarding-state</code>, <code>use-app-lock</code>,
+    <code>use-session</code> and their neighbours are still at or near zero. They need
+    <code>renderHook</code> with a <code>QueryClient</code> and a mocked transport per
+    file, which is a batch of its own.</li>
   <li><strong>Interaction across the board</strong> — presses, form submission, navigation.
     A scope decision, not an oversight. Each affected file records what it left:
     <code>alerts</code>' inert row for caregivers, <code>profile</code>'s edit mode and the
@@ -494,7 +692,7 @@
 
 <pre><code>cd client
 
-pnpm test          # 120 suites / 1191 tests — coverage collected by default
+pnpm test          # 143 suites / 1746 tests — coverage collected by default
 pnpm lint          # exit 0
 pnpm typecheck     # exit 0
 pnpm verify-graphql  # 50 operations checked, 0 invalid, 0 unchecked
@@ -512,13 +710,15 @@ pnpm check         # the canonical gate: the four above, &&-chained and fail-fas
 <div class="note warn">
   <strong>This file is written by hand, not generated.</strong> It will not update itself
   when the suite changes. The numbers describe the run on
-  <code>test/client-render-coverage</code> at the time of writing; re-run
-  <code>pnpm test</code> for current figures rather than trusting these.
+  <code>test/client-service-layer</code> at the time of writing — the render-pass
+  figures were measured on <code>test/client-render-coverage</code>, since merged as
+  PR #107. Re-run <code>pnpm test</code> for current figures rather than trusting these.
 </div>
 
 <footer>
-  BP Monitor Application · client render-test programme · 2026-08-07 ·
-  branch <code>test/client-render-coverage</code>
+  BP Monitor Application · client test programme · 2026-08-07 ·
+  render pass on <code>test/client-render-coverage</code> (PR #107, merged),
+  function pass on <code>test/client-service-layer</code>
 </footer>
 
 </div>
