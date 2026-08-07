@@ -87,6 +87,27 @@ jest.mock('react-native-reanimated', () => {
 });
 
 /**
+ * AsyncStorage's native module is null under jest-expo, and the package
+ * throws at *import* time rather than on first use — so the failure is a
+ * suite that will not load, not a test that fails.
+ *
+ * Global rather than per-file for the same reason google-signin is: the
+ * indirection is the problem. Every screen that renders a `ThemedText` gets
+ * here through `useFontScale` → `usePreferencesStore` → AsyncStorage, which
+ * is very nearly every screen in the app. Discovering that one file at a time
+ * is pure tax, and a per-file version of this stub cannot satisfy another
+ * screen's assertion by accident because it is the package's own official
+ * in-memory mock, not a behavioural stand-in.
+ *
+ * Screen tests written before this existed still declare it locally. That is
+ * harmless — a file-level `jest.mock` for the same module simply wins — and
+ * removing them is a drive-by this change does not make.
+ */
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
+
+/**
  * Google sign-in is a TurboModule with nothing behind it under jest, and
  * `@/modules/auth`'s barrel imports the hook that uses it — so *anything*
  * reaching that barrel, however indirectly, fails to load without this.

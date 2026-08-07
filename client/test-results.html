@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BP Monitor — client render-test programme, 2026-08-07</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfbfa; --fg: #22201d; --muted: #6b6660; --rule: #e2ded8;
+    --card: #ffffff; --accent: #1f6f5c; --warn: #8a5a00; --bad: #9b2c2c;
+    --code-bg: #f3f1ed;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17161a; --fg: #e6e3de; --muted: #9a948c; --rule: #33302e;
+      --card: #1e1d21; --accent: #6fc9ae; --warn: #d7a13a; --bad: #e07a7a;
+      --code-bg: #24232a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17161a; --fg: #e6e3de; --muted: #9a948c; --rule: #33302e;
+    --card: #1e1d21; --accent: #6fc9ae; --warn: #d7a13a; --bad: #e07a7a;
+    --code-bg: #24232a;
+  }
+  :root[data-theme="light"] {
+    --bg: #fbfbfa; --fg: #22201d; --muted: #6b6660; --rule: #e2ded8;
+    --card: #ffffff; --accent: #1f6f5c; --warn: #8a5a00; --bad: #9b2c2c;
+    --code-bg: #f3f1ed;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.65 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 68rem; margin: 0 auto; padding: 3rem 1.25rem 6rem; }
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 1.5rem; margin-bottom: 2.5rem; }
+  h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 .5rem; letter-spacing: -.01em; }
+  h2 {
+    font-size: 1.2rem; margin: 3rem 0 1rem; padding-top: 1.25rem;
+    border-top: 1px solid var(--rule); letter-spacing: -.005em;
+  }
+  h3 { font-size: 1rem; margin: 2rem 0 .5rem; }
+  p, li { max-width: 62ch; }
+  .lede { color: var(--muted); margin: 0; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .875em; }
+  code { background: var(--code-bg); padding: .1em .35em; border-radius: 3px; }
+  pre {
+    background: var(--code-bg); padding: .9rem 1rem; border-radius: 6px;
+    overflow-x: auto; border: 1px solid var(--rule); line-height: 1.5;
+  }
+  pre code { background: none; padding: 0; }
+  .scroll { overflow-x: auto; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 32rem; font-size: .925rem; }
+  th, td { text-align: left; padding: .55rem .75rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .up { color: var(--accent); font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .75rem; margin: 1.5rem 0; }
+  .card { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem; }
+  .card .k { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .card .v { font-size: 1.6rem; font-variant-numeric: tabular-nums; margin-top: .15rem; }
+  .card .d { font-size: .8rem; color: var(--accent); }
+  .note {
+    border-left: 3px solid var(--rule); padding: .1rem 0 .1rem 1rem;
+    margin: 1.25rem 0; color: var(--muted);
+  }
+  .note.warn { border-left-color: var(--warn); }
+  .note.bad { border-left-color: var(--bad); }
+  .note strong { color: var(--fg); }
+  ol.problems { padding-left: 1.25rem; }
+  ol.problems > li { margin-bottom: 1.5rem; }
+  ol.problems > li > strong { display: block; margin-bottom: .25rem; }
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: .875rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Client render-test programme</h1>
+  <p class="lede">
+    Branch <code>test/client-render-coverage</code> · 2026-08-07 ·
+    64 new test files, no production code changed
+  </p>
+</header>
+
+<p>
+  This document is the deliverable for the client testing task: what was built, what
+  was decided, what was fixed, and — at greater length than the rest — what went wrong
+  along the way. The problems section is the part worth reading. Most of them are
+  specific to this codebase and will be hit again by anyone writing the next test.
+</p>
+
+<h2>Result</h2>
+
+<div class="cards">
+  <div class="card"><div class="k">Suites</div><div class="v">120</div><div class="d">was 56 · +64</div></div>
+  <div class="card"><div class="k">Tests</div><div class="v">1191</div><div class="d">was 713 · +478</div></div>
+  <div class="card"><div class="k">Branches</div><div class="v">58.39%</div><div class="d">was 38.98% · +19.41</div></div>
+  <div class="card"><div class="k">Statements</div><div class="v">50.86%</div><div class="d">was 39.24% · +11.62</div></div>
+</div>
+
+<div class="scroll">
+<table>
+  <thead>
+    <tr><th>Metric</th><th class="num">Before</th><th class="num">After</th><th class="num">Δ</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Statements</td><td class="num">39.24% (1862/4744)</td><td class="num">50.86% (2421/4760)</td><td class="num up">+11.62</td></tr>
+    <tr><td>Branches</td><td class="num">38.98% (1400/3591)</td><td class="num">58.39% (2111/3615)</td><td class="num up">+19.41</td></tr>
+    <tr><td>Functions</td><td class="num">34.97% (484/1384)</td><td class="num">44.67% (621/1390)</td><td class="num up">+9.70</td></tr>
+    <tr><td>Lines</td><td class="num">39.32% (1659/4219)</td><td class="num">51.63% (2184/4230)</td><td class="num up">+12.31</td></tr>
+    <tr><td>Test suites</td><td class="num">56</td><td class="num">120</td><td class="num up">+64</td></tr>
+    <tr><td>Tests</td><td class="num">713</td><td class="num">1191</td><td class="num up">+478</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  <code>pnpm lint</code> and <code>pnpm typecheck</code> exit 0 — they did at baseline too,
+  so any error in the new files would have been a regression.
+</p>
+<p>
+  The four checks were run <em>individually</em> rather than through
+  <code>pnpm check</code>, because that script is <code>&amp;&amp;</code>-chained and
+  fail-fast: one failure hides the other three, so a green <code>pnpm check</code> after
+  a red one tells you less than four separate exit codes.
+  <code>pnpm check</code> was <em>also</em> run end to end afterwards and exits 0 — both
+  facts, because they answer different questions.
+</p>
+
+<div class="note">
+  <strong>The headline number is branches, not statements.</strong> The component batch
+  moved statements by less than a point while moving branches by 3.6. That is the honest
+  result and it is worth understanding rather than glossing: the screen tests already
+  execute most component statements — mounting the history screen runs
+  <code>BPReadingCard</code> top to bottom. What was unprotected was the branch a screen
+  never renders: the attribution case, the stuck-sync threshold, the web fallback. Anyone
+  wanting a statement-coverage headline out of the component work will be disappointed,
+  because statements were not what was missing.
+</div>
+
+<h2>What was built</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Location</th><th class="num">Files</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td><code>__test__/screens/</code></td><td class="num">31</td><td>9 pre-existing + <strong>22 new</strong> — every Expo Router route now has a test</td></tr>
+    <tr><td><code>__test__/components/</code></td><td class="num">43</td><td>new directory; 42 component tests + <code>host-tree.ts</code>, a shared tree-walk helper (6+ consumers)</td></tr>
+    <tr><td><code>jest.setup.js</code></td><td class="num">1</td><td>one added mock — AsyncStorage</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  All 31 routes under <code>src/app/</code> are covered. On the component side, everything
+  reachable and render-testable is covered; the exclusions are listed under
+  <a href="#uncovered">Not covered</a> with the specific reason for each.
+</p>
+
+<h2>Decisions taken, and why</h2>
+
+<h3>Depth: renders, plus the principal states that thing actually has</h3>
+<p>
+  Not a bare “does not crash”, and not interaction. Where a screen or component genuinely
+  has loading, error, or empty states, those are asserted. Where it has none — a static
+  <code>about</code> page — the render assertion is the whole test, and the file says so
+  rather than padding with invented assertions.
+</p>
+<p>
+  Interaction tests (presses, form submission, navigation) were deliberately excluded.
+  They are a much larger surface, more coupled to UI structure, and a separate decision.
+  Every file that stops short records what it left, so the gap is deliberate rather than
+  looking like an oversight.
+</p>
+
+<h3>Two test-location conventions now coexist, on purpose</h3>
+<p>
+  Screens were already centralised in <code>__test__/screens/</code>. Component tests were
+  colocated next to their component. New component tests go in
+  <code>__test__/components/</code>; the five existing colocated files
+  (<code>themed-text</code>, three under <code>modules/caregivers/components/</code>, one
+  under <code>modules/security/components/</code>) were <em>not</em> moved — that is a
+  refactor, and doing it inside a 64-file diff would bury it.
+</p>
+<div class="note">
+  <strong><code>client/AGENTS.md</code>'s “Where tests live” is updated in this change</strong>
+  — it said “Two places” and listed only the colocated and screens locations. This diff is
+  what created the third, so documenting it is inside scope, not outside: rule 6 says the
+  Markdown moves with the code that invalidated it. The section now names
+  <code>__test__/components/</code> as where new component tests go, records that the five
+  colocated ones predate the convention, and says plainly not to take them as the pattern.
+  An earlier draft of this report deferred that edit as out of scope; the PR review caught
+  it, correctly.
+</div>
+
+<h3>Coverage is reported, not gated</h3>
+<p>
+  No <code>coverageThreshold</code> was added. This follows
+  <code>docs/project/TESTING-plan.md</code>, which says plainly: <em>“Do not chase coverage
+  percentage. The client is at 713 tests and the two worst bugs of the session were in code
+  no percentage would have flagged.”</em> A threshold rewards adding tests that move the
+  number over tests that catch defects, and this programme already produced an example of
+  the difference — see the branches-not-statements note above.
+</p>
+
+<h2 id="problems">Problems encountered</h2>
+
+<p>
+  These are grouped by kind. The first group is the important one: ways a test in this
+  codebase passes <em>without asserting anything</em>. A test that cannot fail is worse
+  than no test, because it is counted as coverage.
+</p>
+
+<h3>Tests that could not fail</h3>
+
+<ol class="problems">
+  <li>
+    <strong>NativeWind classes never reach <code>props.style</code>.</strong>
+    A divider test filtered rendered nodes for <code>height === 1</code> (from
+    <code>h-px</code>) and an onboarding-dot test for <code>height === 6</code> (from
+    <code>h-1.5</code>). Both matched <strong>zero nodes</strong>. The divider test happened
+    to fail loudly — expected 1, got 0 — but the dot test, written as a comparison, would
+    have passed with zero dots on both sides forever. <em>Anything expressed as a Tailwind
+    class is invisible to a style-prop filter; only inline <code>style={{}}</code> values
+    are visible.</em> Both were rewritten against the inline <code>backgroundColor</code>
+    the components set per element.
+  </li>
+  <li>
+    <strong><code>props.style</code> is an array when <code>ThemedText</code> composes
+    className and style.</strong> Reading <code>.style.color</code> returned
+    <code>undefined</code> on <em>both</em> sides of three colour comparisons. One survived
+    only because an <code>expect(...).toBeDefined()</code> had been written first. Every
+    colour comparison now flattens the array and asserts the value is defined before
+    comparing.
+  </li>
+  <li>
+    <strong>Tamagui expands <code>borderWidth</code> into four sides.</strong> An
+    active-row test read <code>style.borderWidth</code> and got <code>undefined</code> on
+    both rows. Same class of surprise as the NativeWind one but from the opposite
+    direction: Tamagui shorthand props <em>do</em> reach <code>props.style</code>, just not
+    under the name you wrote. The real keys are <code>borderTopWidth</code>,
+    <code>borderTopColor</code>, and so on.
+  </li>
+  <li>
+    <strong><code>toBeDisabled()</code> is vacuous against React Native
+    <code>Switch</code> — and <code>props.disabled</code> is vacuous against
+    <code>Pressable</code>.</strong> The matcher reads
+    <code>accessibilityState.disabled</code>, which <code>Switch</code> never sets, so
+    <code>not.toBeDisabled()</code> passes forever. But generalising that to “always read
+    the prop” broke four assertions at once on a <code>GradientButton</code>, whose
+    <code>Pressable</code> host node carries the accessibility state and <em>not</em> the
+    prop. <em>The rule is per-component, not per-matcher, and the only way to know is to
+    look.</em> Every <code>toBeDisabled</code> / <code>toBeSelected</code> /
+    <code>toBeBusy</code> in the new tests is written as a positive <em>and</em> negative
+    pair, so the matcher is proven to discriminate on that specific component.
+  </li>
+  <li>
+    <strong><code>renderScreen(...).toJSON()</code> is never <code>null</code></strong> —
+    it returns the provider wrapper. Four “this renders nothing” assertions were written
+    that way and were all wrong. The correct assertion is on the wrapper's
+    <code>children</code>.
+  </li>
+  <li>
+    <strong><code>toHaveProp('x', undefined)</code> fails when the prop is absent</strong>,
+    which is the thing being asserted. Read <code>props.x</code> directly.
+    <strong><code>toHaveAccessibilityState</code> does not exist in RNTL v14</strong> —
+    it was used twice from memory. The v14 matcher set is <code>toBeBusy</code>,
+    <code>toBeSelected</code>, <code>toBeChecked</code>, <code>toBeDisabled</code>,
+    <code>toBeExpanded</code>, <code>toBePartiallyChecked</code>.
+  </li>
+  <li>
+    <strong><code>toHaveTextContent</code> is exact-match in RNTL, not substring</strong>
+    as it is in jest-dom — and <code>@expo/vector-icons</code> glyphs are invisible text
+    inside the container. An assertion aggregating text over a container holding an icon
+    fails against a string a human would call correct, with a diff showing two visually
+    identical strings. This bit three times. Use
+    <code>within(container).getByText(...)</code>.
+  </li>
+  <li>
+    <strong>Thai has no word boundaries, so unanchored regexes match the wrong
+    branch.</strong> A “measurement time shows only on a completed round” test used
+    <code>/เวลา/</code>, and the <em>upcoming</em> copy is <code>รอถึงเวลา</code> — which
+    contains it. The failure read like a component bug. Fixed with <code>/^เวลา /</code>.
+    Every Thai substring assertion in this tree is exposed to this.
+  </li>
+</ol>
+
+<h3>Failures that pointed at the wrong file</h3>
+
+<ol class="problems">
+  <li>
+    <strong>A chart's timer leaked across a suite boundary and failed an innocent
+    file.</strong> After every file passed individually, the full run went red in
+    <code>haptic-tab.test.tsx</code> with
+    <code>TypeError: Cannot read properties of undefined (reading 'timing')</code> and a
+    stack pointing into <code>react-native-gifted-charts</code>. <code>haptic-tab</code>
+    imports no chart. Rendering the real <code>LineChart</code> schedules a
+    <code>setTimeout</code> that outlives RNTL cleanup, fires during whichever file runs
+    next, and reaches for <code>Animated.timing</code>, which the hand-written reanimated
+    stub does not provide. Fixed by mocking <code>LineChart</code> at the package
+    boundary — which produced a <em>better</em> test, since capturing the
+    <code>data</code>/<code>data2</code> props proves both series reach the chart
+    oldest-first, something the real render could not show.
+    <em>A component that starts a timer on mount is a cross-suite hazard, and the failure
+    will not be attributed to it.</em>
+  </li>
+  <li>
+    <strong>A wrong mock does not fail like a wrong mock.</strong> A
+    <code>useLiveFraming</code> stub returned <code>{ framing }</code> instead of
+    <code>{ state }</code>. The screen destructured <code>undefined</code> and died at
+    <code>FRAMING_PRESENTATION[framingState].label</code> — which reads exactly like a bug
+    in <code>camera.tsx</code>. When something fails in a way that looks like a bug in code
+    you did not touch, check your stub first.
+  </li>
+  <li>
+    <strong>A JSX string literal does not process escapes.</strong>
+    <code>value="  \n  "</code> puts a literal backslash and <code>n</code> into the input.
+    <code>trim()</code> keeps them, the submit guard stays enabled, and the test reports
+    “the component does not trim whitespace” — a plausible production bug that does not
+    exist. It was nearly filed as a finding. Use <code>value={'  \n  '}</code>.
+  </li>
+  <li>
+    <strong>A default parameter fires on an explicit <code>undefined</code>.</strong>
+    A helper written <code>render(post, isOwner, onMore = noop)</code> meant
+    <code>render(post(), true, undefined)</code> received <code>noop</code> — so a “menu is
+    withheld when the author has no handler” test asserted the opposite of its name and
+    failed for the right reason by luck.
+  </li>
+</ol>
+
+<h3>Tooling and environment</h3>
+
+<ol class="problems">
+  <li>
+    <strong>There is no prettier config anywhere in the monorepo, and the existing test
+    files are hand-formatted.</strong> Running <code>prettier --write</code> — which the
+    task brief asked for — reformatted <strong>nine pre-existing test files</strong> into
+    a drive-by diff. It was reverted. Prettier cannot reproduce the existing formatting
+    under any option set tried (<code>--single-quote --print-width 100</code> still fails
+    <code>--check</code> on two files). New files match the surrounding style by hand.
+    <em>This repo should either adopt a formatter of record or stop asking agents to run
+    one.</em>
+  </li>
+  <li>
+    <strong>RNTL v14 removed <code>UNSAFE_getByType</code>.</strong> For a node with no
+    testID and no accessibility role — <code>app/index.tsx</code>'s
+    <code>ActivityIndicator</code> — nothing reaches it. Rather than add a testID to
+    production code, the tests use a small <code>hasHostType</code> walk over
+    <code>toJSON()</code>, now shared as <code>__test__/components/host-tree.ts</code>.
+  </li>
+  <li>
+    <strong>Internal host-component names are a trap.</strong> <code>expo-image</code>
+    renders as <code>ViewManagerAdapter_ExpoImage</code> and <code>LinearGradient</code> as
+    <code>ViewManagerAdapter_ExpoLinearGradient</code> under jest-expo. Both work today and
+    both would break on an SDK bump that changes nothing a user sees. Assertions were
+    switched to the component API — does the node carry a <code>source</code>, a
+    <code>colors</code> array.
+  </li>
+  <li>
+    <strong>Tamagui's <code>Toast</code> portals into a <code>ToastViewport</code>.</strong>
+    With no viewport mounted it renders nothing, which reads as a broken component. The
+    test mounts the pair, mirroring <code>app/_layout.tsx</code>.
+  </li>
+  <li>
+    <strong>A modal Tamagui <code>Sheet</code> keeps its content mounted while
+    closed</strong>, so <code>open={false}</code> is not an assertion those components can
+    support. Both sheet tests say so rather than writing a test that would pass for the
+    wrong reason. React Native's own <code>Modal</code> does unmount, so
+    <code>post-composer</code>'s closed state <em>is</em> asserted.
+  </li>
+</ol>
+
+<div class="note">
+  <strong><code>tsc</code> was the only gate that caught a defect, twice.</strong> Once on
+  an invalid value in a closed route union, once on
+  <code>StyleSheet.flatten(x as never)</code> — three assertions that passed at runtime
+  while the type checker rejected them. In both cases the suite was green. This is a
+  concrete argument for keeping <code>pnpm check</code> as the gate rather than
+  <code>pnpm test</code> alone.
+</div>
+
+<h2>Verification</h2>
+
+<p>
+  Beyond the suite passing, the assertions were attacked directly.
+  <code>expo-reviewer</code> — which did not write the tests — ran <strong>18 mutants
+  against production code and all 18 were killed</strong>, chosen adversarially against
+  the trap list above: the geometry read, <code>accessibilityState</code> in both
+  directions, <code>toBeDisabled()</code> against both <code>Pressable</code> and Tamagui,
+  the <code>ActivityIndicator</code> walk, gradient counting, the empty-readings guard, and
+  screen-level branches in <code>alerts</code>, <code>reminders</code>, and
+  <code>security-passkeys</code>.
+</p>
+<p>
+  It also re-derived the branches-not-statements claim with a corrected method. Naively
+  excluding <code>__test__/components/</code> reports 38.05%, because excluded files fall
+  out of <code>testPathIgnorePatterns</code> and back into <code>collectCoverageFrom</code>
+  as 0%-covered source, inflating the denominator from 4,760 to 6,238. Holding the
+  denominator fixed at the same 257 source files: <strong>statements +0.76, branches +4.74
+  (170 branches)</strong> — the shape claimed.
+</p>
+<p>
+  Test-order independence was checked with <code>--randomize</code>. One failure surfaced
+  and is <strong>pre-existing</strong>: <code>use-invite-alerts.test.tsx</code> has
+  intra-file order dependence, reproducible with
+  <code>pnpm jest --randomize --seed=-1485702872 src/modules/caregivers/hooks/use-invite-alerts.test.tsx</code>,
+  and it reproduces with the new tests absent and <code>jest.setup.js</code> reverted.
+</p>
+
+<h2>Findings — reported, not fixed</h2>
+
+<p>No production code was changed anywhere in this work. These are for follow-up.</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Finding</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>bp-camera-view.tsx</code> has no test seam</td>
+      <td>Decides <code>USE_NATIVE_CAMERA</code> at module scope from <code>isBpVisionAvailable()</code>, so neither branch is reachable in a test without a seam that does not exist.</td>
+    </tr>
+    <tr>
+      <td><code>permission-sheet.tsx</code> rows may not be one focusable radio</td>
+      <td>Rows carry <code>accessibilityRole="radio"</code> and <code>accessibilityState.checked</code>, but Tamagui's <code>XStack</code> never sets <code>accessible</code>, so RNTL refuses <code>toBeChecked()</code> outright. If RNTL's rule tracks the platform rule, assistive tech may not treat the row as one unit — and this is consent UI where the label carries the whole consequence sentence. The fix is a one-word prop in production code.</td>
+    </tr>
+    <tr>
+      <td>Three dead component files</td>
+      <td><code>external-link.tsx</code>, <code>hint-row.tsx</code>, <code>web-badge.tsx</code> — no importer anywhere in <code>src/</code> or <code>app/</code>. Expo-template leftovers.</td>
+    </tr>
+    <tr>
+      <td><code>AnimatedSplashOverlay</code> cannot be mounted in a test</td>
+      <td>It constructs <code>new Keyframe(...)</code> and calls <code>scheduleOnRN</code>. The hand-written reanimated stub in <code>jest.setup.js</code> exports no <code>Keyframe</code>, and <code>scheduleOnRN</code> comes from <code>react-native-worklets</code>, which is not mocked at all — so mounting it needs two mocks, not one. A shipped component used by <code>_layout.tsx</code> is currently untestable.</td>
+    </tr>
+    <tr>
+      <td><code>post-card.tsx:65</code> commented-out style</td>
+      <td>A commented <code>opacity: pressed ? 0.95 : 0</code> sits inside a live style object. Note the value — uncommenting it as written would make the card invisible when not pressed.</td>
+    </tr>
+    <tr>
+      <td>No formatter of record</td>
+      <td>See the tooling section. Either adopt one or stop running one.</td>
+    </tr>
+    <tr>
+      <td><code>use-invite-alerts.test.tsx</code> order dependence</td>
+      <td>Pre-existing, with a reproduction seed above.</td>
+    </tr>
+    <tr>
+      <td>Worker exit warning</td>
+      <td><code>A worker process has failed to exit gracefully</code> is present at baseline and unchanged. <code>--detectOpenHandles</code> reported nothing. Source still unidentified.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note bad">
+  <strong>One correction, caught in review, that would have deleted live code.</strong>
+  An earlier draft of the dead-file list named <code>animated-icon.tsx</code> and its
+  <code>.web.tsx</code> variant. <code>src/app/_layout.tsx:13</code> imports
+  <code>AnimatedSplashOverlay</code> from it and renders it at line 166. The two findings
+  contradicted each other — one called the file orphaned, the other correctly described the
+  same component as shipped. Anyone acting on the list as first written would have deleted
+  a live splash screen. It is excluded from the table above.
+</div>
+
+<h2 id="uncovered">Not covered, and why</h2>
+
+<ul>
+  <li><strong>Interaction across the board</strong> — presses, form submission, navigation.
+    A scope decision, not an oversight. Each affected file records what it left:
+    <code>alerts</code>' inert row for caregivers, <code>profile</code>'s edit mode and the
+    account rows being withdrawn while editing, <code>security/password</code>'s validation
+    and banner surface, <code>avatar-picker</code>'s three <code>Alert.alert</code> paths,
+    <code>post-composer</code>'s <code>submit()</code> and error branch.</li>
+  <li><strong><code>avatar-picker</code>'s alert callbacks</strong> — reachable only by
+    invoking a mocked <code>Alert.alert</code> callback <em>by index</em>, which passes just
+    as happily when the options are in the wrong order. That is a test that cannot fail on
+    the thing that would break, so it was left for an interaction batch rather than written
+    badly now.</li>
+  <li><strong>Closed-sheet state for the two Tamagui sheets</strong> — the component keeps
+    content mounted while closed, so there is nothing to assert.</li>
+  <li><strong><code>app-lock-gate.tsx</code></strong> — owns <code>AppState</code> listeners
+    and a biometric prompt. Behavioural rather than render, and the reachable surface is
+    already covered by the app-lock screen test.</li>
+  <li><strong><code>themed-view.tsx</code></strong> — already at 100%/100% incidentally; a
+    dedicated file would assert a constant against itself.</li>
+  <li><strong><code>compact-patient-banner.tsx</code></strong> — its branches are already
+    exercised through the security header test.</li>
+</ul>
+
+<h2>Checks that were run</h2>
+
+<pre><code>cd client
+
+pnpm test          # 120 suites / 1191 tests — coverage collected by default
+pnpm lint          # exit 0
+pnpm typecheck     # exit 0
+pnpm verify-graphql  # 50 operations checked, 0 invalid, 0 unchecked
+
+pnpm check         # the canonical gate: the four above, &&-chained and fail-fast.
+                   # Exits 0 — but run them separately when something is red,
+                   # or the first failure hides the rest.</code></pre>
+
+<p>
+  Coverage is written to <code>client/coverage/</code>, which is gitignored. Open
+  <code>coverage/lcov-report/index.html</code> for the per-file breakdown; the numbers at
+  the top of this document come from the same run.
+</p>
+
+<div class="note warn">
+  <strong>This file is written by hand, not generated.</strong> It will not update itself
+  when the suite changes. The numbers describe the run on
+  <code>test/client-render-coverage</code> at the time of writing; re-run
+  <code>pnpm test</code> for current figures rather than trusting these.
+</div>
+
+<footer>
+  BP Monitor Application · client render-test programme · 2026-08-07 ·
+  branch <code>test/client-render-coverage</code>
+</footer>
+
+</div>
+</body>
+</html>
