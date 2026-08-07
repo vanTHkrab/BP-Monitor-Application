@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BP Monitor — client test programme, 2026-08-07</title>
+<title>BP Monitor — client test programme, 2026-08-07 → 08</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -86,9 +86,10 @@
 <header>
   <h1>Client test programme</h1>
   <p class="lede">
-    2026-08-07 · two passes, 87 new test files, no production code changed ·
-    <code>test/client-render-coverage</code> (merged, PR #107) and
-    <code>test/client-service-layer</code>
+    2026-08-07 → 08 · three passes, 105 new test files, no production code changed ·
+    <code>test/client-render-coverage</code> (PR #107) ·
+    <code>test/client-service-layer</code> (PR #108) ·
+    <code>test/client-hooks</code>
   </p>
 </header>
 
@@ -100,21 +101,22 @@
   test.
 </p>
 <p>
-  The work came in two passes. <strong>Pass one</strong> covered the render layer:
+  The work came in three passes. <strong>Pass one</strong> covered the render layer:
   every Expo Router screen and the component tree. <strong>Pass two</strong> covered
   the function layer: <code>modules/**/{lib,services}</code> and
-  <code>src/services/**</code>. <code>src/lib/**</code> was surveyed and needed
-  nothing — it was already at 91.7%. Hooks were deliberately excluded from both
-  and remain the largest untested surface.
+  <code>src/services/**</code> (<code>src/lib/**</code> was surveyed and needed nothing,
+  already at 91.7%). <strong>Pass three</strong> covered the readings, auth, and
+  security hooks — and turned <code>--randomize</code> into a gate the repo can actually
+  run, which is where most of its findings came from.
 </p>
 
 <h2>Result</h2>
 
 <div class="cards">
-  <div class="card"><div class="k">Suites</div><div class="v">143</div><div class="d">was 56 · +87</div></div>
-  <div class="card"><div class="k">Tests</div><div class="v">1746</div><div class="d">was 713 · +1033</div></div>
-  <div class="card"><div class="k">Branches</div><div class="v">68.18%</div><div class="d">was 38.98% · +29.20</div></div>
-  <div class="card"><div class="k">Statements</div><div class="v">63.04%</div><div class="d">was 39.24% · +23.80</div></div>
+  <div class="card"><div class="k">Suites</div><div class="v">161</div><div class="d">was 56 · +105</div></div>
+  <div class="card"><div class="k">Tests</div><div class="v">2000</div><div class="d">was 713 · +1287</div></div>
+  <div class="card"><div class="k">Branches</div><div class="v">71.52%</div><div class="d">was 38.98% · +32.54</div></div>
+  <div class="card"><div class="k">Statements</div><div class="v">70.04%</div><div class="d">was 39.24% · +30.80</div></div>
 </div>
 
 <div class="scroll">
@@ -122,17 +124,17 @@
   <thead>
     <tr>
       <th>Metric</th><th class="num">Start</th>
-      <th class="num">After render pass</th><th class="num">After function pass</th>
-      <th class="num">Δ total</th>
+      <th class="num">After render</th><th class="num">After function</th>
+      <th class="num">After hooks</th><th class="num">Δ total</th>
     </tr>
   </thead>
   <tbody>
-    <tr><td>Statements</td><td class="num">39.24%</td><td class="num">50.86%</td><td class="num">63.04%</td><td class="num up">+23.80</td></tr>
-    <tr><td>Branches</td><td class="num">38.98%</td><td class="num">58.39%</td><td class="num">68.18%</td><td class="num up">+29.20</td></tr>
-    <tr><td>Functions</td><td class="num">34.97%</td><td class="num">44.67%</td><td class="num">55.25%</td><td class="num up">+20.28</td></tr>
-    <tr><td>Lines</td><td class="num">39.32%</td><td class="num">51.63%</td><td class="num">63.59%</td><td class="num up">+24.27</td></tr>
-    <tr><td>Test suites</td><td class="num">56</td><td class="num">120</td><td class="num">143</td><td class="num up">+87</td></tr>
-    <tr><td>Tests</td><td class="num">713</td><td class="num">1191</td><td class="num">1746</td><td class="num up">+1033</td></tr>
+    <tr><td>Statements</td><td class="num">39.24%</td><td class="num">50.86%</td><td class="num">63.04%</td><td class="num">70.04%</td><td class="num up">+30.80</td></tr>
+    <tr><td>Branches</td><td class="num">38.98%</td><td class="num">58.39%</td><td class="num">68.18%</td><td class="num">71.52%</td><td class="num up">+32.54</td></tr>
+    <tr><td>Functions</td><td class="num">34.97%</td><td class="num">44.67%</td><td class="num">55.25%</td><td class="num">63.86%</td><td class="num up">+28.89</td></tr>
+    <tr><td>Lines</td><td class="num">39.32%</td><td class="num">51.63%</td><td class="num">63.59%</td><td class="num">70.75%</td><td class="num up">+31.43</td></tr>
+    <tr><td>Test suites</td><td class="num">56</td><td class="num">120</td><td class="num">143</td><td class="num">161</td><td class="num up">+105</td></tr>
+    <tr><td>Tests</td><td class="num">713</td><td class="num">1191</td><td class="num">1746</td><td class="num">2000</td><td class="num up">+1287</td></tr>
   </tbody>
 </table>
 </div>
@@ -498,13 +500,32 @@
 
 <ol class="problems">
   <li>
-    <strong><code>process.env.EXPO_OS</code> is inlined as a literal by Expo's Babel
-    preset.</strong> Assigning it in a test does nothing, so a function switching on it
-    can only ever be exercised on one platform — <code>deviceLabel()</code> in both
-    <code>auth-api.ts</code> and <code>security-api.ts</code> is reachable only on its
-    iOS arm. The first attempt read the failure as a mock problem. Same class applies to
-    <code>EXPO_PUBLIC_API_URL</code>. <code>Platform.OS</code> is mockable;
+    <strong><code>process.env.EXPO_OS</code> cannot be set from a test, so a function
+    switching on it is reachable on one platform only.</strong>
+    <code>deviceLabel()</code> in both <code>auth-api.ts</code> and
+    <code>security-api.ts</code> can only be exercised on its iOS arm. The first attempt
+    read the failure as a mock problem. <code>Platform.OS</code> is mockable;
     <code>EXPO_OS</code> is not.
+
+    <br><br><strong>This entry originally said Babel inlines it as a literal, and added
+    that the same applies to <code>EXPO_PUBLIC_*</code>. The second half was false and the
+    first half was right for the wrong reason</strong> — both corrected in a later pass
+    after someone transformed a probe through this project's own
+    <code>babel.config.js</code> instead of inheriting the claim.
+    <code>EXPO_PUBLIC_*</code> is <em>not</em> inlined: it is rewritten to
+    <code>import { env } from 'expo/virtual/env'</code>, which
+    <code>jest.mock('expo/virtual/env', …)</code> can replace — so
+    <code>isGoogleSignInConfigured()</code>, whose gate decides whether the Google
+    sign-in button renders at all, was testable the whole time and is now covered.
+    <code>EXPO_OS</code> is genuinely unreachable, but because it is substituted with the
+    Babel <em>caller's</em> platform literal rather than through env inlining, so no
+    module mock touches it.
+
+    <br><br>Recorded rather than quietly fixed, because of how it spread: the wrong
+    mechanism was written into a test file as the stated reason a user-reachable gate
+    could not be tested, then repeated into later briefs. <strong>A false claim about why
+    something cannot be tested is worse than a missing test</strong> — it stops the next
+    person from trying, and no gate catches it.
   </li>
   <li>
     <strong><code>await import('expo-notifications')</code> always fails under
@@ -565,9 +586,86 @@
   the missing test at least tells the truth about being missing.
 </div>
 
+<h2>Pass three — hooks</h2>
+
+<p>
+  18 new suites and 254 tests over the readings, auth, and security hooks:
+  <strong>143 → 161 suites, 1746 → 2000 tests</strong>, statements 63.04% →
+  <strong>70.04%</strong>, branches 68.18% → <strong>71.52%</strong>. Four hooks remain
+  at 0% and are named under <a href="#uncovered">Not covered</a>.
+</p>
+
+<h3>The assertion that closes a gap the architecture depends on</h3>
+<p>
+  Root <code>AGENTS.md</code> says <code>use-readings-sync.tsx</code> owns the app's
+  <em>only</em> <code>AppState</code> and <code>NetInfo</code> listeners, and that wiring
+  <code>useFetchReadings</code> or <code>useSyncReadings</code> into a screen
+  reintroduces duplicated listeners. Its existing spec asserts the provider registers
+  exactly one of each — but <strong>that number is only stable while the hooks
+  underneath register none</strong>, and nothing asserted that half.
+</p>
+<p>
+  Both now do, with a positive discriminator beside the negative: <code>NetInfo.fetch</code>
+  is called exactly once <em>per drain</em>, because a one-shot read is the allowed form —
+  N callers cost N reads, not N subscriptions. Adding a listener to
+  <code>use-sync-readings.ts</code> turns exactly the named test red.
+</p>
+<p>
+  What it still cannot prove is that no <em>screen</em> calls them. That is a call-graph
+  fact, not a runtime one; the nearest testable seam is an
+  <code>import/no-restricted-paths</code> rule forbidding <code>app/**</code> from
+  importing those two hooks.
+</p>
+
+<h3>Six order- and timing-dependent tests, and the two instruments that find them</h3>
+<p>
+  This pass turned <code>--randomize</code> into a usable gate, and doing so exposed six
+  defects — one pre-existing on <code>main</code>, one from the previous batch, four
+  self-inflicted:
+</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>File</th><th>Mechanism</th><th>Found by</th></tr></thead>
+  <tbody>
+    <tr><td><code>use-create-reading.test.ts</code></td><td><code>clearAllMocks</code> clears recorded calls but <strong>not implementations</strong>; a mock reassigned by one test leaked into every test after it</td><td><code>--randomize</code></td></tr>
+    <tr><td><code>use-invite-alerts.test.tsx</code> <em>(pre-existing on <code>main</code>)</em></td><td>bare <code>view.unmount()</code> — async in RNTL v14 — left React's act scope unbalanced, poisoning the <em>next</em> test</td><td><code>--randomize</code></td></tr>
+    <tr><td><code>use-passkeys.test.ts</code></td><td><code>isLoading === true</code> raced a resolving <code>mockResolvedValue</code></td><td><code>--randomize</code></td></tr>
+    <tr><td><code>use-login-sessions.test.ts</code></td><td>same shape, fixed pre-emptively</td><td>inspection</td></tr>
+    <tr><td><code>use-session.test.ts</code></td><td><code>setQueryData</code> seed overwritten by the <em>enabled</em> query</td><td>plain repeated run</td></tr>
+    <tr><td><code>use-app-lock.test.ts</code></td><td>an unawaited synchronous <code>act()</code> poisoning later tests</td><td>bisection with <code>-t</code></td></tr>
+  </tbody>
+</table>
+</div>
+<p>
+  <strong><code>--randomize</code> and repeated same-order runs catch different
+  classes.</strong> Seeds find ordering leaks; repetition finds timing races. Two of the
+  six were visible to only one of the two, which is the argument for running both rather
+  than picking one.
+</p>
+<p>
+  Every one of them failed as a <em>product</em> bug rather than a harness bug. The
+  <code>use-create-reading</code> flake reported <code>['enqueue']</code> against
+  <code>['enqueue','sync']</code> — reading as the offline outbox ordering having broken,
+  the most alarming false alarm this repo can produce. The pre-existing one reported that
+  a new invite was not announced, reading as the alerting feature being broken. That is
+  what makes this class expensive: the symptom always points at the feature.
+</p>
+
+<div class="note warn">
+  <strong><code>pnpm test -- --randomize --seed=7</code> silently does not do what it
+  looks like.</strong> pnpm 10 forwards <code>--</code> literally, so jest reads
+  <code>--randomize|--seed=7</code> as a <em>test path pattern</em>, matches nothing, and
+  exits 1 with <code>No tests found</code>. A first seed sweep came back red at every
+  seed for this reason alone. The correct form omits the <code>--</code>. Anyone copying
+  the <code>pnpm test -- --watchAll=false</code> idiom into CI for this repo gets a red
+  build that has nothing to do with the tests.
+</div>
+
 <h2>Findings — reported, not fixed</h2>
 
-<p>No production code was changed anywhere in this work. These are for follow-up.</p>
+<p>
+  No production code was changed anywhere in this work. These are for follow-up.
+</p>
 
 <div class="scroll">
 <table>
@@ -692,7 +790,8 @@
 
 <pre><code>cd client
 
-pnpm test          # 143 suites / 1746 tests — coverage collected by default
+pnpm test          # 161 suites / 2000 tests — coverage collected by default
+pnpm test --randomize --seed=7   # NOTE: no `--`. See the warning above.
 pnpm lint          # exit 0
 pnpm typecheck     # exit 0
 pnpm verify-graphql  # 50 operations checked, 0 invalid, 0 unchecked
@@ -717,8 +816,8 @@ pnpm check         # the canonical gate: the four above, &&-chained and fail-fas
 
 <footer>
   BP Monitor Application · client test programme · 2026-08-07 ·
-  render pass on <code>test/client-render-coverage</code> (PR #107, merged),
-  function pass on <code>test/client-service-layer</code>
+  passes on <code>test/client-render-coverage</code> (#107), <code>test/client-service-layer</code> (#108),
+  and <code>test/client-hooks</code>
 </footer>
 
 </div>
