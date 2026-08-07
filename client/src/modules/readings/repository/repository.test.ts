@@ -13,6 +13,8 @@ import {
   dequeueReading,
   enqueueReading,
   findQueuedReading,
+  forgetQueuedImage,
+  listQueuedClientIds,
   listQueuedReadings,
   markQueuedImageUploaded,
   recordQueueFailure,
@@ -20,6 +22,7 @@ import {
 import {
   clearMirror,
   deleteMirrorRow,
+  listMirrorLocalImageClientIds,
   listMirrorRows,
   promoteToMirror,
   pruneMissingMirrorRows,
@@ -195,6 +198,52 @@ describe('readings repository', () => {
 
       expect(await findQueuedReading(db, 'c1')).toBeUndefined();
     });
+
+    /*
+     * Rule 6 in `lib/sync.ts`: the server refused the `imageId`, so the next
+     * pass has to upload again. `imageUri` is the only copy of those bytes on
+     * the device — clearing it alongside the id turns a recoverable rejection
+     * into a reading that permanently lost its photo, and nobody is told.
+     */
+    it('forgets a rejected imageId without dropping the photo it re-uploads from', async () => {
+      await enqueueReading(db, queued('c1', { imageUri: 'file:///docs/pending-images/c1.jpg' }));
+      await markQueuedImageUploaded(db, 'c1', 42);
+
+      await forgetQueuedImage(db, 'c1');
+
+      const row = await findQueuedReading(db, 'c1');
+      expect(row?.imageId).toBeNull();
+      expect(row?.imageUri).toBe('file:///docs/pending-images/c1.jpg');
+    });
+
+    it('forgets the image of one row only', async () => {
+      await enqueueReading(db, queued('c1'));
+      await enqueueReading(db, queued('c2'));
+      await markQueuedImageUploaded(db, 'c1', 42);
+      await markQueuedImageUploaded(db, 'c2', 43);
+
+      await forgetQueuedImage(db, 'c1');
+
+      expect((await findQueuedReading(db, 'c2'))?.imageId).toBe(43);
+    });
+
+    /*
+     * Device-wide on purpose. Its one caller is the durable-photo sweep in
+     * `lib/pending-image-store.ts`, which decides whether a file on disk is
+     * still claimed by *anything*. Scoping this to the signed-in user would
+     * make the sweep delete the photo of a reading queued under another
+     * account on the same phone — a measurement that exists nowhere else.
+     */
+    it('reports queued client ids across every account on the device', async () => {
+      await enqueueReading(db, queued('mine'));
+      await enqueueReading(db, queued('theirs', { userId: 'user-2' }));
+
+      expect((await listQueuedClientIds(db)).sort()).toEqual(['mine', 'theirs']);
+    });
+
+    it('reports no queued client ids for an empty outbox', async () => {
+      expect(await listQueuedClientIds(db)).toEqual([]);
+    });
   });
 
   describe('mirror', () => {
@@ -214,6 +263,17 @@ describe('readings repository', () => {
       const rows = await listMirrorRows(db, USER);
       expect(rows).toHaveLength(1);
       expect(rows[0].systolic).toBe(145);
+    });
+
+    // An empty page is not the same as an empty account. A pull that returned
+    // nothing — an unchanged page, a filtered range — must be a no-op, not a
+    // write that touches what is already mirrored.
+    it('leaves the mirror untouched for an empty page', async () => {
+      await upsertMirrorRows(db, [mirrored(1)]);
+
+      await upsertMirrorRows(db, []);
+
+      expect(await listMirrorRows(db, USER)).toHaveLength(1);
     });
 
     // The refetch trap: the server knows nothing about the local photo, so a
@@ -270,6 +330,93 @@ describe('readings repository', () => {
       expect(await findQueuedReading(db, 'c1')).toBeDefined();
     });
 
+    // The other half of the same invariant. The queue row surviving is only
+    // safe if the mirror got nothing: a row in both tables is a reading the
+    // next drain re-submits, which is a duplicate in a medical history.
+    it('leaves the mirror empty when the promotion fails', async () => {
+      await enqueueReading(db, queued('c1'));
+      const invalid = { ...mirrored(11, { clientId: 'c1' }), userId: null };
+
+      await expect(
+        promoteToMirror(db, 'c1', invalid as unknown as ReadingRow),
+      ).rejects.toThrow();
+
+      expect(await db.select().from(readings)).toHaveLength(0);
+    });
+
+    // A drain promotes one row at a time. If the queue delete were not scoped
+    // to the clientId being promoted, the first success of a backlog would
+    // take every unsent reading behind it with it.
+    it('promotes one queued row without touching the rest of the backlog', async () => {
+      await enqueueReading(db, queued('c1'));
+      await enqueueReading(db, queued('c2'));
+      await enqueueReading(db, queued('c3'));
+
+      await promoteToMirror(db, 'c2', mirrored(10, { clientId: 'c2' }));
+
+      expect((await listQueuedClientIds(db)).sort()).toEqual(['c1', 'c3']);
+    });
+
+    /*
+     * Duplicate sync. A drain interrupted after the server confirmed but
+     * before the app noticed re-submits the same clientId, and the gateway's
+     * idempotency hands back the same remoteId. Landing that twice must
+     * converge on one mirror row, not two rows for one measurement.
+     */
+    it('is idempotent when the same promotion runs twice', async () => {
+      await enqueueReading(db, queued('c1'));
+
+      await promoteToMirror(db, 'c1', mirrored(10, { clientId: 'c1' }));
+      await promoteToMirror(db, 'c1', mirrored(10, { clientId: 'c1', systolic: 131 }));
+
+      const rows = await db.select().from(readings);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].systolic).toBe(131);
+      expect(await db.select().from(pendingReadings)).toHaveLength(0);
+    });
+
+    /*
+     * The second claimant for a durable photo, and the one that was missed.
+     * Rule 4 in `lib/sync.ts` promotes a reading whose upload gave up, so the
+     * mirror row's `imageUri` still points at the app-storage copy. A sweep
+     * that asked only the queue deleted exactly those files on the next cold
+     * start — a picture vanishing hours later from a reading that shows as
+     * synced.
+     */
+    it('reports mirrored readings that still hold the only copy of a photo', async () => {
+      await upsertMirrorRows(db, [
+        mirrored(1, { clientId: 'c1', imageUri: 'file:///docs/pending-images/c1.jpg' }),
+      ]);
+
+      expect(await listMirrorLocalImageClientIds(db)).toEqual(['c1']);
+    });
+
+    // Both halves are required. A server-only row has no clientId to key a
+    // file by, and a row whose photo lives in S3 has nothing on disk to keep;
+    // reporting either would pin files the sweep should be free to collect.
+    it('excludes mirrored rows with no local photo and rows with no clientId', async () => {
+      await upsertMirrorRows(db, [
+        mirrored(1, { clientId: 'c1', imageUri: null, s3Key: 'users/u1/a.jpg' }),
+        mirrored(2, { clientId: null, imageUri: 'file:///docs/pending-images/x.jpg' }),
+      ]);
+
+      expect(await listMirrorLocalImageClientIds(db)).toEqual([]);
+    });
+
+    // Device-wide, for the same reason `listQueuedClientIds` is.
+    it('reports mirrored photo claims across every account on the device', async () => {
+      await upsertMirrorRows(db, [
+        mirrored(1, { clientId: 'c1', imageUri: 'file:///docs/pending-images/c1.jpg' }),
+        mirrored(2, {
+          clientId: 'c2',
+          userId: 'user-2',
+          imageUri: 'file:///docs/pending-images/c2.jpg',
+        }),
+      ]);
+
+      expect((await listMirrorLocalImageClientIds(db)).sort()).toEqual(['c1', 'c2']);
+    });
+
     // Same hazard on the fetch path: one colliding row used to roll back the
     // whole upsert, so a single re-submitted reading meant the entire pull
     // mirrored nothing.
@@ -297,6 +444,14 @@ describe('readings repository', () => {
       await pruneMissingMirrorRows(db, USER, [1, 3]);
 
       expect((await listMirrorRows(db, USER)).map((r) => r.remoteId)).toEqual([3, 1]);
+    });
+
+    it('prunes nothing when the fetch still covers every mirrored row', async () => {
+      await upsertMirrorRows(db, [mirrored(1), mirrored(2)]);
+
+      await pruneMissingMirrorRows(db, USER, [1, 2]);
+
+      expect(await listMirrorRows(db, USER)).toHaveLength(2);
     });
 
     it('never prunes another account’s rows', async () => {

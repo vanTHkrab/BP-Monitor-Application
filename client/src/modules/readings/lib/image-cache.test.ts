@@ -8,14 +8,163 @@
  *      so a cache keyed on anything URL-specific caches nothing.
  *   3. Whether a cached file is still inside its TTL.
  *
- * The I/O half (`resolveImageUri`, `cleanupExpiredImages`) is not tested here:
- * mocking `File.downloadFileAsync` and `Directory.list` leaves assertions
- * about whether the mocks were called, and the decisions worth guarding are
- * all above.
+ * The I/O half (`resolveImageUri`, `cleanupExpiredImages`) is covered too, but
+ * only where the outcome differs for the user: whether a download happened at
+ * all, and *what is handed back when one fails*. Returning the expired remote
+ * URL and returning `undefined` are different failures — one renders a broken
+ * image forever, the other lets the caller show a placeholder — and nothing
+ * but a test pins which one this is. `expo-file-system` is replaced with an
+ * in-memory directory at the package boundary; every decision above it stays
+ * real.
  */
-import { cacheFileNameFor, extractS3Key, isFresh } from './image-cache';
+jest.mock('expo-file-system', () => {
+  const fs = {
+    dirExists: true,
+    /** Filename → modification time, in whatever unit the test chose. */
+    files: new Map<string, number | null>(),
+    subdirs: new Set<string>(),
+    downloads: [] as { url: string; to: string }[],
+    deleted: [] as string[],
+    failDirCreate: false,
+    failStatOf: new Set<string>(),
+    failDeleteOf: new Set<string>(),
+    failDownload: false,
+    failList: false,
+  };
+
+  const DIR_URI = 'file:///cache/bp-images';
+
+  class MockFile {
+    name: string;
+    uri: string;
+
+    constructor(parent: unknown, name?: string) {
+      if (typeof name === 'string') {
+        this.name = name;
+        this.uri = `${DIR_URI}/${name}`;
+      } else {
+        this.uri = String(parent);
+        this.name = this.uri.split('/').pop() ?? '';
+      }
+    }
+
+    get exists(): boolean {
+      return fs.files.has(this.name);
+    }
+
+    get modificationTime(): number | null {
+      if (fs.failStatOf.has(this.name)) throw new Error(`stat refused: ${this.name}`);
+      return fs.files.get(this.name) ?? null;
+    }
+
+    delete(): void {
+      if (fs.failDeleteOf.has(this.name)) throw new Error(`delete refused: ${this.name}`);
+      fs.files.delete(this.name);
+      fs.deleted.push(this.name);
+    }
+
+    static async downloadFileAsync(url: string, target: MockFile): Promise<MockFile> {
+      if (fs.failDownload) throw new Error('download refused');
+      fs.downloads.push({ url, to: target.name });
+      fs.files.set(target.name, Date.now());
+      return target;
+    }
+  }
+
+  class MockDirectory {
+    name: string;
+
+    constructor(_parent: unknown, name?: string) {
+      this.name = name ?? '';
+    }
+
+    get exists(): boolean {
+      return fs.dirExists;
+    }
+
+    create(): void {
+      if (fs.failDirCreate) throw new Error('cannot create cache directory');
+      fs.dirExists = true;
+    }
+
+    list(): unknown[] {
+      if (fs.failList) throw new Error('list refused');
+      return [
+        ...[...fs.files.keys()].map((name) => new MockFile(null, name)),
+        ...[...fs.subdirs].map((name) => new MockDirectory(null, name)),
+      ];
+    }
+  }
+
+  return {
+    File: MockFile,
+    Directory: MockDirectory,
+    Paths: { document: 'file:///doc', cache: 'file:///cache' },
+    __fs: fs,
+  };
+});
+
+import { Platform } from 'react-native';
+
+import {
+  cacheFileNameFor,
+  cleanupExpiredImages,
+  extractS3Key,
+  isFresh,
+  resolveImageUri,
+} from './image-cache';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+type VirtualFs = {
+  dirExists: boolean;
+  files: Map<string, number | null>;
+  subdirs: Set<string>;
+  downloads: { url: string; to: string }[];
+  deleted: string[];
+  failDirCreate: boolean;
+  failStatOf: Set<string>;
+  failDeleteOf: Set<string>;
+  failDownload: boolean;
+  failList: boolean;
+};
+
+const fs = (jest.requireMock('expo-file-system') as { __fs: VirtualFs }).__fs;
+
+/**
+ * `Platform.OS` is a getter under jest-expo and defaults to 'ios'; the web
+ * branches are early returns that would otherwise never be reached.
+ */
+function onPlatform(os: 'ios' | 'web', run: () => Promise<void>) {
+  return async () => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
+    try {
+      await run();
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
+  };
+}
+
+beforeEach(() => {
+  fs.dirExists = true;
+  fs.files.clear();
+  fs.subdirs.clear();
+  fs.downloads = [];
+  fs.deleted = [];
+  fs.failDirCreate = false;
+  fs.failStatOf.clear();
+  fs.failDeleteOf.clear();
+  fs.failDownload = false;
+  fs.failList = false;
+
+  // Every failure path here warns rather than throwing; silence keeps a
+  // deliberate failure case from reading like a broken test.
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+});
+
+afterEach(() => jest.restoreAllMocks());
 
 describe('extractS3Key', () => {
   it('pulls the object path out of a signed URL', () => {
@@ -114,4 +263,201 @@ describe('isFresh', () => {
   it('treats a future timestamp as fresh', () => {
     expect(isFresh(now + 3_600_000, now)).toBe(true);
   });
+});
+
+const SIGNED = 'https://bucket.s3.amazonaws.com/users/u1/readings/abc.jpg?X-Amz-Signature=aaa';
+const CACHED_NAME = 'users_u1_readings_abc.jpg';
+const CACHED_URI = `file:///cache/bp-images/${CACHED_NAME}`;
+
+describe('resolveImageUri', () => {
+  it.each([
+    ['nothing', undefined],
+    ['null', null],
+    ['an empty string', ''],
+  ])('returns undefined for %s', async (_label, input) => {
+    await expect(resolveImageUri(input)).resolves.toBeUndefined();
+  });
+
+  it.each([
+    ['a local file', 'file:///data/user/0/app/cache/x.jpg'],
+    ['a content uri', 'content://media/external/images/1234'],
+  ])('passes %s through without touching the cache', async (_label, input) => {
+    await expect(resolveImageUri(input)).resolves.toBe(input);
+    expect(fs.downloads).toEqual([]);
+  });
+
+  // Not one of our objects: downloading it would pull a third party's asset
+  // into a directory keyed on a path it does not have.
+  it('passes a URL under no prefix we own straight through', async () => {
+    const other = 'https://example.com/avatars/x.jpg';
+
+    await expect(resolveImageUri(other)).resolves.toBe(other);
+    expect(fs.downloads).toEqual([]);
+  });
+
+  it('downloads one of ours on a miss and serves the local copy', async () => {
+    await expect(resolveImageUri(SIGNED)).resolves.toBe(CACHED_URI);
+    expect(fs.downloads).toEqual([{ url: SIGNED, to: CACHED_NAME }]);
+  });
+
+  it('serves a cached file inside the TTL without downloading', async () => {
+    fs.files.set(CACHED_NAME, Date.now() - 24 * 60 * 60 * 1000);
+
+    await expect(resolveImageUri(SIGNED)).resolves.toBe(CACHED_URI);
+    expect(fs.downloads).toEqual([]);
+  });
+
+  // The boundary the 7-day cache is defined by. A minute either side decides
+  // between a free render and a network round trip on a phone that may be
+  // offline.
+  it('still serves a file one minute inside the seven-day TTL', async () => {
+    fs.files.set(CACHED_NAME, Date.now() - SEVEN_DAYS_MS + 60_000);
+
+    await expect(resolveImageUri(SIGNED)).resolves.toBe(CACHED_URI);
+    expect(fs.downloads).toEqual([]);
+  });
+
+  it('re-downloads over a file one minute past the TTL', async () => {
+    fs.files.set(CACHED_NAME, Date.now() - SEVEN_DAYS_MS - 60_000);
+
+    await expect(resolveImageUri(SIGNED)).resolves.toBe(CACHED_URI);
+    expect(fs.deleted).toEqual([CACHED_NAME]);
+    expect(fs.downloads).toEqual([{ url: SIGNED, to: CACHED_NAME }]);
+  });
+
+  // The whole reason the cache is keyed on the object path: the gateway signs
+  // per request, so a cache keyed on anything URL-specific would download the
+  // same photo on every single fetch.
+  it('treats a re-signed URL for the same object as a hit', async () => {
+    const first = 'https://bucket.s3.amazonaws.com/users/u1/readings/abc.jpg?X-Amz-Signature=aaa';
+    const second = 'https://bucket.s3.amazonaws.com/users/u1/readings/abc.jpg?X-Amz-Signature=bbb';
+
+    await resolveImageUri(first);
+    await resolveImageUri(second);
+
+    expect(fs.downloads).toHaveLength(1);
+  });
+
+  /*
+   * The expired-signature case, and the assertion worth the most here.
+   *
+   * A failed download of one of our URLs is almost always a signature that has
+   * already expired. Handing the remote URL back would let `<Image>` hit it,
+   * fail again, and never render a fallback — a permanently broken image with
+   * no placeholder. `undefined` is what lets the caller show one.
+   */
+  it('returns undefined rather than the dead URL when the download fails', async () => {
+    fs.failDownload = true;
+
+    await expect(resolveImageUri(SIGNED)).resolves.toBeUndefined();
+  });
+
+  it('drops the expired copy even when the replacement download fails', async () => {
+    fs.files.set(CACHED_NAME, Date.now() - SEVEN_DAYS_MS - 60_000);
+    fs.failDownload = true;
+
+    await expect(resolveImageUri(SIGNED)).resolves.toBeUndefined();
+    expect(fs.files.has(CACHED_NAME)).toBe(false);
+  });
+
+  /*
+   * A different failure with a different right answer. With no cache
+   * directory there is no local copy to have expired, so the signature is
+   * probably still good and the remote URL is the best thing to render —
+   * unlike the download failure above, where it is known to be dead.
+   */
+  it('falls back to the remote URL when the cache directory is unavailable', async () => {
+    fs.dirExists = false;
+    fs.failDirCreate = true;
+
+    await expect(resolveImageUri(SIGNED)).resolves.toBe(SIGNED);
+  });
+
+  // A file whose age cannot be read is a file whose freshness is unknown;
+  // serving it could show a week-old photo, so it is replaced instead.
+  it('re-downloads over a cached file it cannot stat', async () => {
+    fs.files.set(CACHED_NAME, Date.now());
+    fs.failStatOf.add(CACHED_NAME);
+
+    await expect(resolveImageUri(SIGNED)).resolves.toBe(CACHED_URI);
+    expect(fs.downloads).toEqual([{ url: SIGNED, to: CACHED_NAME }]);
+  });
+
+  it(
+    'renders the URL directly on web, where there is no writable cache',
+    onPlatform('web', async () => {
+      await expect(resolveImageUri(SIGNED)).resolves.toBe(SIGNED);
+      expect(fs.downloads).toEqual([]);
+    }),
+  );
+});
+
+describe('cleanupExpiredImages', () => {
+  it('deletes a file past the TTL and keeps one inside it', async () => {
+    fs.files.set('old.jpg', Date.now() - SEVEN_DAYS_MS - 60_000);
+    fs.files.set('new.jpg', Date.now() - 60_000);
+
+    await cleanupExpiredImages();
+
+    expect([...fs.files.keys()]).toEqual(['new.jpg']);
+  });
+
+  // `null` is "age unknown", which `isFresh` treats as expired — a file the
+  // sweep cannot date is cheaper to re-fetch than to keep for a week.
+  it('deletes a file whose age cannot be read', async () => {
+    fs.files.set('undated.jpg', null);
+
+    await cleanupExpiredImages();
+
+    expect(fs.files.has('undated.jpg')).toBe(false);
+  });
+
+  // One unreadable entry must not abandon the rest, or the cache stops being
+  // swept from the first stuck file onward.
+  it('keeps sweeping after one delete fails', async () => {
+    fs.files.set('stuck.jpg', Date.now() - SEVEN_DAYS_MS - 60_000);
+    fs.files.set('old.jpg', Date.now() - SEVEN_DAYS_MS - 60_000);
+    fs.failDeleteOf.add('stuck.jpg');
+
+    await expect(cleanupExpiredImages()).resolves.toBeUndefined();
+
+    expect([...fs.files.keys()]).toEqual(['stuck.jpg']);
+  });
+
+  it('skips a sub-directory rather than trying to delete it as a file', async () => {
+    fs.subdirs.add('nested');
+    fs.files.set('old.jpg', Date.now() - SEVEN_DAYS_MS - 60_000);
+
+    await cleanupExpiredImages();
+
+    expect(fs.deleted).toEqual(['old.jpg']);
+  });
+
+  it('does nothing when the cache directory has never been created', async () => {
+    fs.dirExists = false;
+    fs.files.set('old.jpg', 0);
+
+    await cleanupExpiredImages();
+
+    expect(fs.deleted).toEqual([]);
+  });
+
+  // This runs at app start. An unreadable cache directory must not be able to
+  // reject the launch sweep's promise into an unhandled rejection.
+  it('swallows a directory listing failure at launch', async () => {
+    fs.failList = true;
+
+    await expect(cleanupExpiredImages()).resolves.toBeUndefined();
+  });
+
+  it(
+    'does nothing on web',
+    onPlatform('web', async () => {
+      fs.files.set('old.jpg', 0);
+
+      await cleanupExpiredImages();
+
+      expect(fs.deleted).toEqual([]);
+    }),
+  );
 });
