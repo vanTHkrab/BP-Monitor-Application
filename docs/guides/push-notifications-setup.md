@@ -45,7 +45,7 @@ Fixed values you will need:
 
 | Setting | Value |
 | --- | --- |
-| Android package | `com.project.bpmonitor` |
+| Android package | `com.project.bpmobile` |
 | Expo slug | `bp-mobile-application` |
 | Expo owner / account | `bp-monitor-education-project` |
 | EAS project id | `b5572b71-c303-4b8e-b89e-14007c46ca3c` |
@@ -61,7 +61,7 @@ Do 1–4 in order — step 4 depends on step 3, and step 2 depends on step 1. St
 same kind of console work and it blocks the same builds.
 
 1. **Firebase Console → create or open the project → add an Android app.**
-   Enter the package name as exactly `com.project.bpmonitor`. Nothing else on
+   Enter the package name as exactly `com.project.bpmobile`. Nothing else on
    that form is load-bearing for push.
 
 2. **Download `google-services.json` and place it at `client/google-services.json`.**
