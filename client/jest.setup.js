@@ -131,3 +131,36 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
     PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
   },
 }));
+
+/**
+ * `expo-image` 57.0.2 wires an `expo-observe` integration at import time, and
+ * jest-expo's native-module stub makes that crash every suite that renders an
+ * image — `TypeError: observe.getIntegrations is not a function`, thrown from
+ * `expo-image/src/observe.ts` before a single test runs. Twenty-six suites
+ * failed to load on the SDK 57 patch bump because of it.
+ *
+ * The production path is fine, and that is the point. `expo-observe` is not a
+ * dependency of this project, so on a device
+ * `requireOptionalNativeModule('ExpoObserve')` returns `null` and the
+ * integration returns early. Under jest-expo the same call returns a truthy
+ * stub with none of the methods on it, the `if (!observe) return` guard
+ * passes, and the next line dereferences a function that was never there.
+ *
+ * So this is not papering over a defect in `expo-image` — it is making the
+ * test environment agree with the device about a module the app does not
+ * install. Scoped to that one module name rather than mocking `expo`
+ * wholesale: every other `requireOptionalNativeModule` call still resolves
+ * through the real implementation.
+ *
+ * Remove this when jest-expo stops stubbing unlisted native modules as
+ * truthy, or when `expo-image` guards on a method rather than on the object.
+ */
+jest.mock('expo', () => {
+  const actual = jest.requireActual('expo');
+
+  return {
+    ...actual,
+    requireOptionalNativeModule: (name) =>
+      name === 'ExpoObserve' ? null : actual.requireOptionalNativeModule(name),
+  };
+});
