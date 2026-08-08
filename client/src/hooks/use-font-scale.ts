@@ -1,33 +1,27 @@
 /**
- * Turns `usePreferencesStore().fontSize` into a multiplier a component can
- * apply to its own literal sizes: `Math.round(BASE_PX * scale)`.
+ * Turns `usePreferencesStore().fontSize` into a multiplier.
  *
- * A multiplier rather than a per-role lookup table, because the app has no
- * shared typography scale — every component still hardcodes its own body /
- * label / heading sizes (see `docs/project/CLIENT-onboarding.md`, "Font size is
- * persisted but not yet consumed app-wide"). A multiplier preserves each
- * component's existing proportions without requiring that redesign, and is
- * the smallest change that makes the preference actually do something.
+ * **This hook is now an input to `hooks/use-typography.ts`, not a thing to
+ * call directly.** It survives the move of the tables into
+ * `theme/typography.ts` for one reason, and it is the reason written out at
+ * length below: it divides the OS accessibility scale back out. That
+ * compensation cannot move into the pure resolver, because a pure function has
+ * no device to ask — so the multiplier stays a hook, the tables became data,
+ * and `useTypography()` is what combines them.
  *
- * The four steps are body-text px, matching the setup screen's own preview
- * (`app/onboarding/setup.tsx`) so the number the user saw while choosing is
- * exactly the baseline this hook scales from — a mismatch there would make
- * the preview a lie. `medium` (16px) is the 1.0 baseline. The elderly-first
- * floor the old client documented is ~11px body text; `small` stays above it
- * once a component's own base is applied.
+ * A component reaching for this directly and writing
+ * `Math.round(15 * fontScale)` is how the app ended up with fourteen
+ * hand-rolled copies of the same arithmetic, none of which knew about the
+ * font-family preference when it arrived. Use `useTypography()`.
+ *
+ * `FONT_SIZE_STEPS` moved to `theme/typography.ts` — it is data the resolver,
+ * the pickers, and the setup preview all read, and it stopped being this
+ * file's to own the moment more than one of them needed it.
  */
 import { useWindowDimensions } from 'react-native';
 
 import { usePreferencesStore, type FontSizePreference } from '@/stores';
-
-export const FONT_SIZE_STEPS: Record<FontSizePreference, number> = {
-  small: 14,
-  medium: 16,
-  large: 19,
-  xlarge: 22,
-};
-
-const BASELINE_PX = FONT_SIZE_STEPS.medium;
+import { BASELINE_PX, FONT_SIZE_STEPS } from '@/theme/typography';
 
 /**
  * The multiplier to apply to a literal px size.

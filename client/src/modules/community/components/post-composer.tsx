@@ -19,12 +19,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
-import { useFontScale } from '@/hooks/use-font-scale';
+import { TabButtons } from '@/components/ui/tab-buttons';
+import { useTypography } from '@/hooks/use-typography';
 import { useTheme } from '@/hooks/use-theme';
 import { formatErrorMessage } from '@/lib/error-message';
 
-import { CategoryTabs } from './category-tabs';
-import { categoryHint } from '../lib/categories';
+import { CATEGORY_TABS, categoryHint } from '../lib/categories';
 import type { PostCategory } from '../types';
 
 export const POST_MAX_LENGTH = 2000;
@@ -52,7 +52,7 @@ export function PostComposer({
   onClose,
 }: PostComposerProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
+  const typography = useTypography();
   const insets = useSafeAreaInsets();
 
   const [content, setContent] = useState(initialContent);
@@ -115,7 +115,17 @@ export function PostComposer({
         </View>
 
         <View className="flex-1 px-0">
-          <CategoryTabs value={category} onChange={setCategory} />
+          {/* The same control the feed filters with — see the note on
+              `CATEGORY_TABS`. `CategoryTabs` used to carry its own `mx-4 mb-3`;
+              `TabButtons` is layout-neutral, so the margins live here. */}
+          <View className="mx-4 mb-3">
+            <TabButtons
+              testIDPrefix="composer-category"
+              tabs={CATEGORY_TABS}
+              activeTab={category}
+              onTabChange={setCategory}
+            />
+          </View>
 
           <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mb-2 px-5">
             {categoryHint(category)}
@@ -126,8 +136,10 @@ export function PostComposer({
               testID="composer-input"
               className="flex-1 rounded-2xl px-4 py-3"
               style={{
-                fontSize: Math.round(16 * fontScale),
-                lineHeight: Math.round(24 * fontScale),
+                // Multiline, so it keeps its line height — 24 over 16 is the
+                // `default` role's own ratio, which is what a paragraph being
+                // composed should read as.
+                ...typography({ size: 16, weight: 'regular', lineHeight: 24 }),
                 color: colors['text-primary'],
                 backgroundColor: colors.surface,
                 textAlignVertical: 'top',

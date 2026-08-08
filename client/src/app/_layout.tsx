@@ -2,6 +2,7 @@ import '../global.css';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClientProvider } from '@tanstack/react-query';
+import * as Font from 'expo-font';
 import { SplashScreen, ThemeProvider } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import { useEffect, useState } from 'react';
@@ -44,6 +45,14 @@ import {
   NotoSansThai_600SemiBold,
   NotoSansThai_700Bold,
 } from '@expo-google-fonts/noto-sans-thai';
+import {
+  NotoSansThaiLooped_400Regular,
+  NotoSansThaiLooped_700Bold,
+} from '@expo-google-fonts/noto-sans-thai-looped';
+import { Sarabun_400Regular, Sarabun_700Bold } from '@expo-google-fonts/sarabun';
+import { IBMPlexMono_400Regular, IBMPlexMono_700Bold } from '@expo-google-fonts/ibm-plex-mono';
+import { LoadedFontFamiliesProvider } from '@/theme/font-loading';
+import type { FontFamilyId } from '@/theme/typography';
 
 SplashScreen.preventAutoHideAsync().then();
 
@@ -107,6 +116,79 @@ function usePreferencesBootstrap() {
 }
 
 /**
+ * The two **opt-in** typefaces, loaded after first paint.
+ *
+ * Only families a user has to actively choose belong here, and that is the
+ * whole rule. `looped` and `sarabun` are minority preferences: the user who
+ * picked one is the only user who sees a FOUT, they asked for a non-default
+ * face, and the intermediate frame renders Noto rather than the OEM font
+ * because `theme/font-loading.tsx` reports what has actually landed.
+ *
+ * The trade being made: adding font binary to the blocking path taxes every
+ * cold start for every user, and the audience is elderly patients on mid-range
+ * Android. A slower launch for everyone is worse than a brief, bounded FOUT
+ * for the few who opted in.
+ *
+ * **`mono` is deliberately NOT here — it is in the blocking `useFonts` call.**
+ * It is not a preference. `family="mono"` is locked onto the blood-pressure
+ * figure for every user on the home hero card, every history row, and the
+ * detail screen, so deferring it meant the hero digits changed typeface *and
+ * size* mid-launch on every cold start: `opticalScale` is 0.96, so `size={48}`
+ * emitted 48 before the swap and 46 after. Whether that was visible was a race
+ * against the readings query — a coin flip on the app's primary screen. It is
+ * a Latin-only face and a fraction of the payload this deferral is defending
+ * against, so it blocks. The rule to keep: **a family nobody opts into must
+ * not be deferred.**
+ *
+ * Gated on `hydrated` rather than firing at mount because until AsyncStorage
+ * has been read back there is no preference to serve — and doing the work
+ * during hydration would put it in front of the gate redirect, which is the
+ * first thing the user is waiting on.
+ *
+ * A load failure is swallowed on purpose: the family simply never appears in
+ * the loaded set, every caller keeps rendering Noto, and the app is fully
+ * usable. Surfacing "the font did not download" to a patient is noise about a
+ * problem they cannot act on.
+ */
+type DeferredFamilyId = Extract<FontFamilyId, 'looped' | 'sarabun'>;
+
+const DEFERRED_FONTS: Record<DeferredFamilyId, Parameters<typeof Font.loadAsync>[0]> = {
+  looped: { NotoSansThaiLooped_400Regular, NotoSansThaiLooped_700Bold },
+  sarabun: { Sarabun_400Regular, Sarabun_700Bold },
+};
+
+function useDeferredFontFamilies(): FontFamilyId[] {
+  const hydrated = usePreferencesStore((state) => state.hydrated);
+  const [loadedFamilies, setLoadedFamilies] = useState<FontFamilyId[]>([]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+
+    void Promise.all(
+      (Object.keys(DEFERRED_FONTS) as DeferredFamilyId[]).map(async (id) => {
+        try {
+          await Font.loadAsync(DEFERRED_FONTS[id]);
+          return id;
+        } catch {
+          // See the note above: an unavailable family is a silent no-op.
+          return null;
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      setLoadedFamilies(results.filter((id): id is DeferredFamilyId => id !== null));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated]);
+
+  return loadedFamilies;
+}
+
+/**
  * Collects durable photo copies nothing refers to any more, once per launch.
  *
  * The app can be killed between "reading synced" and "photo copy deleted", and
@@ -151,10 +233,17 @@ function ThemedApp() {
   usePreferencesBootstrap();
   usePendingImageSweep(migrations.success);
   useImageCacheSweep();
+  // Below the preferences bootstrap on purpose — it waits on that hydration.
+  const loadedFontFamilies = useDeferredFontFamilies();
 
   if (migrations.error) throw migrations.error;
 
   return (
+    // Wraps everything that can render text, which is everything. Until a
+    // deferred family lands, `useTypography()` keeps naming Noto rather than a
+    // font the device has not registered — an unregistered name does not
+    // throw, it silently drops to the OEM's own Thai face.
+    <LoadedFontFamiliesProvider families={loadedFontFamilies}>
     <TamaguiProvider config={tamaguiConfig} defaultTheme={scheme}>
       {/* `native={false}`: the OS toast has no theme of ours and no room for
           two lines, so `AppToast` renders every toast itself. The viewport is
@@ -189,6 +278,7 @@ function ThemedApp() {
         </ThemeProvider>
       </ToastProvider>
     </TamaguiProvider>
+    </LoadedFontFamiliesProvider>
   );
 }
 
@@ -270,14 +360,27 @@ export default function RootLayout() {
    *
    * On Android a named `fontFamily` does not synthesise weight: `fontWeight`
    * beside an explicit family is ignored or faked. The weight has to select
-   * the *family*, which is what `ThemedText` does — and it can only do that
-   * for weights that were loaded here.
+   * the *family*, which is what `useTypography()` does — and it can only do
+   * that for weights that were loaded here.
+   *
+   * **What blocks is what every user sees whether they chose it or not.**
+   * That is Noto, the default face, and IBM Plex Mono, which is pinned to the
+   * blood-pressure figure on the home hero card, every history row, and the
+   * detail screen. Deferring mono made those digits change typeface and size
+   * mid-launch on every cold start, racing the readings query — see
+   * `DEFERRED_FONTS` above. Latin-only and small, so it is cheap to block.
+   *
+   * The two families a user can actually pick — looped and Sarabun — load
+   * after hydration in `useDeferredFontFamilies`, which is where that
+   * trade-off is argued.
    */
   const [loaded, error] = useFonts({
     NotoSansThai_400Regular,
     NotoSansThai_500Medium,
     NotoSansThai_600SemiBold,
     NotoSansThai_700Bold,
+    IBMPlexMono_400Regular,
+    IBMPlexMono_700Bold,
   });
 
   useEffect(() => {

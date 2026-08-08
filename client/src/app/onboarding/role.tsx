@@ -1,5 +1,11 @@
 /**
- * Onboarding step 1 — pick a role.
+ * Pick a role — the one onboarding step that runs *after* authentication.
+ *
+ * It stays there because it writes to the server (`User.roleSelectedAt`) and
+ * so needs a session to write with. Display setup, which writes only to
+ * AsyncStorage, moved ahead of login for the reasons in
+ * `modules/auth/route-gate.ts`. That leaves this as a standalone step rather
+ * than "1 of 2".
  *
  * This is where the role is chosen for *every* sign-up path. It is not in
  * the registration form on purpose: a Google sign-up never sees
@@ -47,9 +53,15 @@ export default function OnboardingRoleScreen() {
 
     try {
       await selectRole(selected);
-      // The hook has already written `roleSelectedAt` into the `me` cache, so
-      // the gate on the next screen sees this step as done.
-      router.replace('/onboarding/setup');
+      /*
+       * Straight into the app. Display setup used to follow this step; it now
+       * runs *before* login (see `modules/auth/route-gate.ts`), so by the time
+       * anyone reaches the role question the device is already configured.
+       *
+       * The hook has already written `roleSelectedAt` into the `me` cache, so
+       * the gate sees this step as done.
+       */
+      router.replace('/(tabs)');
     } catch {
       // Rendered from `error` below.
     }
@@ -58,7 +70,7 @@ export default function OnboardingRoleScreen() {
   return (
     <OnboardingShell
       step={1}
-      totalSteps={2}
+      totalSteps={1}
       title="คุณใช้แอปในบทบาทใด"
       subtitle="เลือกให้ตรงกับการใช้งานของคุณ เปลี่ยนภายหลังได้ในหน้าตั้งค่า"
       actionTitle="ถัดไป"

@@ -6,6 +6,7 @@
       "Read(**/.env.local)",
       "Read(**/.env.production)",
       "Read(**/.env.development)",
+      "Read(**/google-services.json)",
       "Read(**/secrets/**)",
       "Bash(npx prisma *)",
       "Bash(pnpm prisma *)"

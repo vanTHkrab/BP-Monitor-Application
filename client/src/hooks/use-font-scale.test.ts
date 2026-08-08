@@ -6,7 +6,9 @@ jest.mock(
   () => require('@react-native-async-storage/async-storage/jest/async-storage-mock') as unknown,
 );
 
-import { fontScaleFor, FONT_SIZE_STEPS } from './use-font-scale';
+import { FONT_SIZE_STEPS } from '@/theme/typography';
+
+import { fontScaleFor } from './use-font-scale';
 
 describe('fontScaleFor', () => {
   it('is 1.0 at the medium baseline', () => {

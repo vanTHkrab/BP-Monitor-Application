@@ -25,18 +25,23 @@
  * not rendered now.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { cssInterop } from 'nativewind';
 import { useState } from 'react';
 import { Alert, FlatList, Pressable, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
+import { TabButtons } from '@/components/ui/tab-buttons';
 import { useTheme } from '@/hooks/use-theme';
 import { formatErrorMessage } from '@/lib/error-message';
 import { useSession } from '@/modules/auth';
+import { gradientFor } from '@/theme';
+import { useColorSchemePreference } from '@/theme/color-scheme';
 import {
-  CategoryTabs,
+  CATEGORY_TABS,
   DEFAULT_CATEGORY,
   PostCard,
   PostComposer,
@@ -50,11 +55,14 @@ import {
   type PostCategory,
 } from '@/modules/community';
 
+cssInterop(LinearGradient, { className: 'style' });
+
 type ComposerState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; post: Post };
 
 export default function CommunityScreen() {
   const colors = useTheme();
   const insets = useSafeAreaInsets();
+  const { scheme } = useColorSchemePreference();
   const { userId } = useSession();
 
   const [category, setCategory] = useState<PostCategory>(DEFAULT_CATEGORY);
@@ -109,16 +117,39 @@ export default function CommunityScreen() {
   return (
     <GradientBackground safeArea={false}>
       <View className="flex-1" style={{ paddingTop: insets.top }}>
-        <View className="px-4 pb-3 pt-2">
-          <ThemedText type="title">
-            ชุมชนสุขภาพ
-          </ThemedText>
-          <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-0.5">
-            แลกเปลี่ยนประสบการณ์ดูแลความดันกับคนอื่น
-          </ThemedText>
+        {/* The centred gradient pill `app/(tabs)/history.tsx` uses, to the
+            same measurements. The three tab screens read as one product only
+            if their headers are the same object, and this one was the odd
+            left-aligned title.
+
+            No subtitle. The row of category tabs directly beneath already
+            says what the screen is, and a line of explanatory prose above the
+            control it explains is the thing this audience scrolls past. */}
+        <View className="items-center px-4 py-4">
+          <LinearGradient
+            colors={gradientFor(scheme, 'header')}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            className="rounded-xl px-6 py-2.5"
+          >
+            <ThemedText size={18} weight="bold" style={{ color: '#FFFFFF' }}>
+              ชุมชนสุขภาพ
+            </ThemedText>
+          </LinearGradient>
         </View>
 
-        <CategoryTabs value={category} onChange={setCategory} />
+        {/* `TabButtons`, the same control the history filters use — the two
+            were structurally identical segmented rows that disagreed only on
+            what "selected" looks like. `testIDPrefix` reproduces the
+            `community-tab-*` ids the old component hardcoded. */}
+        <View className="mb-3 px-4">
+          <TabButtons
+            testIDPrefix="community-tab"
+            tabs={CATEGORY_TABS}
+            activeTab={category}
+            onTabChange={setCategory}
+          />
+        </View>
 
         {error ? (
           <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-2 px-5">

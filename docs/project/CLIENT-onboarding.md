@@ -2,7 +2,7 @@
 title: "Client: the onboarding flow"
 description: How a new account gets from registered to using the app, and the rules a new onboarding step must respect.
 status: current
-updated: 2026-08-06
+updated: 2026-08-08
 owner: client
 ---
 
@@ -17,14 +17,34 @@ module layout this builds on.
 ## The flow
 
 ```text
-สมัคร / Google sign-in
+cold start
+   ↓
+/onboarding/setup    ตั้งค่าการแสดงผล    → device-local state, NO session needed
+   ↓
+สมัคร / เข้าสู่ระบบ / Google sign-in
    ↓
 /onboarding/role     เลือกบทบาท        → server state
    ↓
-/onboarding/setup    ตั้งค่าแอปครั้งแรก  → device-local state
-   ↓
 /(tabs)
 ```
+
+**Display setup runs before authentication, and that ordering is load-bearing.**
+It used to be the last step, after login and after the role question. Two
+things were wrong with that:
+
+- The login and register screens are themselves text. Gating the text-size and
+  typeface controls behind them asks a user who cannot read small text to read
+  a login form first, in order to reach the control that fixes small text. For
+  an elderly-first product that is backwards.
+- `setupCompleted` is a device-local AsyncStorage flag, not a server column.
+  Hanging a per-device gate off a per-session signal is a scope mismatch: "has
+  this phone been set up" does not depend on who is signed in on it.
+
+The role step stays after authentication for the mirror-image reason — it
+writes `User.roleSelectedAt` to the server, so it needs a session to write
+with. Neither step is "step N of 2" any more; they are two standalone steps
+with a login screen between them, which is why `OnboardingShell` is given
+`step={1} totalSteps={1}` on both.
 
 Registration does **not** ask for a role. `RegisterInput` has no `role`
 field, and sending one is a validation error. Every account is created as
@@ -45,17 +65,28 @@ skipping ahead. The rule is pure and lives in
 ```ts
 resolveGate({ status, roleSelected, appConfigured, preferencesHydrated })
 
+  !preferencesHydrated            -> wait          // AsyncStorage still reading
+  !appConfigured                  -> /onboarding/setup   // regardless of session
   status === 'unknown'            -> wait
   status === 'unauthenticated'    -> /login
   roleSelected === null           -> wait          // `me` still in flight
-  !preferencesHydrated            -> wait          // AsyncStorage still reading
   !roleSelected                   -> /onboarding/role
-  !appConfigured                  -> /onboarding/setup
   otherwise                       -> /(tabs)
 ```
 
 `route-gate.test.ts` is the specification. Add a case there before adding a
 step.
+
+Note what the reordering buys beyond the accessibility argument: a first-run
+user is no longer held on a spinner waiting for `roleSelected` to resolve, a
+query that needs a session they do not have yet. The device-local question is
+answered from device-local state alone.
+
+`/onboarding/setup` finishes by routing back to `/` rather than to `/(tabs)`,
+so the gate decides what comes next. A signed-out first-run user lands on
+`/login`; a signed-in one with no role lands on `/onboarding/role`. Hardcoding
+a destination in the screen would be a second copy of this rule — and the copy
+a signed-out user hits first.
 
 ### Two signals, because there are two kinds of state
 
@@ -105,7 +136,8 @@ src/app/onboarding/               NOT a (group) — the section is in the URL
 ├── role.tsx
 └── setup.tsx
 
-src/stores/preferences.store.ts   fontSize + setupCompleted + hydrated
+src/stores/preferences.store.ts   fontSize + fontFamily + setupCompleted
+                                  + autoCapture + hydrated
 ```
 
 `useSelectRole` writes the returned user straight into the `['me']` query
@@ -134,12 +166,30 @@ top-level screens.
   Google sign-up carries none, so that flow needs a step before `role`. It is
   blocked on Google credentials — see
   [CLIENT-auth-integration.md](./CLIENT-auth-integration.md).
-- ~~**Font size is persisted but not consumed app-wide.**~~ Done. The three
-  named holdouts — `auth-shell.tsx`, `gradient-button.tsx`, `option-row.tsx` —
-  all scale now, and `ThemedText` scales by construction so a screen adopting
-  it cannot forget. Mind the elderly-first readability floor (~11px body)
-  documented in `client-old/CLAUDE.md`; `use-font-scale.ts` ties the scale
-  back to it.
+- ~~**Font size is persisted but not consumed app-wide.**~~ Done, and since
+  centralised. Every rendered px in the app now comes out of one resolver,
+  [`hooks/use-typography.ts`](../../client/src/hooks/use-typography.ts) —
+  `Math.round(x * fontScale)` appears nowhere else in `src/`. The fourteen
+  hand-rolled copies that used to do the arithmetic (four text inputs, the
+  chart's axis props, the tab-bar label, the six deliberately-raw `<Text>`
+  nodes) all go through it, which is what made adding a font-*family*
+  preference a change to one file rather than fifteen. Mind the elderly-first
+  readability floor (~11px body) documented in `client-old/CLAUDE.md`;
+  `theme/typography.ts` ties the size ladder back to it.
+
+  **Typeface is a preference too**, alongside size: `fontFamily` in the same
+  store, defaulting to `noto`. The registry is `FONT_FAMILIES` in
+  [`theme/typography.ts`](../../client/src/theme/typography.ts). What blocks
+  the splash is what every user sees whether they chose it or not — Noto, and
+  the internal `mono` pinned to the blood-pressure figure; the two families a
+  user can actually pick load after hydration. The resolver refuses to name a
+  family the device has not registered, because an unloaded `fontFamily` does
+  not throw — it silently drops to the OEM's own Thai face.
+
+  The store validates the stored family against the *selectable* set, not the
+  full registry: `mono` is Latin-only, so holding it as the app-wide preference
+  would drop every Thai string in the product. The picker cannot offer it; this
+  is the second lock on the second door.
 
   **`useFontScale()` gained OS compensation in the same pass**, and that is
   the part worth knowing about. `<Text allowFontScaling>` defaults to `true`,

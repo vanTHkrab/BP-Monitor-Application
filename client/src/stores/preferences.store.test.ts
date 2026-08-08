@@ -129,6 +129,79 @@ describe('preferences.store', () => {
     expect(read().fontSize).toBe('large');
   });
 
+  /*
+   * The typeface preference. Same shape as the font size — optimistic set,
+   * swallowed write failure — with one difference that matters: an invalid
+   * value here is worse than an invalid font size. A rung the app does not
+   * know renders at the default; a *font family* it does not know is named as
+   * a `fontFamily` nothing loaded, which does not throw and instead drops
+   * every Thai string to the OEM's own face.
+   */
+  describe('font family', () => {
+    it('defaults to noto, the only family loaded before first paint', () => {
+      expect(read().fontFamily).toBe('noto');
+    });
+
+    it('reads a persisted family back on hydrate', async () => {
+      await AsyncStorage.setItem(STORAGE_KEYS.fontFamily, 'sarabun');
+
+      await read().hydrate();
+
+      expect(read().fontFamily).toBe('sarabun');
+    });
+
+    it('ignores a family the registry does not know', async () => {
+      // A build that dropped a family, or a hand-edited store. Either way the
+      // answer is the default, never the stored string.
+      await AsyncStorage.setItem(STORAGE_KEYS.fontFamily, 'comic-sans');
+
+      await read().hydrate();
+
+      expect(read().fontFamily).toBe('noto');
+    });
+
+    /*
+     * The second door. `FontFamilyPicker` cannot offer `mono` — it filters on
+     * `thai === 'full'` — but that guard only covers the path through the UI.
+     * A `'mono'` reaching AsyncStorage by any other route (a dev tool, a bad
+     * migration, a future code path) would hydrate into `state.fontFamily` and
+     * name a Latin-only face as the app-wide typeface, dropping every Thai
+     * string in the product to the OEM font. It loads fine, so nothing throws.
+     */
+    it('refuses a latin-only family as the app-wide preference', async () => {
+      await AsyncStorage.setItem(STORAGE_KEYS.fontFamily, 'mono');
+
+      await read().hydrate();
+
+      expect(read().fontFamily).toBe('noto');
+    });
+
+    it('falls back to noto when nothing has been stored', async () => {
+      // No legacy key exists for this preference — it is new — so an absent
+      // value is "never chosen" rather than "lost in a rename".
+      await read().hydrate();
+
+      expect(read().fontFamily).toBe('noto');
+    });
+
+    it('persists a family change', async () => {
+      await read().setFontFamily('looped');
+
+      expect(read().fontFamily).toBe('looped');
+      expect(await AsyncStorage.getItem(STORAGE_KEYS.fontFamily)).toBe('looped');
+    });
+
+    it('applies a family change even if persisting fails', async () => {
+      // Optimistic: the picker renders a live sample and has to respond under
+      // the finger. A failed write costs a preference, not data.
+      jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
+
+      await read().setFontFamily('sarabun');
+
+      expect(read().fontFamily).toBe('sarabun');
+    });
+  });
+
   it('persists setup completion', async () => {
     await read().completeSetup();
 

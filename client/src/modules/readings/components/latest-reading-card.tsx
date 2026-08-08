@@ -80,13 +80,22 @@ export function LatestReadingCard({ reading, isLoading = false }: LatestReadingC
         {reading ? (
           <>
             <View className="mb-3 flex-row items-baseline justify-center">
-              <ThemedText size={48} weight="bold" testID="home-systolic">
+            {/*
+              `family="mono"` on all three: the figure is a *number to compare*,
+              and proportional digits make a column of readings jitter — 1 is
+              narrow, 8 is wide, so 120/80 and 148/92 do not line up. Tabular
+              digits make the home hero card, a history row, and the detail
+              screen agree on the width of a reading. It also takes the figure
+              off the user's family preference, which was never a choice about
+              numerals. See `themed-text.tsx`'s `family` prop.
+            */}
+              <ThemedText size={48} weight="bold" family="mono" testID="home-systolic">
                 {reading.systolic}
               </ThemedText>
-              <ThemedText size={48} weight="bold" className="mx-1">
+              <ThemedText size={48} weight="bold" family="mono" className="mx-1">
                 /
               </ThemedText>
-              <ThemedText size={48} weight="bold" testID="home-diastolic">
+              <ThemedText size={48} weight="bold" family="mono" testID="home-diastolic">
                 {reading.diastolic}
               </ThemedText>
               <ThemedText

@@ -8,9 +8,18 @@ importers:
 
   .:
     dependencies:
+      '@expo-google-fonts/ibm-plex-mono':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@expo-google-fonts/noto-sans-thai':
         specifier: ^0.4.2
         version: 0.4.2
+      '@expo-google-fonts/noto-sans-thai-looped':
+        specifier: ^0.4.2
+        version: 0.4.2
+      '@expo-google-fonts/sarabun':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@expo/ui':
         specifier: ~57.0.7
         version: 57.0.7(@babel/core@7.29.7)(@types/react@19.2.17)(expo@57.0.8)(react-dom@19.2.3(react@19.2.3))(react-native-worklets@0.10.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/jest-preset@0.86.0(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/jest-preset@0.86.0(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
@@ -1369,11 +1378,20 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@expo-google-fonts/ibm-plex-mono@0.4.1':
+    resolution: {integrity: sha512-/yYz1mPZq8Nd4tSiH0SBDPEdJUqiOGBwVgSrQvLuw7SPh6C7ezBzmi6eFyHY4QaQwjHDmOLSBKsxzq8ZDFXVAg==}
+
   '@expo-google-fonts/material-symbols@0.4.42':
     resolution: {integrity: sha512-KZmHZRcthJ3KFZZlpzHjopA9guZgWR9fb3uVZlTR0BNlvG2pw1bnYBCpkze2PB0vRllwGhAM7lWXsfmcWCbXYg==}
 
+  '@expo-google-fonts/noto-sans-thai-looped@0.4.2':
+    resolution: {integrity: sha512-KA8ypgtqCpg3fBxVzQau9Us8KnxAWcVpgIT/uv5TSQpQoBILeofOIf/T0ygfTAqsah2PTKL2M5cWnLD0j+YQQQ==}
+
   '@expo-google-fonts/noto-sans-thai@0.4.2':
     resolution: {integrity: sha512-PGBBBDGfJJ/5y2hNweLBZWD4YmVT4uOO4chsOPXyl0TktaBJamDKVKv/WbGiDTeBGdkegLiytsWo+lhnkHP5qA==}
+
+  '@expo-google-fonts/sarabun@0.4.1':
+    resolution: {integrity: sha512-Q/mWAjNyaFT4ym8hZOdQJvTtSC56uxipJ1qzdpwW6znDCCLMas4zSnfflmnVNXPfoRVJoQCrxtTEg5yJ6BEw7w==}
 
   '@expo/cli@57.0.10':
     resolution: {integrity: sha512-mP+B9ZrTnRE94bxPM/kCVKPyuVuOTRvvsqbXVxdXtrAfOfF94YIZLGUtw/151cGFtdUPbsBsJ9gW02LhU+QMZA==}
@@ -7993,9 +8011,15 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@expo-google-fonts/ibm-plex-mono@0.4.1': {}
+
   '@expo-google-fonts/material-symbols@0.4.42': {}
 
+  '@expo-google-fonts/noto-sans-thai-looped@0.4.2': {}
+
   '@expo-google-fonts/noto-sans-thai@0.4.2': {}
+
+  '@expo-google-fonts/sarabun@0.4.1': {}
 
   '@expo/cli@57.0.10(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.7)(expo-constants@57.0.8)(expo-font@57.0.1)(expo-router@57.0.8)(expo@57.0.8)(react-dom@19.2.3(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/jest-preset@0.86.0(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)':
     dependencies:

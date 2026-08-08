@@ -18,9 +18,10 @@ import { cssInterop } from 'nativewind';
 import { Pressable, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
+import { useLayoutTypography } from '@/hooks/use-typography';
 import { gradientFor } from '@/theme';
+import { TYPE_SCALE } from '@/theme/typography';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
 cssInterop(LinearGradient, { className: 'style' });
@@ -51,11 +52,41 @@ export function TabButtons<T extends string>({
   testIDPrefix = 'tab',
 }: TabButtonsProps<T>) {
   const colors = useTheme();
-  const fontScale = useFontScale();
+  // `useLayoutTypography`, not `useTypography`: `minHeight` is dp and the
+  // label's own styling happens inside `ThemedText`. See the note below.
+  const layout = useLayoutTypography();
   const { scheme } = useColorSchemePreference();
 
-  // 44dp floor, and taller as the type grows — see the header.
-  const minHeight = Math.max(44, Math.round(44 * fontScale));
+  /*
+   * 44dp floor, and taller as the type grows — see the header.
+   *
+   * Derived from the label's own resolved line height rather than from a bare
+   * `44 × fontScale`, which is what this used to be. The pill has to fit two
+   * lines of `caption`, and how tall those two lines are now depends on the
+   * font *family* as well as the size — the old expression only knew about one
+   * of the two and would have clipped a taller face at the top rung. `+ 12` is
+   * the vertical padding the gradient fill carries.
+   *
+   * **The label carries no `lineHeight` override, and that is load-bearing.**
+   * It used to pass 16 against a 12px `caption` — a ratio of 1.33, under what
+   * Thai needs — and on hardware ◌ุ / ◌ู lost roughly their bottom half and ฐ
+   * lost its foot. The resolver now clamps that floor itself, so the override
+   * was doing nothing but hiding the intent; removing it and reading the
+   * role's own value is the honest form. **This expression and the two
+   * `ThemedText` labels below have to agree**, so if a `lineHeight` ever comes
+   * back it belongs in all three or none — otherwise `minHeight` sizes a box
+   * for text that is a different height.
+   *
+   * **`useLayoutTypography`, because `minHeight` is dp.** `useTypography`
+   * divides the OS accessibility scale out and RN multiplies it back at paint
+   * time; a container dimension gets no such multiplication. Reading the style
+   * number here made the pill *shrink* as the system font size grew — at
+   * `xlarge` with the OS at 2× it collapsed to the 44dp floor while the two
+   * painted lines needed 60 — which is the opposite of what the header
+   * promises, in every family including Noto.
+   */
+  const labelLineHeight = layout({ type: 'caption' }).lineHeight ?? TYPE_SCALE.caption.lineHeight;
+  const minHeight = Math.max(44, labelLineHeight * 2 + 12);
   const activeGradient = gradientFor(scheme, scheme === 'dark' ? 'accent' : 'cta');
 
   return (
@@ -89,7 +120,6 @@ export function TabButtons<T extends string>({
                   numberOfLines={2}
                   type="caption"
                   weight="bold"
-                  lineHeight={16}
                   className="text-center"
                   style={{ color: '#FFFFFF' }}
                 >
@@ -102,7 +132,6 @@ export function TabButtons<T extends string>({
                   numberOfLines={2}
                   type="caption"
                   weight="semibold"
-                  lineHeight={16}
                   themeColor="text-secondary"
                   className="text-center"
                 >

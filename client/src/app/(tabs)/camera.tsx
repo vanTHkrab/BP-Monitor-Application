@@ -48,6 +48,7 @@ import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
+import { useTabBarGeometry } from '@/hooks/use-tab-bar-geometry';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
 import { useActivePatient } from '@/modules/caregivers';
@@ -558,11 +559,17 @@ export default function CameraScreen() {
   const saveDisabled = isSaving || aiBusy || !canAttemptSave;
   const saveLabel = isSaving ? 'กำลังบันทึก...' : aiBusy ? 'กรุณารอสักครู่' : 'บันทึก';
 
-  // Mirrors the geometry in `app/(tabs)/_layout.tsx`. Duplicated rather than
-  // imported to keep this screen uncoupled from the navigator config — if those
-  // numbers change there, change them here.
-  const tabBarTotalHeight =
-    (Platform.OS === 'ios' ? 60 : 62) + insets.bottom + (Platform.OS === 'ios' ? 2 : 4);
+  /*
+   * Read from the navigator's own geometry, not copied from it.
+   *
+   * This used to duplicate the arithmetic under a comment promising to keep
+   * the two in step by hand. The numbers then changed in `_layout.tsx` — the
+   * bar grew `labelHeadroom` so Thai vowels stop clipping in a non-default
+   * typeface — and this did not follow, so on Sarabun the intended 14px of
+   * clearance quietly became 10px. Sharing the hook is what makes that
+   * impossible rather than merely discouraged.
+   */
+  const { totalHeight: tabBarTotalHeight } = useTabBarGeometry();
   const bottomOverlayPadding = tabBarTotalHeight + 14;
 
 

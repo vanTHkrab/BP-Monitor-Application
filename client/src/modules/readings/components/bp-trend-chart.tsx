@@ -21,8 +21,8 @@ import { Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 
 import { ThemedText } from '@/components/themed-text';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
+import { useTypography } from '@/hooks/use-typography';
 import { palette, status as statusColor } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -41,7 +41,7 @@ export type BPTrendChartProps = {
 
 export function BPTrendChart({ readings }: BPTrendChartProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
+  const typography = useTypography();
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
 
@@ -49,7 +49,17 @@ export function BPTrendChart({ readings }: BPTrendChartProps) {
   // axis with no line, which reads as "your readings are zero".
   if (readings.length === 0) return null;
 
-  const axisFontSize = Math.round(12 * fontScale);
+  /*
+   * The axis is `caption`, resolved through the same path as every other
+   * string in the app so it picks up the font family too — these labels were
+   * previously rendering in the OEM system face, being a style handed to a
+   * chart library rather than a `ThemedText`. `lineHeight: null` because
+   * gifted-charts positions its own labels and a line height fights that.
+   */
+  const { fontSize: axisFontSize = 12, fontFamily: axisFontFamily } = typography({
+    type: 'caption',
+    lineHeight: null,
+  });
   const latest = readings.at(-1);
 
   const systolic = readings.map((reading) => ({
@@ -131,8 +141,16 @@ export function BPTrendChart({ readings }: BPTrendChartProps) {
             yAxisColor="transparent"
             xAxisThickness={1}
             yAxisThickness={0}
-            yAxisTextStyle={{ color: colors['text-secondary'], fontSize: axisFontSize }}
-            xAxisLabelTextStyle={{ color: colors['text-secondary'], fontSize: axisFontSize }}
+            yAxisTextStyle={{
+              color: colors['text-secondary'],
+              fontSize: axisFontSize,
+              fontFamily: axisFontFamily,
+            }}
+            xAxisLabelTextStyle={{
+              color: colors['text-secondary'],
+              fontSize: axisFontSize,
+              fontFamily: axisFontFamily,
+            }}
             xAxisLabelsHeight={26}
             xAxisLabelTexts={xLabels}
             textColor={colors['text-primary']}
@@ -163,8 +181,11 @@ export function BPTrendChart({ readings }: BPTrendChartProps) {
                     * over is the point.
                     */}
                   <Text
-                    className="font-bold"
-                    style={{ fontSize: axisFontSize + 1, color: colors['text-primary'] }}
+                    style={{
+                      ...typography({ type: 'caption', weight: 'bold', lineHeight: null }),
+                      fontSize: axisFontSize + 1,
+                      color: colors['text-primary'],
+                    }}
                   >
                     {`SYS ${items[0]?.value ?? '-'} / DIA ${items[1]?.value ?? '-'}`}
                   </Text>

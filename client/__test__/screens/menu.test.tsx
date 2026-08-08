@@ -12,6 +12,11 @@
  * into six screens. `menu.tsx`'s own comment says registering them all is
  * what keeps every row from being a dead link; a dropped row is a screen
  * nobody can reach, and it is invisible in review.
+ *
+ * The safe-area behaviour is asserted here too, because this screen was the
+ * only one of the three tabs that never read the inset context — and the
+ * symptom (a header pill under the notch, a logout button behind the tab bar)
+ * only appears on hardware with a notch, which no test has.
  */
 const mockSession = {
   current: {
@@ -26,6 +31,7 @@ jest.mock('@/modules/auth', () => ({
 
 import MenuScreen from '@/app/(tabs)/menu';
 import { renderScreen } from '../test-utils';
+import { findHostNodes } from '../components/host-tree';
 
 const user = (over: Record<string, unknown> = {}) => ({
   firstname: 'สมชาย',
@@ -105,5 +111,36 @@ describe('MenuScreen — the rows', () => {
     const view = await renderScreen(<MenuScreen />);
 
     expect(view.getByTestId('menu-debug')).toBeOnTheScreen();
+  });
+});
+
+/*
+ * `useSafeAreaInsets()` rather than the `Spacing.four` / `BottomTabInset`
+ * constants this screen used to pad with.
+ *
+ * Neither constant could be right. `BottomTabInset` is a flat iOS 50 /
+ * Android 80, while the real bar is `tabBarBaseHeight + insets.bottom` with a
+ * margin and `position: 'absolute'` — nothing reserves that space, so a
+ * constant either overshoots or hides the logout button. And a flat top pad
+ * put the header pill under the status bar on a notched device.
+ *
+ * `renderScreen` mounts a `SafeAreaProvider`, so the numbers below are the
+ * test environment's insets, not a device's. What is being pinned is that the
+ * padding is *derived from them* — `+ 108` is history.tsx's own expression.
+ */
+describe('MenuScreen — the frame', () => {
+  it('derives its scroll padding from the safe-area insets', async () => {
+    const view = await renderScreen(<MenuScreen />);
+
+    const [scroll] = findHostNodes(view.toJSON() as never, 'RCTScrollView');
+    expect(scroll).toBeDefined();
+
+    const style = scroll.props?.contentContainerStyle as Record<string, number>;
+    // Bottom clears the floating tab bar; `108` is the constant history.tsx
+    // uses on top of the inset.
+    expect(style.paddingBottom).toBeGreaterThanOrEqual(108);
+    // One gutter for the whole column, rather than three different ones.
+    expect(style.paddingHorizontal).toBe(16);
+    expect(style.paddingTop).toBeDefined();
   });
 });

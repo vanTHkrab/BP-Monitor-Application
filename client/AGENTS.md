@@ -124,6 +124,58 @@ scoped exception with a justification, never a raised warning ceiling.
   `analyzer/yolo.py`. Change one side, change the other, or the phone approves
   a framing the server cannot read. See
   [ADR-002](../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md).
+- **Typography is centralised, and the multiplication happens once.**
+  `hooks/use-typography.ts` is the only place in `src/` that turns a base px
+  into a rendered px — `Math.round(base × sizeScale × opticalScale)`. The data
+  it reads (size ladder, role scale, font-family registry) is
+  `theme/typography.ts`. `ThemedText` is one caller among several, because the
+  four `<TextInput>`, the chart's style props, and the tab-bar label cannot
+  accept a component. **Writing `Math.round(x * fontScale)` in a component is
+  how the app ended up with fourteen copies of that expression, none of which
+  knew about the font-family preference when it arrived.**
+  - Weight selects a font *file*, never a `fontWeight` — on Android a weight
+    beside an explicit family is ignored or faked. `font-bold` and friends on
+    a `ThemedText` are silent no-ops; use `weight`.
+  - **Never name a family the device has not loaded.** It does not throw; RN
+    substitutes the OEM's own Thai face. Only the *opt-in* families are
+    deferred, so "chosen but not yet loaded" is a normal state — go through
+    the resolver, which consults `theme/font-loading.tsx` and falls back to
+    Noto.
+  - **A family nobody opts into must not be deferred.** `mono` is pinned to
+    the blood-pressure figure for every user, so loading it late made the hero
+    digits change typeface *and* size mid-launch on every cold start. It
+    blocks the splash alongside Noto; only `looped` and `sarabun` defer.
+  - `mono` is Latin-only and internal: it is the blood-pressure figure's
+    tabular face, must never appear in the family picker, and must never
+    hydrate as the app-wide preference.
+  - **Line height is a floor, not an exact value, and the floor is
+    per-family.** Android lays text out to the font's *declared* `hhea`
+    metrics, and a font may declare a descent shallower than its own glyphs —
+    Sarabun declares 0.232 em while ◌ู reaches 0.353 em, so a third of the
+    vowel falls outside the line box and is clipped silently. The ratios live
+    in `FONT_FAMILIES` and are **measured**: regenerate with
+    `node scripts/font-metrics.mjs`, never hand-pick them, and give a new
+    family a `scan` range covering only the glyphs this app hands it.
+  - **The floor is the clipping minimum and nothing else.** It is deliberately
+    *not* raised to the font's own declared box, so Noto — whose every role
+    already clears its 1.15 requirement — renders exactly as it did before the
+    mechanism existed. Raising it there is a leading redesign, not a bug fix;
+    if you want one, propose it with `CLIENT-typography.md` §3. Two earlier
+    attempts failed: a flat 1.45 validated against the one family that never
+    had the problem, then a measured floor built on the wrong basis.
+  - **Style units are not layout units.** `useTypography()` divides the OS
+    accessibility scale out and RN multiplies it back at paint time; a
+    container dimension is dp and nothing scales it. **Sizing a height, width,
+    or padding from a resolved font size requires `useLayoutTypography()`** —
+    the style form under-reserves by exactly the OS scale factor, which is
+    invisible on a dev device (OS scale 1, where the two coincide) and fails
+    for users who raised their system font size. It shipped twice.
+  - **`lineHeight: null` is outside the floor, by construction.** An input
+    that asked for no line height must still get none or the caret re-centres.
+    Those sites keep the font's *natural* box, which is up to 23 % taller than
+    Noto's, so **any fixed-height container holding them has to size itself
+    from `naturalLineHeightRatio`** — that is what the bottom tab bar's
+    `labelHeadroom` does. Elastic containers need nothing.
 - **401 handling is centralised.** Transports call `fireUnauthenticated()` on
   a 401 or `extensions.code === 'UNAUTHENTICATED'`; the auth slice handles
   global logout once. Don't reimplement per-slice.

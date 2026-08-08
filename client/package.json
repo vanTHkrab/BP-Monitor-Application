@@ -3,7 +3,10 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
     "@expo-google-fonts/noto-sans-thai": "^0.4.2",
+    "@expo-google-fonts/noto-sans-thai-looped": "^0.4.2",
+    "@expo-google-fonts/sarabun": "^0.4.1",
     "@expo/ui": "~57.0.7",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",

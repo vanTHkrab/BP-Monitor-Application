@@ -27,6 +27,22 @@ export const DEFAULT_CATEGORY: PostCategory = 'general';
 
 export const categoryLabel = (category: PostCategory): string => LABELS[category];
 
+/**
+ * The categories in the shape `components/ui/tab-buttons.tsx` consumes.
+ *
+ * Here rather than in the screen for the reason `LABELS` is here: the feed and
+ * the composer both render this row, and a list built at either call site is a
+ * second place a fourth category has to be remembered. Derived from
+ * `POST_CATEGORIES` so adding one there is still the only edit needed.
+ *
+ * `key` — not `value` — because that is what `TabButtons` reads, and its
+ * `testIDPrefix` composes `${prefix}-${key}`. The screens pass
+ * `testIDPrefix="community-tab"`, which is what keeps the `community-tab-qa`
+ * ids the tests and the a11y tree already use.
+ */
+export const CATEGORY_TABS: readonly { key: PostCategory; label: string }[] =
+  POST_CATEGORIES.map((category) => ({ key: category, label: LABELS[category] }));
+
 export const categoryHint = (category: PostCategory): string => COMPOSER_HINTS[category];
 
 /** Anything unrecognised lands in `general` rather than vanishing from every tab. */
