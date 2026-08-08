@@ -68,7 +68,7 @@ export function ThemePicker() {
                 size={24}
                 color={isSelected ? '#FFFFFF' : colors['text-secondary']}
               />
-              <ThemedText type="small" weight="semibold" numberOfLines={1} className="mt-1.5" style={{ color: isSelected ? '#FFFFFF' : colors['text-primary'] }}>
+              <ThemedText type="body" weight="semibold" numberOfLines={1} className="mt-1.5" style={{ color: isSelected ? '#FFFFFF' : colors['text-primary'] }}>
                 {option.label}
               </ThemedText>
             </Pressable>

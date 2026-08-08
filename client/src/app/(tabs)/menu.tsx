@@ -115,7 +115,7 @@ export default function MenuScreen() {
             </View>
             <View className="flex-1">
               {isLoadingUser ? (
-                <ThemedText type="small" weight="regular" themeColor="text-secondary">
+                <ThemedText type="body" weight="regular" themeColor="text-secondary">
                   กำลังโหลดข้อมูลผู้ใช้...
                 </ThemedText>
               ) : user ? (
@@ -123,7 +123,7 @@ export default function MenuScreen() {
                   <ThemedText type="bodyLarge" weight="bold" className="mb-0.5">
                     {user.firstname} {user.lastname}
                   </ThemedText>
-                  <ThemedText type="small" weight="regular" themeColor="text-secondary">
+                  <ThemedText type="body" weight="regular" themeColor="text-secondary">
                     {user.email ?? user.phone}
                   </ThemedText>
                 </>

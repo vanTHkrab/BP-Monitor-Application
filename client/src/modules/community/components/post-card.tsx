@@ -121,7 +121,7 @@ export function PostCard({ post, isOwner, onPress, onLike, onComment, onMore }: 
           accessibilityRole="button"
           className="self-start py-2"
         >
-          <ThemedText type="small" weight="bold" themeColor="primary">
+          <ThemedText type="body" weight="bold" themeColor="primary">
             {isExpanded ? 'ย่อข้อความ' : 'อ่านต่อ'}
           </ThemedText>
         </Pressable>
@@ -195,7 +195,7 @@ function CardAction({
     >
       <Ionicons name={icon} size={19} color={tint} />
       {label ? (
-        <ThemedText type="small" className="ml-1.5" style={{ color: tint }}>
+        <ThemedText type="body" className="ml-1.5" style={{ color: tint }}>
           {label}
         </ThemedText>
       ) : null}

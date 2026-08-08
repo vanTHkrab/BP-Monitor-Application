@@ -701,7 +701,7 @@ export default function CameraScreen() {
             accessibilityRole="button"
             accessibilityLabel="ลองใช้กล้องอีกครั้ง"
           >
-            <ThemedText type="small" weight="semibold" className="underline" style={{ color: isDark ? palette.blueLight : palette.blueDeep }}>
+            <ThemedText type="body" weight="semibold" className="underline" style={{ color: isDark ? palette.blueLight : palette.blueDeep }}>
               ลองใช้กล้องอีกครั้ง
             </ThemedText>
           </Pressable>

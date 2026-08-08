@@ -98,7 +98,7 @@ export function ChangeLogEntryRow({ entry, testID }: ChangeLogEntryRowProps) {
       </View>
 
       <View className="mt-2.5 flex-row flex-wrap items-center justify-between">
-        <ThemedText type="small" weight="semibold" style={{ color: actorTone }}>
+        <ThemedText type="body" weight="semibold" style={{ color: actorTone }}>
           {actorText}
         </ThemedText>
         <ThemedText type="caption" weight="regular" themeColor="text-secondary">

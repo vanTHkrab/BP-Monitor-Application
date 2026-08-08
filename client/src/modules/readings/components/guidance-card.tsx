@@ -117,7 +117,7 @@ export function GuidanceCard({ status, onOpenHelp }: GuidanceCardProps) {
               {guidance.title}
             </ThemedText>
             <ThemedText
-              type="small"
+              type="body"
               weight="regular"
               themeColor="text-secondary"
               className="mt-1"

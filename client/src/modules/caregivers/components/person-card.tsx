@@ -87,7 +87,7 @@ export function PersonCard({
           {name}
         </ThemedText>
         <ThemedText
-          type="small"
+          type="body"
           weight="regular"
           themeColor="text-secondary"
           className="mt-0.5"

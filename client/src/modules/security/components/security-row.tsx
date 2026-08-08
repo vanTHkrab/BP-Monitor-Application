@@ -83,7 +83,7 @@ export function SecurityRow({
         </ThemedText>
 
         {value ? (
-          <ThemedText type="small" weight="regular" className="mt-0.5" style={{ color: valueColor }}>
+          <ThemedText type="body" weight="regular" className="mt-0.5" style={{ color: valueColor }}>
             {value}
           </ThemedText>
         ) : null}

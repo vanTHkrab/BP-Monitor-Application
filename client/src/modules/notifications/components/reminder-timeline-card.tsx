@@ -93,7 +93,7 @@ export function ReminderTimelineCard({ settings, readings, now }: ReminderTimeli
     >
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-3">
-          <ThemedText size={18} weight="bold">
+          <ThemedText type="heading" weight="bold">
             เช็กรอบวัดของวันนี้
           </ThemedText>
           <ThemedText type="caption" themeColor="text-secondary" className="mt-1">

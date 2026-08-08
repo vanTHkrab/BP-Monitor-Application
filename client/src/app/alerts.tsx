@@ -41,7 +41,7 @@ export default function AlertsScreen() {
 
         {unreadCount > 0 ? (
           <View className="flex-row items-center justify-between px-5 pb-2">
-            <ThemedText type="small" weight="regular" themeColor="text-secondary">
+            <ThemedText type="body" weight="regular" themeColor="text-secondary">
               {canMarkRead
                 ? `ยังไม่ได้อ่าน ${unreadCount} รายการ`
                 : `ยังไม่ได้อ่าน ${unreadCount} รายการ · ผู้ป่วยเป็นผู้อ่านเอง`}
@@ -62,7 +62,7 @@ export default function AlertsScreen() {
               className="items-center justify-center px-2"
               style={{ minHeight: 44, opacity: isPending ? 0.5 : 1 }}
             >
-              <ThemedText type="small" weight="semibold" themeColor="primary">
+              <ThemedText type="body" weight="semibold" themeColor="primary">
                 อ่านทั้งหมด
               </ThemedText>
             </Pressable>

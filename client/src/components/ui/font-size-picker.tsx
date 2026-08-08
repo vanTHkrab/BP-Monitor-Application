@@ -154,7 +154,7 @@ export function FontSizePicker() {
         className="mt-1 rounded-2xl px-4 py-3"
         style={{ backgroundColor: colors['surface-muted'] }}
       >
-        <ThemedText type="small" weight="bold" themeColor="primary">
+        <ThemedText type="body" weight="bold" themeColor="primary">
           ตัวอย่างข้อความ
         </ThemedText>
         <Text

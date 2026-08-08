@@ -52,7 +52,7 @@ export default function OnboardingPhoneScreen() {
 
   return (
     <AuthShell showHero={false}>
-      <ThemedText size={18} weight="semibold" className="mb-1 text-center">
+      <ThemedText type="heading" className="mb-1 text-center">
         เพิ่มเบอร์โทรศัพท์
       </ThemedText>
       <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mb-4 text-center">

@@ -53,7 +53,7 @@ export function ChoiceCard({
         <ThemedText type="bodyLarge" weight="bold">
           {title}
         </ThemedText>
-        <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-1">
+        <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-1">
           {description}
         </ThemedText>
       </View>

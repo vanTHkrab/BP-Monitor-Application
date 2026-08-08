@@ -69,7 +69,7 @@ export default function HelpScreen() {
               color={colors['text-primary']}
             />
           </Pressable>
-          <ThemedText size={19} weight="bold" className="flex-1 text-center">
+          <ThemedText type="heading" weight="bold" className="flex-1 text-center">
             ช่วยเหลือและคำแนะนำ
           </ThemedText>
           <View className="w-7" />

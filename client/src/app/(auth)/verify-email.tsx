@@ -89,7 +89,7 @@ export default function VerifyEmailScreen() {
   if (verified) {
     return (
       <AuthShell showHero={false}>
-        <ThemedText size={18} weight="semibold" className="mb-4 text-center">
+        <ThemedText type="heading" className="mb-4 text-center">
           ยืนยันอีเมลสำเร็จ
         </ThemedText>
         <GradientButton
@@ -104,7 +104,7 @@ export default function VerifyEmailScreen() {
 
   return (
     <AuthShell showHero={false}>
-      <ThemedText size={18} weight="semibold" className="mb-1 text-center">
+      <ThemedText type="heading" className="mb-1 text-center">
         ยืนยันอีเมล
       </ThemedText>
       <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mb-4 text-center">

@@ -48,7 +48,7 @@ export default function HealthTipsScreen() {
             accessibilityLabel="ย้อนกลับ">
             <Ionicons name="arrow-back" size={28} color={colors['text-primary']} />
           </Pressable>
-          <ThemedText size={19} weight="bold" className="flex-1 text-center">
+          <ThemedText type="heading" weight="bold" className="flex-1 text-center">
             เคล็ดลับการดูแลสุขภาพ
           </ThemedText>
           <View className="w-7" />

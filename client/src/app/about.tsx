@@ -70,7 +70,7 @@ export default function AboutScreen() {
               color={colors['text-primary']}
             />
           </Pressable>
-          <ThemedText size={19} weight="bold" className="flex-1 text-center">
+          <ThemedText type="heading" weight="bold" className="flex-1 text-center">
             เกี่ยวกับ
           </ThemedText>
           <View className="w-7" />
@@ -92,7 +92,7 @@ export default function AboutScreen() {
           >
             <Ionicons name="heart-circle" size={56} color="#E91E63" />
           </View>
-          <ThemedText size={19} weight="bold">
+          <ThemedText type="heading" weight="bold">
             BP Monitor
           </ThemedText>
           <ThemedText type="body" weight="regular" themeColor="text-secondary">

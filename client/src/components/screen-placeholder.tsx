@@ -56,7 +56,7 @@ export function ScreenPlaceholder({
         <ThemedText type="title">{title}</ThemedText>
         {note ? (
           <ThemedText
-            type="small"
+            type="body"
             themeColor="text-secondary"
             style={styles.centered}
           >

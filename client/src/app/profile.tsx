@@ -161,7 +161,7 @@ export default function ProfileScreen() {
           />
 
           {avatar.error ? (
-            <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-1 px-2 text-center">
+            <ThemedText type="body" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-1 px-2 text-center">
               {avatar.error}
             </ThemedText>
           ) : null}

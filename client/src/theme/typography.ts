@@ -45,19 +45,15 @@ export const FONT_SIZE_STEPS: Record<FontSizePreference, number> = {
 
 export const BASELINE_PX = FONT_SIZE_STEPS.medium;
 
-/** The twelve named roles. Was `ThemedTextType`. */
+/** The eight named roles. Was `ThemedTextType`, and was twelve. */
 export type TypeRole =
-  | 'display'
   | 'title'
   | 'heading'
   | 'bodyLarge'
-  | 'body'
   | 'default'
-  | 'small'
-  | 'smallBold'
+  | 'body'
   | 'label'
   | 'caption'
-  | 'link'
   | 'code';
 
 export type TypeRoleSpec = {
@@ -70,13 +66,38 @@ export type TypeRoleSpec = {
  * Base sizes in px, before the preference, before the optical correction, and
  * before the OS scale.
  *
- * Moved **verbatim** from `themed-text.tsx`'s `VARIANTS`. Not one px changed,
- * and that is a constraint rather than an accident: whether this set is a
- * typography scale at all is an open design decision recorded in
- * `docs/project/CLIENT-typography.md` §3, and it needs a physical-device pass
- * before anyone touches a number. Folding `heading` at 18-and-20 together, or
- * deciding whether 15/14/13 are three steps or one, is that change — not this
- * one.
+ * ## What this table is, now that §3 is answered
+ *
+ * It arrived as `themed-text.tsx`'s `VARIANTS` moved verbatim — the sizes the
+ * app already used, given role names. `docs/project/CLIENT-typography.md` §3
+ * called that a pile of accidents rather than a scale and left three questions
+ * for a human. They are answered, and the answers are **subtractions**:
+ *
+ * - **`small` (14) and `smallBold` (14) are gone**, folded into `body` (15) and
+ *   `body` + `weight="bold"`. `label` 13 / `small` 14 / `body` 15 were 190-odd
+ *   nodes one pixel apart, and at the `small` font-size rung they rounded to
+ *   11 / 12 / 12 — a three-level hierarchy that stopped existing exactly where
+ *   it was needed most. The text band is now **`label` 13 / `body` 15 /
+ *   `bodyLarge` 17**, a real ratio scale with one rung per intent.
+ * - **`link` (14) is gone.** It had no call sites and named a rung that no
+ *   longer exists. A link is a colour decision more than a size one; when the
+ *   app grows a real link, it gets a role chosen for that, not this leftover.
+ * - **`display` (44) is gone.** Its only two nodes were the blood-pressure
+ *   figure on the reading-detail screen, and the figure is what `size` on
+ *   `ThemedText` is documented to be for — it is one component's composition
+ *   (48 on the hero card, 38 in a list row and on the detail screen), not a
+ *   typography role. Naming it one is what let the detail screen drift to a
+ *   third size nobody chose.
+ *
+ * **No surviving role's `fontSize` moved**, so every `lineHeight` here is still
+ * the one that was chosen against it. That is deliberate: the consolidation is
+ * a removal of rungs, not a re-pitch of the ones that stayed, and a re-pitch is
+ * what would have needed §5's device pass first.
+ *
+ * The one accident this did **not** close: `body` 15 / `default` 16 /
+ * `bodyLarge` 17 are still three roles one pixel apart. `default` is pinned to
+ * 16 because that is `BASELINE_PX` — the number the setup screen previews — so
+ * unpicking it is a different change from this one. Flagged, not fixed.
  *
  * Line heights sit at roughly 1.45–1.5× on purpose. Thai stacks diacritics two
  * levels (สระบน plus วรรณยุกต์), so the ratio that reads as generous in Latin
@@ -89,17 +110,13 @@ export type TypeRoleSpec = {
  * against, so it renders at exactly the px the setup screen previews.
  */
 export const TYPE_SCALE: Record<TypeRole, TypeRoleSpec> = {
-  display: { fontSize: 44, lineHeight: 52, weight: 'bold' },
   title: { fontSize: 24, lineHeight: 32, weight: 'bold' },
   heading: { fontSize: 20, lineHeight: 28, weight: 'semibold' },
   bodyLarge: { fontSize: 17, lineHeight: 25, weight: 'medium' },
   default: { fontSize: 16, lineHeight: 24, weight: 'medium' },
   body: { fontSize: 15, lineHeight: 22, weight: 'medium' },
-  small: { fontSize: 14, lineHeight: 21, weight: 'medium' },
-  smallBold: { fontSize: 14, lineHeight: 21, weight: 'bold' },
   label: { fontSize: 13, lineHeight: 19, weight: 'semibold' },
   caption: { fontSize: 12, lineHeight: 18, weight: 'regular' },
-  link: { fontSize: 14, lineHeight: 21, weight: 'medium' },
   code: { fontSize: 12, lineHeight: 18, weight: 'bold' },
 };
 
@@ -227,8 +244,8 @@ export const FONT_FAMILIES: Record<FontFamilyId, FontFamilyDef> = {
      * never clipped at any ratio this app uses. Which is exactly why a flat
      * floor validated on Noto could not catch the other two.
      *
-     * **Every role in `TYPE_SCALE` clears this**, including `display` at
-     * 1.18 — the lowest in the table. A Noto user therefore sees no pixel
+     * **Every role in `TYPE_SCALE` clears this**, including `title` at
+     * 1.33 — the lowest in the table. A Noto user therefore sees no pixel
      * change from the whole line-height mechanism, which is the point: the
      * clamp exists to rescue faces that clip, not to restyle the default.
      */
@@ -293,8 +310,11 @@ export const FONT_FAMILIES: Record<FontFamilyId, FontFamilyDef> = {
      * face is ever handed. An earlier pass scanned Latin Extended-A for every
      * family and got 1.55 here, set by `Ů`: a glyph `mono` cannot be asked to
      * draw, which inflated the blood-pressure figure's line box by 32% and
-     * broke the `flex-row items-end` alignment between the `display` digits
-     * and the `size={36}` slash beside them on the detail screen.
+     * broke the `flex-row items-end` alignment between the digits and the
+     * slash beside them on the detail screen. The three surfaces now render
+     * digits and slash at one `size` each — 48 on the hero card, 38 on the
+     * detail screen and in a history row — so that alignment is structural
+     * rather than a pair of numbers that have to be kept in step.
      *
      * A floor derived from glyphs a face cannot render is not a measurement.
      * The scanned range is a property of the family in

@@ -110,14 +110,24 @@ export default function ReadingDetailScreen() {
                   screen agree on the width of a reading. It also takes the figure
                   off the user's family preference, which was never a choice about
                   numerals. See `themed-text.tsx`'s `family` prop.
+
+                  `size={38}`, not a role. This screen used to be the odd one out:
+                  `type="display"` (44) for the digits and `size={36}` for the
+                  slash, against 48/48 on the home hero card and 38/38 in a history
+                  row. Nobody chose 44, and nobody chose 36 as its companion — see
+                  `docs/project/CLIENT-typography.md` §3(b). The figure now renders
+                  at two sizes app-wide, 48 on the hero and 38 everywhere else, with
+                  the slash at the digits' own size on all three surfaces so the
+                  `flex-row items-end` alignment is structural rather than a pair of
+                  numbers somebody has to keep in step.
                 */}
-                <ThemedText type="display" family="mono" testID="reading-detail-systolic">
+                <ThemedText size={38} weight="bold" family="mono" testID="reading-detail-systolic">
                   {reading.systolic}
                 </ThemedText>
-                <ThemedText size={36} weight="bold" family="mono" className="mx-1">
+                <ThemedText size={38} weight="bold" family="mono" className="mx-1">
                   /
                 </ThemedText>
-                <ThemedText type="display" family="mono">
+                <ThemedText size={38} weight="bold" family="mono">
                   {reading.diastolic}
                 </ThemedText>
                 <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-2 ml-2">
@@ -289,7 +299,7 @@ export default function ReadingDetailScreen() {
             </View>
 
             {error ? (
-              <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-3 px-1">
+              <ThemedText type="body" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-3 px-1">
                 {error}
               </ThemedText>
             ) : null}

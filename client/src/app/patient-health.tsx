@@ -232,7 +232,7 @@ export default function PatientHealthScreen() {
             {`ข้อมูลสุขภาพของ${patientName}`}
           </ThemedText>
           <ThemedText
-            type="small"
+            type="body"
             weight="regular"
             themeColor="text-secondary"
             className="mb-3 px-1"
@@ -441,7 +441,7 @@ function Notice({
       <ThemedText type="default" weight="bold" className="mb-1.5">
         {title}
       </ThemedText>
-      <ThemedText type="small" weight="regular" themeColor="text-secondary">
+      <ThemedText type="body" weight="regular" themeColor="text-secondary">
         {text}
       </ThemedText>
     </View>

@@ -207,7 +207,7 @@ export default function HistoryScreen() {
             )}
 
             <View className="px-4">
-              <ThemedText size={18} weight="bold" className="mb-3">
+              <ThemedText type="heading" weight="bold" className="mb-3">
                 รายการล่าสุด
               </ThemedText>
 
@@ -358,7 +358,7 @@ function PickPatientPrompt() {
           <Ionicons name="people" size={32} color={palette.purple} />
         </View>
 
-        <ThemedText size={18} weight="bold" className="text-center">
+        <ThemedText type="heading" weight="bold" className="text-center">
           เลือกผู้ป่วยที่ต้องการดู
         </ThemedText>
         <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-2 text-center">

@@ -61,7 +61,7 @@ export default function ProfileChangesScreen() {
           }
         >
           <ThemedText
-            type="small"
+            type="body"
             weight="regular"
             themeColor="text-secondary"
             className="mb-3 mt-1 px-1"
@@ -74,13 +74,13 @@ export default function ProfileChangesScreen() {
               <ThemedText type="default" weight="bold" className="mb-1.5">
                 โหลดประวัติไม่สำเร็จ
               </ThemedText>
-              <ThemedText type="small" weight="regular" themeColor="text-secondary">
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 {formatErrorMessage(error, 'ดึงข้อมูลไม่สำเร็จ กรุณาลองใหม่')}
               </ThemedText>
             </Card>
           ) : isLoading ? (
             <Card testID="profile-changes-loading">
-              <ThemedText type="small" weight="regular" themeColor="text-secondary">
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 กำลังโหลด…
               </ThemedText>
             </Card>
@@ -94,7 +94,7 @@ export default function ProfileChangesScreen() {
               <ThemedText type="default" weight="bold" className="mb-1.5">
                 ยังไม่มีการแก้ไข
               </ThemedText>
-              <ThemedText type="small" weight="regular" themeColor="text-secondary">
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 ยังไม่มีใครแก้ไขข้อมูลสุขภาพของคุณ รวมถึงตัวคุณเอง
               </ThemedText>
             </Card>
