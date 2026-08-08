@@ -21,6 +21,13 @@
  * mistake is — you get a result object with no query methods, and every
  * assertion fails with `view.getByText is not a function` or the even more
  * misleading "`render` function has not been called".
+ *
+ * **The same applies to `fireEvent` and `userEvent`, and it is easier to miss.**
+ * They are async in v14 too. An unawaited `fireEvent.changeText` produces
+ * `overlapping act() calls`, which fails the assertion *after* it and then
+ * leaves every later test in the file unable to find elements that are plainly
+ * there — each of which passes when run alone. Await every interaction, not
+ * just the render.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderOptions } from '@testing-library/react-native';
@@ -48,12 +55,24 @@ const TEST_METRICS: Metrics = {
  * Retry-free and with no shared cache: a test asserting an error state should
  * see it on the first rejection rather than after the backoff, and a cache
  * that outlives one test is a test that passes only in a given order.
+ *
+ * **`gcTime: 0` is set on mutations as well as queries, and the reason is not
+ * symmetry.** An unobserved mutation schedules its cache removal on TanStack's
+ * default five-minute timer, and that timer holds the Node event loop open. The
+ * symptom is a suite that reports every test green and then sits there —
+ * `Jest did not exit one second after the test run has completed`, with
+ * `--detectOpenHandles` reporting nothing at all. It was found by bisecting an
+ * interaction test file and noticing that every test which reached a mutation
+ * hung and every test which did not, did not. Only tests that run a *real*
+ * mutation hit this — a screen test that mocks the owning module never
+ * instantiates a mutation cache, which is why the suite was green until one
+ * did. Do not remove it.
  */
 export function createTestQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
+      mutations: { retry: false, gcTime: 0 },
     },
   });
 }
