@@ -1,0 +1,34 @@
+# Grouping target for the whole BP Monitor production runtime.
+#
+# Every .container unit in this directory declares `WantedBy=bp-monitor.target`
+# (so enabling the target enables the stack) and `PartOf=bp-monitor.target` (so
+# stopping the target stops the stack). This gives the one thing plain Quadlet
+# does not: a single handle.
+#
+#   systemctl --user start   bp-monitor.target   # up
+#   systemctl --user stop    bp-monitor.target   # down
+#   systemctl --user restart bp-monitor.target   # bounce everything
+#   systemctl --user status  'bp-*'              # what is running
+#
+# Deliberately NOT WantedBy=default.target here. Boot-time autostart is opted
+# into once, on the host, with:
+#
+#   systemctl --user enable bp-monitor.target
+#   loginctl enable-linger <deploy-user>     # required for rootless
+#
+# `enable-linger` is the part people miss: without it systemd tears the user
+# manager down at logout and the whole stack goes with it. See
+# infra/podman/README.md, "Rootless Podman".
+#
+# NOTE: bp-migrate.service is intentionally NOT part of this target. Database
+# migrations against a hosted Supabase instance are a deliberate, gated step,
+# not something that fires on every boot. See infra/podman/systemd/bp-migrate.service.
+
+[Unit]
+Description=BP Monitor production stack (Podman Quadlet)
+Documentation=file:///opt/bp-monitor/infra/podman/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Install]
+WantedBy=default.target

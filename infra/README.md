@@ -1,11 +1,33 @@
 # infra
 
-Infrastructure assets for running the BP Monitor backend + web locally and in
-deployable environments via Docker Compose.
+Infrastructure assets for running the BP Monitor backend + web.
 
 The mobile **client** is **not** containerised — it runs on Expo directly.
 
-> **Note:** the step-by-step deploy sequence now lives in
+## Two runtimes — this file covers the Compose one
+
+| | Podman Quadlet on EC2 | Docker Compose |
+| --- | --- | --- |
+| Status | **Production** | **Development** (and prod-parity staging) |
+| Reference | [podman/README.md](./podman/README.md) | **this file** |
+| Postgres | Supabase, hosted off-box | `postgres` container |
+
+> ⚠️ **Production runs on Podman Quadlet, not on Docker Compose.** If you are
+> deploying to the internet, you want [`infra/podman/`](./podman/) and
+> [docs/guides/deploy.md](../docs/guides/deploy.md), not this file. Everything
+> below still works and is still maintained — it is the development stack, and
+> `docker-compose.prod.yml` is now the cheapest way to exercise the nginx access
+> model and the certificate bootstrap without an EC2 host, rather than the thing
+> that serves real traffic.
+>
+> Two consequences worth internalising before reading on: the `postgres` service
+> described below is the **development** database — production Postgres is
+> hosted on Supabase and appears nowhere in these files — and where this file
+> says "prod", read "prod-shaped".
+
+With that established, the rest of this file is the Compose reference.
+
+> **Note:** the step-by-step deploy sequence for both runtimes lives in
 > [docs/guides/deploy.md](../docs/guides/deploy.md), and first-time local
 > setup in [docs/guides/setup.md](../docs/guides/setup.md). **This file
 > remains the reference** for Compose file structure, the port tables, and
@@ -16,6 +38,12 @@ The mobile **client** is **not** containerised — it runs on Expo directly.
 
 ```text
 infra/
+├── podman/                         # PRODUCTION runtime — Quadlet units for a
+│   │                               # single EC2 host. See podman/README.md.
+│   ├── quadlet/                    # .container / .network / .volume / .target
+│   ├── systemd/bp-migrate.service  # manual-gate Prisma migrations (Supabase)
+│   ├── scripts/                    # install, build, first cert, redeploy
+│   └── bp-monitor.env.example
 ├── docker-compose/
 │   ├── docker-compose.yml          # base services: postgres, redis, api-gateway, ai-service, web
 │   ├── docker-compose.dev.yml      # override: hot-reload, volume mounts, exposed DB ports
@@ -59,9 +87,15 @@ Services:
 nginx/TLS are **not** part of the dev stack — dev talks to each service
 directly on its published port. Reverse-proxy + certs only exist in prod.
 
-### Prod (built images, restart policy, nginx is the sole public ingress)
+### Prod-shaped (built images, restart policy, nginx is the sole public ingress)
 
-Prod now includes `nginx` (reverse proxy + TLS termination) and `certbot`
+> This override is **prod-parity staging**, not the production runtime — see the
+> banner at the top of this file. It is what you run to exercise nginx, the
+> access model, and the certificate bootstrap on a throwaway host. Real
+> production is [`infra/podman/`](./podman/), where Postgres is Supabase rather
+> than the container this stack starts.
+
+This override includes `nginx` (reverse proxy + TLS termination) and `certbot`
 (Let's Encrypt client). Before the **first** `up -d` on a fresh host you must
 run the one-time cert bootstrap — see "First-time cert issuance" below. On
 every subsequent boot (including `--build` after a code change) a plain

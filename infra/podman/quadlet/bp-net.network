@@ -1,0 +1,25 @@
+# bp-net — the single internal network for the Podman production runtime.
+#
+# Mirrors the `bp-net` bridge in infra/docker-compose/docker-compose.yml so the
+# service-name addressing baked into the app config keeps working unchanged:
+#   - api-gateway reaches Redis at REDIS_HOST=redis
+#   - ai-service reaches Redis at REDIS_URL=redis://redis:6379
+#   - web reaches http://api-gateway:3000 and http://ai-service:8000
+#   - nginx proxy_passes to http://api-gateway:3000 and http://web:3000
+#
+# Name resolution on a user-defined Podman network is provided by aardvark-dns
+# and keys off the container name, which is why every .container unit in this
+# directory sets an explicit `ContainerName=` matching the Compose service name.
+# Without that, Quadlet would name the containers `systemd-bp-<unit>` and every
+# hostname above would fail to resolve.
+#
+# Quadlet pulls this unit in automatically for any container that declares
+# `Network=bp-net.network`, so it needs no [Install] section.
+
+[Unit]
+Description=BP Monitor internal container network
+
+[Network]
+NetworkName=bp-net
+Driver=bridge
+Label=app=bp-monitor

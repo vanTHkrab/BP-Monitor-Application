@@ -1,0 +1,63 @@
+# web — Next.js. Public documentation at `/`, gated service-status pages at
+# `/admin/*`. Team-internal; it is not a clinician UI.
+#
+# Not published to the host — nginx is the sole public ingress and owns the
+# /admin/ Basic Auth gate. Reachable on bp-net as `web:3000`.
+#
+# ── This container talks to the datastores directly ─────────────────────────
+# web is a fifth consumer of the datastores, not a gateway client
+# (web/src/lib/{db,redis,s3}.ts). Its /admin/ pages open their own pg Pool
+# against Supabase and their own ioredis client against the `redis` container.
+# Two consequences for this runtime:
+#
+#   1. It needs DATABASE_URL too, and therefore its own Supabase egress. The
+#      same pooled URL is injected as a secret.
+#   2. Its Postgres connections count against the same Supabase pooler ceiling
+#      as api-gateway's. On a pooler with a small client limit, a dashboard tab
+#      left open on /admin/ can starve the gateway. Size the pooler accordingly.
+#
+# ── Known limitation, pre-existing ──────────────────────────────────────────
+# NEXT_PUBLIC_API_URL is a NEXT_PUBLIC_ variable, so Next.js inlines it into the
+# client bundle at `next build` time. Setting it at runtime here (as Compose
+# also does) has no effect on already-built client-side code. It is kept for
+# parity with the Compose stack; if a browser-side value is ever actually
+# needed, it has to become a build argument in web/Dockerfile — a change for
+# whoever owns web/, not for this runtime.
+
+[Unit]
+Description=BP Monitor — web dashboard and docs
+PartOf=bp-monitor.target
+Requires=bp-api-gateway.service
+After=bp-api-gateway.service
+
+[Container]
+ContainerName=web
+Image=localhost/bp-monitor/web:latest
+Network=bp-net.network
+
+EnvironmentFile=/etc/bp-monitor/bp-monitor.env
+Environment=NODE_ENV=production
+# Server Actions default to http://localhost:* if unset, which inside this
+# container is this container. Point them at the network names.
+Environment=GATEWAY_URL=http://api-gateway:3000
+Environment=AI_SERVICE_URL=http://ai-service:8000
+
+Secret=bp-database-url,type=env,target=DATABASE_URL
+Secret=bp-s3-access-key-id,type=env,target=S3_ACCESS_KEY_ID
+Secret=bp-s3-secret-access-key,type=env,target=S3_SECRET_ACCESS_KEY
+
+HealthCmd=wget -q -O /dev/null -T 3 http://127.0.0.1:3000/
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=30s
+
+NoNewPrivileges=true
+PodmanArgs=--memory=512m --memory-swap=512m --cpus=0.5
+
+[Service]
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=bp-monitor.target

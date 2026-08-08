@@ -1,0 +1,33 @@
+# OCR model artifact cache for ai-service (~78 MB across 7 files).
+#
+# The ai-service image deliberately ships no *.onnx / *.npz weights (ADR-005).
+# `docker-entrypoint.sh` downloads each entry of models/EXPECTED_HASHES.json
+# from $AI_MODELS_R2_BASE_URL into /app/models on start and refuses to exec the
+# FastAPI CMD on any sha256 mismatch. This volume caches that download so only
+# the first boot on a given host pays for it.
+#
+# This volume CANNOT cause detector drift against the mobile app, and it is
+# worth being precise about why, because it is the obvious thing to worry
+# about here:
+#
+#   - The manifest (EXPECTED_HASHES.json) is baked into the image at build
+#     time, not stored on this volume.
+#   - The entrypoint re-hashes every cached file on EVERY start, not only when
+#     a file is missing. A cached file whose bytes no longer match the manifest
+#     is deleted and re-downloaded; a re-download that still mismatches is a
+#     refuse-to-start.
+#   - client/scripts/verify-models.mjs hashes the phone's bundled
+#     yolo11n.onnx / crnn.onnx against that same manifest file in the repo.
+#
+# So the server can only run bytes the manifest names, and the phone can only
+# ship bytes the manifest names. The real drift risk is not this volume — it is
+# building the server image from a checkout at a different commit than the one
+# the mobile build came from. That is why scripts/build-images.sh tags images
+# with the git SHA and the deploy guide tells you to record it.
+
+[Unit]
+Description=BP Monitor ai-service model cache volume
+
+[Volume]
+VolumeName=bp-ai-models
+Label=app=bp-monitor

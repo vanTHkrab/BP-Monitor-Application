@@ -1,0 +1,79 @@
+# api-gateway — NestJS + Fastify + Mercurius. The only entry point for the
+# mobile client and the owner of all durable shared state.
+#
+# Not published to the host: nginx is the sole public ingress, exactly as in
+# docker-compose.prod.yml. Reachable from other bp-net containers as
+# `api-gateway:3000`.
+#
+# ── Database ────────────────────────────────────────────────────────────────
+# DATABASE_URL points at Supabase, not at a container on this host. It is
+# injected as a Podman secret rather than sitting in the env file, because it
+# now carries a production credential to a third party over the public
+# internet. See infra/podman/README.md, "Secrets" and "Supabase".
+#
+# The value MUST be the transaction-mode pooler endpoint (port 6543), not the
+# direct endpoint. Migrations use a different URL and a different unit — see
+# infra/podman/systemd/bp-migrate.service. Running app traffic on the direct
+# endpoint exhausts Supabase's connection ceiling; running migrations on the
+# transaction pooler breaks advisory locking. They are not interchangeable.
+#
+# ── Migrations do NOT run here ──────────────────────────────────────────────
+# The image's CMD is `pnpm start:prod` (node dist/main) and nothing in the boot
+# path calls `prisma migrate deploy`. That is deliberate and unchanged from
+# Compose. Do not add a migrate step to this unit: systemd restarts this
+# container on crash, and a migrate-on-boot against a hosted database turns a
+# crash loop into a repeated schema mutation attempt on the production
+# database. Migrations are a gated, manual step.
+
+[Unit]
+Description=BP Monitor — API gateway
+PartOf=bp-monitor.target
+Requires=bp-redis.service
+After=bp-redis.service
+
+[Container]
+ContainerName=api-gateway
+Image=localhost/bp-monitor/api-gateway:latest
+Network=bp-net.network
+
+EnvironmentFile=/etc/bp-monitor/bp-monitor.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=REDIS_HOST=redis
+Environment=REDIS_PORT=6379
+
+# High-value credentials come from the Podman secret store (0600, owned by the
+# deploy user) rather than the env file. `podman secret create` is documented in
+# infra/podman/README.md; the values themselves are never in this repo.
+Secret=bp-database-url,type=env,target=DATABASE_URL
+Secret=bp-jwt-secret,type=env,target=JWT_SECRET
+Secret=bp-s3-access-key-id,type=env,target=S3_ACCESS_KEY_ID
+Secret=bp-s3-secret-access-key,type=env,target=S3_SECRET_ACCESS_KEY
+
+# Liveness only — `hello` is the project's unauthenticated probe query
+# (web/src/lib/gateway.ts uses it over POST for the same purpose). Mercurius
+# serves GraphQL over GET as well, so this needs no request body and no
+# shell quoting inside a unit file.
+#
+# UNVERIFIED: this exact URL has not been exercised against a running gateway
+# in this change. Confirm on the host with
+#   podman exec api-gateway wget -q -O - 'http://127.0.0.1:3000/graphql?query=%7Bhello%7D'
+# If Mercurius rejects GET in this configuration, swap the check for a POST or
+# drop it. A wrong healthcheck here is cosmetic rather than dangerous: no
+# HealthOnFailure action is set, so an "unhealthy" verdict reports and does not
+# restart or remove the container.
+HealthCmd=wget -q -O /dev/null -T 3 http://127.0.0.1:3000/graphql?query=%7Bhello%7D
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=30s
+
+NoNewPrivileges=true
+PodmanArgs=--memory=768m --memory-swap=768m --cpus=1.0
+
+[Service]
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=bp-monitor.target

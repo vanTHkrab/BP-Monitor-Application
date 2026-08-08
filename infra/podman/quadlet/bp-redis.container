@@ -1,0 +1,49 @@
+# Redis — pub/sub transport between api-gateway and ai-service, plus the
+# rate-limit store behind RateLimitService.
+#
+# This is the ONE datastore that stays on the box. Postgres does not: production
+# Postgres is hosted on Supabase, so there is no `postgres` container and no
+# `postgres_data` volume in this runtime. See infra/podman/README.md, "Supabase".
+#
+# Not published to the host. Nothing outside bp-net has any business reaching
+# it: the gateway and ai-service are on the same network, and an internet-facing
+# Redis with no ACL is one of the classic ways to lose a box.
+#
+# `--appendonly yes` matches the Compose stack byte for byte, and `maxmemory` /
+# `maxmemory-policy` are deliberately NOT set here. That is a Redis topology
+# decision (an eviction policy that drops rate-limit keys or a pub/sub client
+# output buffer under pressure changes runtime behaviour), and topology belongs
+# to redis-dev, not to the deploy runtime. The container memory ceiling below is
+# the blunt backstop until that decision is made: if Redis exceeds it the OOM
+# killer takes the container and systemd restarts it, which is loud rather than
+# silent. Flagged as a follow-up in the report.
+
+[Unit]
+Description=BP Monitor — Redis
+PartOf=bp-monitor.target
+
+[Container]
+ContainerName=redis
+Image=docker.io/library/redis:7-alpine
+Network=bp-net.network
+Volume=bp-redis-data.volume:/data
+Exec=redis-server --appendonly yes
+
+HealthCmd=redis-cli ping
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+HealthStartPeriod=5s
+
+NoNewPrivileges=true
+
+# Resource ceiling. Podman >= 5.0 exposes Memory= as a first-class Quadlet key;
+# PodmanArgs is used instead so this unit does not silently no-op on 4.x.
+PodmanArgs=--memory=512m --memory-swap=512m --cpus=0.5
+
+[Service]
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=bp-monitor.target

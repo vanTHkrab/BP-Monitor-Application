@@ -1,0 +1,14 @@
+# Redis AOF persistence.
+#
+# Redis is a transport (analyze_bp_image pub/sub) and a rate-limit store, never
+# a system of record — see the root AGENTS.md "Single source of truth per
+# concern". The volume exists so an in-flight rate-limit window and the AOF
+# survive a container recreate or a host reboot, not because anything durable
+# lives here. Losing it costs a cold rate-limit table, nothing more.
+
+[Unit]
+Description=BP Monitor Redis data volume
+
+[Volume]
+VolumeName=bp-redis-data
+Label=app=bp-monitor

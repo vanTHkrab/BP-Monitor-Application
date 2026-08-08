@@ -1,0 +1,12 @@
+# ACME HTTP-01 challenge webroot (/var/www/certbot).
+#
+# certbot writes the challenge token here; nginx serves it from
+# `location /.well-known/acme-challenge/` on port 80. Both containers must see
+# the same volume or every renewal fails silently until the cert expires.
+
+[Unit]
+Description=BP Monitor ACME challenge webroot volume
+
+[Volume]
+VolumeName=bp-certbot-www
+Label=app=bp-monitor
