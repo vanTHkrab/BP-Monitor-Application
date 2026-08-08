@@ -28,7 +28,7 @@ export class WellKnownController {
   @Header('Cache-Control', 'public, max-age=3600')
   getAssetLinks() {
     const packageName =
-      process.env.ANDROID_APP_PACKAGE_NAME?.trim() || 'com.project.bpmonitor';
+      process.env.ANDROID_APP_PACKAGE_NAME?.trim() || 'com.project.bpmobile';
     const fingerprints = (process.env.ANDROID_APP_SHA256_FINGERPRINT ?? '')
       .split(',')
       .map((value) => value.trim().toUpperCase())

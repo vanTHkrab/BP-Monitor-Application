@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.project.bpmonitor"
+      "bundleIdentifier": "com.project.bpmobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.project.bpmonitor",
+      "package": "com.project.bpmobile",
       "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "permissions": [
