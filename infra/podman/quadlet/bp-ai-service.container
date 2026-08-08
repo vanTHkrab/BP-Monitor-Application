@@ -1,0 +1,68 @@
+# ai-service — FastAPI + onnxruntime. Reads BP digits off uploaded images.
+#
+# No published port, and nginx does not proxy to it. This preserves the security
+# decision documented at length in docker-compose.prod.yml: this service has no
+# authentication of any kind, and publishing 8000 was a real internet-facing
+# exposure of an internal-only service. It is reached exactly two ways:
+#
+#   1. api-gateway  -> Redis pub/sub on analyze_bp_image / analyze_bp_image.reply
+#   2. web's server actions -> http://ai-service:8000 over bp-net (AI_SERVICE_URL)
+#
+# Neither needs a host port. Do not add PublishPort= here.
+#
+# ── Model artifacts ─────────────────────────────────────────────────────────
+# The image ships no weights. On start, docker-entrypoint.sh downloads every
+# entry in the baked-in models/EXPECTED_HASHES.json from $AI_MODELS_R2_BASE_URL,
+# verifies sha256, and refuses to exec the FastAPI CMD on any mismatch. First
+# boot therefore needs ~78 MB of egress to R2 over HTTPS and takes noticeably
+# longer than later boots; the bp-ai-models volume caches it. If the security
+# group blocks outbound 443 this container will not start, and the failure is
+# loud (see `journalctl --user -u bp-ai-service`).
+#
+# AI_DEBUG_DUMP_ENABLED is intentionally absent. It writes ~9 JPEGs per request
+# to disk and belongs nowhere near production.
+
+[Unit]
+Description=BP Monitor — AI service
+PartOf=bp-monitor.target
+Requires=bp-redis.service
+After=bp-redis.service
+
+[Container]
+ContainerName=ai-service
+Image=localhost/bp-monitor/ai-service:latest
+Network=bp-net.network
+Volume=bp-ai-models.volume:/app/models
+
+EnvironmentFile=/etc/bp-monitor/bp-monitor.env
+Environment=ENV=production
+# main.py reads REDIS_URL and nothing else. REDIS_HOST/REDIS_PORT are silently
+# ignored here, which is how the analysis path was once dead in Compose with no
+# error on either side — see the comment in docker-compose.yml.
+Environment=REDIS_URL=redis://redis:6379
+
+# curl is installed in the ai-service image for the entrypoint's model fetch,
+# so it is available for the probe too.
+HealthCmd=curl -fsS -m 3 http://127.0.0.1:8000/health
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+# Generous start period: the first boot on a fresh host downloads and hashes
+# ~78 MB of model artifacts before FastAPI binds a port at all.
+HealthStartPeriod=180s
+
+NoNewPrivileges=true
+# The heaviest container in the stack: onnxruntime + opencv-python-headless with
+# four ONNX sessions resident (YOLO + CRNN + 4 distilled CNNs + a 58 MB templates
+# archive). 1500m is a starting ceiling, not a measured one — watch
+# `podman stats ai-service` on the real workload and adjust. Setting this too low
+# gets the container OOM-killed mid-analysis, which surfaces to the patient as an
+# analysis that never returns a reply.
+PodmanArgs=--memory=1500m --memory-swap=1500m --cpus=1.5
+
+[Service]
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=bp-monitor.target

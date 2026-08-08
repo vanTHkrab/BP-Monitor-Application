@@ -1,0 +1,82 @@
+# bp-migrate.service — Prisma migrations against the hosted Supabase database.
+#
+# This is a plain systemd unit, NOT a Quadlet .container, and NOT part of
+# bp-monitor.target. Both of those are deliberate.
+#
+# ── Why migrations are not run on container start ───────────────────────────
+# In the Compose stack, Postgres was a container on the same network and its
+# lifetime was the stack's lifetime. Against a hosted database, none of that
+# holds:
+#
+#   - The gateway container has Restart=always. A migrate-on-boot step turns a
+#     crash loop into repeated schema-mutation attempts against the production
+#     database.
+#   - `prisma migrate deploy` takes a Postgres advisory lock. Two containers
+#     starting at once (a redeploy overlapping a restart) race for it, and the
+#     loser can time out mid-migration.
+#   - The blast radius is no longer a container volume you can delete. It is a
+#     hosted database with real patient readings in it.
+#
+# So: migrations are an explicit operator action, taken once per deploy that
+# ships one, in the window the operator chose. Run it BEFORE starting the
+# gateway image that requires the new schema (additive schema, then code, then
+# a separate later change for any drop):
+#
+#   systemctl --user start bp-migrate.service
+#   journalctl --user -u bp-migrate.service -n 100 --no-pager
+#
+# It is Type=oneshot, so `start` blocks until it finishes and a non-zero exit
+# leaves the unit failed and visible in `systemctl --user --failed`.
+#
+# ── Why a different DATABASE_URL ────────────────────────────────────────────
+# Supabase's transaction-mode pooler (port 6543) multiplexes client connections
+# onto fewer server connections and cannot hold a session across statements.
+# Prisma's migrate engine needs session-scoped state: an advisory lock held for
+# the length of the migration, and DDL in a transaction. Run against the
+# transaction pooler it either errors out or, worse, takes a lock that does not
+# mean what it thinks it means.
+#
+# So this unit injects a DIFFERENT secret — bp-database-url-direct — over the
+# same DATABASE_URL variable name. That name reuse is what makes this work with
+# no application change: server/app/api-gateway/prisma.config.ts reads
+# `process.env.DATABASE_URL` for the migrate datasource, so pointing the
+# variable somewhere else for the length of this one container run is enough.
+#
+# bp-database-url-direct must be either the direct endpoint
+# (db.<ref>.supabase.co:5432) or the SESSION-mode pooler
+# (<region>.pooler.supabase.com:5432). Not 6543. On an IPv4-only EC2 subnet the
+# direct endpoint may be unreachable — Supabase's direct hostname is IPv6-only
+# for projects without the IPv4 add-on — in which case the session pooler on
+# 5432 is the one that works. Verify with `getent hosts` before assuming.
+#
+# ── What runs ───────────────────────────────────────────────────────────────
+# `prisma migrate deploy` — never `migrate dev`, which is interactive, can
+# reset, and can generate new migration files. The prisma CLI is present in the
+# api-gateway prod image because the Dockerfile installs the full dependency
+# tree (no --prod flag on pnpm install).
+#
+# BP_IMAGE_TAG comes from /etc/bp-monitor/bp-monitor.env and must be the SAME
+# tag you are about to deploy. Migrating with one image and running another is
+# how a schema and the code that expects it get out of step.
+
+[Unit]
+Description=BP Monitor — Prisma migrate deploy (manual gate, Supabase)
+Documentation=file:///opt/bp-monitor/infra/podman/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+EnvironmentFile=/etc/bp-monitor/bp-monitor.env
+
+ExecStart=/usr/bin/podman run --rm --name bp-migrate \
+    --network bp-net \
+    --secret bp-database-url-direct,type=env,target=DATABASE_URL \
+    --memory=512m --cpus=0.5 \
+    localhost/bp-monitor/api-gateway:${BP_IMAGE_TAG} \
+    pnpm prisma migrate deploy
+
+# A failed migration must be loud and must not be retried automatically.
+Restart=no
+TimeoutStartSec=600
