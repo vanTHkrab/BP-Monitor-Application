@@ -11,9 +11,9 @@
  * without an effect. A regression to "rendered but invisible" leaves a stale
  * draft in the tree and is invisible on screen.
  *
- * The module is spread rather than replaced so `PostCard`, `CategoryTabs`, and
- * `categoryLabel` stay real — the empty-state text is then asserted against
- * the file that owns the category wording.
+ * The module is spread rather than replaced so `PostCard`, `CATEGORY_TABS`,
+ * and `categoryLabel` stay real — the empty-state text is then asserted
+ * against the file that owns the category wording.
  */
 const mockPosts = {
   current: {
@@ -37,7 +37,7 @@ jest.mock('@/modules/auth', () => ({
 }));
 
 import CommunityScreen from '@/app/(tabs)/post';
-import { categoryLabel, DEFAULT_CATEGORY } from '@/modules/community';
+import { CATEGORY_TABS, categoryLabel, DEFAULT_CATEGORY } from '@/modules/community';
 import { renderScreen } from '../test-utils';
 
 const post = (over: Record<string, unknown> = {}) => ({
@@ -69,6 +69,49 @@ describe('CommunityScreen', () => {
 
     expect(view.getByText('ชุมชนสุขภาพ')).toBeOnTheScreen();
     expect(view.getByTestId('community-compose')).toBeOnTheScreen();
+  });
+
+  /*
+   * The category row is `components/ui/tab-buttons.tsx` now, not a bespoke
+   * `CategoryTabs`. The two were structurally the same segmented control and
+   * disagreed only on what "selected" looks like; the feed's version never got
+   * the gradient fill, the white bold label, or the Thai line-height clamp.
+   *
+   * **The test-IDs are the contract that had to survive the swap.**
+   * `TabButtons` composes `${testIDPrefix}-${key}`, so the screen passes
+   * `testIDPrefix="community-tab"` to keep the ids this suite and the a11y
+   * tree already use. A prefix typo renders a perfectly good row of tabs that
+   * nothing can find.
+   */
+  it('renders a tab for every category, under the ids it always had', async () => {
+    const view = await renderScreen(<CommunityScreen />);
+
+    for (const tab of CATEGORY_TABS) {
+      expect(view.getByTestId(`community-tab-${tab.key}`)).toBeOnTheScreen();
+      expect(view.getByText(tab.label)).toBeOnTheScreen();
+    }
+  });
+
+  it('marks exactly the category it is showing', async () => {
+    const view = await renderScreen(<CommunityScreen />);
+
+    for (const tab of CATEGORY_TABS) {
+      expect({
+        key: tab.key,
+        selected: Boolean(
+          view.getByTestId(`community-tab-${tab.key}`).props.accessibilityState?.selected,
+        ),
+      }).toEqual({ key: tab.key, selected: tab.key === DEFAULT_CATEGORY });
+    }
+  });
+
+  it('renders the header as the same gradient pill the other tabs use', async () => {
+    // Parity with `app/(tabs)/history.tsx`. The subtitle is gone on purpose —
+    // the category row directly beneath already says what the screen is.
+    const view = await renderScreen(<CommunityScreen />);
+
+    expect(view.getByText('ชุมชนสุขภาพ')).toBeOnTheScreen();
+    expect(view.queryByText('แลกเปลี่ยนประสบการณ์ดูแลความดันกับคนอื่น')).toBeNull();
   });
 
   it('says it is loading rather than saying the tab is empty', async () => {

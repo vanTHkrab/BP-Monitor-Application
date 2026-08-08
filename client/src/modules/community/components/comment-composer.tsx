@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { useFontScale } from '@/hooks/use-font-scale';
+import { useTypography } from '@/hooks/use-typography';
 import { useTheme } from '@/hooks/use-theme';
 
 export const COMMENT_MAX_LENGTH = 1000;
@@ -37,7 +37,7 @@ export function CommentComposer({
   onCancelEdit,
 }: CommentComposerProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
+  const typography = useTypography();
 
   const canSubmit = value.trim().length > 0 && !isSubmitting;
 
@@ -76,7 +76,9 @@ export function CommentComposer({
             // content rather than pushing the thread off screen.
             minHeight: 44,
             maxHeight: 120,
-            fontSize: Math.round(15 * fontScale),
+            // `lineHeight: null` — an explicit line height mis-centres the
+            // caret on Android, and this field had none before the migration.
+            ...typography({ size: 15, weight: 'regular', lineHeight: null }),
             color: colors['text-primary'],
             backgroundColor: colors['surface-muted'],
           }}

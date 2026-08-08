@@ -38,9 +38,9 @@ const SIZE_CLASS: Record<GradientButtonSize, string> = {
  * The label size belongs to the *button* size, not to a typography role, so
  * these stay here rather than becoming `ThemedText` variants — a shared text
  * component gaining `button-small` / `button-medium` steps would be the tail
- * wagging the dog. What they do gain is `useFontScale()`, which is the same
- * multiplier `ThemedText` applies, so a button label tracks the user's font
- * preference exactly like the prose around it.
+ * wagging the dog. They are passed to `ThemedText`'s `size` prop, so they go
+ * through `useTypography()` like everything else and a button label tracks the
+ * user's size *and* family preference exactly like the prose around it.
  */
 const SIZE_FONT: Record<GradientButtonSize, number> = {
   small: 14,

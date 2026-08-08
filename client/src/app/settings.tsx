@@ -34,25 +34,23 @@
  *     Debug row in app/(tabs)/menu.tsx is gated on `__DEV__` instead — so
  *     porting the gesture would mean inventing the state it toggles.
  */
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
+import { FontFamilyPicker } from '@/components/ui/font-family-picker';
 import { FontSizePicker } from '@/components/ui/font-size-picker';
+import { SettingCard } from '@/components/ui/setting-card';
 import { SettingItem, SettingSection } from '@/components/ui/setting-item';
 import { ThemePicker } from '@/components/ui/theme-picker';
-import { useTheme } from '@/hooks/use-theme';
 import { useDeleteMyData } from '@/modules/auth';
 import { useReminderSettings } from '@/modules/notifications';
 import { ExportFormatSheet, useExportReadings, useReadings } from '@/modules/readings';
 import { SecurityHeader } from '@/modules/security';
-import { palette } from '@/theme';
 
 export default function SettingsScreen() {
-  const colors = useTheme();
   const { deleteMyData, isPending: isDeleting } = useDeleteMyData();
   const { settings: reminders, isLoading: isLoadingReminders } = useReminderSettings();
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
@@ -126,53 +124,44 @@ export default function SettingsScreen() {
         <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
           <SettingSection title="การแสดงผล" />
 
-          <View
-            className="mb-3 rounded-xl border p-4"
-            style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+          {/*
+            These three cards are rendered by `app/onboarding/setup.tsx` too,
+            out of the same `SettingCard` and the same three pickers. That is
+            the point of the extraction: the copy, the labels, and the layout
+            live in the components, so a change to any of them lands on both
+            screens without anyone having to remember the other one exists.
+            Before this, setup built its own controls and had already drifted —
+            it called the medium font rung `ปกติ` where the picker says
+            `มาตรฐาน`.
+          */}
+          <SettingCard
+            testID="settings-theme"
+            icon="color-palette-outline"
+            title="ธีม"
+            description="เลือกโหมดสว่าง มืด หรือให้เปลี่ยนตามเครื่อง"
           >
-            <View className="mb-3.5 flex-row items-center">
-              <View
-                className="mr-3 h-10 w-10 items-center justify-center rounded-full"
-                style={{ backgroundColor: colors['surface-muted'] }}
-              >
-                <Ionicons name="color-palette-outline" size={22} color={palette.blue} />
-              </View>
-              <View className="flex-1">
-                <ThemedText type="default">
-                  ธีม
-                </ThemedText>
-                <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
-                  เลือกโหมดสว่าง มืด หรือให้เปลี่ยนตามเครื่อง
-                </ThemedText>
-              </View>
-            </View>
-
             <ThemePicker />
-          </View>
+          </SettingCard>
 
-          <View
-            className="mb-3 rounded-xl border p-4"
-            style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+          <SettingCard
+            testID="settings-font-size"
+            icon="text-outline"
+            title="ขนาดตัวหนังสือ"
+            description="ปรับจากหน้านี้แล้วให้หน้าหลักของแอปเปลี่ยนตาม"
+            accent="purple"
           >
-            <View className="mb-3.5 flex-row items-center">
-              <View
-                className="mr-3 h-10 w-10 items-center justify-center rounded-full"
-                style={{ backgroundColor: colors['surface-muted'] }}
-              >
-                <Ionicons name="text-outline" size={22} color={palette.purple} />
-              </View>
-              <View className="flex-1">
-                <ThemedText type="default">
-                  ขนาดตัวหนังสือ
-                </ThemedText>
-                <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
-                  ปรับจากหน้านี้แล้วให้หน้าหลักของแอปเปลี่ยนตาม
-                </ThemedText>
-              </View>
-            </View>
-
             <FontSizePicker />
-          </View>
+          </SettingCard>
+
+          <SettingCard
+            testID="settings-font-family"
+            icon="text"
+            title="แบบตัวหนังสือ"
+            description="เลือกหน้าตาตัวอักษรที่อ่านสบายตาที่สุดสำหรับคุณ"
+            accent="purple"
+          >
+            <FontFamilyPicker />
+          </SettingCard>
 
           <SettingSection title="การแจ้งเตือน" />
 

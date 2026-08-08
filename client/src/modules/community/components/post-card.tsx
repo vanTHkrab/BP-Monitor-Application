@@ -23,7 +23,7 @@ import { Pressable, Share, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Avatar } from '@/components/ui/avatar';
-import { useFontScale } from '@/hooks/use-font-scale';
+import { useTypography } from '@/hooks/use-typography';
 import { useTheme } from '@/hooks/use-theme';
 
 import { formatRelativeTimeTH } from '../lib/relative-time';
@@ -44,13 +44,21 @@ export type PostCardProps = {
 
 export function PostCard({ post, isOwner, onPress, onLike, onComment, onMore }: PostCardProps) {
   const colors = useTheme();
-  const fontScale = useFontScale();
+  const typography = useTypography();
 
   const [isExpanded, setExpanded] = useState(false);
   const [lineCount, setLineCount] = useState(0);
   const [hasMeasured, setHasMeasured] = useState(false);
 
-  const bodySize = Math.round(15 * fontScale);
+  /*
+   * Stays a raw `<Text>` — see `docs/project/CLIENT-typography.md` §4. It is
+   * measured with `onTextLayout` against a dynamic `numberOfLines` to decide
+   * whether to offer "อ่านต่อ", and the body/line-height pair below has to be
+   * the one that measurement was taken against. What it does now get is the
+   * shared resolver, so a family switch changes the metric the measurement
+   * uses instead of leaving it on a stale copy of the arithmetic.
+   */
+  const bodyStyle = typography({ size: 15, weight: 'regular', lineHeight: 15 + 8 });
   const canExpand = lineCount > COLLAPSED_LINES;
 
   return (
@@ -102,11 +110,7 @@ export function PostCard({ post, isOwner, onPress, onLike, onComment, onMore }: 
           setLineCount((current) => Math.max(current, lines));
           setHasMeasured(true);
         }}
-        style={{
-          fontSize: bodySize,
-          lineHeight: bodySize + 8,
-          color: colors['text-primary'],
-        }}
+        style={{ ...bodyStyle, color: colors['text-primary'] }}
       >
         {post.content}
       </Text>

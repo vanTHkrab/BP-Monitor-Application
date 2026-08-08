@@ -2,7 +2,7 @@
  * Ported from client-old/app/help.tsx: contact rows, an FAQ list, two CTA
  * tiles, and a tutorial banner. Static content — no store dependency beyond
  * theme/font, both of which this tree already has (`useTheme`,
- * `useFontScale`) in place of client-old's `Colors` constant and
+ * `useTypography`) in place of client-old's `Colors` constant and
  * `fontPresetClass`.
  *
  * Contact details (email, phone, Line) and the FAQ copy are client-old's

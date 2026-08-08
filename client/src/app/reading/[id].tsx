@@ -102,13 +102,22 @@ export default function ReadingDetailScreen() {
               }}
             >
               <View className="flex-row items-end justify-center">
-                <ThemedText type="display" testID="reading-detail-systolic">
+                {/*
+                  `family="mono"` on all three: the figure is a *number to compare*,
+                  and proportional digits make a column of readings jitter — 1 is
+                  narrow, 8 is wide, so 120/80 and 148/92 do not line up. Tabular
+                  digits make the home hero card, a history row, and the detail
+                  screen agree on the width of a reading. It also takes the figure
+                  off the user's family preference, which was never a choice about
+                  numerals. See `themed-text.tsx`'s `family` prop.
+                */}
+                <ThemedText type="display" family="mono" testID="reading-detail-systolic">
                   {reading.systolic}
                 </ThemedText>
-                <ThemedText size={36} weight="bold" className="mx-1">
+                <ThemedText size={36} weight="bold" family="mono" className="mx-1">
                   /
                 </ThemedText>
-                <ThemedText type="display">
+                <ThemedText type="display" family="mono">
                   {reading.diastolic}
                 </ThemedText>
                 <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-2 ml-2">

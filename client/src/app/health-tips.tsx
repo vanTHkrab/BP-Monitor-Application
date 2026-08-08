@@ -3,7 +3,7 @@
  * and one icon card per tip. Layout, copy, and the staggered entrance are the
  * original's; what changed is what this tree provides instead.
  *
- *   - `Colors` + `fontPresetClass` → `useTheme()` + `useFontScale()`, the same
+ *   - `Colors` + `fontPresetClass` → `useTheme()` + `useTypography()`, the same
  *     substitution `app/help.tsx` made. There is no `themePreference` here —
  *     dark resolution belongs to ColorSchemeProvider — so the `isDark ? … : …`
  *     class pairs become semantic tokens that already flip.

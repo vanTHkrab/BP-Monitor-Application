@@ -25,6 +25,8 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
 }));
 
 import { usePreferencesStore } from '@/stores';
+import { LoadedFontFamiliesProvider } from '@/theme/font-loading';
+import { FONT_FAMILIES } from '@/theme/typography';
 
 import { ThemedText } from './themed-text';
 import { renderScreen } from '../../__test__/test-utils';
@@ -37,7 +39,7 @@ const sizeOf = (node: { props: Record<string, unknown> }): number => {
 
 beforeEach(() => {
   mockOsFontScale.current = 1;
-  usePreferencesStore.setState({ fontSize: 'medium' });
+  usePreferencesStore.setState({ fontSize: 'medium', fontFamily: 'noto' });
 });
 
 it('renders the variant base size at the medium baseline', async () => {
@@ -147,6 +149,58 @@ describe('font family', () => {
       expect(loaded).toContain(styleOf(view.getByText(`ทดสอบ-${weight}`)).fontFamily);
     }
   });
+
+  /*
+   * The typeface preference, and the one node in the app that overrides it.
+   *
+   * `renderScreen` mounts no `LoadedFontFamiliesProvider`, so the default
+   * context applies — Noto only, which is the honest state before the deferred
+   * fonts land. That makes these two cases the fallback path as well as the
+   * preference path, which is the pairing that matters: a preference that
+   * names an unloaded font must render Noto, never the OEM face.
+   */
+  describe('typeface preference', () => {
+    it('follows the stored family preference', async () => {
+      usePreferencesStore.setState({ fontFamily: 'sarabun' });
+      const view = await renderScreen(
+        <LoadedFontFamiliesProvider families={['sarabun']}>
+          <ThemedText type="body">สารบรรณ</ThemedText>
+        </LoadedFontFamiliesProvider>,
+      );
+
+      // `body` is `medium`, which Sarabun does not ship — it falls to regular.
+      expect(styleOf(view.getByText('สารบรรณ')).fontFamily).toBe('Sarabun_400Regular');
+    });
+
+    /*
+     * No provider, deliberately. `mono` blocks the splash alongside Noto — it
+     * is not a preference, it is pinned to the blood-pressure figure for every
+     * user — so it must resolve from the default context. Deferring it made
+     * the hero digits change typeface *and* size mid-launch on every cold
+     * start, since `opticalScale` is 0.96.
+     */
+    it('lets the family prop override the preference, with no wait', async () => {
+      usePreferencesStore.setState({ fontFamily: 'sarabun' });
+      const view = await renderScreen(
+        <ThemedText size={48} weight="bold" family="mono">
+          120
+        </ThemedText>,
+      );
+
+      expect(styleOf(view.getByText('120')).fontFamily).toBe('IBMPlexMono_700Bold');
+      // 48, not 46: the size must not move once anything else finishes
+      // loading, because there is nothing left to finish.
+      expect(styleOf(view.getByText('120')).fontSize).toBe(Math.round(48 * 0.96));
+    });
+
+    it('renders noto while the chosen family is still loading', async () => {
+      usePreferencesStore.setState({ fontFamily: 'looped' });
+      // No provider: the default reports Noto alone.
+      const view = await renderScreen(<ThemedText type="body">รอฟอนต์</ThemedText>);
+
+      expect(styleOf(view.getByText('รอฟอนต์')).fontFamily).toBe('NotoSansThai_500Medium');
+    });
+  });
 });
 
 /*
@@ -199,6 +253,10 @@ describe('explicit size', () => {
   it('derives a line height when none is given', async () => {
     const view = await renderScreen(<ThemedText size={20}>20</ThemedText>);
 
+    // `DEFAULT_LINE_HEIGHT_RATIO` × the size, untouched: Noto's floor is 1.15
+    // and 1.45 clears it comfortably. Noto never needed rescuing, and the
+    // clamp is not allowed to restyle it on the way past.
     expect(styleOf(view.getByText('20')).lineHeight).toBe(Math.round(20 * 1.45));
+    expect(20 * 1.45).toBeGreaterThan(20 * FONT_FAMILIES.noto.minLineHeightRatio);
   });
 });

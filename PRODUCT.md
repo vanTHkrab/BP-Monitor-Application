@@ -63,9 +63,11 @@ failing or being lost.
   `CLAUDE.md`.
 - **Elderly-first readability.** ~11px is the enforced floor for body
   text; `usePreferencesStore().fontSize` (small/medium/large/xlarge) plus
-  `useFontScale()` is the live mechanism — a redesign must keep scaling
+  `useTypography()` is the live mechanism — a redesign must keep scaling
   through it, not hardcode literal sizes that ignore the preference.
-  `medium` is the default rung, not the smallest.
+  `medium` is the default rung, not the smallest. The same store also holds
+  `fontFamily` (Noto Sans Thai / looped / Sarabun), and the resolver enforces
+  a per-family Thai line-height floor so below-baseline vowels are not clipped.
 - **Offline-first architecture.** SQLite mirrors both the pending-write
   queue and confirmed data; Postgres via the gateway is the durable source
   of truth. UI must never assume a network round-trip completes

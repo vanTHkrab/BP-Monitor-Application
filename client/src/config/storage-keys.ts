@@ -44,6 +44,12 @@ export const STORAGE_KEYS = {
 
   themePreference: 'bp.theme_preference',
   fontSize: 'bp.font_size',
+  /**
+   * No `LEGACY_STORAGE_KEYS` entry, and none is needed: the family preference
+   * did not exist before this key did, so there is nothing to fall back to.
+   * An absent value is a user who has never chosen, which is the default.
+   */
+  fontFamily: 'bp.font_family',
   setupCompleted: 'bp.setup_completed',
   appLock: 'bp.app_lock_enabled',
   autoCapture: 'bp.auto_capture_enabled',

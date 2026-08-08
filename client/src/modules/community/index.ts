@@ -24,6 +24,7 @@ export {
 } from './hooks/use-comments';
 
 export {
+  CATEGORY_TABS,
   DEFAULT_CATEGORY,
   POST_CATEGORIES,
   categoryHint,
@@ -33,7 +34,6 @@ export {
 export { applyLikeResult, toggleLike, updateById, type Likeable } from './lib/likes';
 export { formatRelativeTimeTH } from './lib/relative-time';
 
-export { CategoryTabs } from './components/category-tabs';
 export { CommentComposer, COMMENT_MAX_LENGTH } from './components/comment-composer';
 export { CommentRow } from './components/comment-row';
 export { PostCard } from './components/post-card';

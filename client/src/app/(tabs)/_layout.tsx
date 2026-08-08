@@ -10,9 +10,22 @@
  *    export still has it but marks it deprecated in SDK 57.
  *
  * The old file's label scaling (`getFontNumber(fontSizePreference, …)`) is
- * NOT ported yet — it depends on a preferences store that does not exist in
- * this tree. The literal below is the old `medium` rung, so nothing shifts
- * for a default user; wire it back up when the preferences module lands.
+ * ported now, through `useTypography()` rather than through a second copy of
+ * the arithmetic. `TAB_LABEL_SIZE` is the base px — the old `medium` rung, so
+ * nothing shifts for a default user — and the resolver applies both the size
+ * preference and the family's optical correction to it.
+ *
+ * **The bar's height has to know which typeface is selected**, which is why
+ * its measurements live in `hooks/use-tab-bar-geometry.ts` rather than here.
+ * A device pass found Thai below-baseline vowels clipped in the tab labels
+ * under looped and Sarabun — a *container* failure, and a different bug from
+ * the line-height floor in `hooks/use-typography.ts`: the label carries no
+ * `lineHeight`, so it keeps the font's natural box, and looped and Sarabun
+ * are 15 % and 23 % taller there than Noto (1.74 and 1.86 em against 1.52).
+ * The bar was a fixed base + inset, sized when Noto was the only face, so the
+ * extra box had nowhere to go. The hook's `labelHeadroom` buys it back, and
+ * `app/(tabs)/camera.tsx` reads the same hook so its overlay clearance cannot
+ * drift from the bar again.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,14 +35,13 @@ import { Platform, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { useTabBarGeometry } from '@/hooks/use-tab-bar-geometry';
 import { ActivePatientBanner, useActivePatient } from '@/modules/caregivers';
 import { useTheme } from '@/hooks/use-theme';
 import { gradientFor } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
 cssInterop(LinearGradient, { className: 'style' });
-
-const TAB_LABEL_SIZE = 11;
 
 function TabBarIcon({
   name,
@@ -60,9 +72,9 @@ export default function TabLayout() {
   const { isViewingPatient } = useActivePatient();
   const isDark = scheme === 'dark';
   const cta = gradientFor(scheme, 'cta');
-
-  const tabBarBaseHeight = Platform.OS === 'ios' ? 60 : 62;
-  const tabBarPaddingBottom = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
+  // Shared with `app/(tabs)/camera.tsx`, which has to clear this bar with its
+  // own overlay. It used to keep a copy of the arithmetic and drifted.
+  const tabBar = useTabBarGeometry();
 
   /*
    * The banner owns the top inset, so the screens under it must stop adding
@@ -96,11 +108,11 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: isDark ? colors.surface : colors.primary,
           borderTopWidth: 0,
-          height: tabBarBaseHeight + insets.bottom,
-          paddingBottom: tabBarPaddingBottom,
+          height: tabBar.height,
+          paddingBottom: tabBar.paddingBottom,
           paddingTop: 7,
           marginHorizontal: 8,
-          marginBottom: Platform.OS === 'ios' ? 2 : 4,
+          marginBottom: tabBar.marginBottom,
           borderRadius: 16,
           position: 'absolute',
           shadowColor: '#000',
@@ -110,8 +122,15 @@ export default function TabLayout() {
           elevation: 10,
         },
         tabBarLabelStyle: {
-          fontSize: TAB_LABEL_SIZE,
-          fontWeight: '700',
+          // `fontWeight` is gone: the resolver emits an explicit `fontFamily`,
+          // and on Android a weight beside one is ignored or synthesised.
+          // `weight: 'bold'` selects the 700 file instead.
+          //
+          // `lineHeight: null` stays. An explicit line height here would fight
+          // react-navigation, which positions the label itself; the fix for
+          // the clipping is `labelHeadroom` on the bar, because the bar's
+          // height is the thing that was wrong.
+          ...tabBar.labelStyle,
           marginTop: 1,
         },
       }}>
@@ -154,7 +173,7 @@ export default function TabLayout() {
             <View
               style={{
                 marginBottom:
-                  Platform.OS === 'ios' ? tabBarPaddingBottom + 10 : tabBarPaddingBottom + 6,
+                  Platform.OS === 'ios' ? tabBar.paddingBottom + 10 : tabBar.paddingBottom + 6,
               }}>
               <LinearGradient
                 colors={cta}

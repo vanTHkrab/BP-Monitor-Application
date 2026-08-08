@@ -16,19 +16,36 @@
  * sqlite / storage / store / uploads inspectors, ~1,300 lines), so it is its
  * own task rather than part of this screen — see
  * docs/project/CLIENT-debug-tools.md.
+ *
+ * **Insets come from `useSafeAreaInsets()`, like the other two tab screens.**
+ * This was the only one of the three that did not ask: it padded the top with
+ * a flat `Spacing.four` (24), so the header pill sat under the status bar on a
+ * notched device, and it cleared the bottom with the `BottomTabInset` constant
+ * (iOS 50 / Android 80) while the real bar is `tabBarBaseHeight + insets.bottom`
+ * plus a margin and `position: 'absolute'` — a constant cannot track that.
+ * `insets.bottom + 108` is what `app/(tabs)/history.tsx` uses and is derived
+ * from the same numbers.
+ *
+ * `insets.top` is correct in **both** caregiver states, and that is not an
+ * accident: when a patient is being viewed, `app/(tabs)/_layout.tsx` wraps the
+ * navigator in a `SafeAreaInsetsContext.Provider` with `top: 0`, because the
+ * `ActivePatientBanner` above has already spent that inset. Reading the
+ * context is what makes this screen participate in that; the old constant
+ * would have double-counted under the banner.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import { Pressable, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { Avatar } from '@/components/ui/avatar';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { MenuItem, MenuSection } from '@/components/ui/menu-item';
-import { BottomTabInset, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useLogout, useSession } from '@/modules/auth';
 import { gradientFor } from '@/theme';
@@ -38,6 +55,7 @@ cssInterop(LinearGradient, { className: 'style' });
 
 export default function MenuScreen() {
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const { scheme } = useColorSchemePreference();
   const isDark = scheme === 'dark';
   const { user, isLoadingUser } = useSession();
@@ -56,12 +74,20 @@ export default function MenuScreen() {
         className="flex-1"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingTop: Spacing.four,
-          paddingBottom: BottomTabInset + Spacing.four,
+          paddingTop: insets.top,
+          // Clears the floating tab bar. Same expression as history.tsx —
+          // the bar is absolutely positioned, so nothing reserves this space.
+          paddingBottom: insets.bottom + 108,
+          // One gutter for the whole page. The header pill had none, the
+          // profile card carried its own `mx-4`, and the sections sat in a
+          // `px-4` — three insets for one column.
+          paddingHorizontal: 16,
         }}
       >
-        {/* Header pill */}
-        <View className="items-center pb-4">
+        {/* Header pill. Keeps its icon and shadow — the two other tab screens
+            render a plainer version of this, and unifying the three is a
+            refactor of its own rather than part of this change. */}
+        <View className="items-center py-4">
           <LinearGradient
             colors={gradientFor(scheme, 'header')}
             start={{ x: 0, y: 0 }}
@@ -93,7 +119,7 @@ export default function MenuScreen() {
           onPress={() => router.push('/profile')}
           accessibilityRole="button"
           accessibilityLabel="โปรไฟล์ของฉัน"
-          className="mx-4 mb-2 overflow-hidden rounded-2xl"
+          className="mb-2 overflow-hidden rounded-2xl"
           style={{
             backgroundColor: colors.surface,
             shadowColor: '#000',
@@ -140,7 +166,7 @@ export default function MenuScreen() {
           </View>
         </Pressable>
 
-        <View className="mt-5 px-4">
+        <View className="mt-5">
           <MenuSection title="บัญชีและการตั้งค่า">
             <MenuItem
               testID="menu-profile"
@@ -168,28 +194,57 @@ export default function MenuScreen() {
             />
           </MenuSection>
 
-          <MenuSection title="ความช่วยเหลือ">
-            <MenuItem
-              testID="menu-help"
-              icon="help-circle-outline"
-              title="ช่วยเหลือและคำแนะนำ"
-              onPress={() => router.push('/help')}
-            />
-            <MenuItem
-              testID="menu-about"
-              icon="information-circle-outline"
-              title="เกี่ยวกับ"
-              onPress={() => router.push('/about')}
-            />
-            {__DEV__ ? (
+          {/*
+            The support section reads as a floating card, borrowing the bottom
+            tab bar's language: `borderRadius: 16` and a shadow cast *upward*
+            (`height: -2`), which is what makes the bar look detached from the
+            screen rather than seated on it.
+
+            **It still scrolls with the page.** It is not pinned and it has not
+            moved into the tab bar — this is a restyle of a section in its
+            existing position, deliberately the smaller change.
+
+            `surface-muted` rather than `surface`: every `MenuItem` inside is
+            already a `surface` card with its own shadow, so a `surface`
+            container would put the same colour behind them and flatten both.
+            The muted tone makes the rows read as sitting *on* something, the
+            same relationship `tab-buttons.tsx` has with its track.
+          */}
+          <View
+            className="mb-2 rounded-2xl px-3 pb-1.5"
+            style={{
+              backgroundColor: colors['surface-muted'],
+              borderRadius: 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: isDark ? 0.25 : 0.1,
+              shadowRadius: 8,
+              elevation: 10,
+            }}
+          >
+            <MenuSection title="ความช่วยเหลือ">
               <MenuItem
-                testID="menu-debug"
-                icon="bug-outline"
-                title="Debug · ข้อมูลในแอป"
-                onPress={() => router.push('/debug')}
+                testID="menu-help"
+                icon="help-circle-outline"
+                title="ช่วยเหลือและคำแนะนำ"
+                onPress={() => router.push('/help')}
               />
-            ) : null}
-          </MenuSection>
+              <MenuItem
+                testID="menu-about"
+                icon="information-circle-outline"
+                title="เกี่ยวกับ"
+                onPress={() => router.push('/about')}
+              />
+              {__DEV__ ? (
+                <MenuItem
+                  testID="menu-debug"
+                  icon="bug-outline"
+                  title="Debug · ข้อมูลในแอป"
+                  onPress={() => router.push('/debug')}
+                />
+              ) : null}
+            </MenuSection>
+          </View>
 
           <View className="mt-2">
             <GradientButton

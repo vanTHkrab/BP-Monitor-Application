@@ -10,16 +10,35 @@
  * One correction to the port: client-old hardcoded its preview sizes
  * (14/18/21/24) separately from the sizes the app actually used, so the
  * preview could drift from the result. These read `FONT_SIZE_STEPS`, the same
- * table `useFontScale` derives its multiplier from — the sample is the real
+ * table `useTypography` derives its multiplier from — the sample is the real
  * value by construction.
+ *
+ * ## The one rule this control cannot break
+ *
+ * **The samples resolve through `typographyFor`, not `useTypography`.** The
+ * hook is bound to the *current* preference; the whole point of these four
+ * cards is to show what each of the four *other* answers looks like. Wire the
+ * hook in here and the control previews itself — every card renders identically
+ * at whatever is already selected, and the one setting in the app that exists
+ * to be judged by eye becomes unjudgeable. The labels underneath are the
+ * exception and deliberately *do* track the current preference, so they stay a
+ * consistent row while the samples differ.
+ *
+ * Family follows the user's real choice in every sample, because size is what
+ * is being chosen here — showing four sizes in a face the user did not pick
+ * would answer a question nobody asked. `useLoadedFontFamilies()` is passed
+ * through so a family that has not finished loading previews as Noto rather
+ * than as the OEM system face.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { FONT_SIZE_STEPS, useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
+import { typographyFor, useTypography } from '@/hooks/use-typography';
 import { usePreferencesStore, type FontSizePreference } from '@/stores';
+import { useLoadedFontFamilies } from '@/theme/font-loading';
+import { BASELINE_PX } from '@/theme/typography';
 
 const OPTIONS: { value: FontSizePreference; label: string }[] = [
   { value: 'small', label: 'เล็ก' },
@@ -30,8 +49,10 @@ const OPTIONS: { value: FontSizePreference; label: string }[] = [
 
 export function FontSizePicker() {
   const colors = useTheme();
-  const fontScale = useFontScale();
+  const typography = useTypography();
+  const loadedFamilies = useLoadedFontFamilies();
   const fontSize = usePreferencesStore((state) => state.fontSize);
+  const fontFamily = usePreferencesStore((state) => state.fontFamily);
   const setFontSize = usePreferencesStore((state) => state.setFontSize);
 
   return (
@@ -39,7 +60,28 @@ export function FontSizePicker() {
       <View className="flex-row flex-wrap justify-between">
         {OPTIONS.map((option) => {
           const isSelected = option.value === fontSize;
-          const sampleSize = FONT_SIZE_STEPS[option.value];
+          /*
+           * This card's own size, not the selected one. See the header.
+           *
+           * `size: BASELINE_PX` rather than `FONT_SIZE_STEPS[option.value]`
+           * directly: the rung *is* the scale, so feeding the baseline through
+           * the resolver at that rung reproduces the rung exactly while also
+           * picking up the family's optical correction — which the raw table
+           * value would have skipped, making the sample the one piece of text
+           * on the screen that ignored the family.
+           *
+           * No `lineHeight` override. It used to pass `BASELINE_PX + 6` — 22
+           * over 16, a ratio of 1.375 — which is under the floor Thai needs
+           * and which nobody noticed because this sample is the Latin `Aa` and
+           * has no below-baseline marks to clip. The resolver clamps it now
+           * either way; stating a number it would overrule would just be a
+           * lie in the source. The card's `minHeight: 78` absorbs the extra px.
+           */
+          const sampleStyle = typographyFor(
+            { fontSize: option.value, fontFamily },
+            { size: BASELINE_PX, weight: 'bold' },
+            loadedFamilies,
+          );
 
           return (
             <Pressable
@@ -62,10 +104,8 @@ export function FontSizePicker() {
             >
               <View className="flex-row items-center justify-between">
                 <Text
-                  className="font-bold"
                   style={{
-                    fontSize: sampleSize,
-                    lineHeight: sampleSize + 6,
+                    ...sampleStyle,
                     color: isSelected ? '#FFFFFF' : colors['text-primary'],
                   }}
                 >
@@ -82,12 +122,12 @@ export function FontSizePicker() {
               </View>
 
               <Text
-                className="mt-1 font-semibold"
+                className="mt-1"
                 numberOfLines={1}
                 style={{
                   // Scales with the *current* preference, not this card's, so
                   // the labels stay a consistent row while the samples differ.
-                  fontSize: Math.round(14 * fontScale),
+                  ...typography({ size: 14, weight: 'semibold', lineHeight: null }),
                   color: isSelected ? '#FFFFFF' : colors['text-secondary'],
                 }}
               >
@@ -110,8 +150,9 @@ export function FontSizePicker() {
         <Text
           className="mt-1"
           style={{
-            fontSize: Math.round(15 * fontScale),
-            lineHeight: Math.round(23 * fontScale),
+            // The current preference on purpose — unlike the four cards, this
+            // paragraph is showing the user the setting they are living with.
+            ...typography({ size: 15, weight: 'regular', lineHeight: 23 }),
             color: colors['text-primary'],
           }}
         >

@@ -1,17 +1,17 @@
 /**
  * Form input with a leading icon, focus state, and inline error.
  *
- * Ported from client-old/components/custom-input.tsx. Colours now come from
- * the token file; the font-size preference the old version read is not wired
- * up in this tree yet, so sizes are the old `medium` rung.
+ * Ported from client-old/components/custom-input.tsx. Colours come from the
+ * token file and the type comes from `useTypography()`, so the field tracks
+ * both the font-size and the font-family preference like the prose around it.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { useFontScale } from '@/hooks/use-font-scale';
 import { useTheme } from '@/hooks/use-theme';
+import { useTypography } from '@/hooks/use-typography';
 import { palette, status } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
 
@@ -57,7 +57,7 @@ export function TextField({
   const { scheme } = useColorSchemePreference();
   const colors = useTheme();
   const isDark = scheme === 'dark';
-  const fontScale = useFontScale();
+  const typography = useTypography();
 
   const [isPasswordVisible, setPasswordVisible] = useState(false);
   const [isFocused, setFocused] = useState(false);
@@ -117,8 +117,16 @@ export function TextField({
 
         <TextInput
           testID={testID}
-          className="flex-1 py-3 font-semibold"
-          style={{ fontSize: Math.round(15 * fontScale), color: colors['text-primary'] }}
+          className="flex-1 py-3"
+          // `font-semibold` moved off the className and into `weight`. A
+          // `fontWeight` beside an explicit `fontFamily` is ignored or faked on
+          // Android, and the resolver always emits a family — so the class was
+          // about to become one of the silent no-ops `themed-text.tsx` warns
+          // about. `lineHeight: null` keeps the input without one; see the prop.
+          style={{
+            ...typography({ size: 15, weight: 'semibold', lineHeight: null }),
+            color: colors['text-primary'],
+          }}
           placeholder={placeholder}
           placeholderTextColor={colors['text-secondary']}
           value={value}

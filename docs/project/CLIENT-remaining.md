@@ -236,7 +236,7 @@ makes an agent create the wrong file.
   boundary, TanStack Query for server state versus two small Zustand stores
   for device state, and the queue-first two-table offline path.
 - **`ux-ui-designer.md`** taught `useAppStore(s => s.themePreference === 'dark')`
-  and `getFontClass` — neither exists. Now `useTheme()` and `useFontScale()`.
+  and `getFontClass` — neither exists. Now `useTheme()` and `useTypography()`.
   Its palette table also carried a wrong light `border` value and called the
   purple "accent" when `accent` is **orange**; an agent following it would
   have reached for the wrong token by name. Corrected against `tokens.js`,

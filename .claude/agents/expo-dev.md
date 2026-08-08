@@ -31,7 +31,7 @@ Surfaces to consider on every change:
 - Auth fan-out: does this transport need to call `fireUnauthenticated()` on 401 / UNAUTHENTICATED?
 - Alert surface: inline form error, banner, `Alert.alert`, toast, or a local notification?
 - Dark mode + colours via `useTheme()` (NOT `useColorScheme()` and NOT raw hex)
-- Font scale via `useFontScale()` — a multiplier applied to the component's own literals
+- Font sizing via `useTypography()` — never a hand-rolled `Math.round(x * fontScale)`
 - Empty / loading / error / offline / permission-denied states
 - Cross-platform (iOS / Android / Expo web) — note any Platform.OS branches or .ios / .android / .web siblings
 ```
@@ -203,7 +203,15 @@ Hard rules that turn into review comments if violated:
 - `border` and `border-strong` are not interchangeable: `border` is a hairline divider
   (in light mode it is literally the background colour), `border-strong` is the outline of
   something you can touch and is the one that has to stay visible.
-- Font size via `useFontScale()` — a multiplier the component applies to its own literals.
+- Font sizing via `useTypography()` (`src/hooks/use-typography.ts`) — the one place a base px
+  becomes a rendered px. Prefer a `ThemedText` variant; where a component cannot accept one
+  (a `<TextInput>`, a chart library's style prop, a navigator's label style), spread the
+  resolver's `TextStyle`. **Writing `Math.round(x * fontScale)` in a component is how this
+  app ended up with fourteen copies of that expression, none of which knew about the
+  font-family preference when it arrived.** `useFontScale()` is now internal to the resolver.
+  Use `useLayoutTypography()` — not `useTypography()` — when sizing a **dp** container
+  (a `height`, a `minHeight`) from text, because the OS accessibility scale is divided out
+  of style space and multiplied back at paint. Mixing the two is silent on a default device.
   Mind the elderly-first readability floor; this app's audience is the reason the scale exists.
 - No bare `catch {}` — either handle it or comment why swallowing is correct. Several
   swallows in this tree are deliberate and say so.

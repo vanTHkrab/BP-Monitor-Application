@@ -44,7 +44,7 @@ import { GradientBackground } from '@/components/gradient-background';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { OptionRow } from '@/components/ui/option-row';
 import { TextField } from '@/components/ui/text-field';
-import { useFontScale } from '@/hooks/use-font-scale';
+import { useTypography } from '@/hooks/use-typography';
 import { useTheme } from '@/hooks/use-theme';
 import {
   formatAuthError,
@@ -75,7 +75,7 @@ import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
 
 export default function ProfileScreen() {
   const colors = useTheme();
-  const fontScale = useFontScale();
+  const typography = useTypography();
 
   const { user } = useSession();
   const { updateProfile, isPending } = useUpdateProfile();
@@ -292,10 +292,12 @@ export default function ProfileScreen() {
               <View className="mb-4">
                 <TextInput
                   testID="profile-congenital-disease"
-                  className="rounded-[14px] border-2 px-[14px] py-3 font-semibold"
+                  className="rounded-[14px] border-2 px-[14px] py-3"
                   style={{
                     minHeight: 88,
-                    fontSize: Math.round(15 * fontScale),
+                    // No line height: this input had none, and acquiring one
+                    // here would re-centre the text inside the 88px box.
+                    ...typography({ size: 15, weight: 'semibold', lineHeight: null }),
                     color: colors['text-primary'],
                     borderColor: errors.congenitalDisease ? statusColor.high : colors.border,
                     backgroundColor: colors['surface-muted'],

@@ -159,17 +159,25 @@ is used for primary actions and selected states only.
   variant". Component-specific sizes stay literal and take the multiplier
   below.
 - Font size scales with the user's stored preference through
-  **`useFontScale()`** (`src/hooks/use-font-scale.ts`), which returns a
-  *multiplier* (`1.0` at `medium`) with the **OS accessibility scale already
-  divided out** — `allowFontScaling` stays on and RN multiplies it back, so
-  the app's setting and the system setting never compound. A component applies
-  it to its own literal:
+  **`useTypography()`** (`src/hooks/use-typography.ts`) — the single place a
+  base px becomes a rendered px, `Math.round(base × sizeScale × opticalScale)`.
+  It returns a `TextStyle`, not a component, so it merges into the places
+  `ThemedText` cannot reach:
   ```tsx
-  const fontScale = useFontScale();
-  <Text style={{ fontSize: Math.round(16 * fontScale) }} />
+  const typography = useTypography();
+  <Text style={typography({ size: 16 })} />
+  // and into a library's style prop:
+  yAxisTextStyle={{ ...typography({ type: 'caption' }), color: colors['text-secondary'] }}
   ```
-  A multiplier rather than a per-role scale table because the app has no shared
-  typography scale yet. Never hardcode a `text-sm` class on copy a patient reads.
+  **Never hand-roll `Math.round(x * fontScale)`.** `useFontScale()` is internal
+  to the resolver now; fourteen copies of that expression is how the app
+  arrived at a font-family preference that applied to some text and not the
+  rest. The OS accessibility scale is divided out inside the resolver and RN
+  multiplies it back at paint, so the app setting and the system setting never
+  compound — which also means sizing a **dp** container (`height`, `minHeight`)
+  from text requires `useLayoutTypography()`, not `useTypography()`. Mixing the
+  two is invisible on a default device and short by up to 24px at a raised
+  system font size. Never hardcode a `text-sm` class on copy a patient reads.
 - Mind the elderly-first readability floor (~11px body). This audience is the
   reason the preference exists; a scale that makes a control unreadable at the
   largest rung is a defect, not a trade-off.
@@ -278,7 +286,7 @@ clarification is the default; two rounds only if the first leaves material gaps.
 
 Apply:
 - Project color tokens (no raw hex).
-- `useFontScale()` multiplier for user-facing text.
+- `useTypography()` for user-facing text; `useLayoutTypography()` for dp containers.
 - `useTheme()` tokens for every colour — no conditional `isDark` branching.
 - NativeWind `className` as the primary styling tool.
 - 44 dp minimum touch targets.
@@ -297,7 +305,7 @@ Before presenting the design, run this checklist internally:
 - [ ] Motion respects `isReduceMotionEnabled`.
 - [ ] `SafeAreaView` present where edges are visible.
 - [ ] Text uses `ThemedText` where a variant fits; anything left literal
-      scales via `useFontScale()` and stays readable at the largest rung.
+      goes through `useTypography()` and stays readable at the largest rung.
 - [ ] No new raw hex values — every colour comes from `useTheme()` or `@/theme`.
 - [ ] Interactive outlines use `border-strong`, dividers use `border`.
 - [ ] No impeccable absolute bans present.

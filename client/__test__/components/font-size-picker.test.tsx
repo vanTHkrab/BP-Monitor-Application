@@ -3,7 +3,7 @@
  * grid of samples rather than a row of labels.
  *
  * Each card renders "Aa" **at the size it selects**, read from
- * `FONT_SIZE_STEPS` — the same table `useFontScale` derives its multiplier
+ * `FONT_SIZE_STEPS` — the same table `useTypography` derives its multiplier
  * from. client-old hardcoded its preview sizes separately from the sizes the
  * app actually used, so the preview could drift from the result. Re-hardcoding
  * them is a one-line regression that a render test which only checks the
@@ -11,7 +11,7 @@
  * the table by name rather than against literals.
  */
 import { FontSizePicker } from '@/components/ui/font-size-picker';
-import { FONT_SIZE_STEPS } from '@/hooks/use-font-scale';
+import { FONT_SIZE_STEPS } from '@/theme/typography';
 import { usePreferencesStore } from '@/stores';
 import { renderScreen } from '../test-utils';
 
