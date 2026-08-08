@@ -2,10 +2,42 @@
 const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
 
+const monoFamilyLatinOnly = require('./eslint-rules/mono-family-latin-only');
+
+/**
+ * Rules this project owns, for traps whose failure mode is invisible in
+ * review. They live in `eslint-rules/` as plain CommonJS so this file can
+ * require them without a build step; each carries its reasoning and its
+ * limitations in its own header.
+ */
+const bp = {
+  rules: {
+    'mono-family-latin-only': monoFamilyLatinOnly,
+  },
+};
+
 module.exports = defineConfig([
   expoConfig,
   {
     ignores: ['dist/*', '.expo/*', 'android/*', 'ios/*', 'coverage/*'],
+  },
+  {
+    /**
+     * `family="mono"` is the blood-pressure figure's tabular face. It is
+     * Latin-only, and its line-height floor (1.03) is measured over digits and
+     * `/` alone — see `scripts/font-metrics.mjs`. Putting a letter in one of
+     * those nodes silently stops the floor covering the content, with no test
+     * and no type error to catch it.
+     *
+     * `error`, not `warn`, and the distinction is cosmetic here: `pnpm lint`
+     * runs with `--max-warnings 0`, so a warning fails the build like an error
+     * and only reads as less serious than it is.
+     */
+    files: ['src/**/*.tsx'],
+    plugins: { bp },
+    rules: {
+      'bp/mono-family-latin-only': 'error',
+    },
   },
   {
     /**

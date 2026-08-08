@@ -30,10 +30,10 @@
  * in `src/`.
  */
 import { useCallback } from 'react';
-import type { TextStyle } from 'react-native';
+import { useWindowDimensions, type TextStyle } from 'react-native';
 
 import type { ThaiFontWeight } from '@/constants/theme';
-import { useFontScale } from '@/hooks/use-font-scale';
+import { fontScaleFor, useFontScale } from '@/hooks/use-font-scale';
 import { usePreferencesStore, type FontSizePreference } from '@/stores';
 import { useLoadedFontFamilies } from '@/theme/font-loading';
 import {
@@ -383,17 +383,24 @@ export function useResolvedFontFamily(override?: FontFamilyId): FontFamilyId {
 }
 
 /**
- * Pure form, for previewing a preference the user has not selected yet.
+ * Pure form, in **dp** — the size the text actually paints at.
  *
  * Carries **no** OS compensation — it cannot, having no access to the device —
- * exactly like `fontScaleFor`. Anything rendering text a user reads as content
- * should use the hook; this is for a control that has to show what a choice
- * *would* look like, which by definition is not the current one.
+ * exactly like `fontScaleFor`. That makes it the right answer for a *layout*
+ * number (`useLayoutTypography` is this function plus the device's loaded
+ * set) and the wrong answer for a `style` prop, where RN multiplies the OS
+ * scale back in and the two compound.
+ *
+ * **A control previewing a preference the user has not selected wants
+ * `usePreviewTypography()`, not this.** Both pickers used to call this
+ * directly into a `style` prop, and at OS scale 1.3 the size picker's "16px"
+ * card painted 20.8 while the app rendered that setting at 16 — the control
+ * lying about the thing it exists to preview.
  *
  * `loaded` defaults to "every family is available", because a pure function
- * has no way to know otherwise. The two pickers pass the real set in from
- * `useLoadedFontFamilies()` — a preview rendering Noto under a label reading
- * สารบรรณ is the one thing that control must not do.
+ * has no way to know otherwise. Callers that can ask the device pass the real
+ * set from `useLoadedFontFamilies()` — a preview rendering Noto under a label
+ * reading สารบรรณ is the one thing those controls must not do.
  */
 export function typographyFor(
   prefs: TypographyPreferences,
@@ -405,5 +412,62 @@ export function typographyFor(
     spec,
     loaded,
     FONT_SIZE_STEPS[prefs.fontSize] / BASELINE_PX,
+  );
+}
+
+/**
+ * Arbitrary preferences, **style** space. For a control that previews a
+ * setting the user has not chosen.
+ *
+ * ## Why this is a fourth form and not a flag on an existing one
+ *
+ * The resolver has two independent axes, and the app needs three of the four
+ * cells:
+ *
+ * ```
+ *                  current preference        arbitrary preference
+ * style space      useTypography()           usePreviewTypography()   ← this
+ * dp space         useLayoutTypography()     typographyFor()
+ * ```
+ *
+ * `typographyFor` already took arbitrary preferences; what it could not do is
+ * divide the OS accessibility scale out, because a pure function has no device
+ * to ask. That division is the entire difference between the two right-hand
+ * cells, and it is why this is a hook — the same reason `useFontScale` is one
+ * (`use-font-scale.ts`), and the same reason the compensation could never move
+ * into `typographyFor` in the first place.
+ *
+ * ## What it fixes
+ *
+ * `<Text style={...}>` is style space: RN multiplies the OS accessibility
+ * scale back at paint because `allowFontScaling` is on. Feeding it a dp number
+ * therefore *compounds* the OS scale — the mirror image of the
+ * `useLayoutTypography` bug, which under-reserves by the same factor. At OS
+ * scale 1.3 the size picker's `medium` card painted at 20.8 for a setting the
+ * app renders at 16, so the one control in the app whose entire job is to be
+ * judged by eye was showing a size that exists nowhere in it.
+ *
+ * `loaded` is read here rather than passed in: every caller is a component
+ * that would otherwise have to call `useLoadedFontFamilies()` itself and could
+ * forget, and forgetting means previewing a face the device has not
+ * registered — which renders the OEM system font, the exact state the family
+ * picker exists to let a user escape.
+ */
+export function usePreviewTypography(): (
+  prefs: TypographyPreferences,
+  spec?: TextSpec,
+) => TextStyle {
+  // `useWindowDimensions` rather than `PixelRatio.getFontScale()` for the
+  // reason `use-font-scale.ts` gives: it re-renders when the setting changes,
+  // and on Android it can change while the app is backgrounded.
+  const { fontScale: osScale } = useWindowDimensions();
+  const loaded = useLoadedFontFamilies();
+
+  return useCallback(
+    (prefs: TypographyPreferences, spec?: TextSpec) =>
+      // `|| 1` guards a platform reporting 0, as in `useFontScale` — dividing
+      // by it emits `Infinity` px, which blanks the text rather than failing.
+      resolve(prefs.fontFamily, spec, loaded, fontScaleFor(prefs.fontSize) / (osScale || 1)),
+    [loaded, osScale],
   );
 }

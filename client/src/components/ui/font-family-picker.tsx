@@ -9,11 +9,26 @@
  * letters: หัวกลม versus a cut terminal is legible in `เสื้อผ้าที่ใส่` and
  * invisible in `Aa`.
  *
- * **The samples resolve through `typographyFor`, never `useTypography`.** The
- * hook is bound to the current preference, so wiring it in here would render
- * all three cards in whichever family is already selected — the control would
- * preview itself. The size the samples are shown at *does* follow the user's
- * current size preference, because size is not what is being chosen here.
+ * **The samples resolve through `usePreviewTypography`, never
+ * `useTypography`.** The latter is bound to the current preference, so wiring
+ * it in here would render all three cards in whichever family is already
+ * selected — the control would preview itself. The size the samples are shown
+ * at *does* follow the user's current size preference, because size is not
+ * what is being chosen here.
+ *
+ * ## Why this one moved off `typographyFor` too, when its bug is milder
+ *
+ * `typographyFor` is dp and a `style` prop is style space, so the OS
+ * accessibility scale compounds — the same defect as the size picker's. Here
+ * it does not make the control lie about the choice it offers, because the
+ * choice is a *typeface* and the shapes are right at any size. What it does is
+ * paint the sample at a size the app never renders: at OS scale 1.3 the sample
+ * came out a third larger than the `bodyLarge` running text it is standing in
+ * for, and larger than the `label` description directly above it inside the
+ * same card. Judging a face at a size you will never read it at is a weaker
+ * version of the same problem, and the fix is one call — so it is not worth a
+ * comment explaining why this control is exempt from a rule the file next to
+ * it follows.
  *
  * `mono` cannot appear, and it is excluded by construction rather than by a
  * hand-maintained list: `SELECTABLE_FONT_FAMILIES` filters on
@@ -27,9 +42,8 @@ import { Pressable, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
-import { typographyFor } from '@/hooks/use-typography';
+import { usePreviewTypography } from '@/hooks/use-typography';
 import { usePreferencesStore } from '@/stores';
-import { useLoadedFontFamilies } from '@/theme/font-loading';
 import { FONT_FAMILIES, SELECTABLE_FONT_FAMILIES } from '@/theme/typography';
 
 /**
@@ -41,7 +55,7 @@ const SAMPLE = 'ความดันที่วัดได้ 120/80';
 
 export function FontFamilyPicker() {
   const colors = useTheme();
-  const loadedFamilies = useLoadedFontFamilies();
+  const preview = usePreviewTypography();
   const fontSize = usePreferencesStore((state) => state.fontSize);
   const fontFamily = usePreferencesStore((state) => state.fontFamily);
   const setFontFamily = usePreferencesStore((state) => state.setFontFamily);
@@ -52,10 +66,9 @@ export function FontFamilyPicker() {
         const family = FONT_FAMILIES[id];
         const isSelected = id === fontFamily;
         // This card's own family, at the user's current size. See the header.
-        const sampleStyle = typographyFor(
+        const sampleStyle = preview(
           { fontSize, fontFamily: id },
           { type: 'bodyLarge', family: id },
-          loadedFamilies,
         );
 
         return (

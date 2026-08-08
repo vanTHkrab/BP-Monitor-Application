@@ -87,6 +87,28 @@ scoped off in `eslint.config.js` with a written reason (see the test-file
 block for the `jest.mock` hoisting case); the answer to a noisy rule is a
 scoped exception with a justification, never a raised warning ceiling.
 
+### Project-owned lint rules
+
+`eslint-rules/` holds rules this project wrote, wired into `eslint.config.js`
+under the `bp/` prefix. They are plain CommonJS so the config can `require`
+them with no build step, and each one is tested next to itself with ESLint's
+`RuleTester` (`eslint-rules/*.test.js` — a fourth place tests live, outside
+the three below, because the subject is a lint rule and not the app).
+
+They exist for one shape of problem: **a trap whose failure mode is invisible
+in review and produces no type error and no test failure.** Because
+`--max-warnings 0` turns every report into a build failure, they are scoped
+tightly and prefer silence over a guess.
+
+| rule | guards |
+| --- | --- |
+| `bp/mono-family-latin-only` | Literal non-digit text inside a `family="mono"` node. The face is Latin-only and its line-height floor is measured over digits and `/` alone. It **cannot** see dynamic children, which is every one of the nine call sites today — it guards the next edit. |
+
+Before adding one, read
+[docs/project/CLIENT-typography.md](../docs/project/CLIENT-typography.md) §1,
+which records the rule that is wanted next (className bans on `ThemedText`)
+and why it was not bundled with the first.
+
 ## Important paths
 
 | Path | Responsibility |
@@ -102,6 +124,7 @@ scoped exception with a justification, never a raised warning ceiling.
 | `modules/bp-vision/plugin/withBpVisionModels.js` | Config plugin — copies models into the native project **at prebuild only** |
 | `assets/models/` | `yolo11n.onnx`, `crnn.onnx`. Tracked, hash-checked on every start |
 | `scripts/verify-models.mjs` | sha256 vs the ai-service manifest |
+| `eslint-rules/` | Project-owned ESLint rules, wired under `bp/` in `eslint.config.js` |
 
 ## Architectural conventions
 
@@ -147,7 +170,20 @@ scoped exception with a justification, never a raised warning ceiling.
     blocks the splash alongside Noto; only `looped` and `sarabun` defer.
   - `mono` is Latin-only and internal: it is the blood-pressure figure's
     tabular face, must never appear in the family picker, and must never
-    hydrate as the app-wide preference.
+    hydrate as the app-wide preference. **Only digits and `/` may go into a
+    `family="mono"` node** — its line-height floor is measured over exactly
+    that vocabulary, so a letter silently stops being covered by it.
+    `bp/mono-family-latin-only` (see "Project-owned lint rules") catches the
+    literal form; a Thai string arriving through a variable is still only
+    caught in review.
+  - **Four resolver forms, two axes.** `useTypography()` is style space at the
+    current preference; `useLayoutTypography()` is dp at the current
+    preference; `typographyFor()` is dp at arbitrary preferences;
+    `usePreviewTypography()` is style space at arbitrary preferences and is
+    what the two pickers use. Picking the wrong cell is silent on a dev device
+    — a dp number in a `style` prop compounds the OS accessibility scale, a
+    style number in a height under-reserves by it, and both are exactly 1× at
+    the default system font size.
   - **Line height is a floor, not an exact value, and the floor is
     per-family.** Android lays text out to the font's *declared* `hhea`
     metrics, and a font may declare a descent shallower than its own glyphs —
@@ -241,7 +277,9 @@ for what the manifest cannot express: the non-obvious choices and their traps.
 
 ## Where tests live
 
-Three places, and the split is by what is under test:
+Three places for the app, and the split is by what is under test. (A fourth,
+`eslint-rules/*.test.js`, is not about the app at all — see "Project-owned lint
+rules" above.)
 
 - **`src/**/*.test.ts(x)`** — colocated with the code. Pure logic, stores,
   repositories, single hooks.

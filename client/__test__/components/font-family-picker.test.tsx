@@ -10,7 +10,21 @@
  *
  * Neither shows up in a render that only checks the labels, so both are
  * asserted against the resolved style and the registry rather than by eye.
+ *
+ * The third, added later: the sample goes into a `style` prop, which RN
+ * multiplies by the OS accessibility scale at paint. It must therefore be
+ * divided by that scale first, or the sample is shown at a size the app never
+ * renders — milder than the size picker's version of this bug, since the
+ * choice here is a typeface, but it puts the sample out of step with the
+ * `label` description directly above it in the same card. jest-expo reports
+ * `fontScale: 2`, so it is pinned to 1 here and varied deliberately at the end.
  */
+const mockOsFontScale = { current: 1 };
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: 390, height: 844, scale: 2, fontScale: mockOsFontScale.current }),
+}));
+
 import { FontFamilyPicker } from '@/components/ui/font-family-picker';
 import { usePreferencesStore } from '@/stores';
 import { resolveFamilyWeight, typographyFor } from '@/hooks/use-typography';
@@ -26,6 +40,7 @@ const styleOf = (node: { props: Record<string, unknown> }): Record<string, unkno
 
 beforeEach(() => {
   usePreferencesStore.setState({ fontSize: 'medium', fontFamily: 'noto' });
+  mockOsFontScale.current = 1;
 });
 
 describe('FontFamilyPicker', () => {
@@ -122,5 +137,27 @@ describe('FontFamilyPicker', () => {
     expect(styleOf(view.getAllByText(SAMPLE)[0]).fontSize).toBe(
       typographyFor({ fontSize: 'xlarge', fontFamily: 'noto' }, { type: 'bodyLarge' }).fontSize,
     );
+  });
+
+  /*
+   * The same size at the paint, not at the style prop. `typographyFor` is dp;
+   * this control writes a `style`, and the two spaces differ by exactly the OS
+   * accessibility scale. Choosing a typeface at a size the app does not use is
+   * a weaker failure than the size picker's, but it is the same one, and the
+   * card's own description above the sample is resolved through the hook — so
+   * getting this wrong puts two lines of one card in two different unit spaces.
+   */
+  it('paints its samples at the app size, not at the OS-compounded one', async () => {
+    mockOsFontScale.current = 2;
+    usePreferencesStore.setState({ fontSize: 'large' });
+    const view = await renderScreen(<FontFamilyPicker />);
+
+    const emitted = styleOf(view.getAllByText(SAMPLE)[0]).fontSize as number;
+    const app = typographyFor({ fontSize: 'large', fontFamily: 'noto' }, { type: 'bodyLarge' })
+      .fontSize as number;
+
+    expect(Math.abs(emitted * 2 - app)).toBeLessThanOrEqual(1);
+    // Stated as the bug too: emitting the dp number is what compounded.
+    expect(emitted).not.toBe(app);
   });
 });
