@@ -208,6 +208,19 @@ table with placeholders.
 
 ## Output
 
+**Before you emit, re-grep every number you changed.** If you revised a figure
+in the commit message, the PR body, or any tracked artifact this change
+touches, grep that file for the old value **and** for its neighbours — the same
+count spelled as a word, the total that should now disagree, the card, table
+cell, or summary line derived from it. Both times this bit in-file, the
+document was already carrying its own correction a paragraph away; nobody
+re-read, because the edit felt local. A grep does not depend on how the edit
+felt.
+
+A figure that contradicts another statement of the same fact is not a typo —
+it is the artifact asserting something untrue. On a branch whose subject is
+verification, that is the same defect one level up.
+
 Emit **exactly these two fenced blocks** — no prose before or after:
 
 ````
