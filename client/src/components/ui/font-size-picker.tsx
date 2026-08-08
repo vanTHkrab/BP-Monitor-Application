@@ -15,29 +15,40 @@
  *
  * ## The one rule this control cannot break
  *
- * **The samples resolve through `typographyFor`, not `useTypography`.** The
- * hook is bound to the *current* preference; the whole point of these four
- * cards is to show what each of the four *other* answers looks like. Wire the
- * hook in here and the control previews itself — every card renders identically
+ * **The samples resolve through `usePreviewTypography`, not `useTypography`.**
+ * The latter is bound to the *current* preference; the whole point of these
+ * four cards is to show what each of the four *other* answers looks like. Wire
+ * it in here and the control previews itself — every card renders identically
  * at whatever is already selected, and the one setting in the app that exists
  * to be judged by eye becomes unjudgeable. The labels underneath are the
  * exception and deliberately *do* track the current preference, so they stay a
  * consistent row while the samples differ.
  *
+ * ## Why not `typographyFor` directly, which is also arbitrary-preference
+ *
+ * Because it is dp and this is a `style` prop. `typographyFor` carries no OS
+ * accessibility compensation, RN multiplies that scale back at paint, and the
+ * two compound: at OS scale 1.3 the `medium` card painted 20.8 for a setting
+ * the app renders at 16. A preview that overstates every option by the user's
+ * own accessibility setting is the precise failure `use-font-scale.ts` exists
+ * to prevent, on the one screen where it is most visible.
+ * `usePreviewTypography` is `typographyFor` with that division put back —
+ * see `hooks/use-typography.ts` for the two-axis grid.
+ *
  * Family follows the user's real choice in every sample, because size is what
  * is being chosen here — showing four sizes in a face the user did not pick
- * would answer a question nobody asked. `useLoadedFontFamilies()` is passed
- * through so a family that has not finished loading previews as Noto rather
- * than as the OEM system face.
+ * would answer a question nobody asked. The loaded-family set no longer comes
+ * through this file: the hook reads it, so a family that has not finished
+ * loading previews as Noto rather than as the OEM system face without this
+ * control having to remember to ask.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
-import { typographyFor, useTypography } from '@/hooks/use-typography';
+import { usePreviewTypography, useTypography } from '@/hooks/use-typography';
 import { usePreferencesStore, type FontSizePreference } from '@/stores';
-import { useLoadedFontFamilies } from '@/theme/font-loading';
 import { BASELINE_PX } from '@/theme/typography';
 
 const OPTIONS: { value: FontSizePreference; label: string }[] = [
@@ -50,7 +61,7 @@ const OPTIONS: { value: FontSizePreference; label: string }[] = [
 export function FontSizePicker() {
   const colors = useTheme();
   const typography = useTypography();
-  const loadedFamilies = useLoadedFontFamilies();
+  const preview = usePreviewTypography();
   const fontSize = usePreferencesStore((state) => state.fontSize);
   const fontFamily = usePreferencesStore((state) => state.fontFamily);
   const setFontSize = usePreferencesStore((state) => state.setFontSize);
@@ -77,10 +88,9 @@ export function FontSizePicker() {
            * either way; stating a number it would overrule would just be a
            * lie in the source. The card's `minHeight: 78` absorbs the extra px.
            */
-          const sampleStyle = typographyFor(
+          const sampleStyle = preview(
             { fontSize: option.value, fontFamily },
             { size: BASELINE_PX, weight: 'bold' },
-            loadedFamilies,
           );
 
           return (

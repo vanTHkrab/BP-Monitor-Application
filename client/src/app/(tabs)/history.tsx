@@ -46,6 +46,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
+import { ScreenHeaderPill } from '@/components/ui/screen-header-pill';
 import { TabButtons } from '@/components/ui/tab-buttons';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/modules/auth';
@@ -153,18 +154,7 @@ export default function HistoryScreen() {
           />
         }
       >
-        <View className="items-center px-4 py-4">
-          <LinearGradient
-            colors={gradientFor(scheme, 'header')}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="rounded-xl px-6 py-2.5"
-          >
-            <ThemedText size={18} weight="bold" style={{ color: '#FFFFFF' }}>
-              ประวัติความดัน
-            </ThemedText>
-          </LinearGradient>
-        </View>
+        <ScreenHeaderPill title="ประวัติความดัน" />
 
         {mustPickPatient ? (
           <PickPatientPrompt />

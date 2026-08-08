@@ -2,7 +2,7 @@
 title: "Client: typography, the typeface, and the open scale decision"
 description: The centralised typography resolver, the user-selectable font family, and the type-scale decision that still needs a human.
 status: current
-updated: 2026-08-08
+updated: 2026-08-09
 owner: client
 ---
 
@@ -30,7 +30,7 @@ This file owns what that preference is applied to.
 
 | Piece | Where |
 | --- | --- |
-| **The resolver** — the only multiplication in the app | [`hooks/use-typography.ts`](../../client/src/hooks/use-typography.ts) |
+| **The resolver** — the only multiplication in the app, in four forms | [`hooks/use-typography.ts`](../../client/src/hooks/use-typography.ts) |
 | The data it reads: size ladder, role scale, family registry | [`theme/typography.ts`](../../client/src/theme/typography.ts) |
 | Which families the device has actually loaded | [`theme/font-loading.tsx`](../../client/src/theme/font-loading.tsx) |
 | The text component (now one caller among several) | [`components/themed-text.tsx`](../../client/src/components/themed-text.tsx) |
@@ -238,25 +238,55 @@ defect can have here.
 `src/hooks/use-tab-bar-geometry.test.tsx` pins the invariant directly —
 "reserves room for the box the label actually paints", asserted at OS scale 2.
 
-##### Known, not fixed: the same confusion in the other direction
+##### The same confusion in the other direction — fixed, with a fourth form
 
 `typographyFor()` is the pure form and carries **no** OS compensation, so a
 number from it going into a `style` prop *compounds* the OS scale instead of
-under-reserving. Both pickers do this for their samples
-(`font-size-picker.tsx`, `font-family-picker.tsx`), because previewing a
-preference the user has not selected requires the pure form.
+under-reserving. Both pickers did this for their samples, because previewing a
+preference the user has not selected requires arbitrary preferences and the
+hook is bound to the current ones.
 
-The size picker's sample is the one that misleads: at OS scale 1.3 the "16px"
-option paints 20.8 while the app renders it at 16 — the preview lies, which is
-the exact bug `use-font-scale.ts` was written to prevent. **This is not new**;
-`main` has it too, where the sample was a raw `FONT_SIZE_STEPS` value in a
-`style` prop. The family picker inherited the shape but not the harm, since
-its sample is showing a typeface rather than a size.
+The size picker's sample was the one that misled: at OS scale 1.3 the "16px"
+option painted 20.8 while the app rendered it at 16 — the preview lying, which
+is the exact bug `use-font-scale.ts` was written to prevent. **It was not
+new**; `main` had it too, where the sample was a raw `FONT_SIZE_STEPS` value in
+a `style` prop.
 
-It is left alone deliberately: fixing it needs a fourth resolver form
-(arbitrary preferences, style space) and changes what those controls paint on
-a device state nobody has tested. Worth doing, on its own change, with a
-device pass.
+The fix is `usePreviewTypography()`, and the "fourth resolver form" framing
+held up — the resolver has two independent axes and the app needs three of the
+four cells:
+
+| unit space | current preference | arbitrary preference |
+| --- | --- | --- |
+| style | `useTypography()` | `usePreviewTypography()` |
+| dp | `useLayoutTypography()` | `typographyFor()` |
+
+What it did *not* need was a fourth pure function. `typographyFor` already took
+arbitrary preferences; the only thing missing was the OS division, and that
+cannot live in a pure function because there is no device to ask — the same
+reason `useFontScale` is a hook. So the new form is a hook over the resolver
+that `typographyFor` already calls, and it reads `useLoadedFontFamilies()`
+itself rather than taking it as a parameter, which removed that argument from
+both call sites.
+
+**The family picker moved too**, though its version of the bug is milder: the
+choice there is a typeface, so the shapes are right at any size, but the sample
+painted a third larger than the `bodyLarge` running text it stands in for and
+larger than the `label` description above it in the same card. Judging a face
+at a size the app never renders is the weaker form of the same problem, and
+exempting it would have cost a comment explaining why one picker follows a rule
+the file beside it does not.
+
+**The tests were asserting the bug.** jest-expo reports `fontScale: 2`, so
+`__test__/components/font-size-picker.test.tsx` was running in exactly the
+raised-scale state the defect lives in and pinning the compounded value as
+correct. Both picker tests now pin the OS scale to 1 by default — the pattern
+`use-tab-bar-geometry.test.tsx` established — and vary it deliberately in a
+final block that asserts through the *paint* (`emitted × osScale`) rather than
+through the emitted number.
+
+**Still wants a device pass** (§5): what these two controls paint at a raised
+system font size has still never been seen on hardware, only asserted.
 
 #### What this replaced, and why the first two attempts failed
 
@@ -392,6 +422,55 @@ reasoning about precedence.
 built from `useTypography()`. It is the only mechanical guard against a trap
 whose failure mode is invisible in review.
 
+**The machinery for it now exists.** `client/eslint-rules/` holds
+project-owned rules and `eslint.config.js` wires them under a `bp/` prefix; the
+first one is `bp/mono-family-latin-only` (below). A className rule is the same
+shape — read `className` off a `JSXAttribute`, match the literal against a
+deny-list — and would slot in beside it. It is deliberately **not** written
+yet: the deny-list is a design decision (does `text-center` stay? every layout
+class does, so the list has to enumerate the failing families rather than
+allow-list), and bundling it with the `mono` rule would have made one change
+answer two questions.
+
+### The `mono` content rule
+
+`bp/mono-family-latin-only`
+([`client/eslint-rules/mono-family-latin-only.js`](../../client/eslint-rules/mono-family-latin-only.js))
+errors when a `family="mono"` node is given literal text outside digits, `/`,
+and whitespace.
+
+The trap it closes: `mono`'s `minLineHeightRatio` of 1.03 is measured over
+**only the glyphs it is locked to**, via the per-family `scan` range in
+`scripts/font-metrics.mjs`. Put a letter in a `mono` node and the floor
+silently stops covering it — and the face is Latin-only besides, so Thai falls
+back to the OEM system font. `theme/typography.ts` said so in a comment; this
+is the guard.
+
+**What it cannot see**, stated here because the limitation is permanent rather
+than a gap to close later:
+
+| written as | caught |
+| --- | --- |
+| `<T family="mono">mmHg</T>` | yes |
+| `` <T family="mono">{`${sys} mmHg`}</T> `` | yes — the literal part only |
+| `<T family="mono">{'ความดัน'}</T>` | yes |
+| `<T family="mono">{reading.systolic}</T>` | **no** — dynamic |
+| `<T family="mono">{unitLabel}</T>` | **no** — dynamic, even if the constant is Thai |
+| `<T family={id}>ความดัน</T>` | **no** — the family is dynamic |
+| `typographyFor(prefs, { family: 'mono' })` | **no** — not JSX |
+
+All nine `family="mono"` call sites in the app today are the dynamic form, so
+**the rule flags nothing on the current tree**. That is the intended state: it
+guards the next edit, not this one. Chasing the dynamic cases means following
+identifiers across modules, and a rule that guesses produces false positives
+under `--max-warnings 0`, where every false positive is a failed build. A Thai
+string arriving through a variable remains a review concern.
+
+Widening the allowed set is not a one-line change: add the code points to the
+family's `scan` range in `scripts/font-metrics.mjs`, re-run it, paste the new
+ratio into `FONT_FAMILIES`, update `theme/typography.test.ts`, and then widen
+`ALLOWED` in the rule — in that order, in one change.
+
 ---
 
 ## 2. A `lineHeight` or `fontSize` in `style` is not scaled
@@ -444,6 +523,14 @@ And `size={n}` — the escape hatch — is the inventory of what the scale does
 | 11 | 1 | one caption on home |
 | `SIZE_FONT[size]`, `INITIALS_FONT[size]` | 1 each | a button's own size prop; avatar initials |
 
+> **Counted at #114.** One line has moved since: the three tab screens'
+> gradient header pills were three separate nodes — two at `size={18}` and
+> menu's at `type="bodyLarge"` — and are now one, inside
+> [`components/ui/screen-header-pill.tsx`](../../client/src/components/ui/screen-header-pill.tsx).
+> Menu's 17 was drift rather than a decision, so all three now render at 18.
+> That makes answering **(a)** cheaper than the table suggests: three of the
+> heading-sized nodes are now a single call site.
+
 Three questions fall out of that table, and they are genuinely design
 decisions rather than engineering ones:
 
@@ -491,8 +578,8 @@ Not oversights. Each would be wrong to convert.
 
 | Where | Why |
 | --- | --- |
-| `components/ui/font-size-picker.tsx` (3) | The preview of each font-size option, and the sample paragraph under it. The four samples must **not** scale with the current preference — they show what each setting looks like, so scaling them would make the control preview itself. They now go through `typographyFor(...)` with **that option's** values; the labels and the sample paragraph use the hook, deliberately. |
-| `components/ui/font-family-picker.tsx` (1) | Same rule, other axis: each card's sample renders in **that card's** face via `typographyFor`, not in the currently selected one. |
+| `components/ui/font-size-picker.tsx` (3) | The preview of each font-size option, and the sample paragraph under it. The four samples must **not** scale with the current preference — they show what each setting looks like, so scaling them would make the control preview itself. They go through `usePreviewTypography()` with **that option's** values; the labels and the sample paragraph use `useTypography()`, deliberately. |
+| `components/ui/font-family-picker.tsx` (1) | Same rule, other axis: each card's sample renders in **that card's** face via `usePreviewTypography()`, not in the currently selected one. |
 | `modules/readings/components/bp-trend-chart.tsx` (1) | `axisFontSize + 1`, pinned to a prop handed to the chart library. The pointer label reading one step larger than the axis it floats over is the point. |
 | `modules/community/components/post-card.tsx` (1) | Uses `onTextLayout` with a dynamic `numberOfLines` to decide whether to offer "อ่านต่อ". |
 
@@ -504,7 +591,10 @@ from settings — it called the medium rung `ปกติ` where the picker says
 nothing left to drift.
 
 Reaching for `useTypography()` in either picker breaks it: the control would
-preview whatever is already selected instead of each option. The chart and the
+preview whatever is already selected instead of each option. Reaching for
+`typographyFor()` breaks it the other way — that is dp, a `style` prop is style
+space, and the OS accessibility scale compounds. `usePreviewTypography()` is
+the one that is both. The chart and the
 post card break a visual hierarchy and a "read more" affordance respectively,
 neither of which any test covers — both keep their literal relationships and
 take only the family and the multiplier from the resolver.

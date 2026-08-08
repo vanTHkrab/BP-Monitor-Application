@@ -1,5 +1,5 @@
 /**
- * The two React-bound exports of `use-typography.ts`.
+ * The React-bound exports of `use-typography.ts`.
  *
  * A second file beside `use-typography.test.ts` rather than more cases in it,
  * and the split is the one that file's own header draws: everything there goes
@@ -34,7 +34,12 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
 import { act, renderHook } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
-import { useResolvedFontFamily, useTypography, typographyFor } from './use-typography';
+import {
+  useResolvedFontFamily,
+  useTypography,
+  usePreviewTypography,
+  typographyFor,
+} from './use-typography';
 import { usePreferencesStore, type PreferencesState } from '@/stores';
 import { LoadedFontFamiliesProvider } from '@/theme/font-loading';
 import { FONT_FAMILIES, type FontFamilyId } from '@/theme/typography';
@@ -188,5 +193,70 @@ describe('useTypography', () => {
     expect(landed.result.current({ size: 48 }).fontSize).toBe(
       Math.round(48 * FONT_FAMILIES.sarabun.opticalScale),
     );
+  });
+});
+
+/**
+ * The fourth cell of the grid: arbitrary preferences, style space.
+ *
+ * It is `typographyFor` in every respect except the OS division, and that one
+ * difference is the whole reason it exists — so the tests below are written as
+ * the two halves of that sentence. Everything about *which* numbers come out
+ * is already pinned in `use-typography.test.ts` against the pure form; what
+ * cannot be pinned there is a device.
+ */
+describe('usePreviewTypography', () => {
+  it('resolves the preference it is handed, not the one that is stored', async () => {
+    await setPreference({ fontSize: 'small', fontFamily: 'noto' });
+
+    const view = await renderHook(() => usePreviewTypography(), {
+      wrapper: wrapperFor(['sarabun']),
+    });
+    const preview = view.result.current(
+      { fontSize: 'xlarge', fontFamily: 'sarabun' },
+      { type: 'default' },
+    );
+
+    expect(preview).toEqual(
+      typographyFor({ fontSize: 'xlarge', fontFamily: 'sarabun' }, { type: 'default' }, new Set([
+        'sarabun',
+      ])),
+    );
+  });
+
+  /*
+   * The bug the hook was added for. A `style` prop is multiplied by the OS
+   * accessibility scale at paint, so a preview built from the dp form paints
+   * the option larger than the app renders it — at 1.3, the `medium` card
+   * showed 20.8 for a setting the app draws at 16.
+   */
+  it('divides the OS accessibility scale out, where the pure form cannot', async () => {
+    mockOsFontScale.current = 1.3;
+
+    const view = await renderHook(() => usePreviewTypography(), {
+      wrapper: wrapperFor([]),
+    });
+    const emitted = view.result.current({ fontSize: 'medium', fontFamily: 'noto' }, { size: 16 });
+    const dp = typographyFor({ fontSize: 'medium', fontFamily: 'noto' }, { size: 16 });
+
+    expect(emitted.fontSize).toBe(Math.round(16 / 1.3));
+    // RN multiplies it back, so the paint is the dp number the app renders.
+    expect(Math.abs((emitted.fontSize as number) * 1.3 - (dp.fontSize as number))).toBeLessThan(1);
+  });
+
+  /*
+   * The set comes from the context, not from a parameter the caller could
+   * forget. A picker previewing a family the device has not registered names a
+   * font that resolves to nothing and renders the OEM system face — the exact
+   * state the family picker exists to let a user escape.
+   */
+  it('previews in noto for a family the device has not loaded', async () => {
+    const view = await renderHook(() => usePreviewTypography(), {
+      wrapper: wrapperFor([]),
+    });
+
+    expect(
+      view.result.current({ fontSize: 'medium', fontFamily: 'sarabun' }, { size: 16 }).fontFamily,
+    ).toBe(FONT_FAMILIES.noto.weights.medium);
   });
 });

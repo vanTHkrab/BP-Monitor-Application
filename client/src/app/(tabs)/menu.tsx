@@ -34,9 +34,7 @@
  * would have double-counted under the banner.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { cssInterop } from 'nativewind';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -45,13 +43,10 @@ import { GradientBackground } from '@/components/gradient-background';
 import { Avatar } from '@/components/ui/avatar';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { MenuItem, MenuSection } from '@/components/ui/menu-item';
-import { Spacing } from '@/constants/theme';
+import { ScreenHeaderPill } from '@/components/ui/screen-header-pill';
 import { useTheme } from '@/hooks/use-theme';
 import { useLogout, useSession } from '@/modules/auth';
-import { gradientFor } from '@/theme';
 import { useColorSchemePreference } from '@/theme/color-scheme';
-
-cssInterop(LinearGradient, { className: 'style' });
 
 export default function MenuScreen() {
   const colors = useTheme();
@@ -84,34 +79,14 @@ export default function MenuScreen() {
           paddingHorizontal: 16,
         }}
       >
-        {/* Header pill. Keeps its icon and shadow — the two other tab screens
-            render a plainer version of this, and unifying the three is a
-            refactor of its own rather than part of this change. */}
-        <View className="items-center py-4">
-          <LinearGradient
-            colors={gradientFor(scheme, 'header')}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="flex-row items-center rounded-xl px-6 py-2.5"
-            style={{
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 3 },
-              shadowOpacity: 0.15,
-              shadowRadius: 6,
-              elevation: 4,
-            }}
-          >
-            <Ionicons
-              name="menu"
-              size={20}
-              color="#FFFFFF"
-              style={{ marginRight: Spacing.one }}
-            />
-            <ThemedText type="bodyLarge" weight="bold" style={{ color: '#FFFFFF' }}>
-              เมนูอื่นๆ
-            </ThemedText>
-          </LinearGradient>
-        </View>
+        {/* Header pill — now `ScreenHeaderPill`, shared with the other two tab
+            screens. The icon stayed (it is this screen's, not the pill's); the
+            shadow moved into the component and the other two gained it, and
+            the title went from `bodyLarge` (17) to the 18 the other two
+            already used. That 1px was drift, not a decision — see the
+            component. The extra horizontal gutter this pill used to lack is
+            now the component's `px-4`, on top of the page's own 16. */}
+        <ScreenHeaderPill title="เมนูอื่นๆ" icon="menu" />
 
         {/* Profile card — flat, not a gradient card; the avatar carries the
             only gradient here, matching client-old's balance. */}
