@@ -47,3 +47,9 @@ example
 /android
 
 /coverage
+
+# Native module build output — Gradle regenerates it from android/src and
+# build.gradle. It was tracked by accident (a git add -A during an icon change)
+# and carried 177 files of .dex/.jar/.bin, churning on every local build.
+modules/*/android/build/
+modules/*/android/.cxx/
