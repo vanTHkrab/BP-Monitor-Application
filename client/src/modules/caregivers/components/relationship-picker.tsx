@@ -58,7 +58,7 @@ export function RelationshipPicker({
               }}
             >
               <ThemedText
-                type="small"
+                type="body"
                 weight="semibold"
                 themeColor="text-secondary"
                 // White is the contrast pair for the filled background, not a

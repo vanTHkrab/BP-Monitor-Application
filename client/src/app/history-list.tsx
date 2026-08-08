@@ -85,7 +85,7 @@ export default function HistoryListScreen() {
         </View>
 
         {readings.length > 0 ? (
-          <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mb-2 px-5">
+          <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-2 px-5">
             {severityFilter === 'all'
               ? `ทั้งหมด ${readings.length} รายการ`
               : `${visible.length} จาก ${readings.length} รายการ`}

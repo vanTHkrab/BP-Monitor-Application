@@ -107,7 +107,7 @@ export function PostComposer({
             <Ionicons name="close" size={26} color={colors['text-primary']} />
           </Pressable>
 
-          <ThemedText size={18} weight="bold" className="flex-1 text-center">
+          <ThemedText type="heading" weight="bold" className="flex-1 text-center">
             {mode === 'edit' ? 'แก้ไขโพสต์' : 'เขียนโพสต์'}
           </ThemedText>
 
@@ -164,7 +164,7 @@ export function PostComposer({
             ) : null}
 
             {error ? (
-              <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-2 px-1">
+              <ThemedText type="body" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mt-2 px-1">
                 {error}
               </ThemedText>
             ) : null}

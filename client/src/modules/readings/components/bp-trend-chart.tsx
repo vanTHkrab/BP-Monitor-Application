@@ -93,13 +93,13 @@ export function BPTrendChart({ readings }: BPTrendChartProps) {
             }}
           >
             <View className="flex-1 pr-3">
-              <ThemedText type="small">ค่าล่าสุด</ThemedText>
-              <ThemedText type="small" weight="regular" themeColor="text-secondary">
+              <ThemedText type="body">ค่าล่าสุด</ThemedText>
+              <ThemedText type="body" weight="regular" themeColor="text-secondary">
                 อัปเดตจากการวัดครั้งล่าสุด
               </ThemedText>
             </View>
             <View className="rounded-full px-4 py-2" style={{ backgroundColor: SYS_COLOR }}>
-              <ThemedText type="smallBold" style={{ color: '#FFFFFF' }}>
+              <ThemedText type="body" weight="bold" style={{ color: '#FFFFFF' }}>
                 {`${latest.systolic}/${latest.diastolic}`}
               </ThemedText>
             </View>
@@ -204,7 +204,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   return (
     <View className="flex-row items-center">
       <View className="mr-1.5 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-      <ThemedText type="small" themeColor="text-secondary">
+      <ThemedText type="body" themeColor="text-secondary">
         {label}
       </ThemedText>
     </View>

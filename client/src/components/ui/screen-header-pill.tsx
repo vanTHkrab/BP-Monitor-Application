@@ -26,13 +26,18 @@
  *   way a menu title does, and "ประวัติความดัน" is a statement of where you
  *   are. That is content.
  *
- * ## `size={18}`, not `type="heading"`
+ * ## `type="heading"`, which was `size={18}`
  *
- * Deliberate, and deliberately not tidied here. Whether 18 and `heading`'s 20
- * are one step or two is an open design decision recorded in
- * `docs/project/CLIENT-typography.md` §3, and it is the next branch's to make.
- * The point of consolidating first is that answering it becomes one line in
- * this file instead of three edits in three screens.
+ * The open question this file used to defer — whether 18 and `heading`'s 20 are
+ * one step or two — is answered: one. `docs/project/CLIENT-typography.md` §3(a)
+ * folded every section-heading `size={18}` into `type="heading"`, upward rather
+ * than down, because the audience is elderly and a heading being 2px too large
+ * is a smaller failure than 2px too small. Consolidating first is what made it
+ * one line here instead of three edits in three screens.
+ *
+ * `weight="bold"` stays explicit: `heading` is semibold, and the pill sits on a
+ * gradient where the extra weight is doing contrast work rather than hierarchy
+ * work. Only the size folded.
  *
  * The `cssInterop` call is what lets `className` reach `LinearGradient`; it
  * patches the component once, process-wide, so a screen that keeps its own
@@ -85,7 +90,7 @@ export function ScreenHeaderPill({ title, icon }: ScreenHeaderPillProps) {
             resolves a token against the page background, and this text is not
             on the page background. `className="text-white"` would be dropped
             outright here; see `themed-text.tsx`. */}
-        <ThemedText size={18} weight="bold" style={{ color: '#FFFFFF' }}>
+        <ThemedText type="heading" weight="bold" style={{ color: '#FFFFFF' }}>
           {title}
         </ThemedText>
       </LinearGradient>

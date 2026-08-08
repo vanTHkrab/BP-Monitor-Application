@@ -91,7 +91,7 @@ export function ActivePatientBanner() {
           style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
         >
           <ThemedText
-            type="small"
+            type="body"
             weight="semibold"
             numberOfLines={1}
             // White on the accent gradient — the background is the token, this

@@ -159,6 +159,22 @@ and why it was not bundled with the first.
   - Weight selects a font *file*, never a `fontWeight` — on Android a weight
     beside an explicit family is ignored or faked. `font-bold` and friends on
     a `ThemedText` are silent no-ops; use `weight`.
+  - **Eight roles, and it used to be twelve.** `title` 24 / `heading` 20 /
+    `bodyLarge` 17 / `default` 16 / `body` 15 / `label` 13 / `caption` 12 /
+    `code` 12. `small`, `smallBold`, `link`, and `display` were removed by the
+    §3 consolidation — `small` and `smallBold` folded into `body` and
+    `body` + `weight="bold"`, `link` had no call sites, and `display` was the
+    blood-pressure figure, which is a `size={n}` because it is one component's
+    composition rather than a role. Writing `type="small"` is now a type error;
+    that is the point. **Do not answer a size you want by adding a role** —
+    twelve roles is what one-at-a-time produces, and
+    [docs/project/CLIENT-typography.md](../docs/project/CLIENT-typography.md)
+    §3 is the record of undoing it. A new role is a proposal.
+  - **The blood-pressure figure renders at exactly two sizes**, `size={48}` on
+    the home hero card and `size={38}` on the detail screen and in a history
+    row, `weight="bold"` and `family="mono"` on all three. The slash is the
+    digits' own size on every surface, so the `flex-row items-end` line boxes
+    match by construction. A third size is a regression, not a refinement.
   - **Never name a family the device has not loaded.** It does not throw; RN
     substitutes the OEM's own Thai face. Only the *opt-in* families are
     deferred, so "chosen but not yet loaded" is a normal state — go through
@@ -195,8 +211,9 @@ and why it was not bundled with the first.
   - **The floor is the clipping minimum and nothing else.** It is deliberately
     *not* raised to the font's own declared box, so Noto — whose every role
     already clears its 1.15 requirement — renders exactly as it did before the
-    mechanism existed. Raising it there is a leading redesign, not a bug fix;
-    if you want one, propose it with `CLIENT-typography.md` §3. Two earlier
+    mechanism existed. Raising it there is a leading redesign, not a bug fix,
+    and it is a separate question from the size scale that
+    `CLIENT-typography.md` §3 closed — propose it on its own. Two earlier
     attempts failed: a flat 1.45 validated against the one family that never
     had the problem, then a measured floor built on the wrong basis.
   - **Style units are not layout units.** `useTypography()` divides the OS

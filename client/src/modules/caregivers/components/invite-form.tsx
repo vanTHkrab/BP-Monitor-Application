@@ -156,7 +156,7 @@ export function InviteForm() {
 
       {banner ? (
         <ThemedText
-          type="small"
+          type="body"
           weight="regular"
           className="mt-3 px-1"
           accessibilityLiveRegion="polite"

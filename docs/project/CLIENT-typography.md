@@ -1,24 +1,24 @@
 ---
-title: "Client: typography, the typeface, and the open scale decision"
-description: The centralised typography resolver, the user-selectable font family, and the type-scale decision that still needs a human.
+title: "Client: typography, the typeface, and the type scale"
+description: The centralised typography resolver, the user-selectable font family, and the now-closed type-scale consolidation.
 status: current
 updated: 2026-08-09
 owner: client
 ---
 
-# Client: typography, the typeface, and what the sweep left behind
+# Client: typography, the typeface, and the type scale
 
-> **Status: the mechanism is done, centralised, and applied app-wide; the
-> *design* decision it exposed is not made.** Every rendered px in
-> `client/src` comes out of one resolver, scales with the user's font-size
-> preference, and renders in the typeface the user picked. What is unresolved
-> is whether the sizes it renders are a typography scale or a pile of
-> accidents — the evidence says the latter, and §3 is the decision that needs
-> a human.
+> **Status: the mechanism is done and centralised, and the design decision it
+> exposed is now made.** Every rendered px in `client/src` comes out of one
+> resolver, scales with the user's font-size preference, and renders in the
+> typeface the user picked. The scale those sizes come from was a pile of
+> accidents; §3 records the consolidation that turned it into eight roles, and
+> is closed.
 >
 > **Nothing in this file has been exercised on a physical device.** That is
-> load-bearing here more than anywhere else in the todo folder: this changed
-> the typeface and the line height of every screen in the app.
+> load-bearing here more than anywhere else in the todo folder: it changed the
+> typeface and the line height of every screen in the app, and then §3 changed
+> the size of roughly 200 text nodes on top of that.
 
 Companion to [CLIENT-onboarding.md](./CLIENT-onboarding.md), which owns the
 font-size *preference* (where it is stored, how the setup screen previews it).
@@ -176,7 +176,11 @@ typographic position, and it is not this one:
   fix, on the branch that was supposed to add a font picker.
 - It **inflated `mono`**, whose floor it pushed to 1.55: the blood-pressure
   figure's line box grew 32 % on the detail screen and stopped matching the
-  `size={36}` slash beside it inside a `flex-row items-end`.
+  slash beside it inside a `flex-row items-end`. (That slash was `size={36}`
+  against `type="display"` digits at the time. §3(b) has since put both at
+  `size={38}`, so the pair can no longer diverge — but the failure mode this
+  bullet describes is still live for any two differently-specced nodes sharing
+  an `items-end` row.)
 
 If someone later wants the app's leading to honour declared boxes, that is a
 real proposal — but it is a typography decision on its own branch, taken with
@@ -482,93 +486,201 @@ rather than something you pass through `style`.
 
 ---
 
-## 3. The decision this is all waiting on: is there a typography scale?
+## 3. The scale — closed
 
-**There is not, and the evidence is now countable.** The roles in `TYPE_SCALE`
-are the sizes the app already used, given role names. That was the right move
-to get the typeface applied without redesigning anything, and it is not a
-scale.
+**There was not a scale, and now there is one.** The roles in `TYPE_SCALE`
+arrived as the sizes the app already used, given role names. That was the right
+move to get the typeface applied without redesigning anything, and it was not a
+scale: twelve roles, four of which sat one pixel from a neighbour, and an
+escape hatch carrying two heading sizes and three sizes of the same number.
 
-> The table moved from `themed-text.tsx`'s `VARIANTS` into
-> [`theme/typography.ts`](../../client/src/theme/typography.ts) as `TYPE_SCALE`
-> **verbatim** — not one px changed, and `theme/typography.test.ts` pins every
-> number so a consolidation cannot land by accident during an unrelated change.
-> Answering (a)–(c) is now a change to one file, but it is still a change that
-> needs §5's device pass first.
+**The decision was taken by the project owner and executed on
+`refactor/type-scale-consolidation`.** It is recorded here as closed. The
+answers to (a)–(c) were, in every case, **subtraction** — the scale got smaller,
+not more expressive, and no surviving role's `fontSize` moved.
 
-Current variant use (319 nodes):
+### (a) Headings collapse to one size — `heading` (20)
+
+Section and screen headings rendered at `size={18}` and at `type="heading"`
+(20). Two heading sizes one step apart is the accident pattern.
+
+**Every heading-role `size={18}` and `size={19}` node folded into
+`type="heading"`.** Headings got 2px larger, deliberately: the audience is
+elderly patients, and a heading being too big is a smaller failure than one
+being too small.
+
+`size={19}` was folded too, and the doc's old description of those nodes as
+"prose headings" did not survive reading them. Three of the four
+(`about.tsx:73`, `help.tsx:72`, `health-tips.tsx:51`) are `flex-1 text-center`
+titles in a back-button header row — the same role the gradient
+`ScreenHeaderPill` plays on the tab screens, drawn a different way. The fourth
+(`about.tsx:95`) is the app's own name under the heart glyph on the about card.
+None of them is prose; 19 was simply where three copies of one header row
+landed.
+
+**Not every `size={18}` was a heading, and this is the trap the change had to
+avoid.** 45 nodes in `client/src` matched `size={18}` or `size={19}`. Only 15
+were `ThemedText`:
+
+| what | nodes | outcome |
+| --- | --- | --- |
+| `ThemedText` section / screen headings | 15 | → `type="heading"` |
+| `Ionicons` (and other icon) `size` props | 28 | untouched — a different prop on a different component |
+| Prose inside `screen-header-pill.tsx`'s own header comment | 2 | rewritten |
+
+Converting an icon would have been silent; converting a non-heading `ThemedText`
+would have changed its **weight** as well as its size, because the role carries
+`weight: 'semibold'`. Weight was therefore preserved node-by-node rather than
+inherited: the eleven `weight="bold"` headings kept `weight="bold"`, and the
+three that were already `weight="semibold"` dropped the now-redundant prop. The
+only thing that changed is the size.
+
+`ScreenHeaderPill` (added in #116) owned three of the fifteen in one place, which
+is why consolidating it first was worth doing before answering this.
+
+### (b) The blood-pressure figure drops from three sizes to two
+
+It rendered at 48 (home hero card), 44 (reading detail, as `type="display"`),
+and 38 (history row). Each was defensible on its own; the set was not, because
+nobody chose 38 as "one step below 44".
+
+**Two sizes: 48 on the hero, 38 everywhere else.** The detail screen's figure
+came down from 44 to 38 and joined the list rows.
+
+Two consequences fall out of that, and both close accidents rather than create
+them:
+
+- **`display` (44) is gone from `TYPE_SCALE`.** Its only two nodes were the
+  detail screen's digits. The figure is one component's composition — 48 on a
+  hero, 38 in a row — which is exactly what `ThemedText`'s `size` prop is
+  documented to be for. Naming it a *role* is what let the detail screen drift
+  to a third size in the first place: a role's line height comes from the table
+  while a `size={n}`'s comes from `size × DEFAULT_LINE_HEIGHT_RATIO`, so the two
+  surfaces were reaching the resolver by different routes and could not be
+  compared by reading them.
+- **The `size={36}` slash is gone.** The detail screen was the only surface
+  whose slash was a different size from its digits — the hero and the history
+  row have always used one size for all three glyphs. It now does too. The
+  `flex-row items-end` pairing that #114 had to fix by hand is now **structural**:
+  digits and slash share one spec, so their line boxes cannot diverge. The
+  hand-maintained equality assertion in `use-typography.test.ts` was replaced by
+  one that holds at every font-size rung.
+
+All three surfaces keep `family="mono"`. That is load-bearing for column
+alignment, and `mono`'s line-height floor is measured against digits and `/`
+only.
+
+### (c) The body band becomes a real ratio scale
+
+`body` 15 / `small` 14 / `label` 13 were ~190 nodes sitting one pixel apart. At
+the `small` font-size rung they rounded to 12 / 12 / 11 and the hierarchy
+stopped existing — for exactly the users who chose the smallest text.
+
+**The band is now `label` 13 / `body` 15 / `bodyLarge` 17**, and it got there by
+deleting the 14 rung rather than by moving anything:
+
+| role | before | after |
+| --- | --- | --- |
+| `label` | 13 | 13 — unchanged |
+| `small` | 14 | **gone** — 58 nodes folded into `body` |
+| `body` | 15 | 15 — unchanged |
+| `bodyLarge` | 17 | 17 — unchanged |
+
+`theme/typography.test.ts` now pins the ≥2px gap between the rungs, so the band
+cannot silently re-collapse.
+
+**`smallBold` (14, bold) did not survive alone.** It was `small`'s weight
+variant, and once `small` folded there was nothing for it to be a variant of.
+Its two call sites (`components/ui/option-row.tsx`,
+`modules/readings/components/bp-trend-chart.tsx`) are now
+`type="body" weight="bold"` — which is what the `weight` prop exists for, and
+which does not need a role of its own.
+
+**`link` (14) is gone too.** It had zero call sites in the app and named a rung
+that no longer exists. A link is a colour decision more than a size one; when
+the app grows a real one, it gets a role chosen for that rather than this
+leftover. `type="link"` is now a type error, which is the right way for the next
+author to find this paragraph.
+
+### `TYPE_SCALE`, before and after
+
+Line heights were checked against the rule that broke twice before (§5.0): a
+size change carrying a stale line height either fails the Thai-safe leading
+assertion or silently tightens the leading. **No surviving role's `fontSize`
+moved**, so every `lineHeight` below is still the one chosen against its own
+size, and no recomputation was owed.
+
+| role | before (px / lh / ratio) | after | note |
+| --- | --- | --- | --- |
+| `display` | 44 / 52 / 1.182 | **removed** | the detail screen's BP figure; now `size={38}` |
+| `title` | 24 / 32 / 1.333 | 24 / 32 / 1.333 | unchanged — now the tightest ratio in the table |
+| `heading` | 20 / 28 / 1.400 | 20 / 28 / 1.400 | unchanged size; gained 15 nodes from (a) |
+| `bodyLarge` | 17 / 25 / 1.471 | 17 / 25 / 1.471 | unchanged |
+| `default` | 16 / 24 / 1.500 | 16 / 24 / 1.500 | unchanged — pinned to `BASELINE_PX` |
+| `body` | 15 / 22 / 1.467 | 15 / 22 / 1.467 | unchanged size; gained 58 nodes from `small` |
+| `small` | 14 / 21 / 1.500 | **removed** | → `body` |
+| `smallBold` | 14 / 21 / 1.500 | **removed** | → `body` + `weight="bold"` |
+| `label` | 13 / 19 / 1.462 | 13 / 19 / 1.462 | unchanged |
+| `caption` | 12 / 18 / 1.500 | 12 / 18 / 1.500 | unchanged |
+| `link` | 14 / 21 / 1.500 | **removed** | no call sites |
+| `code` | 12 / 18 / 1.500 | 12 / 18 / 1.500 | unchanged |
+
+Twelve roles to eight. Noto's floor (1.15) is still cleared by every one of
+them, so the acceptance criterion for the whole line-height mechanism — a Noto
+user sees no pixel change from it — is intact; the lowest ratio in the table is
+now `title` at 1.333 rather than `display` at 1.182.
+
+### What this did *not* close
+
+**`body` 15 / `default` 16 / `bodyLarge` 17 are still three roles one pixel
+apart**, and together they are ~200 nodes. That is the same shape of problem
+(c) was about, and it is flagged rather than fixed: `default` is 16 because 16
+is `BASELINE_PX`, the number the setup screen previews as the medium rung, so
+unpicking it is a change to the size ladder and not to the role scale. It wants
+its own decision, taken with §5's device pass, and it is **not** an invitation
+to nudge one of the three by a pixel.
+
+### Variant use after the change
 
 | variant | px | uses |
 | --- | --- | --- |
-| `body` | 15 | 82 |
-| `label` | 13 | 58 |
-| `small` | 14 | 52 |
-| `caption` | 12 | 32 |
-| `default` | 16 | 52 (24 explicit + 28 implicit) |
+| `body` | 15 | 154 |
+| `label` | 13 | 60 |
+| `caption` | 12 | 39 |
+| `default` | 16 | 28 explicit + the implicit default |
+| `heading` | 20 | 25 |
 | `bodyLarge` | 17 | 16 |
-| `heading` | 20 | 6 |
 | `title` | 24 | 3 |
-| `display` / `smallBold` / `code` / `link` | — | 2 / 2 / 2 / 1 |
+| `code` | 12 | 2 |
 
-And `size={n}` — the escape hatch — is the inventory of what the scale does
-**not** name. `grep 'size={' client/src` gives it:
+And `size={n}` — the escape hatch, and the inventory of what the scale
+deliberately does not name. `grep -E '<ThemedText[^>]*size=\{[0-9]+\}' client/src`
+gives it, excluding `themed-text.test.tsx`'s own fixtures:
 
 | size | uses | what |
 | --- | --- | --- |
-| 18 | 10 | section and screen headings, across 7 files |
-| 19 | 4 | prose headings in about / help / health-tips |
-| 48 / 38 | 3 / 3 | the blood-pressure figure, hero card and history row |
-| 36 | 1 | the "/" between systolic and diastolic on the detail screen |
+| 48 | 3 | the blood-pressure figure on the home hero card |
+| 38 | 6 | the blood-pressure figure — a history row (3) and the detail screen (3) |
 | 28 / 26 / 22 | 1 each | auth hero, onboarding hero, app-lock gate |
 | 11 | 1 | one caption on home |
 | `SIZE_FONT[size]`, `INITIALS_FONT[size]` | 1 each | a button's own size prop; avatar initials |
 
-> **Counted at #114.** One line has moved since: the three tab screens'
-> gradient header pills were three separate nodes — two at `size={18}` and
-> menu's at `type="bodyLarge"` — and are now one, inside
-> [`components/ui/screen-header-pill.tsx`](../../client/src/components/ui/screen-header-pill.tsx).
-> Menu's 17 was drift rather than a decision, so all three now render at 18.
-> That makes answering **(a)** cheaper than the table suggests: three of the
-> heading-sized nodes are now a single call site.
+18, 19, and 36 are gone from this table entirely. What is left is two kinds of
+thing, and both are the prop working as designed: a component whose text size is
+a property of the component (the BP figure, a button's own `size`, avatar
+initials), and four one-off hero sizes on screens that have no siblings to be
+consistent with.
 
-Three questions fall out of that table, and they are genuinely design
-decisions rather than engineering ones:
+**Do not re-answer this by adding variants one at a time.** That is how the
+original twelve came to exist. A fourth heading size showing up is evidence
+against the screen that wants it, not a request for `headingSmaller`.
 
-**(a) Headings are at 18 *and* 20.** Ten nodes at 18 are section headings;
-`heading` is 20 and has six. Two heading sizes one step apart is the accident
-pattern. Either 18 becomes `heading` and 20 folds into it, or the reverse, or
-both are real and the scale needs `heading` and `subheading` — but somebody
-has to look at the screens and say which.
+### Still owed: eyes
 
-**(b) The blood-pressure figure renders at three sizes.** 48 on the home hero
-card, 44 on the reading detail screen, 38 in a history row. The same number,
-the same meaning. Each is defensible as hero / detail / list item; the set is
-not, because nobody chose 38 as "one step below 44". **This wants deciding
-with all three surfaces open side by side**, which is why it was not folded
-one at a time.
-
-All three now render in `mono` (`family="mono"`), which makes the comparison
-easier rather than harder: the three surfaces already agree on the typeface and
-the digit widths, so the only variable left in the question is the size.
-
-**(c) Are 15 / 14 / 13 three steps or one?** They are 82 + 52 + 58 nodes
-sitting one pixel apart. At the `small` font-size rung they round to 12 / 12 /
-11 — the hierarchy stops existing. Either they are a real three-level system
-that should be spaced properly (a ratio scale would put them at roughly 13 /
-15 / 17), or two of them are the same thing and should merge. Merging is a
-visual change across ~190 nodes and needs to be a decision, not a refactor.
-
-**Do not answer (a)–(c) by adding variants one at a time.** That is how the
-current set came to exist. If a fourth heading size shows up, that is more
-evidence for the redesign, not a request for `headingSmaller`.
-
-### What a decision would cost
-
-- **Answering (a) and (b) only** — repoints ~20 nodes, no ratio work. A day,
-  and it removes the two clearest accidents.
-- **A real ratio scale** — changes sizes on nearly every screen. It needs the
-  device pass in §5 first, because judging a scale from a jest snapshot is not
-  possible.
+This is a visual change across roughly 200 nodes and **nobody has looked at it
+on a device or in a simulator.** §5 was already the gate on this file; it is now
+the gate on this section too. The screens most likely to be wrong, in order, are
+listed at the end of §5.
 
 ---
 
@@ -677,6 +789,54 @@ wrong:
 4. **Every screen once, at default, just to look at it.** A typeface change is
    the definition of something that passes tests and looks wrong.
 
+### 5a. What §3 changed, ranked by how likely it is to look wrong
+
+The scale consolidation is a visual change across roughly 200 nodes and nobody
+has seen any of it. These are ordered by *what could look broken*, not by how
+many nodes moved — the biggest node counts are the safest, because a uniform
+one-pixel lift has nothing to look wrong against.
+
+1. **Reading detail — `app/reading/[id].tsx`.** The only screen where the
+   figure got **smaller**, 44 → 38, and it lost 6px inside a card whose padding
+   did not change. Look for the figure now sitting in too much space, and for
+   `mmHg` (`type="body"`, `mb-2 ml-2`) hanging at the wrong height beside it:
+   the `flex-row items-end` baseline moved and `mmHg`'s manual offset did not.
+   Cross-check the digits against a history row on the previous screen — they
+   are now the same size and should read as the same figure, not as a coincidence.
+2. **Home — `app/(tabs)/index.tsx`.** Two `size={18}` section headings became
+   20 directly above a `size={48}` hero figure that did **not** move. The gap
+   between heading and hero narrowed by 2px of type with no spacing change, and
+   this is the app's primary screen. Also carries the app's one `size={11}`
+   caption, now further from `label` (13) than it was from `small` (14).
+3. **Card-dense list screens — history rows, caregivers, community.** This is
+   where the 58 `small` → `body` nodes concentrate, and where the failure mode
+   is not "too big" but "the hierarchy inverted". A card whose title is
+   `type="body"` and whose subtitle *was* `small` now has both at 15, separated
+   only by weight. Look at `link-row.tsx`, `person-card.tsx`, and
+   `post-card.tsx` specifically: those pair a `type="default"` (16) name with a
+   former-`small` line directly under it, so the pair is now 16 over 15.
+4. **The three gradient tab header pills — `ScreenHeaderPill`.** One edit, three
+   screens, 18 → 20 inside a `rounded-xl px-6 py-2.5` pill whose padding is
+   fixed. Confirm the longest title (`ประวัติความดัน`) still fits on one line at
+   the `xlarge` rung, and that the pill has not outgrown its own vertical
+   padding.
+5. **`app/about.tsx`, `help.tsx`, `health-tips.tsx`.** Back-button header rows
+   where a `flex-1 text-center` title went 19 → 20 next to a fixed `size={28}`
+   `arrow-back` glyph. The title is now only 8px smaller than the icon beside
+   it; check the row still reads as a header rather than as two competing
+   elements.
+6. **Auth — `(auth)/onboarding-phone.tsx`, `(auth)/verify-email.tsx`.** These
+   went 18 semibold → 20 semibold inside `AuthShell`, which has its own
+   `size={28}` hero. Two nodes on `verify-email` are 6px apart now instead of 10.
+7. **`option-row.tsx` and `bp-trend-chart.tsx`** — the two former `smallBold`
+   nodes, now `body` + bold. The chart's is a pill label on a coloured fill
+   sized by its own padding, and the option row's is a segmented control with
+   `flex-1` cells; both are places where one extra pixel of type can force a
+   wrap that no test sees.
+
+Everything else is a uniform `small` → `body` lift with no neighbour to clash
+with, and is the low-risk bulk of the change.
+
 ---
 
 ## 5b. What the family preference changed that is not typography
@@ -720,9 +880,15 @@ diff:
 
 ## Where to start a fresh session
 
-If the goal is **finishing typography**: §3 is the only real work, and it
-needs §5 first. Read §3's table, then open the three blood-pressure surfaces
-side by side.
+If the goal is **finishing typography**: the design work is done — §3 is
+closed and the scale is eight roles. What is left is §5, and it is now the only
+thing standing between this work and being trustworthy: **nothing here has been
+seen on hardware, and §3 changed the size of roughly 200 text nodes.** Start at
+§5's ranked list, not at the code.
+
+The one design question still open is the one §3 deliberately did not answer:
+`body` 15 / `default` 16 / `bodyLarge` 17 are three roles a pixel apart, and
+`default` is pinned to `BASELINE_PX`. See "What this did *not* close".
 
 If the goal is **anything else**: this file is done for now and
 [CLIENT-remaining.md](./CLIENT-remaining.md) has the rest.

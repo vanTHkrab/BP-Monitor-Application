@@ -218,7 +218,7 @@ export default function SettingsScreen() {
           />
 
           {deleteNotice ? (
-            <ThemedText type="small" weight="regular" themeColor="text-secondary" accessibilityLiveRegion="polite" className="mb-2 px-2">
+            <ThemedText type="body" weight="regular" themeColor="text-secondary" accessibilityLiveRegion="polite" className="mb-2 px-2">
               {deleteNotice}
             </ThemedText>
           ) : null}

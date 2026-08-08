@@ -124,7 +124,11 @@ describe('font family', () => {
   });
 
   it('never emits a fontWeight beside the family', async () => {
-    const view = await renderScreen(<ThemedText type="smallBold">เข้ม</ThemedText>);
+    // A role whose *own* weight is bold, with no `weight` prop — the case
+    // where the resolver, not the caller, chose bold. `smallBold` used to
+    // stand here; it was `small`'s weight variant and did not survive the
+    // §3 consolidation that folded `small` into `body`.
+    const view = await renderScreen(<ThemedText type="title">เข้ม</ThemedText>);
 
     const style = styleOf(view.getByText('เข้ม'));
     expect(style.fontFamily).toBe('NotoSansThai_700Bold');

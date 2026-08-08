@@ -54,7 +54,7 @@ export function SecurityPostureBanner({
         <Ionicons name={TONE_ICON[posture.tone]} size={28} color={accent} />
 
         <View className="ml-3.5 flex-1">
-          <ThemedText size={18} weight="bold">
+          <ThemedText type="heading" weight="bold">
             {posture.headline}
           </ThemedText>
           <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-1.5">

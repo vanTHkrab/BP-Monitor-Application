@@ -152,18 +152,22 @@ describe('the Thai line-box floor', () => {
    * the resolver has to size — the text roles, the `size={n}` escape hatch,
    * and every surviving explicit override.
    *
-   * The three large display roles are **not** here, and the exclusion is the
-   * design: see `TEXT_ROLES` below and the note on `clampLineHeight`.
+   * The two large roles (`title`, `heading`) are **not** here, and the
+   * exclusion is the design: see `TEXT_ROLES` below and the note on
+   * `clampLineHeight`.
+   *
+   * Four roles left this list with §3's consolidation — `small`, `smallBold`,
+   * `link`, and `display`. They are not gaps in the coverage: `small` and
+   * `smallBold` folded into `body` (and `body` + `weight="bold"`, which the
+   * `flatMap` below already generates), `link` had no call sites, and
+   * `display` was the blood-pressure figure, now covered by `size: 38`.
    */
   const TEXT_ROLES = [
     'bodyLarge',
     'default',
     'body',
-    'small',
-    'smallBold',
     'label',
     'caption',
-    'link',
     'code',
   ] as const;
 
@@ -172,6 +176,10 @@ describe('the Thai line-box floor', () => {
     ...TEXT_ROLES.flatMap((type) => [{ type }, { type, weight: 'bold' as const }]),
     // The `size={n}` escape hatch, at every value the app uses. These derive
     // their leading from `DEFAULT_LINE_HEIGHT_RATIO`, which is the floor.
+    // 18, 19, and 36 left the app with §3: the heading sizes folded into
+    // `type="heading"` and the detail screen's slash joined its digits at 38.
+    // They stay here anyway — the floor has to hold for a size the app takes
+    // up again, and the cost of an extra spec in this list is nothing.
     ...[11, 14, 15, 16, 17, 18, 19, 22, 26, 28, 36, 38, 48].map((size) => ({ size })),
     // Explicit line-height overrides that survive: the two composers and the
     // post card's measured body.
@@ -256,7 +264,7 @@ describe('the Thai line-box floor', () => {
   });
 
   /*
-   * The regression the device pass found, and the reason the display roles are
+   * The regression the device pass found, and the reason the large roles are
    * no longer exempt from the floor.
    *
    * `heading` is 20/28 = 1.40. It used to be waved through on the reasoning
@@ -268,8 +276,8 @@ describe('the Thai line-box floor', () => {
    * 21/29 — 1.38 against a face that needs 1.55 — and lost most of its
    * below-baseline vowels on a real phone.
    */
-  it('raises the display roles that sit under a family’s floor', () => {
-    for (const role of ['display', 'title', 'heading'] as const) {
+  it('raises the large roles that sit under a family’s floor', () => {
+    for (const role of ['title', 'heading'] as const) {
       for (const family of ['noto', 'looped', 'sarabun'] as const) {
         const style = typographyFor({ fontSize: 'medium', fontFamily: family }, { type: role });
         const ratio = (style.lineHeight as number) / (style.fontSize as number);
@@ -333,6 +341,13 @@ describe('the Thai line-box floor', () => {
    * measured over digits and `/` — the only glyphs it is handed. An earlier
    * pass scanned accented Latin, got 1.55 from `Ů`, and inflated the hero
    * figure's line box by 32%.
+   *
+   * **Two sizes, not three.** §3(b): 48 on the home hero card, 38 on the
+   * reading-detail screen and in a history row. The detail screen used to be
+   * `type="display"` (44) with a `size={36}` slash — a pair nobody chose, and
+   * a pair that had to be kept in step by hand because the two numbers reached
+   * the resolver by different routes (a role's own `lineHeight` versus
+   * `size × DEFAULT_LINE_HEIGHT_RATIO`).
    */
   it('changes nothing for the blood-pressure figure either', () => {
     for (const size of [38, 48] as const) {
@@ -344,13 +359,32 @@ describe('the Thai line-box floor', () => {
         lineHeight: Math.round(size * 1.45 * scale),
       });
     }
+  });
 
-    // The detail screen's `display` digits and the `size={36}` slash beside
-    // them sit in one `flex-row items-end`; they matched before this branch
-    // and have to still match.
-    const digits = typographyFor(noto, { type: 'display', family: 'mono' });
-    const slash = typographyFor(noto, { size: 36, weight: 'bold', family: 'mono' });
-    expect(digits.lineHeight).toBe(slash.lineHeight);
+  /*
+   * The `flex-row items-end` invariant, now structural.
+   *
+   * All three blood-pressure surfaces render the slash at the digits' own
+   * size, so "the line boxes match" is true by construction rather than by two
+   * numbers agreeing. Asserted at every font-size rung and in every family a
+   * user can hold, because the figure is `mono` for everyone and the rounding
+   * happens after the preference is applied.
+   */
+  it('keeps the slash and the digits on one line box, on every surface', () => {
+    for (const fontSize of ['small', 'medium', 'large', 'xlarge'] as const) {
+      for (const size of [38, 48] as const) {
+        const spec = { size, weight: 'bold' as const, family: 'mono' as const };
+        const digits = typographyFor({ fontSize, fontFamily: 'noto' }, spec);
+        const slash = typographyFor({ fontSize, fontFamily: 'sarabun' }, spec);
+
+        expect({ fontSize, size, lineHeight: slash.lineHeight, fontSize2: slash.fontSize }).toEqual({
+          fontSize,
+          size,
+          lineHeight: digits.lineHeight,
+          fontSize2: digits.fontSize,
+        });
+      }
+    }
   });
 
   it('leaves a caller that asks for more leading alone', () => {

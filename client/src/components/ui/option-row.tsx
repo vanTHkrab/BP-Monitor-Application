@@ -61,7 +61,8 @@ export function OptionRow<T extends string>({
                 backgroundColor: isSelected ? colors.primary : 'transparent',
               }}>
               <ThemedText
-                type="smallBold"
+                type="body"
+                weight="bold"
                 themeColor="text-secondary"
                 // White on the filled state is not a semantic token — the
                 // token is the *background*, and this is the contrast pair

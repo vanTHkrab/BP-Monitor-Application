@@ -159,14 +159,14 @@ export default function PostDetailScreen() {
                 </ThemedText>
 
                 {error ? (
-                  <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-3 px-1">
+                  <ThemedText type="body" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-3 px-1">
                     {error}
                   </ThemedText>
                 ) : null}
               </View>
             }
             ListEmptyComponent={
-              <ThemedText type="small" weight="regular" themeColor="text-secondary" className="px-1 pb-4">
+              <ThemedText type="body" weight="regular" themeColor="text-secondary" className="px-1 pb-4">
                 {isLoading ? 'กำลังโหลดความคิดเห็น…' : 'ยังไม่มีความคิดเห็น เริ่มเป็นคนแรกได้เลย'}
               </ThemedText>
             }

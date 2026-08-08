@@ -115,7 +115,7 @@ export function BPReadingCard({
       >
         <View className="flex-row items-start justify-between">
           <View className="flex-1">
-            <ThemedText type="small" themeColor="text-secondary" className="mb-1.5">
+            <ThemedText type="body" themeColor="text-secondary" className="mb-1.5">
               {showFullDate ? formatFullDate(reading.measuredAt) : relativeTime(reading.measuredAt)}
             </ThemedText>
 
@@ -138,14 +138,14 @@ export function BPReadingCard({
               <ThemedText size={38} weight="bold" family="mono">
                 {reading.diastolic}
               </ThemedText>
-              <ThemedText type="small" themeColor="text-secondary" className="ml-2">
+              <ThemedText type="body" themeColor="text-secondary" className="ml-2">
                 mmHg
               </ThemedText>
             </View>
 
             <View className="mt-2 flex-row items-center">
               <Ionicons name="heart" size={18} color={PULSE_TINT} />
-              <ThemedText type="small" themeColor="text-secondary" className="ml-1.5">
+              <ThemedText type="body" themeColor="text-secondary" className="ml-1.5">
                 {`${reading.pulse} bpm`}
               </ThemedText>
             </View>

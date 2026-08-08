@@ -129,7 +129,7 @@ export default function RemindersScreen() {
               accessibilityLiveRegion="polite"
               style={{ backgroundColor: colors.surface, borderColor: colors.border }}
             >
-              <ThemedText type="small" weight="regular">
+              <ThemedText type="body" weight="regular">
                 {notice}
               </ThemedText>
             </View>
@@ -145,7 +145,7 @@ export default function RemindersScreen() {
                 style={{ backgroundColor: colors.surface }}
               >
                 <View style={{ height: 3, backgroundColor: statusColor.elevated }} />
-                <ThemedText type="small" weight="regular" className="p-4">
+                <ThemedText type="body" weight="regular" className="p-4">
                   เครื่องรับการเตือนล่วงหน้าได้จำกัด ระบบจึงปรับเป็นทุก{' '}
                   {plan.effectiveIntervalHours} ชั่วโมง เพื่อให้ยังเตือนครบทุกวันที่เลือกไว้
                 </ThemedText>
@@ -231,7 +231,7 @@ export default function RemindersScreen() {
                         backgroundColor: selected ? colors.primary : colors['surface-muted'],
                       }}
                     >
-                      <ThemedText type="small" weight="semibold" style={{ color: selected ? '#FFFFFF' : colors['text-primary'] }}>
+                      <ThemedText type="body" weight="semibold" style={{ color: selected ? '#FFFFFF' : colors['text-primary'] }}>
                         {day.label}
                       </ThemedText>
                     </Pressable>
@@ -395,7 +395,7 @@ function ChipRow({
             backgroundColor: item.selected ? colors.primary : colors['surface-muted'],
           }}
         >
-          <ThemedText type="small" weight="semibold" style={{ color: item.selected ? '#FFFFFF' : colors['text-primary'] }}>
+          <ThemedText type="body" weight="semibold" style={{ color: item.selected ? '#FFFFFF' : colors['text-primary'] }}>
             {item.label}
           </ThemedText>
         </Pressable>

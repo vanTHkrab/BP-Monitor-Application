@@ -93,7 +93,7 @@ export function LinkRow({
             <View className="flex-1">
               <ThemedText type="default">{name}</ThemedText>
               <ThemedText
-                type="small"
+                type="body"
                 weight="regular"
                 themeColor="text-secondary"
                 className="mt-0.5"
@@ -111,7 +111,7 @@ export function LinkRow({
           <View className="flex-1 py-3 pr-3">
             <ThemedText type="default">{name}</ThemedText>
             <ThemedText
-              type="small"
+              type="body"
               weight="regular"
               themeColor="text-secondary"
               className="mt-0.5"

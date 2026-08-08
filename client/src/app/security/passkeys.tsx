@@ -154,7 +154,7 @@ export default function PasskeysScreen() {
           {/* Says which side is missing. "ไม่รองรับ" alone leaves the user
               trying to fix a phone that is fine. */}
           {!deviceSupported || !serverSupported ? (
-            <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-3 px-2 text-center">
+            <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-3 px-2 text-center">
               {!deviceSupported
                 ? 'เครื่องนี้ยังใช้ Passkey ไม่ได้ ลองตั้งค่าการปลดล็อกหน้าจอ (PIN, ลายนิ้วมือ หรือใบหน้า) ในการตั้งค่าของเครื่องก่อน'
                 : 'ระบบยังไม่เปิดใช้งาน Passkey สำหรับเซิร์ฟเวอร์นี้'}

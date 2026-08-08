@@ -50,7 +50,7 @@ export function CommentRow({
       <View className="ml-2.5 flex-1">
         <View className="rounded-2xl px-3.5 py-2.5" style={{ backgroundColor: colors.surface }}>
           <View className="flex-row items-center">
-            <ThemedText type="small" weight="semibold" numberOfLines={1} className="flex-1">
+            <ThemedText type="body" weight="semibold" numberOfLines={1} className="flex-1">
               {comment.userName}
             </ThemedText>
 

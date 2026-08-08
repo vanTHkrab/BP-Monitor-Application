@@ -104,7 +104,7 @@ export function ProfileLinkRow({
         </ThemedText>
 
         {value ? (
-          <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mr-2 py-3">
+          <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mr-2 py-3">
             {value}
           </ThemedText>
         ) : null}

@@ -285,44 +285,91 @@ describe('isFontFamily', () => {
 });
 
 /*
- * The role table moved out of `themed-text.tsx` **verbatim**. Whether it is a
- * typography scale at all is an open design decision — see
- * `docs/project/CLIENT-typography.md` §3 — and it needs a physical-device pass
- * before a single number changes. These are the numbers as they were, so a
- * consolidation that lands by accident during an unrelated change fails here
- * rather than shipping.
+ * The role table arrived from `themed-text.tsx` verbatim and was a pile of
+ * accidents rather than a scale — `docs/project/CLIENT-typography.md` §3. That
+ * decision is now closed, and the answer was subtraction: `small`, `smallBold`,
+ * `link`, and `display` are gone. These are the numbers as they now are, pinned
+ * so the *next* accident — a role added one at a time, which is how the first
+ * twelve came to exist — fails here rather than shipping.
  */
 describe('TYPE_SCALE', () => {
-  it('carries the twelve roles at the sizes the sweep shipped', () => {
+  it('carries the eight roles §3 left standing', () => {
     expect(TYPE_SCALE).toEqual({
-      display: { fontSize: 44, lineHeight: 52, weight: 'bold' },
       title: { fontSize: 24, lineHeight: 32, weight: 'bold' },
       heading: { fontSize: 20, lineHeight: 28, weight: 'semibold' },
       bodyLarge: { fontSize: 17, lineHeight: 25, weight: 'medium' },
       default: { fontSize: 16, lineHeight: 24, weight: 'medium' },
       body: { fontSize: 15, lineHeight: 22, weight: 'medium' },
-      small: { fontSize: 14, lineHeight: 21, weight: 'medium' },
-      smallBold: { fontSize: 14, lineHeight: 21, weight: 'bold' },
       label: { fontSize: 13, lineHeight: 19, weight: 'semibold' },
       caption: { fontSize: 12, lineHeight: 18, weight: 'regular' },
-      link: { fontSize: 14, lineHeight: 21, weight: 'medium' },
       code: { fontSize: 12, lineHeight: 18, weight: 'bold' },
     });
   });
 
   /*
+   * §3(c)'s actual finding, asserted rather than described: `label` 13 /
+   * `small` 14 / `body` 15 were 190-odd nodes one pixel apart, and at the
+   * `small` font-size rung they rounded to 11 / 12 / 12 — the hierarchy
+   * stopped existing exactly where legibility mattered most. The band is now
+   * 13 / 15 / 17, so each rung clears the one below it by ~13 % and survives
+   * rounding at every rung of the size preference.
+   *
+   * This is the guard against re-answering §3 by adding a variant one at a
+   * time, which is how the twelve roles came to exist in the first place.
+   */
+  it('keeps at least two px between the rungs of the text band', () => {
+    const band = ['label', 'body', 'bodyLarge'] as const;
+
+    for (let i = 1; i < band.length; i += 1) {
+      const lower = TYPE_SCALE[band[i - 1]].fontSize;
+      const upper = TYPE_SCALE[band[i]].fontSize;
+
+      expect({ pair: `${band[i - 1]}→${band[i]}`, gap: upper - lower }).toEqual({
+        pair: `${band[i - 1]}→${band[i]}`,
+        gap: 2,
+      });
+    }
+  });
+
+  /*
+   * The roles §3 removed, named so a re-add is a deliberate act.
+   *
+   * - `small` / `smallBold` (14) folded into `body` (15) and `body` +
+   *   `weight="bold"`.
+   * - `link` (14) had no call sites and named a rung that no longer exists.
+   * - `display` (44) was only ever the reading-detail screen's blood-pressure
+   *   figure, which is one component's composition and belongs in `size` —
+   *   `themed-text.tsx` documents the figure as exactly that. Naming it a role
+   *   is what let the detail screen drift to a third size nobody chose.
+   */
+  it('does not carry the four roles §3 removed', () => {
+    for (const gone of ['small', 'smallBold', 'link', 'display']) {
+      expect({ role: gone, present: gone in TYPE_SCALE }).toEqual({
+        role: gone,
+        present: false,
+      });
+    }
+  });
+
+  /*
    * Thai stacks สระบน plus วรรณยุกต์ two levels deep, so the ratio that reads
    * as generous in Latin is merely adequate here. The text roles sit at
-   * ~1.45–1.5×; the three large display roles are deliberately tighter,
-   * because at 20px and up the absolute leading is already ample and 1.45
-   * would leave a heading floating in its own block.
+   * ~1.45–1.5×; the two large roles (`title`, `heading`) are deliberately
+   * tighter, because at 20px and up the absolute leading is already ample and
+   * 1.45 would leave a heading floating in its own block.
+   *
+   * §3's consolidation removed rungs and moved no surviving role's `fontSize`,
+   * so every `lineHeight` below is still the one chosen against its own size.
+   * That is why this test did not need new numbers — but it is exactly the
+   * test that catches a future size change shipped with a stale line height,
+   * which is the defect class that produced the Thai vowel clipping.
    *
    * §5's device pass is what confirms either band is actually enough — and it
    * now has to confirm it **per family**, since the numbers were tuned against
    * Noto alone.
    */
   it('keeps the text roles at a Thai-safe leading ratio', () => {
-    const textRoles = ['bodyLarge', 'default', 'body', 'small', 'smallBold', 'label', 'caption', 'link', 'code'] as const;
+    const textRoles = ['bodyLarge', 'default', 'body', 'label', 'caption', 'code'] as const;
 
     for (const role of textRoles) {
       const { fontSize, lineHeight } = TYPE_SCALE[role];

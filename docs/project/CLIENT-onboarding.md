@@ -207,12 +207,15 @@ top-level screens.
   that genuinely wants both stacked has to opt out with
   `allowFontScaling={false}` and multiply the OS scale itself; nothing does.
 
-- **There is still no shared typography scale**, and `ThemedText`'s variants
-  are not one — they are the sizes the app already used, given role names. The
-  measurements, the three open design questions, and the traps that come with
-  the shared component moved to their own file:
-  [CLIENT-typography.md](./CLIENT-typography.md). Read it before adding a
-  variant or touching a font size.
+- **There is a shared typography scale now**, and it took a second change to
+  get one. `ThemedText`'s variants started as the sizes the app already used
+  given role names, which is not a scale; the consolidation that turned twelve
+  of them into eight — and folded two heading sizes into one and three
+  blood-pressure sizes into two — is recorded as closed in
+  [CLIENT-typography.md](./CLIENT-typography.md) §3. The measurements and the
+  traps that come with the shared component live there too. Read it before
+  adding a variant or touching a font size; **adding a role is a proposal, not
+  an edit.**
 - **No "change role later" screen.** `selectRole` is deliberately
   re-callable, so a settings row can reuse the same hook. Safe because `role`
   is a UI mode, not an access-control boundary — reading another user's data

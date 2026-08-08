@@ -224,7 +224,7 @@ export default function HomeScreen() {
                       <Ionicons name="trending-up" size={32} color={palette.blue} />
                     </View>
                     <View className="mt-0.5 flex-row items-center justify-center">
-                      <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mb-1">
+                      <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-1">
                         ดูประวัติทั้งหมด
                       </ThemedText>
                       <Ionicons
@@ -263,7 +263,7 @@ export default function HomeScreen() {
                         PDF
                       </ThemedText>
                     </LinearGradient>
-                    <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mb-1 text-center">
+                    <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mb-1 text-center">
                       {/* No format sheet here, unlike settings and history.
                           The card says PDF on its face; asking again would be
                           asking the user to confirm what they just read. */}
@@ -303,7 +303,7 @@ export default function HomeScreen() {
                     <ThemedText type="default" weight="semibold">
                       เคล็ดลับการดูแลสุขภาพ
                     </ThemedText>
-                    <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-0.5">
+                    <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-0.5">
                       อ่านบทความเกี่ยวกับการดูแลความดันโลหิต
                     </ThemedText>
                   </View>
@@ -335,7 +335,7 @@ export default function HomeScreen() {
                     <ThemedText type="default" weight="semibold" style={{ color: '#FFFFFF' }}>
                       ตั้งการแจ้งเตือน
                     </ThemedText>
-                    <ThemedText type="small" weight="regular" className="mt-0.5" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                    <ThemedText type="body" weight="regular" className="mt-0.5" style={{ color: 'rgba(255,255,255,0.8)' }}>
                       เตือนให้วัดความดันเป็นประจำ
                     </ThemedText>
                   </View>
@@ -353,7 +353,7 @@ export default function HomeScreen() {
 function SectionTitle({ children }: { children: string }) {
 
   return (
-    <ThemedText size={18} weight="bold" className="mb-4">
+    <ThemedText type="heading" weight="bold" className="mb-4">
       {children}
     </ThemedText>
   );
@@ -384,10 +384,10 @@ function PickPatientPrompt() {
           <Ionicons name="people" size={32} color={palette.purple} />
         </View>
 
-        <ThemedText size={18} weight="bold" className="text-center">
+        <ThemedText type="heading" weight="bold" className="text-center">
           เลือกผู้ป่วยที่ต้องการดู
         </ThemedText>
-        <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-2 text-center">
+        <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-2 text-center">
           คุณกำลังใช้โหมดผู้ดูแล กรุณาเลือกผู้ป่วยจากรายชื่อก่อนเริ่มดูข้อมูลความดัน
         </ThemedText>
 

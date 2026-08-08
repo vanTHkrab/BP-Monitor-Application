@@ -134,7 +134,7 @@ export default function CommunityScreen() {
         </View>
 
         {error ? (
-          <ThemedText type="small" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-2 px-5">
+          <ThemedText type="body" weight="regular" themeColor="danger" accessibilityLiveRegion="polite" className="mb-2 px-5">
             {error}
           </ThemedText>
         ) : null}
@@ -213,7 +213,7 @@ function EmptyFeed({ isLoading, category }: { isLoading: boolean; category: Post
       </ThemedText>
 
       {isLoading ? null : (
-        <ThemedText type="small" weight="regular" themeColor="text-secondary" className="mt-2">
+        <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-2">
           เป็นคนแรกที่เริ่มบทสนทนาในหมวดนี้ได้เลย
         </ThemedText>
       )}

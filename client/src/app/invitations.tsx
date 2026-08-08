@@ -333,7 +333,7 @@ export default function InvitationsScreen() {
                   })}
                 >
                   <Ionicons name="mail-unread-outline" size={20} color={colors.accent} />
-                  <ThemedText type="small" weight="semibold" className="ml-2.5 flex-1">
+                  <ThemedText type="body" weight="semibold" className="ml-2.5 flex-1">
                     {`มี ${pendingCount} คำขอรอคุณตอบรับ`}
                   </ThemedText>
                   <Ionicons
@@ -592,7 +592,7 @@ function ProfileChangesRow({ onPress }: { onPress: () => void }) {
     >
       <Ionicons name="time-outline" size={20} color={colors['text-secondary']} />
       <View className="ml-2.5 flex-1">
-        <ThemedText type="small" weight="semibold">
+        <ThemedText type="body" weight="semibold">
           ประวัติการแก้ไขข้อมูลสุขภาพ
         </ThemedText>
         <ThemedText type="label" weight="regular" themeColor="text-secondary" className="mt-0.5">
@@ -617,7 +617,7 @@ function EmptyCard({ title, text }: { title?: string; text: string }) {
           {title}
         </ThemedText>
       ) : null}
-      <ThemedText type="small" weight="regular" themeColor="text-secondary">
+      <ThemedText type="body" weight="regular" themeColor="text-secondary">
         {text}
       </ThemedText>
     </View>
