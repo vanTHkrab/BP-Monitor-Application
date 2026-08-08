@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "45060231184",
+    "project_id": "wu-bp-mobile",
+    "storage_bucket": "wu-bp-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:45060231184:android:480d6e8c3bcd80c370fa95",
+        "android_client_info": {
+          "package_name": "com.project.bpmobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTbD9qTcOCx2d7UZ1pCNAfYhrHn4jXj7E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
