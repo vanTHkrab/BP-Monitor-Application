@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # infra/podman/scripts/build-images.sh
 #
-# Builds the three application images on the EC2 host with Podman and tags each
+# Builds the two application images on the EC2 host with Podman and tags each
 # one twice: with the current git short SHA and with `latest`.
 #
 # ── Why build on the box ────────────────────────────────────────────────────
@@ -29,7 +29,7 @@
 # the host only ever pulls.
 #
 # Usage:
-#   ./infra/podman/scripts/build-images.sh              # all three
+#   ./infra/podman/scripts/build-images.sh              # both
 #   ./infra/podman/scripts/build-images.sh api-gateway  # just one
 
 set -euo pipefail
@@ -49,19 +49,25 @@ if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then
   echo "!!! what is in these images. Commit or stash before a real deploy."
 fi
 
-# The api-gateway build context has no .dockerignore, so `COPY . .` sweeps in
-# whatever is sitting in that directory — including a developer's .env if the
-# checkout was ever used for local work. dotenv does not override variables
-# already present in the process environment, so it will not change runtime
-# behaviour, but it does bake a credential into an image layer. Refuse rather
-# than warn: an image is a thing that gets copied around.
-if [ -f server/app/api-gateway/.env ]; then
-  echo "!!! server/app/api-gateway/.env exists and WILL be copied into the image."
-  echo "!!! The api-gateway Dockerfile does 'COPY . .' with no .dockerignore."
-  echo "!!! Remove or move it before building, or add a .dockerignore (see the"
-  echo "!!! follow-ups in infra/podman/README.md)."
-  exit 1
-fi
+# Both service build contexts now carry their own .dockerignore
+# (server/app/api-gateway/.dockerignore, server/app/ai-service/.dockerignore),
+# which is what keeps `COPY . .` from sweeping in a developer's .env, a
+# host-built node_modules / .venv, or the ~78 MB of model weights the
+# ai-service image deliberately does not ship (ADR-005).
+#
+# This check is a tripwire on those files still existing, not a substitute for
+# them. Deleting a .dockerignore is a one-line change that bakes a credential
+# into an image layer and produces no error at build time — an image is a thing
+# that gets copied around, so refuse rather than warn.
+for ctx in server/app/api-gateway server/app/ai-service; do
+  if [ ! -f "$ctx/.dockerignore" ]; then
+    echo "!!! $ctx/.dockerignore is missing."
+    echo "!!! Its Dockerfile does 'COPY . .', so building without it copies"
+    echo "!!! that directory's .env, node_modules/.venv and any model weights"
+    echo "!!! straight into the image. Restore it before building."
+    exit 1
+  fi
+done
 
 build_one() {
   case "$1" in
@@ -82,18 +88,16 @@ build_one() {
         server/app/ai-service
       ;;
     web)
-      # Context is the REPOSITORY ROOT, not web/ — the docs site prerenders
-      # docs/**/*.md and a context rooted at web/ cannot reach a sibling. The
-      # root .dockerignore keeps that widened context down to web/ + docs/.
-      podman build \
-        --target prod \
-        -t "$PREFIX/web:$TAG" \
-        -t "$PREFIX/web:latest" \
-        -f web/Dockerfile \
-        .
+      # `web` is not part of this deploy. It has no authentication of its own,
+      # its /admin/ pages open direct connections to Postgres, Redis and S3,
+      # and the only thing that ever guarded them was an nginx Basic Auth rule.
+      # Run it locally against the datastores instead — see infra/README.md.
+      echo "web is no longer deployed to production; build it locally instead." >&2
+      echo "See infra/README.md, 'Running the dashboard against production'." >&2
+      exit 2
       ;;
     *)
-      echo "unknown image: $1 (expected api-gateway | ai-service | web)" >&2
+      echo "unknown image: $1 (expected api-gateway | ai-service)" >&2
       exit 2
       ;;
   esac
@@ -104,7 +108,6 @@ if [ "$#" -gt 0 ]; then
 else
   build_one api-gateway
   build_one ai-service
-  build_one web
 fi
 
 echo

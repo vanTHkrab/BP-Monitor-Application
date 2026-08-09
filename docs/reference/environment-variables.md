@@ -16,6 +16,15 @@ files.
 > ⚠️ Source of truth is each app's `.env.example`; this page summarises them.
 > When a variable is added or removed, update both.
 
+There are **three** environment files that feed a running backend, not two, and
+they are not variants of each other:
+
+| File | Feeds | Notes |
+| --- | --- | --- |
+| `server/app/ai-service/.env`, `server/app/api-gateway/.env` | a bare `pnpm start:dev` / `uv run` | no container involved |
+| [`infra/docker-compose/.env`](#docker-compose--development) | the **development** Compose stack | includes a Postgres container and the `web` dashboard |
+| [`infra/podman/bp-monitor.env`](#production--podman-on-ec2) | the **production** EC2 host | plus six Podman secrets that are deliberately *not* in it |
+
 ---
 
 ## Outstanding — needed before passkeys and Google One Tap work
@@ -25,7 +34,10 @@ plugin without an RP ID, and the mobile app hides both buttons rather than
 showing them broken. Filling these four turns the feature on.
 
 1. `PASSKEY_RP_ID` — the HTTPS domain. Must be a bare registered domain,
-   never an IP or a port, so a LAN dev address cannot be used.
+   never an IP or a port, so a LAN dev address cannot be used. It must be the
+   **same host that serves `/.well-known/assetlinks.json`**, which the gateway
+   does on `DOMAIN_NAME` — so on this deploy it is `api.example.com`, not the
+   bare apex.
 2. `ANDROID_APP_SHA256_FINGERPRINT` — from
    `keytool -list -v -keystore <path> -alias <alias>`. Comma-separate debug,
    release, and Play App Signing keys.
@@ -120,9 +132,18 @@ EXPO_PUBLIC_API_URL=https://api.example.com/graphql    # production
 
 ---
 
-## Web dashboard
+## Web dashboard — development only
 
 `web/.env` — [`.env.example`](../../web/.env.example). Copy it to `.env.local`.
+
+> ⚠️ **This app is not deployed.** It has no authentication of its own — no auth
+> library is installed — and its `/admin/` pages open direct connections to
+> Postgres, Redis and S3 to render session counts and user totals. The only
+> thing that ever guarded them was an nginx Basic Auth rule, and that rule is
+> gone with the route. It is defined in `docker-compose.dev.yml` and nowhere
+> else, so it cannot start in the prod-shaped or production stacks. Run it
+> locally; point it at production datastores with a local `.env.local` if you
+> need to, but do not host it.
 
 Mostly health probes and read paths. The database connection is used for
 status checks only — a read-only role is enough and is the safer choice.
@@ -138,34 +159,80 @@ status checks only — a read-only role is enough and is the safer choice.
 
 ---
 
-## Docker Compose
+## Docker Compose — development
 
 `infra/docker-compose/.env` —
 [`.env.example`](../../infra/docker-compose/.env.example)
 
-Feeds the containerised backend and web stack. Values here are injected into
-the services, so they must agree with the per-app files above when both paths
-are in use.
+Feeds the development stack and the prod-shaped rehearsal stack. Values here are
+injected into the services, so they must agree with the per-app files above when
+both paths are in use.
 
 | Variable | Status | Description |
 | --- | --- | --- |
 | `POSTGRES_USER` · `POSTGRES_PASSWORD` · `POSTGRES_DB` | Required | Credentials the `postgres` service is created with. `DATABASE_URL` below must repeat them — they are not derived. |
 | `DATABASE_URL` | Required | Keep the host as `postgres` — the compose service name, not `localhost`, which inside a container points at the container itself. |
 | `JWT_SECRET` · `JWT_EXPIRES_IN` | Required | Passed through to the gateway. Changing `JWT_SECRET` invalidates every live session. |
+| `BETTER_AUTH_URL` | Required | **Origin only.** Forwarded by `docker-compose.yml` since 2026-08-09; before that it was not, and every route under `/api/auth` 404'd in every containerised environment. That includes the mobile app's email-OTP calls. |
+| `BETTER_AUTH_SECRET` · `PASSKEY_*` · `GOOGLE_*` · `ANDROID_APP_*` · `EXPO_ACCESS_TOKEN` · `HAVE_I_BEEN_PWNED_ENABLED` | Optional | Also newly forwarded. Each is absent-not-broken when unset, which is why they went unnoticed. See the API Gateway table above for what each one does. |
 | `BCRYPT_SALT_ROUNDS` | Inert | Forwarded to the gateway by `docker-compose.yml`, but the gateway ignores it — the value is the hard-coded constant `10` in [`auth.config.ts`](../../server/app/api-gateway/src/auth/auth.config.ts). Changing it here has no effect, and it does not invalidate existing hashes. |
 | `NEXT_PUBLIC_API_URL` | Inert | Declared on the `web` service, but nothing under `web/src/` reads it — the dashboard talks to the gateway server-side via `GATEWAY_URL`, which Compose sets to the service name directly. Public if it ever ships: it would go to the browser. |
-| `DOMAIN_NAME` | Prod only | Domain nginx terminates TLS for. A DNS A/AAAA record must point here **before** running `infra/scripts/init-letsencrypt.sh` — Let's Encrypt validates by making an inbound request on port 80. |
-| `CERTBOT_EMAIL` | Prod only | Where expiry and problem notices go. Required by certbot; not published. |
-| `CERTBOT_STAGING` | Prod only | `1` requests from the staging CA. Untrusted by browsers but exempt from the production rate limits — use it first on a new domain, confirm the flow, then re-run without it. |
+| `DOMAIN_NAME` | Prod-shaped only | nginx's `server_name`. The block is `default_server`, so a mismatch does not 404 — what actually routes traffic is the Cloudflare tunnel's Public Hostname. No DNS record of your own is needed. |
+| `TUNNEL_TOKEN` | Prod-shaped only | The Cloudflare Tunnel credential — on its own, enough to publish traffic into the stack's network. **Leave it empty when rehearsing locally**: a real token publishes your laptop on a real hostname. In production it is a Podman secret, never a file. |
 | `GRAPHIQL_ENABLED` | Prod care | Leave `0` on any internet-facing host. nginx keeps `/graphiql` behind Basic Auth either way, but the two gates fail differently — neither is redundant. |
 | `AI_MODELS_R2_BASE_URL` | Required | Same value as the AI service's own file. `docker-entrypoint.sh` refuses to start on the placeholder. |
-| `S3_PROVIDER` · `S3_ACCESS_KEY_ID` · `S3_SECRET_ACCESS_KEY` · `S3_DEFAULT_REGION` · `S3_BUCKET_NAME` · `S3_ENDPOINT` · `S3_USE_PATH_STYLE_ENDPOINT` · `S3_PUBLIC_BASE_URL` | Required | Consumed by the gateway's StorageModule. The `.env.example` carries worked Supabase-staging and Cloudflare-R2-production examples. |
+| `S3_PROVIDER` · `S3_ACCESS_KEY_ID` · `S3_SECRET_ACCESS_KEY` · `S3_DEFAULT_REGION` · `S3_BUCKET_NAME` · `S3_ENDPOINT` · `S3_USE_PATH_STYLE_ENDPOINT` · `S3_PUBLIC_BASE_URL` | Required | Consumed by the gateway's StorageModule, and by the dev dashboard's own S3 client. The `.env.example` carries worked Supabase-staging and Cloudflare-R2-production examples. |
 
-> ⚠️ The gateway's auth-domain variables — `BETTER_AUTH_URL`, `GOOGLE_*`,
-> `PASSKEY_*`, `ANDROID_APP_*` — are **not** forwarded by
-> [`docker-compose.yml`](../../infra/docker-compose/docker-compose.yml).
-> Passkeys and Google sign-in stay off in the containerised stack until that
-> service block is extended.
+> **Removed:** `CERTBOT_EMAIL` and `CERTBOT_STAGING`. TLS terminates at
+> Cloudflare's edge; there is no certbot service, no ACME challenge, and no port
+> 443 in any of these stacks. `infra/scripts/init-letsencrypt.sh` is gone.
+
+---
+
+## Production — Podman on EC2
+
+`/etc/bp-monitor/bp-monitor.env` on the host —
+[`bp-monitor.env.example`](../../infra/podman/bp-monitor.env.example)
+
+This is the file the real deploy reads. It is **not** a copy of the Compose one:
+there is no Postgres container, no `web` service, and the credentials are not in
+it at all.
+
+### Podman secrets — the six values that are not in the env file
+
+Injected into the container process environment by name, stored at mode 0600
+under the deploy user's Podman store, never written to an image layer or a bind
+mount. Create them once per host (see
+[deploy.md](../guides/deploy.md#configuration-and-secrets)).
+
+| Secret | Target variable | Notes |
+| --- | --- | --- |
+| `bp-database-url` | `DATABASE_URL` (api-gateway) | Supabase **transaction** pooler, port **6543**. Running app traffic on the direct endpoint exhausts the connection ceiling. |
+| `bp-database-url-direct` | `DATABASE_URL` (`bp-migrate.service` only) | Direct or **session** pooler, port **5432**. Prisma's migrate engine needs an advisory lock held across statements, which a transaction pooler cannot hold. Same variable name, different endpoint, for the length of one container run. |
+| `bp-jwt-secret` | `JWT_SECRET` | 32+ chars; the gateway refuses to boot on a shorter one. |
+| `bp-s3-access-key-id` | `S3_ACCESS_KEY_ID` | |
+| `bp-s3-secret-access-key` | `S3_SECRET_ACCESS_KEY` | |
+| `bp-tunnel-token` | `TUNNEL_TOKEN` (cloudflared) | The tunnel credential. Anyone holding it can publish traffic into `bp-net`. |
+
+### Non-secret configuration
+
+| Variable | Status | Description |
+| --- | --- | --- |
+| `BP_IMAGE_TAG` | Required | The tag `build-images.sh` produced, normally a git short SHA. `bp-migrate.service` uses it so the migration runs from the same build as the deploy; the `.container` units reference `:latest`. **This is your rollback target — record it.** |
+| `DOMAIN_NAME` | Required | The hostname clients use, e.g. `api.example.com`. nginx uses it only for `server_name`. What actually routes traffic is the tunnel's Public Hostname row in the Cloudflare dashboard, which nothing in this repo can verify — keep the two in step by hand. If they disagree, every container is healthy and the site is down. |
+| `BETTER_AUTH_URL` | Required | Origin only, https, and it must match `DOMAIN_NAME`. Unset or wrong, every route under `/api/auth` 404s — including the mobile app's email-OTP verification — with nothing failing at boot. |
+| `GRAPHIQL_ENABLED` · `JWT_EXPIRES_IN` | Optional | As above. Leave `GRAPHIQL_ENABLED=0`. |
+| `PASSKEY_RP_ID` · `PASSKEY_RP_NAME` · `ANDROID_APP_PACKAGE_NAME` · `ANDROID_APP_SHA256_FINGERPRINT` | Optional | Passkeys. `PASSKEY_RP_ID` must equal the domain serving `/.well-known/assetlinks.json` — which here is `DOMAIN_NAME`, because the gateway serves it. Setting it to a bare parent domain silently breaks Android. |
+| `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` · `GOOGLE_ANDROID_CLIENT_ID` | Optional | Google sign-in. Absent, not broken, when unset. |
+| `EXPO_ACCESS_TOKEN` | Prod care | Unset, Expo accepts a push send from anyone holding one of our push tokens. Push works either way and nothing fails at boot — set it here precisely because the failure is invisible. |
+| `HAVE_I_BEEN_PWNED_ENABLED` | Optional | `true` rejects breached passwords. Adds an outbound call to sign-up. |
+| `AI_MODELS_R2_BASE_URL` | Required | ai-service refuses to start on the placeholder. Needs outbound HTTPS. |
+| `S3_PROVIDER` · `S3_ENDPOINT` · `S3_BUCKET_NAME` · `S3_DEFAULT_REGION` · `S3_USE_PATH_STYLE_ENDPOINT` · `S3_PUBLIC_BASE_URL` | Required | The non-secret half of the object-storage config; the key and secret are Podman secrets. |
+
+> **Not in this file, deliberately:** `CERTBOT_*` (no certbot — TLS is at
+> Cloudflare), `NEXT_PUBLIC_API_URL` (the dashboard is not deployed),
+> `BCRYPT_SALT_ROUNDS` (always was inert), and `POSTGRES_*` (Postgres is
+> Supabase, not a container).
 
 ---
 
@@ -177,12 +244,14 @@ wrong.
 
 | Value | Files | What drift looks like |
 | --- | --- | --- |
-| `DATABASE_URL` | gateway · web · compose | The dashboard's health probes report a database the gateway is not writing to. |
-| `S3_*` | gateway · web · compose | Images upload successfully and then 404 when the other side signs a URL against a different bucket. |
-| `AI_MODELS_R2_BASE_URL` | ai-service · compose | Local dev and Docker fetch different model builds, so on-device and backend OCR disagree. |
+| `DATABASE_URL` | gateway · compose · podman secret | The dev dashboard's health probes report a database the gateway is not writing to. |
+| `S3_*` | gateway · web · compose · podman | Images upload successfully and then 404 when the other side signs a URL against a different bucket. |
+| `AI_MODELS_R2_BASE_URL` | ai-service · compose · podman | Local dev and Docker fetch different model builds, so on-device and backend OCR disagree. |
 | Google web client ID | gateway `GOOGLE_CLIENT_ID` · client `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Every mobile Google sign-in fails as an invalid token; the web flow keeps working, so it looks like a broken mobile build. |
 | Android package name | gateway `ANDROID_APP_PACKAGE_NAME` · `client/app.json` | Android fetches `assetlinks.json`, finds a different package, and rejects the passkey with no useful message. |
-| Passkey domain | gateway `PASSKEY_RP_ID` · wherever `/.well-known/assetlinks.json` is served | The file must be on the RP domain itself. Serving it from `api.example.com` while the RP is `example.com` means Android never sees it. |
+| Passkey domain | gateway `PASSKEY_RP_ID` · `DOMAIN_NAME` | The gateway serves `/.well-known/assetlinks.json` on `DOMAIN_NAME`, so the RP ID must be that exact host. With `DOMAIN_NAME=api.example.com`, an RP ID of `example.com` sends Android to a host this stack does not serve. |
+| API origin | podman `DOMAIN_NAME` · `BETTER_AUTH_URL` · client `EXPO_PUBLIC_API_URL` · the tunnel's **Public Hostname** | Three of the four are in this repo; the fourth is a row in the Cloudflare dashboard that no diff records. Drift there is the one failure where every container is healthy and the site is down. |
+| Tunnel origin service | the tunnel's Public Hostname URL · the `nginx` container name | It must read `HTTP://nginx:80`. Pointed at `api-gateway:3000` instead, the site works — and the `/graphiql` Basic Auth gate and the per-IP flood guard are both silently gone. |
 
 ---
 

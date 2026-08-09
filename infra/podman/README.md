@@ -27,26 +27,35 @@ human has to do by hand.
 | Supervisor | `docker compose` | systemd (user manager) |
 | Postgres | `postgres` container + volume | **Supabase, hosted — not on the box** |
 | Redis | container + volume | container + volume (unchanged) |
-| api-gateway / ai-service / web | containers | containers (same images, same `prod` targets) |
-| nginx + certbot | containers | containers (same config files, reused verbatim) |
+| api-gateway / ai-service | containers | containers (same images, same `prod` targets) |
+| `web` dashboard | dev stack only | **not deployed** |
+| Ingress | published `80`/`443` | **Cloudflare Tunnel — no published port at all** |
+| TLS | certbot / Let's Encrypt on the box | Cloudflare edge |
+| nginx | container | container (same config files, reused verbatim) |
 | Logs | `docker compose logs` | journald (`journalctl --user -u bp-*`) |
 | Restart / boot | `restart: unless-stopped` | systemd `Restart=always` + `enable-linger` |
 | Migrations | not automated | `bp-migrate.service`, manual gate |
 
-Everything the prod Compose file gained as a *security* decision survives
-unchanged, because it is enforced in files this runtime reuses rather than
-copies:
+Everything the prod Compose file gained as a *security* decision survives, because
+it is enforced in files this runtime reuses rather than copies:
 
-- **nginx is the sole public ingress.** Only `bp-nginx.container` has a
-  `PublishPort=`. api-gateway, web, ai-service and Redis have none.
+- **Nothing on this host binds a public port.** `cloudflared` dials *out* to
+  Cloudflare and forwards to `nginx:80` over `bp-net`. No unit has a
+  `PublishPort=`, and the instance's inbound security group should be empty.
+  This replaces "nginx is the sole public ingress" and is strictly stronger.
 - **ai-service is neither published nor proxied.** It is reached over Redis
-  pub/sub from the gateway and over `http://ai-service:8000` on the internal
-  network from `web`'s server actions. Nothing else.
+  pub/sub from the gateway, and by nothing else — its second consumer, the
+  dashboard's `/health` probe, went away with the dashboard.
 - **Redis is not published.**
-- **`/admin/` and `/graphiql` are behind Basic Auth; `/graphql` is not and must
-  not be; `/` is public docs.** That is
+- **`/graphiql` is behind Basic Auth; `/graphql` is not and must not be;
+  everything else reaches the gateway.** That is
   [`../nginx/templates/default.conf.template`](../nginx/templates/default.conf.template),
   mounted here unchanged.
+- **The dashboard was removed rather than gated.** `web` has no authentication
+  of its own and its `/admin/` pages read Postgres, Redis and S3 directly. The
+  only thing that ever guarded them was one nginx `location` block whose
+  deletion fails silently. Not deploying it is the version of that decision
+  that cannot regress.
 
 ---
 
@@ -58,17 +67,16 @@ copies:
                                │
         ┌──────────────┬───────┴───────┬──────────────┐
         │              │               │              │
-   bp-redis      bp-api-gateway    bp-ai-service    bp-nginx ──> bp-certbot
-   (Redis)            │  ▲              ▲              ▲  ▲        (renew loop)
-        ▲             │  │              │              │  │
-        └─────────────┘  │              │              │  │
-         Requires/After  │              │              │  │
-                         └── bp-web ────┘              │  │
-                              ▲                        │  │
-                              └────────────────────────┘  │
-                                Requires/After            │
-                                                          │
-                       bp-net.network ─────────────────────┘
+   bp-redis      bp-api-gateway    bp-ai-service    bp-nginx
+   (Redis)            │  ▲              ▲              ▲
+        ▲             │  │              │              │
+        └─────────────┘  │              │              │
+         Requires/After  └──────────────┘              │
+                                                       │
+                                                 bp-cloudflared
+                                              (dials OUT to Cloudflare)
+                                                       │
+                       bp-net.network ──────────────────┘
                        (aardvark-dns: container name == hostname)
 ```
 
@@ -79,9 +87,8 @@ Boot ordering, and why each edge exists:
 | `bp-redis` | — | Starts first. Nothing it depends on is on this host. |
 | `bp-api-gateway` | `bp-redis` | Publishes `analyze_bp_image`. Also *tolerates* Redis being down (`RedisModule` lazy-connects and suppresses errors), so this is ordering hygiene, not a hard requirement. |
 | `bp-ai-service` | `bp-redis` | Its subscriber needs somewhere to subscribe. It retries, so again ordering rather than a hard gate. |
-| `bp-web` | `bp-api-gateway` | Mirrors the Compose `depends_on`. Its `/admin/` pages probe the gateway. |
-| `bp-nginx` | `bp-api-gateway`, `bp-web` | **A hard requirement.** nginx resolves `proxy_pass http://api-gateway:3000` at config-load time and fails to start if the name does not resolve — which on a Podman network means the container is not running. |
-| `bp-certbot` | `After=bp-nginx` | It needs nginx serving `/.well-known/acme-challenge/` for renewals to succeed. |
+| `bp-nginx` | `bp-api-gateway` | **A hard requirement.** nginx resolves `proxy_pass http://api-gateway:3000` at config-load time and refuses to start if the name does not resolve — which on a Podman network means the container is not running. Verified: `nginx -t` on this template fails with `host not found in upstream "api-gateway"`. |
+| `bp-cloudflared` | `bp-nginx` | Its only origin is `nginx:80`. Starting first just means a window of 502s at the edge. |
 | `bp-migrate` | **none — not in the target** | Deliberate. See below. |
 
 Ordering is `After=` only; no unit waits for another to be *healthy*. Podman 5.0
@@ -103,21 +110,17 @@ infra/podman/
 │   ├── bp-net.network
 │   ├── bp-redis-data.volume
 │   ├── bp-ai-models.volume
-│   ├── bp-certbot-certs.volume
-│   ├── bp-certbot-www.volume
 │   ├── bp-redis.container
 │   ├── bp-api-gateway.container
 │   ├── bp-ai-service.container
-│   ├── bp-web.container
 │   ├── bp-nginx.container
-│   └── bp-certbot.container
+│   └── bp-cloudflared.container
 ├── systemd/
 │   └── bp-migrate.service          # -> ~/.config/systemd/user/  (manual gate)
 └── scripts/
     ├── install.sh                  # install units into the user's systemd
-    ├── build-images.sh             # build the three app images on the host
-    ├── init-letsencrypt.sh         # one-time first certificate
-    └── redeploy.sh                 # rebuild + restart + bounce nginx
+    ├── build-images.sh             # build the two app images on the host
+    └── redeploy.sh                 # rebuild + restart + bounce nginx, then the tunnel
 ```
 
 Each unit file carries its own reasoning in comments. This README does not
@@ -148,67 +151,96 @@ ai-service in the stack it is the one worth having.
 
 What it costs, concretely — these are not theoretical:
 
-1. **Ports 80 and 443.** A non-root process cannot bind below 1024 by default.
-   Handled with a persistent sysctl:
-   `net.ipv4.ip_unprivileged_port_start=80` in `/etc/sysctl.d/`. The rejected
-   alternatives were a rootful nginx in front of a rootless app stack (two
-   Podman roots on one box, and the ingress — the internet-facing part — is the
-   one you least want running as root), and socket-activated systemd forwarding
-   (more moving parts than a sysctl for the same outcome). The sysctl lowers the
-   privileged-port floor for *every* user on the host, which on a
-   single-purpose deploy instance is an acceptable widening and on a shared box
-   would not be.
+1. **Low ports are no longer a problem at all.** This used to be the headline
+   cost: a non-root process cannot bind below 1024, handled with a persistent
+   `net.ipv4.ip_unprivileged_port_start=80` sysctl that lowered the privileged
+   floor for every user on the host. With the tunnel, **nginx binds no host
+   port**, so the sysctl is gone and so is the widening. If you set it on an
+   existing host, remove `/etc/sysctl.d/99-bp-monitor-ports.conf`.
 2. **`loginctl enable-linger` is mandatory.** Without it, systemd tears down the
    user manager at logout and takes the entire production stack with it. This
    is the single most likely way to break this deploy, and it breaks it at the
    moment you disconnect, not at the moment you make the mistake.
-3. **Source IP through the rootless port forwarder — verify this.** nginx's
-   flood guard is `limit_req_zone $binary_remote_addr`, and the gateway's login
-   throttle is keyed by phone number, so the nginx per-IP limit is the only
-   thing that slows an attacker rotating credentials. Rootless published ports
-   go through a userspace forwarder (`pasta` on Podman 5, `slirp4netns` on 4.x).
-   pasta is documented to preserve the client's source address; slirp4netns by
-   default does not, and rewrites every client to one address — which would
-   collapse the rate limit into a single shared bucket for the whole internet.
-   **This has not been verified on a real host.** Check it before trusting the
-   limit:
+3. **Source IP — the concern moved, it did not go away.** nginx's flood guard is
+   `limit_req_zone $binary_remote_addr`, and the gateway's login throttle is
+   keyed by phone number, so the nginx per-IP limit is the only thing that slows
+   an attacker rotating credentials.
+
+   The old risk was the rootless port forwarder (`pasta` / `slirp4netns`)
+   rewriting every client to one address. That risk is gone with the published
+   port. The **new** one is structural and certain rather than
+   version-dependent: behind a tunnel, every request reaches nginx from the
+   `cloudflared` container's address. The template handles it with
+
+   ```nginx
+   set_real_ip_from 10.0.0.0/8;      # + 172.16/12, 192.168/16
+   real_ip_header   CF-Connecting-IP;
+   ```
+
+   Trusting the RFC1918 ranges is safe *because* nginx publishes no host port:
+   only a container on `bp-net` can reach it, so there is no route an untrusted
+   party could spoof the header from. Verify what nginx actually sees before
+   trusting the limit:
 
    ```bash
-   # From another machine, hit the host, then read what nginx saw:
    podman exec nginx tail -20 /var/log/nginx/access.log
    ```
 
-   If the source column is a single internal address for every request, either
-   move to rootful Podman for the nginx unit or configure pasta explicitly.
+   If the source column is one internal address for every request, `real_ip` is
+   not taking effect and the limit is a single shared bucket for the whole
+   internet — a failure that looks exactly like a working rate limiter.
 4. **SELinux relabelling.** Amazon Linux 2023 and the RHEL family run SELinux
    enforcing. Every host bind mount in these units carries `:z`. Omitting it
    produces a permission error that reads like a missing file.
 
-Rootful would have made 1, 3 and 4 disappear. It is simpler and worse; the
-things it simplifies are one sysctl, one verification, and one mount flag.
+Rootful would have made 4 disappear and would not help with 2 or 3. The tunnel
+already removed the biggest item on this list. What is left is one verification
+and one mount flag — rootless is now clearly the cheaper side of the trade.
 
-### nginx + certbot stay containers
+### nginx stays; certbot is gone; TLS moved to Cloudflare
 
-**Chosen: reuse the existing containers and config unchanged.**
+**Chosen: keep nginx's config unchanged, drop TLS termination and certbot.**
 
-The template, the 6h reload loop, the 12h renewal loop, the Basic Auth gate and
-the `/graphql` rate limit already exist, already work, and already encode a
-reviewed access model with unusually explicit comments about *why* each route is
-or is not gated. Re-terminating TLS somewhere else — Caddy, host nginx, an ALB,
-Cloudflare — would mean re-deriving all of that, and re-deriving an access model
-is how a gate quietly goes missing.
+The earlier version of this document argued against moving TLS to Cloudflare, on
+the grounds that the template, the reload loop, the Basic Auth gate and the
+`/graphql` rate limit "already encode a reviewed access model" and that
+re-terminating TLS elsewhere would mean re-deriving it — which is how a gate
+quietly goes missing. That reasoning was sound and is the reason for the shape
+of this change: **nginx stayed.** The access model was not re-derived anywhere.
+What moved is only the layer that encrypts the connection.
 
-What it costs: two more containers to supervise, and a certificate whose renewal
-depends on a loop inside a container rather than a systemd timer. An ALB or
-Cloudflare would move TLS off the box entirely and remove the certbot bootstrap
-dance, at the price of another billed service and a second place where routing
-lives. Not worth it for one host.
+What that buys:
 
-The one thing knowingly left as-is: certbot as a long-running container rather
-than a `systemd.timer`, which is the more idiomatic choice here. The renew loop
-and the nginx reload loop are a matched pair (12h / 6h) documented together in
-the Compose stack; splitting one onto a timer for no operational gain on a
-single host is churn. Noted as a follow-up.
+- **No inbound port, and no inbound security-group rule.** The host is not
+  addressable from the internet at all. This is a larger reduction in exposure
+  than any config change inside the box could be.
+- **No certificate lifecycle.** No first-issuance bootstrap that has to run
+  before nginx can start, no ACME challenge webroot shared between two
+  containers, no renewal loop, no rate limit to burn on a failed attempt, and
+  no cert-expiry outage. Three files and two units deleted.
+- **No DNS record to own.** Cloudflare writes the CNAME when the Public
+  Hostname is added.
+- **A WAF and Cloudflare Access available** in front of everything, at the edge.
+
+What it costs, and this is the part to keep in view:
+
+- **Routing lives in a dashboard.** A Public Hostname can be repointed or
+  deleted by anyone with Cloudflare access, and no diff records it. Worse, the
+  specific mistake — pointing it at `api-gateway:3000` instead of `nginx:80` —
+  produces a *working site* with the `/graphiql` gate and the flood guard
+  silently removed. `DOMAIN_NAME` here is the repo's only claim about what this
+  stack answers to.
+- **A new dependency and a new failure mode.** "Every container healthy, site
+  down" is now possible; it was not before. The deploy guide has a triage list.
+- **Cloudflare sees plaintext.** They terminate TLS, so they can read request
+  bodies — including auth payloads. That is inherent to any CDN-terminated
+  design and is the price of the edge features.
+
+The one thing knowingly left as-is: `bp-cloudflared` uses the `:latest` tag
+while this project pins its own images, for the same reason certbot's tag was
+unpinned — the connector tracks a protocol Cloudflare evolves, and a stale pin
+is a known way for a tunnel to start failing. Bump it by hand as maintenance:
+`podman pull docker.io/cloudflare/cloudflared:latest && systemctl --user restart bp-cloudflared`.
 
 ### Images are built on the host
 
@@ -342,17 +374,22 @@ outbound; if yours is locked down, these are the holes:
 
 | Destination | Port | For |
 | --- | --- | --- |
-| Supabase pooler | tcp/6543 | runtime database traffic (gateway + web) |
+| Cloudflare edge | tcp/443 | **the tunnel itself — without this nothing is reachable** |
+| Supabase pooler | tcp/6543 | runtime database traffic |
 | Supabase direct / session pooler | tcp/5432 | `bp-migrate.service` |
 | Cloudflare R2 | tcp/443 | ai-service model artifacts on first boot |
 | S3 / R2 endpoint | tcp/443 | image upload and presigning |
-| Let's Encrypt + registries | tcp/443 | certificate issuance, `podman pull` |
+| Image registries | tcp/443 | `podman pull` |
 | DNS | udp/53, tcp/53 | everything |
 
-Inbound stays exactly two rules: tcp/80 and tcp/443 from `0.0.0.0/0`. Port 80 is
-not optional — it carries the ACME challenge for issuance and every renewal.
-Nothing else should be open, SSH included, if you can reach the box through SSM
-Session Manager instead.
+**Inbound: nothing. Zero rules.** That is the point of the tunnel — the
+connector dials out and the host is not addressable from the internet. This
+replaces the previous "tcp/80 + tcp/443 from `0.0.0.0/0`". Not even SSH, if you
+can reach the box through SSM Session Manager instead.
+
+Note the asymmetry this creates: egress is now load-bearing in a way it was not.
+A locked-down egress policy that misses Cloudflare takes the whole site down,
+and the containers will all look healthy while it does.
 
 ### The credential
 
@@ -447,10 +484,9 @@ not silently no-op on 4.x.
 | `bp-redis` | 512m | 0.5 | See the `maxmemory` follow-up below |
 | `bp-api-gateway` | 768m | 1.0 | |
 | `bp-ai-service` | 1500m | 1.5 | Four ONNX sessions plus a 58 MB templates archive resident |
-| `bp-web` | 512m | 0.5 | |
 | `bp-nginx` | 256m | 0.5 | |
-| `bp-certbot` | 256m | 0.25 | Idle except every 12h |
-| **Total ceiling** | **~3.8 GiB** | | Does not fit a t3.small (2 GiB) with all six running |
+| `bp-cloudflared` | 256m | 0.5 | |
+| **Total ceiling** | **~3.3 GiB** | | Does not fit a t3.small (2 GiB) with all five running |
 
 **These are starting ceilings, not measurements.** Nothing here was profiled
 against a real workload. The one that matters most is `bp-ai-service`: set it
@@ -470,43 +506,46 @@ None of this is automated, on purpose — provisioning-as-code was explicitly ou
 of scope. The full sequence with commands is in
 [`docs/guides/deploy.md`](../../docs/guides/deploy.md); this is the checklist.
 
-1. Launch the instance (t3.medium recommended, ≥ 20 GiB disk) and allocate an
-   Elastic IP.
-2. Security group: inbound tcp/80 + tcp/443 only; outbound per the egress table
-   above.
-3. Point DNS at the Elastic IP and wait for it to resolve. Let's Encrypt
-   validates by inbound HTTP to that name.
+1. Launch the instance (t3.medium recommended, ≥ 20 GiB disk). **No Elastic IP
+   needed** — nothing connects inbound.
+2. Security group: **inbound nothing**; outbound per the egress table above.
+3. Create the Cloudflare Tunnel in the dashboard (Zero Trust → Networks →
+   Tunnels) and copy its token. Leave the Public Hostname until step 13 — it
+   cannot resolve `nginx` before the network exists. **No DNS record of your
+   own**; Cloudflare writes the CNAME.
 4. Install `podman` and `git`. Confirm `podman --version` is ≥ 4.4 (5.x
    assumed).
 5. `sudo loginctl enable-linger <deploy-user>`.
-6. Write `/etc/sysctl.d/99-bp-monitor-ports.conf` with
-   `net.ipv4.ip_unprivileged_port_start=80`, then `sudo sysctl --system`.
-7. Clone the repo to `/opt/bp-monitor`, owned by the deploy user (the unit files
+6. Clone the repo to `/opt/bp-monitor`, owned by the deploy user (the unit files
    hard-code this path in their bind mounts).
-8. Create `/etc/bp-monitor/bp-monitor.env` from `bp-monitor.env.example` and
-   fill it in.
-9. Create the five Podman secrets.
-10. Create `infra/nginx/auth/.htpasswd`.
-11. Create the Supabase project, run the migrations once from a workstation or
+7. Create `/etc/bp-monitor/bp-monitor.env` from `bp-monitor.env.example` and
+   fill it in — `DOMAIN_NAME` and `BETTER_AUTH_URL` must agree.
+8. Create the six Podman secrets, including `bp-tunnel-token`.
+9. Create `infra/nginx/auth/.htpasswd`.
+10. Create the Supabase project, run the migrations once from a workstation or
     via `bp-migrate.service`, and confirm the schema.
-12. `./infra/podman/scripts/install.sh`
-13. `./infra/podman/scripts/build-images.sh`
-14. `./infra/podman/scripts/init-letsencrypt.sh`
-15. `systemctl --user start bp-monitor.target` and
+11. `./infra/podman/scripts/install.sh`
+12. `./infra/podman/scripts/build-images.sh`
+13. `systemctl --user start bp-monitor.target`, then add the tunnel's **Public
+    Hostname** in the dashboard: `api.<domain> → HTTP://nginx:80`. Then
     `systemctl --user enable bp-monitor.target`.
-16. Smoke-check from **outside** the host.
+14. Smoke-check from **outside** the host — it is the only place that can tell
+    you the tunnel is up.
+
+Step 6 of the old sequence — the `net.ipv4.ip_unprivileged_port_start=80`
+sysctl — is gone. nginx binds no host port.
 
 ---
 
 ## Follow-ups (found while building this, not fixed here)
 
-1. **`server/app/api-gateway/.env` is baked into the image.** That Dockerfile
-   does `COPY . .` and the directory has no `.dockerignore`, so a developer's
-   local `.env` — a real `DATABASE_URL` and `JWT_SECRET` — ends up in an image
-   layer. `dotenv` does not override variables already in the environment, so it
-   does not change runtime behaviour, but an image is a thing that gets copied
-   around. `build-images.sh` hard-fails when that file is present, which is a
-   guard, not a fix. **The fix is a `server/app/api-gateway/.dockerignore`**
+1. ~~**`server/app/api-gateway/.env` is baked into the image.**~~ **Fixed.**
+   Both service build contexts now carry a `.dockerignore`
+   ([api-gateway](../../server/app/api-gateway/.dockerignore),
+   [ai-service](../../server/app/ai-service/.dockerignore)). The ai-service one
+   also stops a local checkout's `.venv` from replacing the image's own, and
+   keeps the ~78 MB of model weights out of the image as ADR-005 intends.
+   `build-images.sh` now hard-fails if either file goes missing.
    covering at least `.env`, `node_modules`, `dist`, `test`. Out of scope for
    this change (`infra/` and `docs/` only).
 2. **Redis has no `maxmemory` / `maxmemory-policy`.** Unbounded, it grows until
@@ -514,20 +553,28 @@ of scope. The full sequence with commands is in
    evicts rate-limit keys or stalls a pub/sub client output buffer. Both are
    runtime-behaviour changes to a shared transport, which makes it a `redis-dev`
    decision, not a deploy one. Raised, not decided.
-3. **`certbot` could be a `systemd.timer`.** More idiomatic on a systemd host and
-   zero resident cost between runs. Left as a loop for parity with the reviewed
-   Compose pairing. Churn, not urgency.
+3. **The tunnel's routing is not in version control.** The Public Hostname row
+   lives in the Cloudflare dashboard, and the specific mistake — pointing it at
+   `api-gateway:3000` instead of `nginx:80` — yields a *working site* with the
+   `/graphiql` gate and the per-IP flood guard silently gone. `cloudflared`
+   supports a file-based config that would make ingress reviewable, at the cost
+   of a second place routing lives. Worth revisiting if more than one person
+   holds Cloudflare access.
 4. **No observability beyond journald.** No metrics, no traces, no alerting, and
    nothing watching whether the certificate actually renewed. On a single host
    `journalctl` plus an uptime check is a defensible MVP, but "the certificate
    silently stopped renewing" is a real failure mode with a 90-day fuse and
    nothing here would catch it before a browser did. The cheapest useful
-   addition is an external uptime monitor on `https://$DOMAIN_NAME/` that also
-   checks certificate expiry.
+   addition is an external uptime monitor on
+   `https://$DOMAIN_NAME/graphql`. Certificate expiry is no longer something to
+   watch — Cloudflare owns it — but "the tunnel disconnected" replaces it as the
+   failure a monitor exists to catch, and it is the one where every container on
+   the box reports healthy.
 5. **No backups.** Explicitly out of scope, and mostly fine — Supabase owns the
    durable state and has its own backup story, and Redis holds nothing durable.
-   The exception worth naming: `bp-certbot-certs`. Losing it costs a re-issuance
-   against Let's Encrypt's per-domain rate limit.
+   The exception that used to be named here — `bp-certbot-certs`, whose loss
+   cost a re-issuance against Let's Encrypt's rate limit — no longer exists.
+   Nothing on this host is now expensive to lose.
 6. **No CI.** Every quality gate is a human running commands. The image-build
    story here (build on the box) is a direct consequence and the first thing
    that should change when CI appears.

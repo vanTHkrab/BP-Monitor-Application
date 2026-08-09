@@ -15,20 +15,22 @@ BP monitor on the mobile app; an on-device model checks the framing; the image
 goes to object storage; a Python service reads the digits off it; the gateway
 persists the result.
 
-Four deployable pieces, and they are **not** peers — the mobile app is the
-product, and the web app is an internal tool:
+Four apps, and they are **not** peers — the mobile app is the product, and the
+web app is an internal tool that is **not deployed at all**:
 
 | App | Stack | Who uses it |
 | --- | --- | --- |
 | [`client/`](./client/) | Expo + React Native | Patients and caregivers. **This is the product.** |
 | [`server/app/api-gateway/`](./server/app/api-gateway/) | NestJS + Fastify + Mercurius, Prisma → Postgres | Serves the mobile app. Owns all durable state. |
 | [`server/app/ai-service/`](./server/app/ai-service/) | FastAPI, Python, `uv` | Nothing user-facing. Reads BP digits off images. |
-| [`web/`](./web/) | Next.js App Router | **The development team only.** Service-status dashboard and architecture diagrams. |
+| [`web/`](./web/) | Next.js App Router | **The development team only, and run locally only.** Service-status dashboard and the docs site. Not part of any deploy — see below. |
 
 > ⚠️ There is no clinician-facing UI anywhere in this repo. `web/` is a
-> service-status dashboard plus a diagram viewer; its `/` route is still an
-> unmodified shadcn login template with no auth library installed. Do not
-> describe it, design for it, or build against it as a clinical product.
+> service-status dashboard plus the docs site, with no auth library installed,
+> and it is **not deployed** — it is defined only in
+> `infra/docker-compose/docker-compose.dev.yml` and runs locally. Do not
+> describe it, design for it, or build against it as a clinical product, and
+> do not add it back to a deploy without adding real authentication first.
 
 ## Where to look
 

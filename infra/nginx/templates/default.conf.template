@@ -10,24 +10,78 @@
 # NOT environment variables, so they are left untouched by envsubst and work
 # normally. Only `${DOMAIN_NAME}` below gets replaced.
 #
-# Topology (single domain, path-based routing — see infra/README.md for the
-# subdomain-based alternative and why this was picked instead):
-#   - https://${DOMAIN_NAME}/graphql   -> api-gateway:3000 (GraphQL + subscriptions)
-#   - https://${DOMAIN_NAME}/graphiql  -> api-gateway:3000 (Mercurius GraphiQL UI)
-#   - https://${DOMAIN_NAME}/          -> web:3000         (Next.js dashboard, catch-all)
-#   - ai-service is never proxied here — it is reached by api-gateway only
-#     over Redis pub/sub (analyze_bp_image / analyze_bp_image.reply) and by
-#     web's server actions over the internal bp-net network directly
-#     (http://ai-service:8000), neither of which needs a public route.
+# ── TLS is NOT terminated here ──────────────────────────────────────────────
+# This stack sits behind a Cloudflare Tunnel. `cloudflared` holds an outbound
+# connection to Cloudflare's edge and forwards requests to this container over
+# the internal `bp-net` network; the EC2 host publishes no port at all and has
+# no inbound security-group rule. TLS is terminated at Cloudflare's edge, and
+# the tunnel hop is itself an encrypted outbound connection — so this server
+# listens on plain HTTP :80 and that is not a downgrade.
 #
-# Access model when this host is exposed to the public internet (see
-# "Public demo access" in infra/README.md):
-#   - /graphiql and / require HTTP Basic Auth (the shared demo key).
-#   - /graphql does NOT, and must not — see the comment on that location.
-#   - /.well-known/acme-challenge/ does NOT, and must not — gating it would
-#     break Let's Encrypt renewal.
+# Consequences worth holding onto, because each one used to be handled here:
+#   - No `listen 443 ssl` and no `ssl_certificate`. certbot, the ACME
+#     challenge webroot, and infra/scripts/init-letsencrypt.sh are gone from
+#     this runtime — HTTP-01 validation needs an inbound port 80 that no
+#     longer exists.
+#   - No HTTP→HTTPS redirect. Cloudflare's "Always Use HTTPS" does that at the
+#     edge, before a request reaches the tunnel. A redirect here would fire on
+#     traffic that is already HTTPS to the client and loop.
+#   - HSTS is set at Cloudflare (SSL/TLS → Edge Certificates), not here. An
+#     origin `Strict-Transport-Security` header behind a proxy is a header the
+#     proxy has to be trusted to pass through; one place to configure it is
+#     better than two.
+#
+# Topology (single domain — api.example.com — everything proxied to the
+# gateway; see infra/podman/README.md for the reasoning):
+#   - http://${DOMAIN_NAME}/graphql   -> api-gateway:3000 (GraphQL + subscriptions)
+#   - http://${DOMAIN_NAME}/graphiql  -> api-gateway:3000 (Mercurius GraphiQL UI, gated)
+#   - http://${DOMAIN_NAME}/          -> api-gateway:3000 (catch-all)
+#   - ai-service is never proxied here — it is reached by api-gateway only
+#     over Redis pub/sub (analyze_bp_image / analyze_bp_image.reply), which
+#     needs no public route.
+#
+# The catch-all is load-bearing and is NOT just a fallback. Two real routes
+# live under it, and both used to 404 because the catch-all pointed at the
+# Next.js dashboard instead of the gateway:
+#   - /api/auth/*                    Better Auth's own HTTP routes
+#                                    (src/auth/better-auth.controller.ts).
+#                                    The mobile app calls these directly for
+#                                    email OTP — see
+#                                    client/src/modules/auth/services/email-otp-api.ts.
+#   - /.well-known/assetlinks.json   Digital Asset Links, fetched by Google's
+#                                    servers. Android will not accept a passkey
+#                                    without it (src/well-known.controller.ts).
+# Do not reintroduce a catch-all that points anywhere except the gateway
+# without adding explicit locations for both of those first.
+#
+# The `web` dashboard is not part of this runtime. It was removed from the
+# deploy rather than gated: it has no authentication of its own, its /admin/
+# pages read Postgres, Redis and S3 directly, and the only thing that ever
+# guarded them was a Basic Auth rule in this file. Run it locally against the
+# datastores instead — see infra/README.md.
 
 server_tokens off;
+
+# ── Real client IP, behind the tunnel ───────────────────────────────────────
+# Without this the whole rate limit below is worthless. Every request arrives
+# from the `cloudflared` container's address on bp-net, so `$remote_addr` is
+# one single IP for the entire internet: all users would share one 10r/s
+# budget, and one caller flooding the API would 429 everybody else. That
+# failure is silent — the limit still "works", it just applies to the wrong
+# key.
+#
+# `set_real_ip_from` lists who is trusted to assert a client IP. Only a
+# container on bp-net can reach this server (nginx publishes no host port), so
+# trusting the RFC1918 ranges Podman allocates from is sufficient and does not
+# widen anything: an untrusted party has no route here to spoof from.
+#
+# `CF-Connecting-IP` is the header Cloudflare Tunnel sets, and it is set by the
+# edge — a client-supplied copy is overwritten, not honoured.
+set_real_ip_from 10.0.0.0/8;
+set_real_ip_from 172.16.0.0/12;
+set_real_ip_from 192.168.0.0/16;
+real_ip_header   CF-Connecting-IP;
+real_ip_recursive on;
 
 # Standard WebSocket-upgrade helper: Mercurius has `subscription: true`
 # (server/app/api-gateway/src/app.module.ts), so /graphql must be able to
@@ -51,69 +105,42 @@ map $http_upgrade $connection_upgrade {
 #
 # 10r/s with burst=40 is deliberately generous: a screen that fires several
 # queries on focus must never trip it. It is a flood guard, not a quota.
+#
+# This is now the *second* net-layer guard rather than the only one —
+# Cloudflare's WAF sees the same traffic first and can rate-limit at the edge,
+# where a flood costs the origin nothing. Keeping this one means the budget
+# still exists if a WAF rule is edited or removed in the dashboard, which is a
+# place changes are not code-reviewed.
 limit_req_zone $binary_remote_addr zone=gql:10m rate=10r/s;
 
-# Plain HTTP: always serve the ACME HTTP-01 challenge (needed for both
-# initial issuance and every renewal), redirect everything else to HTTPS.
 server {
-    listen 80;
-    listen [::]:80;
+    # `default_server` on purpose: the tunnel forwards whatever Host the client
+    # sent, and this is the only server block. Matching on ${DOMAIN_NAME} alone
+    # would make a Cloudflare hostname change fail as a confusing 404 from
+    # nginx's implicit default rather than as a routing error.
+    listen 80 default_server;
+    listen [::]:80 default_server;
     server_name ${DOMAIN_NAME};
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-# HTTPS: sole public ingress for the dashboard and the GraphQL API.
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-    server_name ${DOMAIN_NAME};
-
-    ssl_certificate     /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:le_ssl:10m;
-    ssl_session_timeout 1d;
-    add_header Strict-Transport-Security "max-age=63072000" always;
 
     # api-gateway's Fastify bodyLimit is 16 MiB (server/app/api-gateway/src/main.ts);
     # give a little headroom so nginx never clips a request the app would
-    # otherwise accept.
+    # otherwise accept. Note that Cloudflare's own request-body ceiling (100 MB
+    # on paid plans, 100 MB free) applies before this one — but BP images and
+    # avatars never traverse this path at all: the client PUTs bytes straight
+    # to S3 with a presigned URL.
     client_max_body_size 20m;
 
-    # certbot renewal keeps hitting this path over plain HTTP (see the `80`
-    # server block above); this copy only matters if something reaches the
-    # HTTPS host directly, but costs nothing to keep in sync.
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    # GraphQL API — hit directly by the mobile client (client/constants/api.ts)
-    # and by the web dashboard's server actions (web/src/lib/gateway.ts).
-    # Kept on the same server block / domain as the dashboard rather than a
-    # separate api.${DOMAIN_NAME} host: this is a greenfield deploy with one
-    # DOMAIN_NAME and no DNS split yet, so one host + one cert is the simpler
-    # bootstrap. Revisit if gateway and dashboard ever need independent
-    # scaling / rate limiting / WAF policy.
+    # GraphQL API — hit directly by the mobile client (client/constants/api.ts).
     #
-    # Deliberately NOT behind `auth_basic`, unlike /graphiql and / below.
-    # The mobile client's transport (client/constants/api.ts) sends exactly
-    # two headers — Content-Type and `Authorization: Bearer <jwt>` — with no
-    # hook for a second static credential, and `Authorization` is already
-    # taken by the JWT. Adding Basic Auth here would break every installed
-    # app, not just anonymous callers. Access control for this route is the
-    # gateway's own JWT auth + login throttle; `limit_req` below is the
-    # net-layer flood guard. Do not "fix" the inconsistency with the two
-    # gated locations by adding auth_basic here.
+    # Deliberately NOT behind `auth_basic`, unlike /graphiql below. The mobile
+    # client's transport (client/constants/api.ts) sends exactly two headers —
+    # Content-Type and `Authorization: Bearer <jwt>` — with no hook for a
+    # second static credential, and `Authorization` is already taken by the
+    # JWT. Adding Basic Auth here would break every installed app, not just
+    # anonymous callers. Access control for this route is the gateway's own JWT
+    # auth + login throttle; `limit_req` below is the net-layer flood guard.
+    # Do not "fix" the inconsistency with the gated location by adding
+    # auth_basic here.
     location /graphql {
         limit_req zone=gql burst=40 nodelay;
         limit_req_status 429;
@@ -125,17 +152,28 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        # Hardcoded `https`, not `$scheme`. `$scheme` is `http` on this hop and
+        # always will be — TLS ends at Cloudflare. Passing `http` upstream
+        # makes the gateway build http:// URLs for a site that is https:// to
+        # every real client, which surfaces as Better Auth redirects and
+        # callback URLs that drop to plain HTTP.
+        proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-Host $host;
         # Long-lived subscription connections shouldn't be cut by nginx's
         # default read/send timeouts.
+        #
+        # Cloudflare imposes its own idle timeout on a proxied connection
+        # (~100s) that this value cannot override. A GraphQL subscription that
+        # is idle longer than that is dropped at the edge regardless of what
+        # nginx allows, so graphql-ws keepalive pings — not this setting — are
+        # what keeps a subscription alive end to end.
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
     }
 
     # Mercurius GraphiQL UI. Two independent gates, because either one alone
     # is insufficient:
-    #   1. App-side: server/app/api-gateway/src/app.module.ts now resolves
+    #   1. App-side: server/app/api-gateway/src/app.module.ts resolves
     #      `graphiql` from GRAPHIQL_ENABLED, defaulting OFF when
     #      NODE_ENV=production. With it off the gateway 404s this path, so
     #      the UI is not merely hidden behind a proxy — it isn't served.
@@ -143,6 +181,11 @@ server {
     #   2. Here: auth_basic, so that turning GRAPHIQL_ENABLED on for a demo
     #      doesn't hand an anonymous visitor a schema explorer with mutation
     #      access to a live database.
+    #
+    # Cloudflare Access in front of this hostname would be a third, better
+    # gate — it authenticates before a request ever reaches the tunnel. It is
+    # not assumed here, because this file must keep working whether or not
+    # someone configures it in the dashboard.
     location /graphiql {
         auth_basic           "BP Monitor demo";
         auth_basic_user_file /etc/nginx/auth/.htpasswd;
@@ -152,55 +195,27 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-Host $host;
     }
 
-    # Next.js service-status pages — gated.
+    # Everything else -> api-gateway. Read the header comment before changing
+    # this: /api/auth/* and /.well-known/assetlinks.json are served here, and
+    # neither has a location of its own.
     #
-    # /admin/* lands here rather than in the catch-all below because nginx
-    # resolves plain prefix locations by longest match — position in this file
-    # does not matter, so do not "fix" the gate by reordering.
-    #
-    # What does matter: deleting this block does not fail loudly. It silently
-    # publishes the pages. There is no second gate behind it.
-    #
-    # Behind auth_basic because these pages' server actions connect *directly*
-    # to Postgres, Redis and S3 (web/src/lib/{db,redis,s3}.ts) and render
-    # session counts and user totals. The app itself has no authentication at
-    # all — no auth library is installed — so this credential is the only
-    # thing in front of a read-anything database inspector.
-    location /admin/ {
-        auth_basic           "BP Monitor demo";
-        auth_basic_user_file /etc/nginx/auth/.htpasswd;
-
-        proxy_pass http://web:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-    }
-
-    # Next.js documentation site — catch-all, deliberately public.
-    #
-    # `/` used to be the dashboard and was gated wholesale. It now serves the
-    # project documentation, prerendered from `docs/**/*.md` at build time:
-    # architecture, decisions, guides, reference. There are no credentials,
-    # no patient data, and no datastore reads on these pages — they are static
-    # HTML — so gating them would only put a password in front of the thing
-    # the site exists to publish.
-    #
-    # The sensitive surface moved to /admin/*, gated above. If a future page
-    # under `/` starts reading a datastore, it belongs under /admin/ instead.
+    # No rate limit on this block. /api/auth/* carries the email-OTP routes,
+    # which the gateway already throttles per credential
+    # (src/redis/rate-limit.service.ts, 5 / 15 min), and a shared net-layer
+    # budget across every non-GraphQL route would be a blunt instrument in
+    # front of a precise one. Cloudflare's WAF is the right place if a flood
+    # guard is wanted here.
     location / {
-        proxy_pass http://web:3000;
+        proxy_pass http://api-gateway:3000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-Host $host;
     }
 }

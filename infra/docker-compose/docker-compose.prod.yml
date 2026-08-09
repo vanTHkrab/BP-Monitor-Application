@@ -1,3 +1,20 @@
+# Prod-shaped Compose overlay.
+#
+# This is a **rehearsal** of the production runtime, not production itself.
+# Production is Podman Quadlet on EC2 (infra/podman/) with Postgres on Supabase.
+# What this stack is for is proving a built image boots and the wiring holds
+# before you push a commit that a real deploy will build from.
+#
+# It tracks the production ingress model as closely as Compose can:
+#   - nginx terminates nothing. TLS ends at Cloudflare's edge; a `cloudflared`
+#     connector forwards to nginx over the internal network. There is no
+#     certbot, no ACME challenge and no port 443 anywhere in this stack.
+#   - `web` is not here. It is defined in docker-compose.dev.yml only, so it
+#     cannot start in a prod-shaped stack. It has no authentication of its own
+#     and its /admin/ pages read Postgres, Redis and S3 directly.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
 services:
   postgres:
     restart: unless-stopped
@@ -18,104 +35,84 @@ services:
       # else, including an unrecognised value, leaves it off); even then
       # nginx keeps it behind the Basic Auth gate.
       GRAPHIQL_ENABLED: ${GRAPHIQL_ENABLED:-0}
-    # No `ports:` — nginx is the sole public ingress in prod (see the
-    # `nginx` service below). Still reachable from other bp-net containers
-    # by service name on 3000 without a published port.
+      # The auth-domain variables (BETTER_AUTH_*, PASSKEY_*, GOOGLE_*,
+      # ANDROID_APP_*, EXPO_ACCESS_TOKEN) are forwarded by docker-compose.yml
+      # for both stacks — they were missing entirely until this change, which
+      # is why passkeys and Google sign-in were off in every containerised
+      # environment.
+    # No `ports:` — nginx is the only thing that reaches this service. Still
+    # addressable from other bp-net containers as `api-gateway:3000`.
     expose:
       - "3000"
 
   # ai-service is intentionally NOT proxied by nginx and NOT given a
-  # published host port. In production it is reached only in two ways:
-  #   1. api-gateway <-> ai-service over Redis pub/sub
-  #      (analyze_bp_image / analyze_bp_image.reply) — no HTTP involved.
-  #   2. web's server actions (web/src/lib/ai-service.ts, AI_SERVICE_URL)
-  #      calling http://ai-service:8000 directly over the internal bp-net
-  #      network — this does not need, and must not get, a host-published
-  #      port. Previously this service published "8000:8000" to the host;
-  #      that was a real internet-facing exposure of an internal-only
-  #      service with no auth in front of it. Removed as a security
-  #      tightening in the same change that introduces nginx, not merely a
-  #      refactor side-effect.
+  # published host port. In production it is reached exactly one way:
+  # api-gateway <-> ai-service over Redis pub/sub (analyze_bp_image /
+  # analyze_bp_image.reply) — no HTTP involved. It previously published
+  # "8000:8000" to the host; that was a real internet-facing exposure of an
+  # internal-only service with no auth in front of it.
+  #
+  # The second consumer it used to have — web's server actions calling
+  # http://ai-service:8000 for /health — went away with the dashboard.
   ai-service:
     restart: unless-stopped
     environment:
       ENV: production
 
-  web:
-    build:
-      target: prod
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-    # No `ports:` — nginx is the sole public ingress in prod; see api-gateway.
-    expose:
-      - "3000"
-
-  # Reverse proxy / TLS termination. Config is envsubst'd from
-  # infra/nginx/templates/default.conf.template at container start (the
-  # official nginx image's built-in templating entrypoint — see the
-  # comment at the top of that file for how envsubst scoping works).
+  # Router and access gate. Not an ingress: it publishes no host port and is
+  # reached only by the `cloudflared` container over bp-net.
   #
-  # Auto-reloads its config/certs on a fixed interval (infra/nginx/reload-loop.sh)
-  # instead of being signaled by the certbot container on renewal: signaling
-  # would require mounting the host's docker.sock into this container so it
-  # could `docker compose exec` itself, handing this container control over
-  # the whole Docker daemon just to reload a config file. A periodic reload
-  # is a graceful, connection-preserving no-op when nothing changed, and is
-  # the trade-off made here instead of that blast-radius increase.
+  # Config is envsubst'd from infra/nginx/templates/default.conf.template at
+  # container start (the official nginx image's built-in templating entrypoint).
+  # It auto-reloads every 6h (infra/nginx/reload-loop.sh) so a recreated
+  # upstream is re-resolved without an operator noticing.
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
     depends_on:
       - api-gateway
-      - web
     environment:
       DOMAIN_NAME: ${DOMAIN_NAME}
     volumes:
       - ../nginx/templates:/etc/nginx/templates:ro
-      # The Basic Auth credential file for /graphiql and / (see
-      # "Public demo access" in infra/README.md). The *directory* is mounted
-      # rather than ../nginx/auth/.htpasswd directly: a bind mount whose
-      # source path doesn't exist makes Docker create a directory there, and
-      # nginx then fails on a directory where it expects a password file.
-      # The directory is tracked (via .gitkeep), the .htpasswd inside it is
-      # gitignored. If it's missing, nginx still starts and /graphql keeps
-      # working — only the two gated routes 500.
+      # The Basic Auth credential file for /graphiql (see "Public demo access"
+      # in infra/README.md). The *directory* is mounted rather than
+      # ../nginx/auth/.htpasswd directly: a bind mount whose source path
+      # doesn't exist makes Docker create a directory there, and nginx then
+      # fails on a directory where it expects a password file. The directory is
+      # tracked (via .gitkeep), the .htpasswd inside it is gitignored. If it's
+      # missing, nginx still starts and /graphql keeps working — only
+      # /graphiql 500s.
       - ../nginx/auth:/etc/nginx/auth:ro
       - ../nginx/reload-loop.sh:/usr/local/bin/reload-loop.sh:ro
-      - certbot_certs:/etc/letsencrypt:ro
-      - certbot_www:/var/www/certbot:ro
-    ports:
-      - "80:80"
-      - "443:443"
+    expose:
+      - "80"
     networks:
       - bp-net
     command: ["/bin/sh", "/usr/local/bin/reload-loop.sh"]
 
-  # Let's Encrypt client. Long-running: on `up -d` it just loops `certbot
-  # renew` (infra/certbot/renew-loop.sh), since a live cert already needs to
-  # exist on the shared `certbot_certs` volume by then (see
-  # infra/scripts/init-letsencrypt.sh for the one-time first-issuance
-  # bootstrap on a fresh host — certbot can't issue the very first cert this
-  # way because nginx can't start without a cert file to point
-  # `ssl_certificate` at yet).
+  # The Cloudflare Tunnel connector — the stack's only ingress.
   #
-  # Deliberately NOT pinned to a specific tag the way this project pins its
-  # own Dockerfiles: certbot needs to track Let's Encrypt's ACME protocol
-  # over however many years this host stays up, and a stale pin is a known
-  # way for renewals to start silently failing. Bump it by hand
-  # (`docker compose pull certbot`) as routine maintenance instead.
-  certbot:
-    image: certbot/certbot:latest
+  # Routing is NOT configured here. This is a remotely-managed tunnel: the
+  # token identifies it and the hostname mapping lives in the Cloudflare
+  # dashboard (Zero Trust -> Networks -> Tunnels -> Public Hostname), where it
+  # must read `api.<domain> -> HTTP://nginx:80`.
+  #
+  # Point it at nginx, never at api-gateway: nginx owns the /graphiql Basic
+  # Auth gate and the per-IP flood guard on /graphql, and bypassing it removes
+  # both silently.
+  #
+  # Rehearsing with a real tunnel token would publish your laptop on a real
+  # hostname. Either use a throwaway tunnel or leave TUNNEL_TOKEN unset and
+  # exercise nginx from inside the network instead:
+  #   docker compose exec nginx wget -qO- 'http://127.0.0.1/graphql?query=%7Bhello%7D'
+  cloudflared:
+    image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    volumes:
-      - certbot_certs:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
-      - ../certbot/renew-loop.sh:/usr/local/bin/renew-loop.sh:ro
+    depends_on:
+      - nginx
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    command: ["tunnel", "--no-autoupdate", "run"]
     networks:
       - bp-net
-    entrypoint: ["/bin/sh", "/usr/local/bin/renew-loop.sh"]
-
-volumes:
-  certbot_certs:
-  certbot_www:

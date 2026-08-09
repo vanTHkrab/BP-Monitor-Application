@@ -13,13 +13,14 @@ not a pnpm workspace. Never `pnpm add` from the root.
 | Mobile | [`client/`](./client/) | Expo + React Native | Patients and caregivers — **the product** |
 | Gateway | [`server/app/api-gateway/`](./server/app/api-gateway/) | NestJS + Fastify + Mercurius, Prisma → Postgres | Serves the mobile app |
 | AI service | [`server/app/ai-service/`](./server/app/ai-service/) | FastAPI, Python 3.13, `uv` | Nothing user-facing — reads BP digits |
-| Dashboard | [`web/`](./web/) | Next.js App Router | **The dev team only** — service status + diagrams |
+| Dashboard | [`web/`](./web/) | Next.js App Router | **The dev team only, run locally** — service status + docs |
 
-> ⚠️ `web/` is not a clinician portal. It is an internal service-status
-> dashboard and diagram viewer, its `/` route is still an unmodified shadcn
-> login template, and no auth library is installed. It connects directly to
-> Postgres, Redis, and S3 — never expose it publicly without the Basic Auth
-> gate described in [docs/guides/deploy.md](./docs/guides/deploy.md).
+> ⚠️ `web/` is not a clinician portal, and it is **not deployed**. It is an
+> internal service-status dashboard and docs site, and no auth library is
+> installed. Its `/admin/` pages connect directly to Postgres, Redis and S3,
+> so it is defined only in `infra/docker-compose/docker-compose.dev.yml` and
+> cannot start in the production stack. Run it locally; do not host it. See
+> [docs/guides/deploy.md](./docs/guides/deploy.md).
 
 ## Layout
 
@@ -30,7 +31,7 @@ BP-Monitor-Application/
 ├── server/app/
 │   ├── api-gateway/           # NestJS gateway — owns all durable state
 │   └── ai-service/            # FastAPI OCR pipeline
-├── infra/                     # Docker Compose stacks, nginx, certbot
+├── infra/                     # Compose stacks, Podman units, nginx, tunnel
 ├── docs/                      # All project documentation (see below)
 ├── .devcontainer/             # VS Code dev container
 ├── .claude/agents/            # This project's 16 sub-agent definitions

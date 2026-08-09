@@ -1,0 +1,79 @@
+# cloudflared — the Cloudflare Tunnel connector. This is the stack's only
+# ingress, and the reason the EC2 host publishes no port and needs no inbound
+# security-group rule at all.
+#
+# ── How the routing is configured, and where ────────────────────────────────
+# This is a **remotely-managed** tunnel: there is no `config.yml` in this repo
+# and there must not be one. The token identifies the tunnel, and the tunnel's
+# ingress rules live in the Cloudflare dashboard under
+#   Zero Trust -> Networks -> Tunnels -> <tunnel> -> Public Hostname
+# The hostname mapping this stack expects is exactly one row:
+#
+#   Subdomain: api    Domain: example.com    Service: HTTP://nginx:80
+#
+# `nginx` resolves because this container is on bp-net and aardvark-dns keys
+# off ContainerName=. Point it at `nginx`, not at `api-gateway` — nginx owns
+# the /graphiql Basic Auth gate and the per-IP flood guard on /graphql, and
+# bypassing it silently removes both.
+#
+# That the routing lives in a dashboard rather than in this repo is the real
+# cost of this design and is worth saying plainly: a hostname can be repointed,
+# or the tunnel deleted, by anyone with dashboard access, and no diff records
+# it. `DOMAIN_NAME` in /etc/bp-monitor/bp-monitor.env is the repo's only claim
+# about what this host answers to; keep it in step with the dashboard by hand.
+#
+# ── Why the connector runs here and not "in the hosting" ────────────────────
+# A tunnel is two halves. The dashboard half (hostname -> service) is
+# configuration. The connector half is a process that must run somewhere with
+# network reach to the origin, and the origin is a container on this host's
+# private network. Nothing outside this host can reach `nginx:80`, so the
+# connector has to be here.
+#
+# If you instead run cloudflared as a host-level service (dnf install +
+# systemctl enable cloudflared), delete this unit and give nginx a
+# PublishPort=127.0.0.1:8080:80 so the host process can reach it — but then
+# point the dashboard at http://localhost:8080, not http://nginx:80.
+
+[Unit]
+Description=BP Monitor — Cloudflare Tunnel connector
+PartOf=bp-monitor.target
+Requires=bp-nginx.service
+After=bp-nginx.service
+
+[Container]
+ContainerName=cloudflared
+Image=docker.io/cloudflare/cloudflared:latest
+Network=bp-net.network
+
+# The token is the tunnel's credential — it is enough on its own to publish
+# traffic into this network — so it is a Podman secret, never the env file.
+# `cloudflared tunnel run` reads TUNNEL_TOKEN from the environment when no
+# --token flag is given.
+Secret=bp-tunnel-token,type=env,target=TUNNEL_TOKEN
+
+# --no-autoupdate: an in-place binary swap inside a container is pointless
+# (the layer is read-only and a restart reverts it) and it fights systemd's
+# Restart=always. Update by pulling a new image, as with certbot before it.
+# --metrics: exposes /ready on :2000 for the healthcheck below. Bound to
+# loopback inside the container's namespace, so it is not reachable from
+# bp-net.
+Exec=tunnel --no-autoupdate --metrics 127.0.0.1:2000 run
+
+# /ready reports whether at least one connection to Cloudflare's edge is
+# established, which is exactly the failure this unit can have: the process is
+# alive and the tunnel is down. Plain process liveness would not catch it.
+HealthCmd=cloudflared --version >/dev/null && wget -q -O /dev/null -T 3 http://127.0.0.1:2000/ready
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=20s
+
+NoNewPrivileges=true
+PodmanArgs=--memory=256m --memory-swap=256m --cpus=0.5
+
+[Service]
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=bp-monitor.target

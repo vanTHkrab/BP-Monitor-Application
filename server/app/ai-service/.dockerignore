@@ -1,0 +1,52 @@
+# Build context filter for server/app/ai-service/Dockerfile.
+#
+# The Dockerfile's dev and prod stages both do `COPY . .` after `uv sync`.
+# Without this file that copy undoes two deliberate design decisions and leaks
+# a credential:
+#
+#   - models/*.onnx, *.npz, *.pt — ADR-005: the image ships NO weights. They
+#     are downloaded from R2 by docker-entrypoint.sh on first start, sha256'd
+#     against the baked-in manifest, and cached on a volume. A local checkout
+#     that has run `fetch_models.py` holds ~78 MB of them plus crnn.pt, and
+#     `COPY . .` would bake all of it into every layer — while the entrypoint
+#     re-downloads them anyway.
+#   - .venv — created by `uv sync` on the *host*. It contains absolute paths
+#     and platform-specific wheels (onnxruntime, opencv), and `COPY . .` lands
+#     after the image's own `uv sync`, so the host copy wins. The failure is at
+#     import time in the container, not at build time.
+#   - .env — a real credential, baked into an image layer and travelling with
+#     it forever.
+#
+# The root .dockerignore does NOT cover this build. It applies to the `web`
+# image, which is the only one whose context is the repository root.
+#
+# models/EXPECTED_HASHES.json is NOT excluded and must not be: it is the
+# manifest the entrypoint reads to know what to download and what the bytes
+# should hash to, and the Dockerfile copies it explicitly before this stage.
+
+.env
+.env.*
+!.env.example
+
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Model weights — fetched from R2 at runtime, never baked in. See ADR-005.
+models/*.onnx
+models/*.npz
+models/*.pt
+
+# Dev-only debug output from AI_DEBUG_DUMP_ENABLED=1. Never in an image.
+debug_images
+
+.git
+.gitignore
+.idea
+.vscode
+
+*.log
+.DS_Store

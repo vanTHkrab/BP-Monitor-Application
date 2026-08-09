@@ -50,6 +50,38 @@ services:
       S3_DEFAULT_REGION: ${S3_DEFAULT_REGION}
       S3_USE_PATH_STYLE_ENDPOINT: ${S3_USE_PATH_STYLE_ENDPOINT}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
+      # ── Auth domain ─────────────────────────────────────────────────────
+      # None of these were forwarded before, so passkeys and Google sign-in
+      # were off in every containerised environment and `/api/auth/*` 404'd.
+      # Each one degrades silently rather than failing at boot, which is
+      # exactly why they have to be wired here rather than remembered.
+      #
+      # BETTER_AUTH_URL is ORIGIN ONLY — Better Auth appends `/api/auth`
+      # itself and discards any other path with a warning. Unset, every route
+      # under /api/auth 404s, including the mobile app's email-OTP calls
+      # (client/src/modules/auth/services/email-otp-api.ts).
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      # Falls back to JWT_SECRET when empty. Set it in production so rotating
+      # one does not silently rotate the other.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      # A bare registered domain — never an IP, port or scheme; the gateway
+      # throws at boot on those. Unset means the passkey plugin is not loaded
+      # at all and the app hides the section rather than showing it broken.
+      PASSKEY_RP_ID: ${PASSKEY_RP_ID:-}
+      PASSKEY_RP_NAME: ${PASSKEY_RP_NAME:-}
+      ANDROID_APP_PACKAGE_NAME: ${ANDROID_APP_PACKAGE_NAME:-}
+      # Keytool's colon-separated SHA-256 bytes, comma-separated across debug,
+      # release and Play App Signing keys. Served at
+      # /.well-known/assetlinks.json and converted into the
+      # `android:apk-key-hash:` origin Android actually presents.
+      ANDROID_APP_SHA256_FINGERPRINT: ${ANDROID_APP_SHA256_FINGERPRINT:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_ANDROID_CLIENT_ID: ${GOOGLE_ANDROID_CLIENT_ID:-}
+      # Unset, Expo accepts a push send from anyone holding one of our push
+      # tokens. Push works without it; nothing fails at boot.
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+      HAVE_I_BEEN_PWNED_ENABLED: ${HAVE_I_BEEN_PWNED_ENABLED:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,30 +117,16 @@ services:
     networks:
       - bp-net
 
-  web:
-    build:
-      # Repository root, not web/ — the docs site prerenders `docs/**/*.md`,
-      # and a context rooted at web/ cannot reach a sibling directory. The
-      # root `.dockerignore` keeps the widened context down to web/ + docs/.
-      context: ../..
-      dockerfile: web/Dockerfile
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-      # Server Actions (web/src/lib/gateway.ts, web/src/lib/ai-service.ts)
-      # read these at request time and default to `http://localhost:*` if
-      # unset — which inside this container resolves to the `web` container
-      # itself, not api-gateway/ai-service. Point them at the compose
-      # service names so the dashboard's server-side calls actually reach
-      # their targets over bp-net. This closes a pre-existing gap: these
-      # were never wired here before, so the ai-service health check on the
-      # dashboard was silently broken in every dockerized environment,
-      # nginx or not.
-      GATEWAY_URL: http://api-gateway:3000
-      AI_SERVICE_URL: http://ai-service:8000
-    depends_on:
-      - api-gateway
-    networks:
-      - bp-net
+  # NOTE: there is no `web` service here. It lives in docker-compose.dev.yml.
+  #
+  # That is not tidiness — it is the only way Compose can express "not in
+  # production". An override file can change a service but cannot delete one,
+  # so a `web` block in this base file would start in every stack that includes
+  # it, prod overlay included. `web` is deliberately not deployed: it has no
+  # authentication of its own, its /admin/ pages open direct connections to
+  # Postgres, Redis and S3, and the only thing that ever guarded them was an
+  # nginx Basic Auth rule. Defining it in the dev overlay makes the dev stack
+  # the only one that can run it.
 
 volumes:
   postgres_data:
