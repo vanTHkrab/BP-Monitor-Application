@@ -1,11 +1,23 @@
-# nginx — sole public ingress, TLS termination, the /admin/ and /graphiql Basic
-# Auth gate, and the per-IP flood guard on /graphql.
+# nginx — the /graphiql Basic Auth gate, the per-IP flood guard on /graphql,
+# and the routing table that puts /api/auth/* and /.well-known/assetlinks.json
+# on the gateway.
+#
+# It is no longer the *public* ingress and no longer terminates TLS. Traffic
+# arrives from the `cloudflared` container over bp-net; Cloudflare's edge
+# terminates TLS and the tunnel hop is an outbound encrypted connection. See
+# quadlet/bp-cloudflared.container and infra/podman/README.md.
 #
 # Reuses infra/nginx/templates/default.conf.template, infra/nginx/reload-loop.sh
-# and infra/nginx/auth/.htpasswd unchanged from the Compose stack. That reuse is
-# the point: the access model those files encode (what is gated, what must not
-# be, and why) is a security decision that was already made and reviewed. This
-# runtime changes how the process is supervised, not what it serves.
+# and infra/nginx/auth/.htpasswd. That reuse is the point: the access model
+# those files encode (what is gated, what must not be, and why) is a security
+# decision that was already made and reviewed. Moving TLS to Cloudflare changed
+# where the connection is encrypted, not what this server is willing to serve.
+#
+# ── No PublishPort, and that is the whole security win ──────────────────────
+# This container binds nothing on the host. The EC2 instance can — and should —
+# have an empty inbound security group. That also retires the host sysctl
+# `net.ipv4.ip_unprivileged_port_start=80` that rootless :80/:443 used to
+# require; scripts/install.sh no longer sets it.
 #
 # ── Host paths, not bind mounts of a repo checkout ──────────────────────────
 # The mounts below assume the repo is checked out at /opt/bp-monitor on the
@@ -14,61 +26,60 @@
 # fails with a permission error that reads like a file-not-found. Drop the :z
 # only if you know the host has SELinux disabled.
 #
-# ── Ports 80/443 under rootless Podman ──────────────────────────────────────
-# Binding these as a non-root user requires the host sysctl
-#   net.ipv4.ip_unprivileged_port_start=80
-# set persistently in /etc/sysctl.d/. scripts/install.sh writes it. Without it
-# this unit fails at start with "permission denied" on the bind, which is at
-# least loud. See infra/podman/README.md, "Rootless Podman", for the full
-# trade-off and the alternatives that were rejected.
+# ── The operational trap worth knowing ──────────────────────────────────────
+# nginx resolves `proxy_pass http://api-gateway:3000` ONCE, at config load. If
+# api-gateway is recreated and lands on a different address on bp-net, nginx
+# keeps proxying to the stale one and every request 502s. The 6h reload loop
+# re-reads the config and re-resolves, so this self-heals within 6h; to fix it
+# immediately after a gateway redeploy, run
+#   systemctl --user restart bp-nginx
+# The deploy script does this for you.
 #
-# ── Two operational traps worth knowing ─────────────────────────────────────
-# 1. nginx resolves `proxy_pass http://api-gateway:3000` ONCE, at config load.
-#    If api-gateway is recreated and lands on a different address on bp-net,
-#    nginx keeps proxying to the stale one and every request 502s. The 6h
-#    reload loop re-reads the config and re-resolves, so this self-heals within
-#    6h; to fix it immediately after a gateway redeploy, run
-#      systemctl --user restart bp-nginx
-#    The deploy script does this for you.
-# 2. This unit will not start until a certificate exists at
-#    /etc/letsencrypt/live/$DOMAIN_NAME/. nginx refuses to start when
-#    ssl_certificate points at a missing file. Run scripts/init-letsencrypt.sh
-#    once on a fresh host first.
+# The second trap — nginx refusing to start without a certificate file — is
+# gone with certbot. This unit now starts on a bare host with no bootstrap step.
 
 [Unit]
-Description=BP Monitor — nginx ingress
+Description=BP Monitor — nginx router and access gate
 PartOf=bp-monitor.target
-Requires=bp-api-gateway.service bp-web.service
-After=bp-api-gateway.service bp-web.service
+Requires=bp-api-gateway.service
+After=bp-api-gateway.service
 
 [Container]
 ContainerName=nginx
 Image=docker.io/library/nginx:1.27-alpine
 Network=bp-net.network
 
-PublishPort=80:80
-PublishPort=443:443
-
 EnvironmentFile=/etc/bp-monitor/bp-monitor.env
 
 Volume=/opt/bp-monitor/infra/nginx/templates:/etc/nginx/templates:ro,z
 Volume=/opt/bp-monitor/infra/nginx/auth:/etc/nginx/auth:ro,z
 Volume=/opt/bp-monitor/infra/nginx/reload-loop.sh:/usr/local/bin/reload-loop.sh:ro,z
-Volume=bp-certbot-certs.volume:/etc/letsencrypt:ro
-Volume=bp-certbot-www.volume:/var/www/certbot:ro
 
-# Same override as Compose: run nginx in the foreground with a 6h background
-# reload so a certbot renewal is picked up without certbot needing to signal
-# this container (which would mean handing a container the host's container
-# socket just to reload a config file).
+# Run nginx in the foreground with a 6h background reload so a recreated
+# upstream is re-resolved without an operator noticing. See reload-loop.sh.
 Exec=/bin/sh /usr/local/bin/reload-loop.sh
 
-# No HealthCmd. The obvious probes are all wrong here: GET / on :80 returns a
-# 301 that busybox wget follows to :443 and fails on, and GET / on :443 requires
-# the container to trust its own Let's Encrypt chain for $DOMAIN_NAME, which it
-# reaches by public DNS, not over loopback. Process liveness plus Restart=always
-# is what this unit actually gets; end-to-end ingress health is verified from
-# outside the host (see the deploy guide's smoke check).
+# Now that this server is plain HTTP on an internal network, a loopback probe
+# is finally meaningful — the old unit had no HealthCmd because every candidate
+# either followed a 301 to :443 or required the container to trust its own
+# public certificate chain for a name it reaches by public DNS.
+#
+# This probes the `hello` query THROUGH the proxy, so a pass proves both that
+# nginx is serving and that it still resolves api-gateway on bp-net — which is
+# exactly the stale-upstream failure described above. A root-path probe would
+# not: the gateway 404s `/`, and wget exits non-zero on a 404.
+#
+# UNVERIFIED, same caveat as bp-api-gateway.container: Mercurius serving
+# GraphQL over GET has not been exercised against a running gateway. Confirm on
+# the host with
+#   podman exec nginx wget -q -O - 'http://127.0.0.1:80/graphql?query=%7Bhello%7D'
+# and drop this line if it does not hold. A wrong healthcheck here is cosmetic:
+# no HealthOnFailure action is set, so "unhealthy" reports and does not restart.
+HealthCmd=wget -q -O /dev/null -T 3 http://127.0.0.1:80/graphql?query=%7Bhello%7D
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=15s
 
 NoNewPrivileges=true
 PodmanArgs=--memory=256m --memory-swap=256m --cpus=0.5

@@ -10,8 +10,8 @@
 # separate filesystem is a needless way to make boot depend on a mount.
 #
 # What it does NOT do: create secrets, write /etc/bp-monitor/bp-monitor.env,
-# issue certificates, or start anything. Those are separate, deliberate steps —
-# see docs/guides/deploy.md.
+# configure the Cloudflare Tunnel's routing, or start anything. Those are
+# separate, deliberate steps — see docs/guides/deploy.md.
 
 set -euo pipefail
 
@@ -63,23 +63,29 @@ cat <<'NEXT'
 
 Remaining host setup, none of which this script does for you:
 
-  1. Unprivileged low ports (required — nginx binds 80 and 443 rootless):
-       echo 'net.ipv4.ip_unprivileged_port_start=80' \
-         | sudo tee /etc/sysctl.d/99-bp-monitor-ports.conf
-       sudo sysctl --system
-     Verify:  sysctl net.ipv4.ip_unprivileged_port_start   # -> 80
-
-  2. Keep the user manager alive across logout (required — without this the
+  1. Keep the user manager alive across logout (required — without this the
      whole stack stops when your SSH session ends):
        sudo loginctl enable-linger "$USER"
      Verify:  loginctl show-user "$USER" -p Linger         # -> Linger=yes
 
-  3. Configuration and secrets:
+  2. Configuration and secrets:
        /etc/bp-monitor/bp-monitor.env   (from infra/podman/bp-monitor.env.example)
-       podman secret create ...          (five secrets — see the README)
+       podman secret create ...          (six secrets — see the README)
+
+  3. The Cloudflare Tunnel's Public Hostname, in the dashboard, not here:
+       Zero Trust -> Networks -> Tunnels -> <tunnel> -> Public Hostname
+       api.<your-domain>  ->  HTTP://nginx:80
+     Nothing in this repo can verify that mapping. If it is missing or points
+     somewhere else, every unit below will be healthy and the site will be
+     down.
 
   4. Enable at boot, once you are happy:
        systemctl --user enable bp-monitor.target
+
+NOTE: the sysctl 'net.ipv4.ip_unprivileged_port_start=80' that earlier versions
+of this stack required is no longer needed and can be removed. nginx binds no
+host port at all now — the tunnel connector reaches it over bp-net, and the
+instance's inbound security group should be empty.
 
 Full sequence: docs/guides/deploy.md
 NEXT

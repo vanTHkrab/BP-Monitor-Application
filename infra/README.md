@@ -17,13 +17,14 @@ The mobile **client** is **not** containerised — it runs on Expo directly.
 > [docs/guides/deploy.md](../docs/guides/deploy.md), not this file. Everything
 > below still works and is still maintained — it is the development stack, and
 > `docker-compose.prod.yml` is now the cheapest way to exercise the nginx access
-> model and the certificate bootstrap without an EC2 host, rather than the thing
-> that serves real traffic.
+> model without an EC2 host, rather than the thing that serves real traffic.
 >
-> Two consequences worth internalising before reading on: the `postgres` service
-> described below is the **development** database — production Postgres is
-> hosted on Supabase and appears nowhere in these files — and where this file
-> says "prod", read "prod-shaped".
+> Three consequences worth internalising before reading on: the `postgres`
+> service described below is the **development** database — production Postgres
+> is hosted on Supabase and appears nowhere in these files; where this file says
+> "prod", read "prod-shaped"; and the `web` dashboard is **development only**,
+> defined in `docker-compose.dev.yml` and deliberately absent from the base file
+> so it cannot start in a prod-shaped stack.
 
 With that established, the rest of this file is the Compose reference.
 
@@ -42,24 +43,24 @@ infra/
 │   │                               # single EC2 host. See podman/README.md.
 │   ├── quadlet/                    # .container / .network / .volume / .target
 │   ├── systemd/bp-migrate.service  # manual-gate Prisma migrations (Supabase)
-│   ├── scripts/                    # install, build, first cert, redeploy
+│   ├── scripts/                    # install, build, redeploy
 │   └── bp-monitor.env.example
 ├── docker-compose/
-│   ├── docker-compose.yml          # base services: postgres, redis, api-gateway, ai-service, web
-│   ├── docker-compose.dev.yml      # override: hot-reload, volume mounts, exposed DB ports
-│   ├── docker-compose.prod.yml     # override: build target=prod, restart policy, nginx + certbot
+│   ├── docker-compose.yml          # base services: postgres, redis, api-gateway, ai-service
+│   ├── docker-compose.dev.yml      # override: hot-reload, volume mounts, exposed DB ports, + web
+│   ├── docker-compose.prod.yml     # override: build target=prod, restart policy, nginx + cloudflared
 │   └── .env.example                # copy to .env, fill in real values
 ├── nginx/
 │   ├── templates/
 │   │   └── default.conf.template   # envsubst'd into /etc/nginx/conf.d/default.conf at container start
-│   ├── auth/                       # Basic Auth credentials for the public demo gate — .htpasswd is gitignored
-│   └── reload-loop.sh              # nginx entrypoint override — periodic config/cert reload
-├── certbot/
-│   └── renew-loop.sh               # certbot entrypoint override — periodic `certbot renew`
-├── scripts/
-│   └── init-letsencrypt.sh         # ONE-TIME first-cert bootstrap on a fresh host — read before prod deploy
+│   ├── auth/                       # Basic Auth credentials for /graphiql — .htpasswd is gitignored
+│   └── reload-loop.sh              # nginx entrypoint override — periodic reload so upstreams re-resolve
 └── README.md
 ```
+
+`certbot/` and `scripts/init-letsencrypt.sh` are gone. TLS terminates at
+Cloudflare's edge and the tunnel dials out, so there is no ACME challenge to
+serve and no inbound port 80 to serve it on.
 
 ## Quick start
 
@@ -87,97 +88,95 @@ Services:
 nginx/TLS are **not** part of the dev stack — dev talks to each service
 directly on its published port. Reverse-proxy + certs only exist in prod.
 
-### Prod-shaped (built images, restart policy, nginx is the sole public ingress)
+### Prod-shaped (built images, restart policy, tunnel ingress)
 
 > This override is **prod-parity staging**, not the production runtime — see the
-> banner at the top of this file. It is what you run to exercise nginx, the
-> access model, and the certificate bootstrap on a throwaway host. Real
-> production is [`infra/podman/`](./podman/), where Postgres is Supabase rather
-> than the container this stack starts.
+> banner at the top of this file. It is what you run to exercise nginx and the
+> access model on a throwaway host. Real production is
+> [`infra/podman/`](./podman/), where Postgres is Supabase rather than the
+> container this stack starts.
 
-This override includes `nginx` (reverse proxy + TLS termination) and `certbot`
-(Let's Encrypt client). Before the **first** `up -d` on a fresh host you must
-run the one-time cert bootstrap — see "First-time cert issuance" below. On
-every subsequent boot (including `--build` after a code change) a plain
-`up -d --build` is enough; `nginx` and `certbot` don't need re-bootstrapping
-once a live certificate exists on the `certbot_certs` volume.
+This override adds `nginx` (router and access gate) and `cloudflared` (the
+Cloudflare Tunnel connector). There is **no certbot and no bootstrap step**: TLS
+terminates at Cloudflare's edge, so nginx serves plain HTTP on the internal
+network and starts on a bare host with nothing to pre-provision.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-Services (all reached through nginx on 80/443 — see the port table below):
+Leave `TUNNEL_TOKEN` **empty** unless you mean it — a real token publishes your
+laptop on a real hostname. Without one, `cloudflared` will fail to register and
+everything else still comes up; exercise nginx from inside the network:
 
-| Public URL                                | Routed to                                                                | Access                                   |
-|-------------------------------------------|--------------------------------------------------------------------------|------------------------------------------|
-| `https://$DOMAIN_NAME/graphql`            | `api-gateway:3000/graphql` (GraphQL, incl. subscriptions over WebSocket) | Open — JWT auth + rate limit (see below) |
-| `https://$DOMAIN_NAME/graphiql`           | `api-gateway:3000/graphiql` (Mercurius GraphiQL UI)                      | Basic Auth **and** `GRAPHIQL_ENABLED` on |
-| `https://$DOMAIN_NAME/` (everything else) | `web:3000` (Next.js dashboard)                                           | Basic Auth                               |
+```bash
+docker compose exec nginx wget -qO- 'http://127.0.0.1/graphql?query=%7Bhello%7D'
+```
 
-`/graphql` is deliberately the one un-gated route — the mobile client has no
-way to send a second credential alongside its JWT. See "Public demo access"
-below before exposing this host to the internet.
+Routes (all reached through nginx, which nothing but `cloudflared` can reach):
 
-`api-gateway`, `web`, and `ai-service` no longer publish any host port in
-prod — see "Ports" below for what changed and why.
+| Public URL | Routed to | Access |
+| --- | --- | --- |
+| `https://$DOMAIN_NAME/graphql` | `api-gateway:3000/graphql` (incl. subscriptions over WebSocket) | Open — JWT auth + rate limit |
+| `https://$DOMAIN_NAME/graphiql` | `api-gateway:3000/graphiql` | Basic Auth **and** `GRAPHIQL_ENABLED` on |
+| `https://$DOMAIN_NAME/api/auth/*` | `api-gateway:3000` — Better Auth's own routes | Open; throttled per credential |
+| `https://$DOMAIN_NAME/.well-known/assetlinks.json` | `api-gateway:3000` — Digital Asset Links | Open, and must stay open |
+| everything else | `api-gateway:3000` | Open |
 
-### First-time cert issuance
+The catch-all points at the **gateway**, and that is load-bearing rather than a
+fallback. It used to point at the `web` dashboard, which meant `/api/auth/*` and
+`/.well-known/assetlinks.json` — real gateway routes with no `location` of their
+own — returned a Next.js 404. Email-OTP verification was broken and Android
+could never accept a passkey. If you add a location above the catch-all, do not
+shrink what the catch-all reaches.
 
-Run this **once** per fresh host, after DNS is pointed at it and before
-relying on the stack to serve real HTTPS traffic:
+`/graphql` is deliberately the one route that cannot be gated — the mobile
+client has no way to send a second credential alongside its JWT. See "Public
+demo access" below.
 
-1. **Point DNS at the host.** Create an A record (and AAAA if the host has
-   IPv6) for the domain you're deploying under, pointing at the host's
-   public IP. Let's Encrypt's HTTP-01 challenge validates ownership by
-   making an inbound HTTP request to this domain on port 80 — it must
-   resolve and be reachable *before* you run the bootstrap script.
-2. **Open ports 80 and 443** to the internet on the host's firewall / cloud
-   security group. Both are required — 80 for the ACME challenge and the
-   HTTP→HTTPS redirect, 443 for actual traffic.
-3. **Fill in `.env`.** In `infra/docker-compose/.env` (copied from
-   `.env.example`), set at minimum:
-   ```bash
-   DOMAIN_NAME=your-real-domain.example.com
-   CERTBOT_EMAIL=you@example.com
-   ```
-   Leave `CERTBOT_STAGING=0` for a real deploy. Set it to `1` only if you
-   want to dry-run the whole flow against Let's Encrypt's staging CA first
-   (issues an untrusted-by-browsers cert but doesn't count against the
-   production CA's per-domain rate limit — useful the first time you're
-   unsure DNS/firewall are actually correct).
-4. **Run the bootstrap script:**
-   ```bash
-   ./infra/scripts/init-letsencrypt.sh
-   ```
-   This creates a short-lived self-signed placeholder certificate (so nginx
-   has *something* to bind port 443 with), starts `nginx`, deletes the
-   placeholder, requests the real certificate from Let's Encrypt via the
-   HTTP-01 webroot challenge (served by the now-running nginx), and reloads
-   nginx to pick it up. It is safe to re-run — it no-ops if a certificate
-   for `$DOMAIN_NAME` already exists (set `FORCE_RENEW=1` to force
-   reissuance).
-5. **Bring up the rest of the stack** (if you haven't already):
-   ```bash
-   cd infra/docker-compose
-   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-   ```
-   From here on, renewal is automatic: the `certbot` service checks every
-   12h and renews when the cert is within Let's Encrypt's renewal window;
-   `nginx` reloads its own config/certs every 6h so a renewed cert is picked
-   up without any manual step. See the `nginx` / `certbot` service comments
-   in `docker-compose.prod.yml` for why reload is timer-based rather than
-   certbot signaling nginx directly.
+### The tunnel
+
+Routing is **not** in this repo. The connector authenticates with a token and
+Cloudflare tells it where to send traffic; the mapping lives in the dashboard
+under Zero Trust → Networks → Tunnels → *your tunnel* → **Public Hostname**, and
+must read:
+
+| Field | Value |
+| --- | --- |
+| Subdomain | `api` |
+| Domain | your zone |
+| Type | `HTTP` |
+| URL | `nginx:80` |
+
+> ⚠️ **Point it at `nginx`, never at `api-gateway`.** nginx owns the
+> `/graphiql` Basic Auth gate and the per-IP flood guard on `/graphql`. A
+> hostname wired straight to the gateway works, removes both, and reports
+> nothing.
+
+That a dashboard row can silently repoint or delete your ingress is the real
+cost of this design. `DOMAIN_NAME` is the repo's only claim about what the stack
+answers to; keep the two in step by hand.
+
+### Why the per-IP rate limit needs `real_ip`
+
+Behind a tunnel every request reaches nginx from the `cloudflared` container's
+address. Without `set_real_ip_from` + `real_ip_header CF-Connecting-IP` in the
+template, `$binary_remote_addr` is a single value for the entire internet: all
+users share one 10 r/s budget and one flooder 429s everybody. The limit still
+"works" — it just keys on the wrong thing, and nothing logs that it does. This
+is the one change that a move to any reverse proxy silently breaks.
 
 ### Public demo access
 
-Once the host is reachable from the internet, `/` and `/graphiql` are behind
-HTTP Basic Auth ("the demo key") and `/graphql` is not. That split is
-deliberate:
+Once the host is reachable from the internet, `/graphiql` is behind HTTP Basic
+Auth ("the demo key") and everything else is not. That split is deliberate:
 
-- **`/` (the dashboard) must be gated.** Its login form is credential-less by
-  design — it's a team-internal tool (`web/CLAUDE.md`) — and its server actions
-  connect directly to Postgres, Redis and S3. Un-gated on a public host it is a
-  read-anything database inspector.
+- **The dashboard is not on this host at all.** `/` used to serve `web`, gated
+  by a Basic Auth rule here. `web` is no longer deployed — it has no
+  authentication of its own and its `/admin/` pages are a read-anything
+  database inspector, so it was removed from the deploy rather than left
+  depending on one nginx block that fails silently when deleted. `/` now
+  reaches the gateway.
 - **`/graphiql` must be gated**, and is additionally off unless
   `GRAPHIQL_ENABLED` is `1`, `true`, `yes`, or `on`: a schema explorer with
   mutation access to the live database is not something to serve by default.
@@ -247,26 +246,30 @@ docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
 
 ## Ports
 
-| Service     | Dev                | Prod                                         |
-|-------------|--------------------|----------------------------------------------|
-| nginx       | *(not run in dev)* | `80:80`, `443:443` — **sole public ingress** |
-| api-gateway | `3000:3000`        | not published (reached via nginx `/graphql`) |
-| web         | `3001:3000`        | not published (reached via nginx `/`)        |
-| ai-service  | `8000:8000`        | **not published at all** — see below         |
-| postgres    | `5432:5432`        | not published                                |
-| redis       | `6379:6379`        | not published                                |
+| Service     | Dev                | Prod-shaped                                    |
+|-------------|--------------------|------------------------------------------------|
+| cloudflared | *(not run in dev)* | no port — dials **out** to Cloudflare          |
+| nginx       | *(not run in dev)* | no port — reached by cloudflared over `bp-net`  |
+| api-gateway | `3000:3000`        | not published (reached via nginx)              |
+| web         | `3001:3000`        | **not run** — dev stack only                   |
+| ai-service  | `8000:8000`        | **not published at all** — see below           |
+| postgres    | `5432:5432`        | not published                                  |
+| redis       | `6379:6379`        | not published                                  |
 
-`ai-service` used to publish `8000:8000` directly to the host in prod; that
-mapping is now removed entirely, and nginx does not proxy to it either.
-Production traffic never needs to reach `ai-service` over HTTP:
-api-gateway talks to it only over the Redis pub/sub channels
-`analyze_bp_image` / `analyze_bp_image.reply`, and the web dashboard's
-server-side `ai-service` health check
-([`web/src/lib/ai-service.ts`](../web/src/lib/ai-service.ts)) calls
-`http://ai-service:8000` over the internal `bp-net` network, which needs no
-published host port. The removed mapping was a real internet-facing
-exposure of an internal-only service with no auth in front of it — this is
-a security tightening, not just a refactor side-effect of adding nginx.
+The prod-shaped column has no host ports in it at all, and that is the point of
+the tunnel: on the real EC2 host the inbound security group is empty. Compare
+with the previous design, where nginx published `80:80` and `443:443` and
+rootless Podman additionally needed the host sysctl
+`net.ipv4.ip_unprivileged_port_start=80` to bind them.
+
+`ai-service` used to publish `8000:8000` directly to the host; that mapping is
+removed entirely, and nginx does not proxy to it either. Production traffic
+never needs to reach it over HTTP — api-gateway talks to it only over the Redis
+pub/sub channels `analyze_bp_image` / `analyze_bp_image.reply`. Its second
+consumer, the dashboard's `/health` probe
+([`web/src/lib/ai-service.ts`](../web/src/lib/ai-service.ts)), went away with
+the dashboard. The removed mapping was a real internet-facing exposure of an
+internal-only service with no auth in front of it.
 
 ## Env vars
 
@@ -276,31 +279,36 @@ compose network. The gateway reaches Redis with `REDIS_HOST=redis` for the
 same reason; `ai-service` needs `REDIS_URL=redis://redis:6379` instead, because
 `main.py` reads only that variable.
 
-New in this change (prod only, consumed by `docker-compose.prod.yml` and
-`infra/scripts/init-letsencrypt.sh`):
+Prod-shaped only, consumed by `docker-compose.prod.yml`:
 
 | Variable | Example | Description |
 |---|---|---|
-| `DOMAIN_NAME` | `bp-monitor.example.com` | Domain nginx terminates TLS for and certbot issues the certificate against. Must have a DNS A/AAAA record pointing at the host before first issuance. |
-| `CERTBOT_EMAIL` | `admin@example.com` | Email Let's Encrypt sends expiry/problem notices to. |
-| `CERTBOT_STAGING` | `0` | Set to `1` to issue from Let's Encrypt's staging CA while testing the bootstrap flow (untrusted cert, no rate-limit risk). Leave `0` for real deploys. |
-| `GRAPHIQL_ENABLED` | `0` | Serves the Mercurius GraphiQL UI at `/graphiql` when set to `1`, `true`, `yes`, or `on` (case-insensitive, trimmed). Every other non-empty value is off, including unrecognised ones — a typo cannot accidentally open it. Empty or unset defaults to off in production only; outside production `graphiql` is on regardless, so dev is unaffected. Even when on, the route stays behind Basic Auth. See "Public demo access". |
+| `DOMAIN_NAME` | `api.example.com` | nginx's `server_name`. The block is `default_server`, so a mismatch does not 404 — what actually routes traffic is the tunnel's Public Hostname. **No DNS record of your own is needed**; Cloudflare creates the CNAME. |
+| `TUNNEL_TOKEN` | *(empty)* | The Cloudflare Tunnel credential. On its own it is enough to publish traffic into this stack's network, so in production it is a Podman secret and never a file. Leave it empty when rehearsing locally. |
+| `GRAPHIQL_ENABLED` | `0` | Serves the Mercurius GraphiQL UI at `/graphiql` when set to `1`, `true`, `yes`, or `on` (case-insensitive, trimmed). Every other non-empty value is off, including unrecognised ones — a typo cannot accidentally open it. Empty or unset defaults to off in production only; outside production `graphiql` is on regardless, so dev is unaffected. Even when on, the route stays behind Basic Auth. |
+
+Forwarded to the gateway in **both** stacks since 2026-08-09, and not before:
+`BETTER_AUTH_URL` (required — origin only; unset, every `/api/auth` route 404s,
+including the mobile app's email-OTP calls), `BETTER_AUTH_SECRET`, `PASSKEY_*`,
+`GOOGLE_*`, `ANDROID_APP_*`, `EXPO_ACCESS_TOKEN`, `HAVE_I_BEEN_PWNED_ENABLED`.
+Each degrades silently rather than failing at boot, which is exactly why they
+went unwired for so long. See
+[docs/reference/environment-variables.md](../docs/reference/environment-variables.md).
+
+`CERTBOT_EMAIL` and `CERTBOT_STAGING` are **removed** — there is no certbot.
 
 The Basic Auth credential file (`infra/nginx/auth/.htpasswd`) is **not** an env
 var — it's a gitignored file mounted into the nginx container. See "Public
 demo access" for how to generate and rotate it.
 
-`web`'s `GATEWAY_URL` / `AI_SERVICE_URL` are now set directly in
-`docker-compose.yml` (`http://api-gateway:3000` / `http://ai-service:8000`)
-rather than left to their host-local defaults — those defaults
-(`http://localhost:3000` / `:8000`, documented in `web/CLAUDE.md`) only make
-sense when running `web` outside Docker; inside the `web` container
-`localhost` resolves to the container itself, not to `api-gateway` /
-`ai-service`. This was a pre-existing gap (the dashboard's ai-service health
-check was silently unreachable in every dockerized environment) fixed in the
-same change since it's directly load-bearing for `ai-service` losing its
-public port — confirming the "web reaches ai-service over the internal
-network" story above actually holds.
+`web` is wired in `docker-compose.dev.yml` only, and gets `GATEWAY_URL`,
+`AI_SERVICE_URL`, `DATABASE_URL`, `REDIS_HOST` and the `S3_*` block pointed at
+the Compose services. The host-local defaults those clients fall back to
+(`http://localhost:3000`, `:8000`, and a `localhost` Redis) only make sense
+outside Docker — inside the container `localhost` is the container itself.
+Before this change only the first two were set, so every `/admin/` page except
+the gateway probe reported its service as down, with nothing in a log to say the
+client had simply never been pointed anywhere.
 
 Never commit a real `.env` — only `.env.example` is tracked.
 
@@ -332,13 +340,12 @@ Never commit a real `.env` — only `.env.example` is tracked.
   so the `/graphql` location block passes through `Upgrade` /
   `Connection` headers and raises `proxy_read_timeout` / `proxy_send_timeout`
   to 3600s so nginx doesn't cut long-lived subscription connections.
-- **Single domain, path-based routing** — the dashboard and the GraphQL API
-  share one `DOMAIN_NAME` and one certificate (`/graphql` + `/graphiql` →
-  api-gateway, everything else → web) rather than separate subdomains. This
-  is the simpler bootstrap for a greenfield deploy with no DNS split yet;
-  revisit with a SAN cert (or two certs) across `$DOMAIN_NAME` +
-  `api.$DOMAIN_NAME` if the gateway and dashboard ever need independent
-  scaling, rate limiting, or WAF policy.
+- **One host, one upstream** — `DOMAIN_NAME` is an API host (`api.example.com`)
+  and every route on it reaches api-gateway. This used to be a split between
+  the gateway and the dashboard on a shared domain and one certificate; the
+  dashboard is no longer deployed, and TLS is Cloudflare's, so both halves of
+  that trade-off are gone. Adding a second hostname is now a dashboard row plus
+  a `location` block, not a certificate change.
 - **GraphiQL now has two independent gates.** `app.module.ts` resolves
   `graphiql` from `GRAPHIQL_ENABLED` (`1`/`true`/`yes`/`on` = on, any other
   non-empty value = off, empty or unset defers to `NODE_ENV`), defaulting to
@@ -350,27 +357,32 @@ Never commit a real `.env` — only `.env.example` is tracked.
   they fail differently. (This note previously said `graphiql: true` was set
   unconditionally and that gating it was future `nest-dev` work — that work
   has since landed.)
-- **certbot's image tag is deliberately not pinned**, unlike this project's
-  own Dockerfiles. It needs to track Let's Encrypt's ACME protocol over
-  however many years the host stays up; a stale pin is a known way for
-  renewals to silently start failing. Bump it by hand
-  (`docker compose pull certbot`) as routine maintenance.
-- **nginx reloads on a timer, not on a certbot signal.** Wiring certbot to
-  signal nginx directly on renewal would mean mounting the host's
-  `docker.sock` into one of the containers, handing it control over the
-  whole Docker daemon just to reload a config file. Instead `nginx` runs
-  [`reload-loop.sh`](./nginx/reload-loop.sh), reloading every 6h
-  unconditionally — cheap and connection-preserving when nothing changed,
-  and within 6h of any renewal by `certbot`'s
-  [`renew-loop.sh`](./certbot/renew-loop.sh) (checks every 12h).
-- **No app code changed for reverse-proxy compatibility.** Neither
-  `api-gateway` nor `web` currently inspect `req.ip` / `X-Forwarded-*` /
-  proxy trust settings (verified by grep before making this change), so no
-  `trustProxy` / `trustHost` config was needed on either side. nginx still
-  sets the standard `X-Real-IP` / `X-Forwarded-For` / `X-Forwarded-Proto` /
-  `X-Forwarded-Host` headers for whichever side picks this up later — if
-  IP-based logic (stricter rate limiting, geo rules, audit logging) is
-  added to api-gateway in the future, `main.ts` will need
-  `new FastifyAdapter({ trustProxy: true })` for `req.ip` to reflect the
-  real client instead of nginx's container IP; that's an api-gateway
-  app-code change for `nest-dev` when the need arises, not done here.
+- **cloudflared's image tag is deliberately not pinned**, unlike this project's
+  own Dockerfiles — the same reasoning certbot's tag used to carry. The
+  connector speaks a protocol Cloudflare evolves, and a stale pin is a known
+  way for a tunnel to start failing. `--no-autoupdate` is set because an
+  in-place binary swap inside a container is pointless (the layer is read-only,
+  a restart reverts it) and fights `restart: unless-stopped`. Update by pulling
+  a new image as routine maintenance.
+- **nginx still reloads on a timer**, though not for the reason it used to.
+  [`reload-loop.sh`](./nginx/reload-loop.sh) existed so a certbot renewal was
+  picked up without certbot needing to signal the container. There is no
+  certbot now, but nginx resolves `proxy_pass http://api-gateway:3000` **once,
+  at config load** — a recreated gateway on a new address means every request
+  502s until something makes it re-resolve. The 6h reload is the backstop for
+  recreates nobody triggered on purpose; after a deliberate redeploy, restart
+  nginx instead of waiting.
+- **No app code changed for proxy compatibility.** `api-gateway` does not
+  inspect `req.ip` / `X-Forwarded-*` / proxy trust settings, so no `trustProxy`
+  config was needed. nginx sets `X-Real-IP` / `X-Forwarded-For` /
+  `X-Forwarded-Host` for whichever side picks this up later. If IP-based logic
+  (stricter rate limiting, geo rules, audit logging) is ever added,
+  `main.ts` needs `new FastifyAdapter({ trustProxy: true })` for `req.ip` to
+  reflect the real client — and behind the tunnel there are now **two** hops to
+  unwind, Cloudflare's and nginx's. That is an api-gateway change for
+  `nest-dev` when the need arises, not done here.
+- **`X-Forwarded-Proto` is hardcoded to `https`, not `$scheme`.** `$scheme` is
+  `http` on the nginx hop and always will be, because TLS ends at Cloudflare.
+  Passing `http` upstream makes the gateway build `http://` URLs for a site
+  that is `https://` to every real client, which surfaces as Better Auth
+  redirects and callback URLs quietly dropping to plain HTTP.

@@ -41,18 +41,27 @@ exist and **no redirects were added** — this is an internal site with no
 external consumers, so a 404 on a stale bookmark is cheaper than a redirect
 table nobody maintains. That is a decision, not an oversight.
 
+> ⚠️ **This app is not deployed.** It is defined in
+> `infra/docker-compose/docker-compose.dev.yml` and nowhere else, so it cannot
+> start in the prod-shaped or production stacks. `/admin/` used to be reachable
+> in production behind a single nginx Basic Auth rule; that rule is gone with
+> the route. Removing the app from the deploy is the version of that decision
+> that cannot silently regress when someone edits an nginx config. Run it
+> locally, including against production datastores if you need to — just do not
+> host it.
+
 > ⚠️ **There is no clinical UI and no authentication anywhere in this app.**
 > No auth library is installed. The `/admin` pages are not "authenticated" —
-> nothing in this app guards them. The only thing that does is the nginx
-> Basic Auth rule on `location /admin/`, which lives in infra, not here. Do
+> nothing in this app guards them, and now nothing outside it does either. Do
 > not describe this app as a clinician portal, do not design clinical
 > features for it, and do not assume a session exists. Patient-facing work
 > belongs in `client/`.
 
-**Where you put a page decides whether it is exposed.** Anything reading a
-datastore goes under `/admin/`; `/` and `/docs` are deliberately public and
-serve static prerendered HTML with no credentials and no datastore reads. See
-the access model in [docs/guides/deploy.md](../docs/guides/deploy.md).
+**Keep datastore reads under `/admin/`.** `/` and `/docs` are static
+prerendered HTML with no credentials and no datastore reads; `/admin/` is where
+anything touching Postgres, Redis or S3 belongs. The split no longer maps to a
+gate — nothing is published — but it is what makes the app safe to publish again
+if that is ever wanted. See [docs/guides/deploy.md](../docs/guides/deploy.md).
 
 ## The topology is not what the name implies
 
@@ -165,6 +174,9 @@ Components or Server Actions. Copy `.env.example` to `.env.local`.
   token handling. That is `client/`'s concern.
 - **Don't call this app authenticated** in code comments, docs, or UI copy.
   It is not, and pretending otherwise is how it ends up exposed.
+- **Don't add it back to a deploy** without adding real authentication first.
+  It was removed from production precisely because its only protection was one
+  deletable line in an nginx config.
 - **Don't add write paths** to `src/lib/` without an explicit decision — this
   app currently cannot corrupt anything, which is a property worth keeping.
 - **Don't add a dependency** before checking whether shadcn/ui or an installed
@@ -185,13 +197,13 @@ here:
   importing that.
 - **No auth library is installed**, and there is no login form — the orphaned
   shadcn template that used to sit at `/` was removed once `/` became the docs
-  index. Access control is the nginx rule on `/admin/`. If a future change
-  adds real auth, this file and the deploy guide's access model both need
-  updating.
+  index. There is no access control of any kind; the app is simply not hosted.
+  If a future change adds real auth, this file and the deploy guide's access
+  model both need updating.
 
 ## Pointers
 
 - [README.md](./README.md) — quick start
 - [Root AGENTS.md](../AGENTS.md) — cross-cutting rules and the real topology diagram
-- [docs/guides/deploy.md](../docs/guides/deploy.md) — why this app must stay behind Basic Auth
+- [docs/guides/deploy.md](../docs/guides/deploy.md) — why this app is not deployed
 - [infra/README.md](../infra/README.md) — Compose wiring

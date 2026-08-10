@@ -32,8 +32,17 @@ services:
     environment:
       ENV: development
 
+  # `web` is defined here in full rather than in docker-compose.yml, because an
+  # override file can change a service but cannot remove one — a definition in
+  # the base would leak into the prod stack, which deliberately does not run
+  # the dashboard. See the note where it used to be.
   web:
     build:
+      # Repository root, not web/ — the docs site prerenders `docs/**/*.md`,
+      # and a context rooted at web/ cannot reach a sibling directory. The
+      # root `.dockerignore` keeps the widened context down to web/ + docs/.
+      context: ../..
+      dockerfile: web/Dockerfile
       target: dev
     command: pnpm dev
     volumes:
@@ -42,5 +51,31 @@ services:
       - /app/.next
     ports:
       - "3001:3000"
+    depends_on:
+      - api-gateway
+    networks:
+      - bp-net
     environment:
       NODE_ENV: development
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      # Server Actions (web/src/lib/gateway.ts, web/src/lib/ai-service.ts) read
+      # these at request time and default to `http://localhost:*` if unset —
+      # which inside this container resolves to the `web` container itself, not
+      # api-gateway/ai-service.
+      GATEWAY_URL: http://api-gateway:3000
+      AI_SERVICE_URL: http://ai-service:8000
+      # The dashboard is a fifth consumer of the datastores, not a gateway
+      # client: web/src/lib/{db,redis,s3}.ts open their own connections. None of
+      # these were wired before, so every /admin/ page except the gateway probe
+      # reported its service as down in Compose, with nothing in a log to say
+      # the client had simply never been pointed anywhere. `localhost` inside
+      # this container is this container.
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      S3_PROVIDER: ${S3_PROVIDER}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_DEFAULT_REGION: ${S3_DEFAULT_REGION}

@@ -188,12 +188,13 @@ rule 5 exists.
 
 ## Docker and deploy
 
-### `/` or `/graphiql` returns 500 in prod
+### `/graphiql` returns 500 in prod
 
 **Cause.** `infra/nginx/auth/.htpasswd` does not exist. It is gitignored;
 only the directory is tracked.
 
-**Fix.** Generate it — see [deploy.md](./deploy.md).
+**Fix.** Generate it — see [deploy.md](./deploy.md). `/graphql` keeps working
+either way; only the gated route fails.
 
 ### A container cannot reach another service
 
@@ -203,11 +204,70 @@ only the directory is tracked.
 **Fix.** Use Compose service names: `postgres`, `redis`, `api-gateway`,
 `ai-service`.
 
-### Certificate issuance fails on a fresh host
+### nginx will not start: `host not found in upstream "api-gateway"`
 
-**Cause.** HTTP-01 validates by inbound request. DNS must resolve and port 80
-must be open **before** `init-letsencrypt.sh` runs.
+**Cause.** nginx resolves every `proxy_pass` hostname **once, at config load**,
+and refuses to start if one does not resolve. On a container network that means
+the upstream container is not running.
 
-**Fix.** Fix DNS and the firewall, then re-run the script — it is idempotent.
-Set `CERTBOT_STAGING=1` to rehearse without burning the production CA's
-per-domain rate limit.
+**Fix.** Start `api-gateway` first — `bp-nginx.container` declares
+`Requires=bp-api-gateway.service` for exactly this. The same mechanism is why
+adding a `location` that proxies to a service you did not deploy takes the whole
+proxy down rather than just that route.
+
+### Every container is healthy and the site is down
+
+**Cause.** Ingress is a Cloudflare Tunnel, so nothing on the host is publicly
+reachable and no container can observe the failure. Either the connector is not
+connected, or the tunnel's Public Hostname in the Cloudflare dashboard is
+missing or points somewhere else.
+
+**Fix.** Work down the list:
+
+```bash
+podman healthcheck run cloudflared
+journalctl --user -u bp-cloudflared -n 50 --no-pager   # "Registered tunnel connection"
+podman exec nginx wget -qO- 'http://127.0.0.1/graphql?query=%7Bhello%7D'
+```
+
+Repeated `Unauthorized` in the connector log means the token is wrong or the
+tunnel was deleted. If the connector is fine and nginx answers on loopback,
+check the dashboard: the Public Hostname must read `api.<domain> →
+HTTP://nginx:80`.
+
+### `/api/auth/*` returns 404, or email OTP never arrives
+
+**Cause.** Two independent causes with the same symptom, so check both.
+
+1. `BETTER_AUTH_URL` is unset or has a path in it. It is **origin only** —
+   Better Auth appends `/api/auth` itself and discards anything else with a
+   warning. Nothing fails at boot.
+2. nginx's catch-all does not reach the gateway. `/api/auth/*` has no
+   `location` of its own and depends on `location /` proxying to
+   `api-gateway:3000`. Until 2026-08-09 it pointed at the `web` dashboard, and
+   every one of these routes returned a Next.js 404.
+
+**Fix.** Set `BETTER_AUTH_URL=https://$DOMAIN_NAME` with no path, and confirm
+the route end to end:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' https://$DOMAIN_NAME/api/auth/ok
+```
+
+### Android rejects every passkey
+
+**Cause.** `/.well-known/assetlinks.json` is not reachable on the RP domain.
+Same catch-all dependency as the previous entry, plus a configuration trap:
+`PASSKEY_RP_ID` must be the **same host** that serves the file. The gateway
+serves it on `DOMAIN_NAME`, so with `DOMAIN_NAME=api.example.com` an RP ID of
+`example.com` sends Android to a host this stack does not serve.
+
+**Fix.**
+
+```bash
+curl -sS https://$DOMAIN_NAME/.well-known/assetlinks.json   # JSON, not an HTML 404
+```
+
+If it returns an empty certificate list, `ANDROID_APP_SHA256_FINGERPRINT` is
+unset — a file listing zero certificates is worse than no file, because Android
+reads it as "this domain vouches for nobody".

@@ -7,11 +7,21 @@ the repo's `docs/**/*.md` — architecture diagrams included — as a static sit
 > ⚠️ This is not a patient- or clinician-facing app, and it has **no
 > authentication**. No auth library is installed and there is no login form —
 > `/` redirects to the docs. The pages under `/admin` connect directly to
-> Postgres, Redis, and S3, so ungated on a public host they are a
-> read-anything database inspector. They are gated by the nginx Basic Auth
-> rule on `location /admin/` and nothing else; see the access model in
-> [docs/guides/deploy.md](../docs/guides/deploy.md). The docs at `/` are
-> deliberately public.
+> Postgres, Redis, and S3, so on a public host they would be a read-anything
+> database inspector.
+>
+> **So it is not deployed.** It used to be reachable in production behind a
+> single nginx Basic Auth rule on `location /admin/`; that rule is gone, along
+> with the route. The app is now defined in
+> `infra/docker-compose/docker-compose.dev.yml` and nowhere else, so it cannot
+> start in the prod-shaped or production stacks. Removing it from the deploy is
+> the version of that decision that cannot silently regress when someone edits
+> an nginx config.
+>
+> Run it locally — including against production datastores via `.env.local` if
+> you need to. Just do not host it. See
+> [docs/guides/deploy.md](../docs/guides/deploy.md) and
+> [infra/README.md](../infra/README.md).
 
 Patient interactions happen in the Expo mobile client (`client/`).
 

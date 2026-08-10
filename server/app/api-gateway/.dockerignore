@@ -1,0 +1,43 @@
+# Build context filter for server/app/api-gateway/Dockerfile.
+#
+# The Dockerfile's dev and prod stages both do `COPY . .` after `pnpm install`.
+# Without this file that copy sweeps in whatever happens to be sitting in a
+# developer's checkout, and two of those are actively harmful rather than
+# merely wasteful:
+#
+#   - .env  — a real credential, baked into an image layer. dotenv does not
+#     override variables already in the process environment, so it does not
+#     change how the container runs; it just travels with the image forever.
+#   - node_modules — installed on the *host*. `COPY . .` lands after the
+#     `pnpm install` layer, so a host tree silently replaces the one built
+#     inside node:24-alpine. Any package with a native binding (musl vs glibc,
+#     a different CPU) then fails at runtime rather than at build time.
+#
+# The root .dockerignore does NOT cover this build. It applies to the `web`
+# image, which is the only one whose context is the repository root.
+#
+# NOT excluded, on purpose: src/prisma/generated/. The Prisma 7 `prisma-client`
+# generator writes the client into the source tree (prisma/schema.prisma,
+# `output = "../src/prisma/generated"`) and it is committed. Nothing in the
+# Dockerfile runs `prisma generate`, so excluding it would break `nest build`
+# on an unresolved import.
+
+.env
+.env.*
+!.env.example
+
+node_modules
+dist
+coverage
+
+.git
+.gitignore
+.idea
+.vscode
+
+# Test fixtures and specs are not needed at runtime, but `nest build` type-checks
+# against tsconfig, so leaving test/ in is cheaper than debugging a path error.
+# Only the throwaway output is dropped.
+.eslintcache
+*.log
+.DS_Store
