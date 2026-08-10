@@ -27,10 +27,27 @@
 #
 # ── Setup this file cannot do for you ───────────────────────────────────────
 # 1. An IAM role that GitHub can assume via OIDC — no stored AWS keys. Trust
-#    policy on token.actions.githubusercontent.com, scoped to
-#    `repo:vanTHkrab/BP-Monitor-Application:ref:refs/heads/main`. **Scope it to
-#    the ref**: a role trusting the whole repo can be assumed from any branch
-#    in any PR that can trigger a workflow.
+#    policy on token.actions.githubusercontent.com, with the `sub` condition:
+#
+#      repo:vanTHkrab/BP-Monitor-Application:environment:production
+#
+#    **`environment:`, not `ref:refs/heads/main`.** The job below declares
+#    `environment: production`, and GitHub rewrites the OIDC subject claim to
+#    the environment form when it does. A trust policy written against the
+#    branch form is simply never matched, and the failure is an opaque
+#    "Not authorized to perform sts:AssumeRoleWithWebIdentity" that says
+#    nothing about which claim missed.
+#
+#    Scoping to the environment is also what makes the approval gate load
+#    bearing rather than cosmetic: the role cannot be assumed at all except
+#    from a job that entered `production`, which is the job a reviewer has to
+#    release. A role trusting `repo:OWNER/REPO:*` can be assumed from any
+#    branch in any workflow that can run.
+#
+#    (This repository predates 2026-07-15, so it uses the classic mutable
+#    subject format above. Repositories created after that date default to an
+#    immutable format carrying owner and repository IDs — check the actual
+#    token claims before copying this policy into a newer repo.)
 #    Permissions needed: ssm:SendCommand, ssm:GetCommandInvocation,
 #    ssm:ListCommandInvocations, on the AWS-RunShellScript document and the
 #    one instance.

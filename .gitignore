@@ -1,0 +1,45 @@
+# Repo-root ignores.
+#
+# Each app owns its own .gitignore (client/, web/, server/app/*) — this file is
+# deliberately narrow and holds only what must never be committed *anywhere* in
+# the tree. Adding general build-output patterns here would duplicate rules the
+# apps already own and are better placed to keep correct.
+#
+# ── Private service-account keys ────────────────────────────────────────────
+# This repository is PUBLIC. A key committed here is disclosed the moment it is
+# pushed, not merely "in the history" — rewriting history does not un-disclose
+# it, and the only real remedy is revoking the key.
+#
+# Two of these are needed for releases, they are different credentials from
+# different consoles, and neither belongs in the repo at all:
+#
+#   - FCM V1 push key — Firebase Console -> Project settings -> Service
+#     accounts -> Firebase Admin SDK -> Generate new private key. Downloads as
+#     <project>-firebase-adminsdk-<hash>.json.
+#   - Play submission key — Google Cloud Console -> IAM & Admin -> Service
+#     Accounts -> Manage keys -> Create new key (JSON).
+#
+# Both are uploaded once via `eas credentials` / `eas submit` and then live on
+# EAS, encrypted at rest. **The safest handling is to never place them in this
+# directory tree** — download elsewhere and pass the path to the CLI. These
+# patterns are the net for when that is forgotten, not the plan.
+*service-account*.json
+*service_account*.json
+*-firebase-adminsdk-*.json
+gcp-*.json
+
+# ── Not ignored, on purpose ─────────────────────────────────────────────────
+# client/google-services.json is tracked and must stay tracked. Despite the
+# similar name it holds only public identifiers — no `private_key` field — and
+# `expo.android.googleServicesFile` in app.json points at it. Ignoring it
+# breaks the Android build's FCM registration.
+!client/google-services.json
+
+# Local environment files. Each app's own .gitignore covers its .env; this is
+# the backstop for one landing at the root or in a new directory.
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+.DS_Store
