@@ -74,6 +74,18 @@
 #    `.env` in infra/docker-compose/ (gitignored, host-owned) and origin set to
 #    this repository. The script itself derives the repo root from its own
 #    location, so only this invocation path has to be right.
+# 5. The checkout's owner in the `docker` group:
+#
+#      sudo usermod -aG docker ubuntu
+#      sudo systemctl restart amazon-ssm-agent   # picks up the new group
+#
+#    SSM hands the script a root shell, but it drops to the checkout's owner
+#    immediately — running git as root in someone else's repository is what
+#    produces "detected dubious ownership", and silencing that with
+#    `safe.directory` would leave root-owned objects that break the next
+#    ordinary `git pull`. Root gets Docker access for free; the owner has to be
+#    granted it. The script checks and says so rather than failing on a socket
+#    permission error.
 
 name: Deploy server
 
