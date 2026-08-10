@@ -246,7 +246,9 @@ is a known way for a tunnel to start failing. Bump it by hand as maintenance:
 
 **Chosen: build on the box**, tagged with the git short SHA and `latest`.
 
-There is no CI in this repository — `.github` does not exist — so the options
+There is no CI **for this runtime** — `.github/workflows/` now exists, but it
+deploys the Docker Compose stack over AWS SSM and knows nothing about Quadlet —
+so the options
 were "build here" or "build elsewhere and ship a tarball". Building here means
 the image provably matches the checkout at `/opt/bp-monitor`; a `podman save` /
 `scp` / `podman load` loop has nothing tying the tarball to a commit except the
@@ -575,9 +577,12 @@ sysctl — is gone. nginx binds no host port.
    The exception that used to be named here — `bp-certbot-certs`, whose loss
    cost a re-issuance against Let's Encrypt's rate limit — no longer exists.
    Nothing on this host is now expensive to lose.
-6. **No CI.** Every quality gate is a human running commands. The image-build
-   story here (build on the box) is a direct consequence and the first thing
-   that should change when CI appears.
+6. **CI covers the Compose runtime, not this one.**
+   `.github/workflows/deploy-server.yml` deploys the Docker Compose prod stack
+   on push to `main` via AWS SSM, and `release-mobile.yml` builds and submits
+   the Expo app. Neither touches Quadlet: a Podman host still gets every image
+   built on the box by a human running `redeploy.sh`. That is the first thing
+   to change if this runtime is ever the one that serves traffic.
 7. **A `directUrl` in `prisma/schema.prisma` would make the two-URL split
    explicit.** It is *not required* — `prisma.config.ts` reads
    `process.env.DATABASE_URL`, so `bp-migrate.service` overriding that variable

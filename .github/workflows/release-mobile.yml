@@ -1,0 +1,111 @@
+# Mobile release — build on EAS and submit to Google Play.
+#
+# `main` only, and only when something under `client/` actually changed. This
+# is a monorepo: without the paths filter, every gateway or docs commit on main
+# would burn an EAS build.
+#
+# ── What runs where ─────────────────────────────────────────────────────────
+# The GitHub runner does not build the app. It runs the gate, then calls
+# `eas build`, which builds on EAS infrastructure and — because of
+# `--auto-submit` — uploads to Play Console from there when the build finishes.
+#
+# That is why this workflow needs exactly ONE secret. The Google Play service
+# account key and the Android keystore both live on EAS (encrypted at rest,
+# re-used across submissions), so no store credential ever passes through
+# GitHub. See docs.expo.dev/app-signing/security.
+#
+# ── Before this can succeed ─────────────────────────────────────────────────
+# Three things this file cannot do for you, each failing at a different stage:
+#
+#   1. `EXPO_TOKEN` in the `production` GitHub Environment. A *robot* token
+#      (expo.dev -> Account settings -> Access tokens), not a personal one —
+#      a personal token dies with the person's account and takes releases with
+#      it. Missing: fails at the `eas build` step.
+#   2. A Google Service Account Key uploaded to EAS **for submissions**. This
+#      is NOT the keystore, and NOT the FCM key used for push — three separate
+#      credentials that all live under `eas credentials`. It must be added
+#      interactively once (`eas credentials -p android`); eas-cli refuses to
+#      set one up in --non-interactive mode, so CI cannot bootstrap it.
+#      Missing: the build succeeds and the submit fails.
+#   3. One AAB uploaded to Play Console **by hand**. Google rejects the first
+#      upload of an app over the API. Missing: submit fails with
+#      `App not found`, which reads like a config error and is not one.
+#
+# ── The approval gate ───────────────────────────────────────────────────────
+# `environment: production` is not decoration. Configure it under
+# Settings -> Environments -> production with **Required reviewers**, and this
+# job waits for a human before it can submit. Store releases do not roll back:
+# pulling a release does not un-install it from the phones that already got it.
+# Everything before the gate — the test suite — is cheap to re-run; everything
+# after it is not.
+
+name: Mobile release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - '.github/workflows/release-mobile.yml'
+  workflow_dispatch:
+
+# Serialise releases. Two builds racing would both increment the remote version
+# code and submit, and Play would reject the loser on a duplicate version code —
+# after the build minutes were already spent. `cancel-in-progress: false`
+# because a submit already in flight must not be interrupted.
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    name: Build and submit (Android)
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # The project gate: lint -> typecheck -> verify-graphql -> jest.
+      # Ahead of the build on purpose — an EAS build costs minutes and ~20
+      # minutes of waiting, and `pnpm check` answers in about one.
+      - name: Gate — pnpm check
+        run: pnpm check
+
+      # NOT part of `pnpm check`, and load-bearing. This hashes the bundled
+      # yolo11n.onnx / crnn.onnx against the ai-service manifest. Drift means
+      # the phone approves a framing the server cannot read — a failure that
+      # shows up as bad OCR in production, never as a red test.
+      - name: Gate — verify bundled models
+        run: node ./scripts/verify-models.mjs
+
+      - uses: expo/expo-github-action@v8
+        with:
+          # Pinned deliberately. `latest` means a release can break because
+          # Expo shipped a CLI that morning, on a day nobody touched this repo.
+          # Bump it as a visible commit.
+          eas-version: 19.0.8
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # Waits for the build rather than returning immediately: on a public repo
+      # runner minutes are free, and a red X here is worth more than a green
+      # one that only means "the job was queued". `--auto-submit` hands the
+      # finished artifact to EAS Submit, which uploads to the track configured
+      # in eas.json.
+      - name: Build and submit
+        run: eas build --platform android --profile production --auto-submit --non-interactive
