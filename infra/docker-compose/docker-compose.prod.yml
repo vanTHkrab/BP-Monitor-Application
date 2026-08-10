@@ -84,12 +84,18 @@ services:
       # missing, nginx still starts and /graphql keeps working — only
       # /graphiql 500s.
       - ../nginx/auth:/etc/nginx/auth:ro
-      - ../nginx/reload-loop.sh:/usr/local/bin/reload-loop.sh:ro
+      # /docker-entrypoint.d/, NOT /usr/local/bin, and there is deliberately no
+      # `command:` override below. The image's entrypoint renders
+      # /etc/nginx/templates/*.template through envsubst only when the command
+      # it receives starts with `nginx`. Overriding the command to run this
+      # script directly skipped that entirely: nginx booted on the stock
+      # default.conf, the domain served "Welcome to nginx!", and /graphql 404'd
+      # while the container reported healthy. See the header of reload-loop.sh.
+      - ../nginx/reload-loop.sh:/docker-entrypoint.d/99-reload-loop.sh:ro
     expose:
       - "80"
     networks:
       - bp-net
-    command: ["/bin/sh", "/usr/local/bin/reload-loop.sh"]
 
   # The Cloudflare Tunnel connector — the stack's only ingress.
   #
