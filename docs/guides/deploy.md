@@ -369,6 +369,52 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 `DATABASE_URL`'s host must be `postgres` and Redis's must be `redis` — the
 Compose service names. `localhost` inside a container is that container.
 
+### Automated deploys (GitHub Actions -> AWS SSM)
+
+`.github/workflows/deploy-server.yml` deploys this stack on every push to
+`main` that touches `server/**` or `infra/**`.
+
+**It goes through AWS Systems Manager, not SSH, and that is not a preference.**
+The instance has no inbound security-group rule — cloudflared dials out and
+nothing dials in. SSH from a runner would mean opening a port and handing back
+the property the tunnel exists to provide. SSM inverts the direction the same
+way the tunnel does: the agent on the instance polls AWS, and the workflow
+leaves a command for it to collect.
+
+The workflow only *invokes*; the steps live in
+[`infra/scripts/deploy-compose.sh`](../../infra/scripts/deploy-compose.sh), so
+they are reviewable in a PR and an operator can run the identical thing by hand
+during an incident:
+
+```bash
+sudo /opt/bp-monitor/infra/scripts/deploy-compose.sh <git-sha>
+```
+
+The script checks out an exact SHA rather than pulling `main`, so the running
+code is the commit that triggered the deploy and not whatever `main` advanced
+to while the build was queued. It refuses to run on a dirty working tree —
+an unexplained local edit on the box is more often an in-progress incident fix
+than a mistake, and `git reset --hard` would destroy it silently. It passes
+`--remove-orphans`, which is what finally clears the `web` and `certbot`
+containers from hosts that ran an older revision of this stack.
+
+> ⚠️ **Migrations are not run.** Deliberate, for the same reason
+> `bp-migrate.service` is a manual gate: a restart policy plus migrate-on-boot
+> turns a crash loop into repeated schema mutations against live patient data.
+> A deploy that ships one is two steps, in this order:
+>
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+>   run --rm api-gateway pnpm prisma migrate deploy    # you, by hand
+> git push origin main                                  # then the code
+> ```
+
+Setup the workflow cannot do for itself — an IAM role assumed via OIDC (scoped
+to `refs/heads/main`, not the whole repo), the SSM agent with
+`AmazonSSMManagedInstanceCore`, and three repository *variables*
+(`AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `EC2_INSTANCE_ID`) — is written up in the
+workflow's own header.
+
 ### The prod-shaped stack
 
 `docker-compose.prod.yml` is a **rehearsal**, not production: built images,

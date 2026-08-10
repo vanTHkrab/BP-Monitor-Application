@@ -1,0 +1,140 @@
+# Server deploy — build and restart the Docker Compose prod stack on EC2.
+#
+# `main` only, and only when something the stack actually ships changed.
+#
+# ── Why SSM and not SSH ─────────────────────────────────────────────────────
+# The EC2 instance has **no inbound security-group rule**. That is the point of
+# the Cloudflare Tunnel: cloudflared dials out, nothing dials in, and the host
+# is not addressable from the internet. SSH from a GitHub runner would mean
+# opening a port and giving back the property the tunnel exists to provide.
+#
+# AWS Systems Manager inverts the direction the same way the tunnel does — the
+# SSM agent on the instance polls AWS, and this workflow hands AWS a command
+# for it to collect. No inbound rule, no bastion, no long-lived SSH key.
+#
+# ── Why the deploy steps are not inline here ────────────────────────────────
+# The workflow invokes infra/scripts/deploy-compose.sh rather than sending a
+# string of docker commands. That script is version-controlled and reviewable
+# in a PR, and an operator can run it by hand during an incident and get
+# exactly what CI gets. An inline command block is a second, invisible copy of
+# the deploy procedure that drifts from the first.
+#
+# ── Migrations are NOT run ──────────────────────────────────────────────────
+# Deliberate, and the script says so at length. A deploy shipping a Prisma
+# migration is two steps and the order matters: run the migration by hand
+# first, then let this deploy the code. Additive schema, then code; drops in a
+# separate later change.
+#
+# ── Setup this file cannot do for you ───────────────────────────────────────
+# 1. An IAM role that GitHub can assume via OIDC — no stored AWS keys. Trust
+#    policy on token.actions.githubusercontent.com, scoped to
+#    `repo:vanTHkrab/BP-Monitor-Application:ref:refs/heads/main`. **Scope it to
+#    the ref**: a role trusting the whole repo can be assumed from any branch
+#    in any PR that can trigger a workflow.
+#    Permissions needed: ssm:SendCommand, ssm:GetCommandInvocation,
+#    ssm:ListCommandInvocations, on the AWS-RunShellScript document and the
+#    one instance.
+# 2. The SSM agent running on the instance, with an instance profile granting
+#    AmazonSSMManagedInstanceCore. Amazon Linux 2023 ships the agent; it still
+#    needs the role.
+# 3. Repository variables (not secrets — none of these are credentials):
+#      AWS_REGION           e.g. ap-southeast-1
+#      AWS_DEPLOY_ROLE_ARN  arn:aws:iam::<acct>:role/<role>
+#      EC2_INSTANCE_ID      i-0123456789abcdef0
+# 4. The repo checked out at /opt/bp-monitor on the host, with a `.env` in
+#    infra/docker-compose/ (gitignored, host-owned) and origin set to this
+#    repository.
+
+name: Deploy server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'infra/**'
+      - '.github/workflows/deploy-server.yml'
+  workflow_dispatch:
+
+# One deploy at a time. Two overlapping runs would race on the same checkout —
+# one script resetting the tree to a different SHA while the other builds from
+# it. `cancel-in-progress: false` because a half-finished deploy is worse than
+# a queued one.
+concurrency:
+  group: server-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC; without it the role assumption fails
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # send-command returns as soon as AWS accepts the request — it does not
+      # wait for the instance to run anything. The command id is what the next
+      # two steps use to wait for, and then read, the real result.
+      - name: Send deploy command
+        id: send
+        run: |
+          command_id=$(aws ssm send-command \
+            --instance-ids "${{ vars.EC2_INSTANCE_ID }}" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy ${GITHUB_SHA::7} from ${GITHUB_REF_NAME}" \
+            --timeout-seconds 600 \
+            --parameters commands="/opt/bp-monitor/infra/scripts/deploy-compose.sh ${GITHUB_SHA}" \
+            --query 'Command.CommandId' --output text)
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+          echo "Command: $command_id"
+
+      # The waiter polls until the invocation leaves the in-progress states. It
+      # exits non-zero on Failed/TimedOut, which is what makes a broken deploy
+      # a red run rather than a green one — but it says nothing about *why*,
+      # so the failure is swallowed here and the next step prints the output
+      # for both outcomes before deciding.
+      - name: Wait for completion
+        id: wait
+        continue-on-error: true
+        run: |
+          aws ssm wait command-executed \
+            --command-id "${{ steps.send.outputs.command_id }}" \
+            --instance-id "${{ vars.EC2_INSTANCE_ID }}"
+
+      - name: Report result
+        run: |
+          invocation=$(aws ssm get-command-invocation \
+            --command-id "${{ steps.send.outputs.command_id }}" \
+            --instance-id "${{ vars.EC2_INSTANCE_ID }}")
+
+          status=$(echo "$invocation" | jq -r '.Status')
+
+          echo "::group::stdout"
+          echo "$invocation" | jq -r '.StandardOutputContent'
+          echo "::endgroup::"
+
+          stderr=$(echo "$invocation" | jq -r '.StandardErrorContent')
+          if [ -n "$stderr" ] && [ "$stderr" != "null" ]; then
+            echo "::group::stderr"
+            echo "$stderr"
+            echo "::endgroup::"
+          fi
+
+          echo "Status: $status"
+
+          # SSM truncates inline output at 24 KB. If the deploy log is clipped,
+          # say so rather than letting a reader conclude the script stopped
+          # where the text stops.
+          if [ "$(echo "$invocation" | jq -r '.StandardOutputContent | length')" -ge 24000 ]; then
+            echo "::warning::stdout hit SSM's 24 KB inline limit and is truncated."
+          fi
+
+          [ "$status" = "Success" ]
