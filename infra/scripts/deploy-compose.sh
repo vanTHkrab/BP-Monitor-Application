@@ -29,9 +29,25 @@
 
 set -euo pipefail
 
-REPO_DIR="${BP_REPO_DIR:-/opt/bp-monitor}"
+# Derived from this script's own location — <repo>/infra/scripts/ — rather
+# than hardcoded. The checkout can then live anywhere (~/BP-Monitor-Application,
+# /opt/bp-monitor, a throwaway clone) and this keeps working.
+#
+# `~` is deliberately not used anywhere in this file. SSM runs
+# AWS-RunShellScript as **root**, so `~` expands to /root, not to the deploy
+# user's home — a path that would resolve correctly in an interactive SSH
+# session and silently point at a non-existent directory under SSM.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="${BP_REPO_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 COMPOSE_DIR="$REPO_DIR/infra/docker-compose"
 TARGET_SHA="${1:-}"
+
+if [ ! -d "$REPO_DIR/.git" ]; then
+    echo "!!! $REPO_DIR is not a git checkout." >&2
+    echo "!!! Expected this script at <repo>/infra/scripts/deploy-compose.sh," >&2
+    echo "!!! or BP_REPO_DIR pointing at the checkout." >&2
+    exit 1
+fi
 
 if [ -z "$TARGET_SHA" ]; then
     echo "!!! usage: $0 <git-sha>" >&2

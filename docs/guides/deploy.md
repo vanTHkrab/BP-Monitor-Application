@@ -387,8 +387,19 @@ they are reviewable in a PR and an operator can run the identical thing by hand
 during an incident:
 
 ```bash
-sudo /opt/bp-monitor/infra/scripts/deploy-compose.sh <git-sha>
+sudo ~/BP-Monitor-Application/infra/scripts/deploy-compose.sh <git-sha>
 ```
+
+The script derives the repository root from its own location, so the checkout
+can live anywhere — `~/BP-Monitor-Application` is what this host uses. The
+workflow needs the absolute path to invoke it, and that lives in one place, the
+`EC2_REPO_DIR` value in the workflow's `env:` block.
+
+> ⚠️ **Do not write `~` in the workflow.** SSM runs `AWS-RunShellScript` as
+> **root**, so `~/BP-Monitor-Application` expands to `/root/BP-Monitor-Application`
+> — a path that resolves correctly when you test it over SSH as the deploy user
+> and does not exist under SSM. Spell the home directory out
+> (`/home/ec2-user/...`, or `/home/ubuntu/...` on Ubuntu images).
 
 The script checks out an exact SHA rather than pulling `main`, so the running
 code is the commit that triggered the deploy and not whatever `main` advanced

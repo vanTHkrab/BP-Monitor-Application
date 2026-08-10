@@ -70,9 +70,10 @@
 #    all log output, so a region like `ap-southeast-1` is redacted wherever it
 #    appears — including inside unrelated ARNs and error messages. If a log
 #    ever reads as though a value vanished mid-string, that is why.
-# 4. The repo checked out at /opt/bp-monitor on the host, with a `.env` in
-#    infra/docker-compose/ (gitignored, host-owned) and origin set to this
-#    repository.
+# 4. The repo checked out at EC2_REPO_DIR (see the `env:` block below), with a
+#    `.env` in infra/docker-compose/ (gitignored, host-owned) and origin set to
+#    this repository. The script itself derives the repo root from its own
+#    location, so only this invocation path has to be right.
 
 name: Deploy server
 
@@ -97,6 +98,20 @@ permissions:
   contents: read
   id-token: write # required for OIDC; without it the role assumption fails
 
+env:
+  # Absolute path to the checkout on the instance. Change it here, in one
+  # place, if the repo lives somewhere else.
+  #
+  # **`~` will not work, and the failure is quiet.** SSM runs
+  # AWS-RunShellScript as root, so `~/BP-Monitor-Application` expands to
+  # /root/BP-Monitor-Application — a path that resolves correctly when you try
+  # it over SSH as the deploy user and does not exist under SSM. Spell the home
+  # directory out.
+  #
+  # `ec2-user` is the default first user on Amazon Linux; on Ubuntu images it
+  # is `ubuntu`. Check with `echo $HOME` on the box before trusting this line.
+  EC2_REPO_DIR: /home/ec2-user/BP-Monitor-Application
+
 jobs:
   deploy:
     name: Deploy to EC2
@@ -120,7 +135,7 @@ jobs:
             --document-name AWS-RunShellScript \
             --comment "deploy ${GITHUB_SHA::7} from ${GITHUB_REF_NAME}" \
             --timeout-seconds 600 \
-            --parameters commands="/opt/bp-monitor/infra/scripts/deploy-compose.sh ${GITHUB_SHA}" \
+            --parameters commands="${EC2_REPO_DIR}/infra/scripts/deploy-compose.sh ${GITHUB_SHA}" \
             --query 'Command.CommandId' --output text)
           echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
           echo "Command: $command_id"
