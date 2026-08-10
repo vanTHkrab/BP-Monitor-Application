@@ -99,6 +99,7 @@
     "prestart": "node ./scripts/verify-models.mjs",
     "preandroid": "node ./scripts/verify-models.mjs",
     "preios": "node ./scripts/verify-models.mjs",
+    "pretypecheck": "expo customize tsconfig.json",
     "typecheck": "tsc --noEmit -p .",
     "check": "pnpm lint && pnpm typecheck && pnpm verify-graphql && pnpm test",
     "test": "jest --watchman=false",
