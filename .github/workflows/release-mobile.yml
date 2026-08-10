@@ -67,13 +67,19 @@ jobs:
         working-directory: client
 
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to a major tag, which tracks patches automatically.
+      # Bump the major deliberately: GitHub deprecates the Node runtime an
+      # action declares (node20 -> node24 as of 2025-09), and an action still
+      # on the old one produces a warning on every run until it is moved.
+      # Check the inputs still exist before bumping — a major can rename them,
+      # and a dropped input fails at run time, not at parse time.
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.13.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -94,7 +100,7 @@ jobs:
       - name: Gate — verify bundled models
         run: node ./scripts/verify-models.mjs
 
-      - uses: expo/expo-github-action@v8
+      - uses: expo/expo-github-action@v9
         with:
           # Pinned deliberately. `latest` means a release can break because
           # Expo shipped a CLI that morning, on a day nobody touched this repo.
