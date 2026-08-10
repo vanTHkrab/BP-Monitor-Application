@@ -49,6 +49,38 @@ if [ ! -d "$REPO_DIR/.git" ]; then
     exit 1
 fi
 
+# ── Run as the checkout's owner, not as root ────────────────────────────────
+# SSM runs AWS-RunShellScript as root while the checkout belongs to `ubuntu`,
+# and git refuses to operate across that boundary:
+#
+#   fatal: detected dubious ownership in repository at '/home/ubuntu/...'
+#
+# git suggests `safe.directory` as the fix. Do not take it here. It silences
+# the check but leaves root writing into someone else's repository: the objects
+# and worktree files this script creates end up root-owned, and the next
+# ordinary `git pull` as `ubuntu` fails with permission errors that look
+# unrelated to any deploy. The warning is pointing at a real problem.
+#
+# Dropping to the owner fixes the cause instead, and has the side benefit that
+# a deploy leaves the checkout exactly as an operator's own commands would.
+REPO_OWNER="$(stat -c '%U' "$REPO_DIR")"
+if [ "$(id -u)" -eq 0 ] && [ "$REPO_OWNER" != "root" ]; then
+    echo ">>> Re-running as $REPO_OWNER (checkout owner; this shell is root)"
+    exec runuser -u "$REPO_OWNER" -- "$0" "$@"
+fi
+
+# Reached only as the owner. Docker is the one thing root had for free, so
+# check it explicitly rather than letting `docker compose build` fail with a
+# socket permission error that reads like a Docker problem.
+if ! docker info >/dev/null 2>&1; then
+    echo "!!! $(id -un) cannot reach the Docker daemon." >&2
+    echo "!!! Add the user to the docker group, once, on the host:" >&2
+    echo "!!!   sudo usermod -aG docker $(id -un)" >&2
+    echo "!!! Then restart the SSM agent so it picks up the new group:" >&2
+    echo "!!!   sudo systemctl restart amazon-ssm-agent" >&2
+    exit 1
+fi
+
 if [ -z "$TARGET_SHA" ]; then
     echo "!!! usage: $0 <git-sha>" >&2
     echo "!!! Deploying 'whatever main happens to be' makes the deployed" >&2
