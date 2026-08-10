@@ -170,13 +170,32 @@ export default function CommunityScreen() {
           onPress={() => setComposer({ mode: 'create' })}
           accessibilityRole="button"
           accessibilityLabel="เขียนโพสต์ใหม่"
-          className="absolute right-5 flex-row items-center rounded-full px-5"
-          style={({ pressed }) => ({
+          className="flex-row items-center rounded-full px-5 active:opacity-90"
+          // Positioning lives here, not in `className`, and the `style` prop is
+          // an object rather than Pressable's `({ pressed }) => …` form. Those
+          // two facts are the same fact: NativeWind's interop *silently
+          // discards a function `style`*. `collectInlineRules`
+          // (react-native-css-interop/runtime/native/native-interop.js) walks
+          // the inline prop expecting an object or an array of them, and pushes
+          // a function into the rule list unchanged — where it contributes no
+          // style keys and no error. The className half survives, so this
+          // button kept `position: absolute` while losing `bottom`,
+          // `minHeight`, and `backgroundColor`: an invisible, unanchored box
+          // that Yoga parked at the top of the screen. That was C-009.
+          //
+          // Press feedback moves to the `active:` variant for the same reason —
+          // the `pressed` callback it replaces had never once run.
+          //
+          // 17.5 is what `right-5` resolved to: NativeWind's native rem is 14,
+          // so this is the same scale step as the `px-5` beside it, preserved
+          // exactly rather than rounded to a friendlier-looking 20.
+          style={{
+            position: 'absolute',
+            right: 17.5,
             bottom: insets.bottom + 80,
             minHeight: 56,
             backgroundColor: colors.primary,
-            opacity: pressed ? 0.9 : 1,
-          })}
+          }}
         >
           <Ionicons name="create-outline" size={22} color="#FFFFFF" />
           <ThemedText type="body" weight="bold" className="ml-2" style={{ color: '#FFFFFF' }}>

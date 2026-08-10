@@ -36,6 +36,8 @@ jest.mock('@/modules/auth', () => ({
   useSession: () => ({ userId: 'u1' }),
 }));
 
+import { StyleSheet } from 'react-native';
+
 import CommunityScreen from '@/app/(tabs)/post';
 import { CATEGORY_TABS, categoryLabel, DEFAULT_CATEGORY } from '@/modules/community';
 import { renderScreen } from '../test-utils';
@@ -69,6 +71,42 @@ describe('CommunityScreen', () => {
 
     expect(view.getByText('ชุมชนสุขภาพ')).toBeOnTheScreen();
     expect(view.getByTestId('community-compose')).toBeOnTheScreen();
+  });
+
+  /*
+   * C-009: the compose button rendered at the top-left instead of as a
+   * floating action button at the bottom-right, and the only assertion on it
+   * was `toBeOnTheScreen()` — which a button in the wrong corner passes.
+   *
+   * The cause was NativeWind, not layout. Its interop **silently discards a
+   * function `style` prop**: `collectInlineRules` walks the inline prop
+   * expecting an object or an array of them, and pushes Pressable's
+   * `({ pressed }) => …` form into the rule list unchanged, where it yields no
+   * style keys and no warning. The `className` half survives, so the button
+   * kept `position: absolute` and lost `bottom`, `minHeight`, and
+   * `backgroundColor` — an invisible, unanchored box.
+   *
+   * **Why this assertion has teeth is subtle, so don't "simplify" it.** Under
+   * this project's jest config no CSS is registered, so `className` resolves to
+   * nothing at all and only the `style` prop reaches these props. A revert to
+   * the function form would still surface `bottom` and `minHeight` here (RN's
+   * own Pressable invokes the callback), but `position` and `right` would
+   * vanish with the className they'd have moved back into. Those two are the
+   * ones that fail the test. Asserting the whole object keeps the button's
+   * anchor, its size floor, and its fill in one place.
+   */
+  it('anchors the compose button to the bottom-right, above the tab bar', async () => {
+    const view = await renderScreen(<CommunityScreen />);
+
+    // `TEST_METRICS` in test-utils describes a notched phone: bottom inset 34.
+    expect(
+      StyleSheet.flatten(view.getByTestId('community-compose').props.style),
+    ).toMatchObject({
+      position: 'absolute',
+      right: 17.5,
+      bottom: 34 + 80,
+      minHeight: 56,
+    });
   });
 
   /*
