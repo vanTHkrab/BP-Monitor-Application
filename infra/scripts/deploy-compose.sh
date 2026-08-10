@@ -155,10 +155,39 @@ echo ">>> Bouncing nginx, then the tunnel, so both re-resolve"
 # the image's stock default.conf), it still resolves api-gateway on bp-net, and
 # the gateway answers GraphQL. A failure here is a failed deploy — the workflow
 # reads this exit code.
+#
+# ── It retries, and that is not defensive padding ───────────────────────────
+# `docker compose up -d` returns when the container has *started*, not when the
+# application inside it is listening. api-gateway boots Nest, connects Prisma
+# and builds the GraphQL schema first, so a single-shot check immediately after
+# the restart reliably catches nginx with nothing to proxy to and reports a 502
+# — a green deploy failed by its own smoke check. That is exactly what happened
+# on the first real run of this script.
+#
+# The gateway has no readiness probe to wait on (there is no /healthz — see
+# TASK.md A-003), so polling the thing we actually care about is the honest
+# check available. 90s is generous for a cold JIT and a first Prisma connect.
 echo
-echo ">>> Smoke check through the proxy"
-"${COMPOSE[@]}" exec -T nginx \
-    wget -qO- 'http://127.0.0.1/graphql?query=%7Bhello%7D'
+echo ">>> Smoke check through the proxy (up to 90s)"
+smoke_ok=0
+for attempt in $(seq 1 30); do
+    if response=$("${COMPOSE[@]}" exec -T nginx \
+            wget -qO- 'http://127.0.0.1/graphql?query=%7Bhello%7D' 2>/dev/null); then
+        echo "$response"
+        echo ">>> Answered after ${attempt} attempt(s)"
+        smoke_ok=1
+        break
+    fi
+    sleep 3
+done
+
+if [ "$smoke_ok" -ne 1 ]; then
+    echo "!!! Smoke check never succeeded. The stack is up but not serving." >&2
+    echo "!!! Last 40 lines of api-gateway — the usual cause is a boot failure" >&2
+    echo "!!! (missing env, unreachable database) rather than anything in nginx:" >&2
+    "${COMPOSE[@]}" logs --tail 40 api-gateway >&2 || true
+    exit 1
+fi
 echo
 
 echo ">>> Deployed $TARGET_SHA"
