@@ -102,17 +102,20 @@ env:
   # Absolute path to the checkout on the instance. Change it here, in one
   # place, if the repo lives somewhere else.
   #
-  # **Never write `~` here, and the reason is not obvious.** SSM runs
-  # AWS-RunShellScript as root, so `~/BP-Monitor-Application` expands to
-  # /root/BP-Monitor-Application. That path resolves correctly when you test it
-  # over SSH as the deploy user, and does not exist under SSM — the failure is
-  # quiet and looks like the script is missing. If the checkout ever moves into
-  # a home directory, spell it out (/home/ec2-user/..., /home/ubuntu/... on
-  # Ubuntu images).
+  # **This is spelled out rather than written as `~`, and that is required.**
+  # SSM runs AWS-RunShellScript as root, so `~/BP-Monitor-Application` would
+  # expand to /root/BP-Monitor-Application — a path that resolves correctly
+  # when you test it over SSH as the `ubuntu` user and does not exist under
+  # SSM. The failure is quiet and reads as a missing script, so the home
+  # directory is written in full on purpose. Do not "tidy" it back to `~`.
   #
-  # /opt is also what the Podman runtime's unit files hardcode, so one checkout
-  # at this path serves both.
-  EC2_REPO_DIR: /opt/bp-monitor
+  # `ubuntu` because the instance runs an Ubuntu image; Amazon Linux would be
+  # `ec2-user`. Confirm with `echo $HOME` on the box rather than assuming.
+  #
+  # Note this is NOT the /opt/bp-monitor the Podman unit files hardcode. The
+  # two runtimes would need separate checkouts if both were ever run on one
+  # host — they are not today: this Compose stack is what serves traffic.
+  EC2_REPO_DIR: /home/ubuntu/BP-Monitor-Application
 
 jobs:
   deploy:

@@ -387,21 +387,23 @@ they are reviewable in a PR and an operator can run the identical thing by hand
 during an incident:
 
 ```bash
-sudo /opt/bp-monitor/infra/scripts/deploy-compose.sh <git-sha>
+sudo /home/ubuntu/BP-Monitor-Application/infra/scripts/deploy-compose.sh <git-sha>
 ```
 
 The script derives the repository root from its own location, so the checkout
-can live anywhere; `/opt/bp-monitor` is what this host uses, and it is also what
-the Podman runtime's unit files hardcode, so one checkout serves both. The
+can live anywhere; this host uses `/home/ubuntu/BP-Monitor-Application`. The
 workflow needs the absolute path to invoke it, and that lives in one place — the
 `EC2_REPO_DIR` value in the workflow's `env:` block.
 
-> ⚠️ **Never write `~` in the workflow.** SSM runs `AWS-RunShellScript` as
-> **root**, so `~/BP-Monitor-Application` would expand to
-> `/root/BP-Monitor-Application` — a path that resolves correctly when you test
-> it over SSH as the deploy user and does not exist under SSM. The failure is
-> quiet and reads as a missing script. If the checkout ever moves into a home
-> directory, spell it out (`/home/ec2-user/...`, `/home/ubuntu/...`).
+> ⚠️ **The home directory is written out in full, and must stay that way.** SSM
+> runs `AWS-RunShellScript` as **root**, so `~/BP-Monitor-Application` would
+> expand to `/root/BP-Monitor-Application` — a path that resolves correctly when
+> you test it over SSH as `ubuntu` and does not exist under SSM. The failure is
+> quiet and reads as a missing script.
+
+Note this is **not** the `/opt/bp-monitor` the Podman unit files hardcode. Both
+runtimes on one host would need separate checkouts; they are not run together
+today — the Compose stack is what serves traffic.
 
 The script checks out an exact SHA rather than pulling `main`, so the running
 code is the commit that triggered the deploy and not whatever `main` advanced
