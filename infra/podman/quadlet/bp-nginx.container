@@ -53,11 +53,18 @@ EnvironmentFile=/etc/bp-monitor/bp-monitor.env
 
 Volume=/opt/bp-monitor/infra/nginx/templates:/etc/nginx/templates:ro,z
 Volume=/opt/bp-monitor/infra/nginx/auth:/etc/nginx/auth:ro,z
-Volume=/opt/bp-monitor/infra/nginx/reload-loop.sh:/usr/local/bin/reload-loop.sh:ro,z
-
-# Run nginx in the foreground with a 6h background reload so a recreated
-# upstream is re-resolved without an operator noticing. See reload-loop.sh.
-Exec=/bin/sh /usr/local/bin/reload-loop.sh
+# /docker-entrypoint.d/, NOT /usr/local/bin, and there is deliberately no
+# `Exec=` below. The image's entrypoint renders /etc/nginx/templates/*.template
+# through envsubst only when the command it receives starts with `nginx`.
+# Setting Exec=/bin/sh ... skipped that entirely: nginx booted on the stock
+# default.conf, the domain served "Welcome to nginx!", and /graphql 404'd while
+# systemd reported the unit active. Leaving Exec unset runs the image's default
+# command, which is what makes the template render at all.
+#
+# The mounted file must keep its executable bit — the entrypoint logs
+# "Ignoring ..., not executable" and skips it otherwise, which costs the 6h
+# reload with no other symptom.
+Volume=/opt/bp-monitor/infra/nginx/reload-loop.sh:/docker-entrypoint.d/99-reload-loop.sh:ro,z
 
 # Now that this server is plain HTTP on an internal network, a loopback probe
 # is finally meaningful — the old unit had no HealthCmd because every candidate

@@ -54,7 +54,7 @@ infra/
 │   ├── templates/
 │   │   └── default.conf.template   # envsubst'd into /etc/nginx/conf.d/default.conf at container start
 │   ├── auth/                       # Basic Auth credentials for /graphiql — .htpasswd is gitignored
-│   └── reload-loop.sh              # nginx entrypoint override — periodic reload so upstreams re-resolve
+│   └── reload-loop.sh              # mounted into /docker-entrypoint.d/ — backgrounds a 6h reload so upstreams re-resolve
 └── README.md
 ```
 
@@ -372,6 +372,17 @@ Never commit a real `.env` — only `.env.example` is tracked.
   502s until something makes it re-resolve. The 6h reload is the backstop for
   recreates nobody triggered on purpose; after a deliberate redeploy, restart
   nginx instead of waiting.
+- **That loop is an entrypoint hook, not the container's command**, and the
+  distinction is not cosmetic. The nginx image renders
+  `/etc/nginx/templates/*.template` through envsubst **only when the command it
+  receives starts with `nginx`**. This stack used to override the command to run
+  the reload script directly, so the template was never rendered and nginx
+  served its stock `default.conf` — the domain returned "Welcome to nginx!" and
+  every real route, `/graphql` included, 404'd, while the container reported
+  healthy and `nginx -t` passed on the template. The script is now mounted at
+  `/docker-entrypoint.d/99-reload-loop.sh`, backgrounds its loop and returns, and
+  no `command:` / `Exec=` is set. It must stay executable, or the entrypoint
+  logs "Ignoring ..., not executable" and skips it.
 - **No app code changed for proxy compatibility.** `api-gateway` does not
   inspect `req.ip` / `X-Forwarded-*` / proxy trust settings, so no `trustProxy`
   config was needed. nginx sets `X-Real-IP` / `X-Forwarded-For` /

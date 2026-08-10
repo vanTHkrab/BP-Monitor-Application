@@ -215,6 +215,40 @@ the upstream container is not running.
 adding a `location` that proxies to a service you did not deploy takes the whole
 proxy down rather than just that route.
 
+### The domain serves "Welcome to nginx!" and every route 404s
+
+**Cause.** nginx is running on its stock `default.conf` — the project template
+was never rendered. The nginx image runs `/docker-entrypoint.d/*`, which is
+where envsubst turns `/etc/nginx/templates/*.template` into
+`/etc/nginx/conf.d/default.conf`, **only when the command it receives starts
+with `nginx`**:
+
+```sh
+if [ "$1" = "nginx" ] || [ "$1" = "nginx-debug" ]; then
+    ... run /docker-entrypoint.d/* ...
+fi
+exec "$@"
+```
+
+Overriding the container's command — `command: ["/bin/sh", ...]` in Compose, or
+`Exec=/bin/sh ...` in a Quadlet unit — makes `$1` something other than `nginx`,
+so that branch never runs. The container is healthy, `nginx -t` passes on the
+template, and none of it is being served.
+
+**Fix.** Do not set `command:` / `Exec=`. Anything that needs to run at start
+belongs in `/docker-entrypoint.d/` as an executable script that returns rather
+than blocks — that is how `infra/nginx/reload-loop.sh` is mounted. Confirm the
+rendering actually happened:
+
+```bash
+docker compose logs nginx | grep envsubst   # "Running envsubst on ... to /etc/nginx/conf.d/default.conf"
+docker compose exec nginx grep server_name /etc/nginx/conf.d/default.conf
+```
+
+If the log line is missing, the command is still being overridden. If it says
+`Ignoring /docker-entrypoint.d/99-reload-loop.sh, not executable`, the script
+lost its exec bit — the config is fine but the 6h reload is not running.
+
 ### Every container is healthy and the site is down
 
 **Cause.** Ingress is a Cloudflare Tunnel, so nothing on the host is publicly
