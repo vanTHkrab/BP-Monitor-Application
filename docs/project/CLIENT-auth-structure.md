@@ -339,11 +339,12 @@ against `1.7.0-rc.2`, still broken — see "P0" above).
 
 Both are external, both are named as open items in the gateway design doc.
 
-- **Email delivery.** The provider is chosen (`nodemailer` over SMTP, first
-  provider Resend) and not yet wired; the delivery stub still logs in
-  development and throws in production. Email verification and password reset
-  cannot be exercised end to end until it lands — both screens are built and
-  reachable and fail at exactly this point. See
+- **Email delivery.** The send path is built (`nodemailer` over SMTP, in the
+  gateway's `MailModule`); what remains is a verified sending domain and the
+  `SMTP_*` / `MAIL_FROM` values. Until those are set the gateway logs the code
+  in development and throws in production, so email verification and password
+  reset cannot be exercised end to end — both screens are built and reachable
+  and fail at exactly this point. See
   [docs/guides/email-delivery-setup.md](../guides/email-delivery-setup.md).
 - **Google OAuth credentials.** Google sign-in is not registered at all until
   `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set, deliberately, so it

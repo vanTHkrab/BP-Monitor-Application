@@ -437,22 +437,29 @@ deep-link round trip and additionally supplies focus and online managers.
 
 ## Email delivery
 
-**Chosen, not yet wired.** `nodemailer` over SMTP, with Resend as the first
-provider — SMTP because it makes a provider switch four environment
-variables rather than a dependency swap. Neither the package nor the
-`SMTP_*` settings are installed yet; the steps, the DNS work, and the traps
-are in
+`nodemailer` over SMTP, with Resend as the first provider — SMTP because it
+makes a provider switch four environment variables rather than a dependency
+swap. The send path lives in the gateway's `MailModule`, not in
+`better-auth.ts`: that file imports ESM-only packages the CJS Jest setup
+cannot parse, so anything declared in it is permanently untestable.
+`createBetterAuth` therefore takes a `MailSender` argument, handed in by the
+`useFactory` in `better-auth.provider.ts` — the only bridge between Nest's DI
+graph and a Better Auth instance constructed outside it.
+
+The steps, the DNS work, and the traps are in
 [docs/guides/email-delivery-setup.md](../guides/email-delivery-setup.md).
 
-Until that lands, `sendVerificationEmail` and `sendResetPassword` log the
-message in development instead of sending it, and throw in production
-rather than dropping a live credential on the floor. The code path is
-exercised, but **neither email verification nor password reset can be
-tested end to end**, and neither can ship.
+**What is still needed is credentials, not code.** With `SMTP_HOST` unset —
+which is the state of a fresh checkout — `sendVerificationEmail`,
+`sendResetPassword`, and `sendVerificationOTP` log the message in development
+instead of sending it, and throw in production rather than dropping a live
+credential on the floor. Until a verified sending domain and the `SMTP_*` /
+`MAIL_FROM` values exist, **neither email verification nor password reset can
+be tested end to end**, and neither can ship.
 
-This is a deliberate stub, not an oversight: swapping the log for a real
-send is a one-function change, and verifying a sending domain needs DNS
-access that the code does not.
+That split is deliberate: verifying a sending domain needs DNS access the code
+does not have, so the unconfigured branch had to stay a first-class mode rather
+than a temporary stub.
 
 ### Password reset is a code, not a link
 
@@ -480,13 +487,13 @@ second route to the flag gating Google account linking.
 
 ## Open items
 
-- **Wiring the mail provider.** Blocks shipping email verification and
-  password reset; see above and the setup guide.
-- **Rate-limiting `/forget-password/email-otp`.** `customRules` throttles
-  `/email-otp/send-verification-otp` but not this one, which is equally
-  unauthenticated and equally able to spend the mail quota.
-- **A subject per OTP `type`.** `sendVerificationOTP` ignores the `type` it
-  is handed, so a password-reset code arrives titled "รหัสยืนยัน BP Monitor".
+- **SMTP credentials and a verified sending domain.** The code is in place;
+  this is the DNS and account work that blocks shipping email verification and
+  password reset. See above and the setup guide.
+- **Rate-limiting `/email-otp/request-email-change`.** The two unauthenticated
+  code-request paths are budgeted at 3 per 15 minutes; this one also sends
+  mail but requires a session, so it needs a different key and was left out
+  rather than given a borrowed rule.
 - **Google OAuth credentials.** A Cloud project, a client id and secret,
   and redirect URIs covering the app's `bpmobile` scheme. Configuration
   work that lives outside this repository.

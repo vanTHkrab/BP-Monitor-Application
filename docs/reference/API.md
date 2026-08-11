@@ -432,8 +432,11 @@ Three behaviours a client has to account for:
   the code proves control of the address. This is a second route to the flag
   that gates Google account linking.
 
-**Not yet rate-limited.** `customRules` covers
-`/email-otp/send-verification-otp` but not `/forget-password/email-otp`. See
+**Rate-limited to 3 requests / 15 min**, the same budget as the verification
+send. The rule is declared on both `/forget-password/email-otp` (used above)
+and its canonical replacement `/email-otp/request-password-reset`, because
+`customRules` is keyed by path and the two are separate counters — so a caller
+alternating between them gets 6 per window rather than 3. See
 [email-delivery-setup.md](../guides/email-delivery-setup.md).
 
 The mobile client calls these directly with `fetch` — see

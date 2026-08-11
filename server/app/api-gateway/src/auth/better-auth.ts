@@ -17,9 +17,15 @@ import { defaultStatements } from 'better-auth/plugins/admin/access';
 import * as bcrypt from 'bcrypt';
 import type Redis from 'ioredis';
 
+import type { MailSender } from '../mail/mail.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RateLimitService } from '../redis/rate-limit.service';
 import { isProduction } from '../env';
+import {
+  otpEmail,
+  resetPasswordEmail,
+  verifyEmailEmail,
+} from '../mail/mail.templates';
 import { androidOriginsFromFingerprints } from './android-origin';
 import {
   BCRYPT_SALT_ROUNDS,
@@ -180,10 +186,23 @@ function secondaryStorageFor(redis: Redis) {
   };
 }
 
+/**
+ * `mail` is passed in rather than imported.
+ *
+ * This function runs outside Nest's DI graph — `better-auth.provider.ts` calls
+ * it from a `useFactory` — so the only way a Nest-managed singleton reaches the
+ * plugin callbacks below is as an argument. Importing `MailService` here and
+ * constructing one would work at runtime and be wrong twice over: a second
+ * instance means a second nodemailer pool that `onModuleDestroy` never closes,
+ * and the send path would be reachable only through this file, which the CJS
+ * Jest setup cannot parse. Taking the `MailSender` interface keeps the
+ * dependency inverted and leaves the implementation testable on its own.
+ */
 export function createBetterAuth(
   prisma: PrismaService,
   redis: Redis,
   rateLimit: RateLimitService,
+  mail: MailSender,
 ) {
   return betterAuth({
     appName: 'BP Monitor',
@@ -222,22 +241,14 @@ export function createBetterAuth(
       },
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
-        await deliverEmail({
-          to: user.email,
-          subject: 'ตั้งรหัสผ่านใหม่',
-          body: `Password reset link: ${url}`,
-        });
+        await mail.send({ to: user.email, ...resetPasswordEmail(url) });
       },
     },
 
     emailVerification: {
       sendOnSignUp: false,
       sendVerificationEmail: async ({ user, url }) => {
-        await deliverEmail({
-          to: user.email,
-          subject: 'ยืนยันอีเมล',
-          body: `Verification link: ${url}`,
-        });
+        await mail.send({ to: user.email, ...verifyEmailEmail(url) });
       },
     },
 
@@ -340,6 +351,25 @@ export function createBetterAuth(
           window: LOGIN_WINDOW_SECONDS,
           max: 3,
         },
+        // Requesting a password-reset code is unauthenticated and spends the
+        // mail quota exactly like the verification code above, so it gets the
+        // same budget.
+        //
+        // Both paths are listed because they are two routes onto one handler:
+        // `/forget-password/email-otp` is what the mobile client calls today
+        // (client/src/modules/auth/services/email-otp-api.ts) and Better Auth
+        // marks it deprecated in favour of the canonical one. Rules are keyed
+        // by path, so limiting only the deprecated alias leaves the
+        // replacement uncapped, and limiting only the canonical one caps
+        // nothing the client actually hits. The cost of listing both is that
+        // the two counters are independent — a caller willing to alternate
+        // paths gets 6 sends per window rather than 3. That is still bounded,
+        // and it collapses back to 3 when the deprecated route is removed.
+        '/forget-password/email-otp': { window: LOGIN_WINDOW_SECONDS, max: 3 },
+        '/email-otp/request-password-reset': {
+          window: LOGIN_WINDOW_SECONDS,
+          max: 3,
+        },
       },
     },
 
@@ -394,12 +424,13 @@ export function createBetterAuth(
       emailOTP({
         // Six digits typed into the app, rather than a link that leaves for
         // the system browser and has to deep-link back.
-        sendVerificationOTP: async ({ email, otp }) => {
-          await deliverEmail({
-            to: email,
-            subject: 'รหัสยืนยัน BP Monitor',
-            body: `Verification code: ${otp}`,
-          });
+        //
+        // `type` is load-bearing: the same callback serves sign-in,
+        // verification, and password reset, so ignoring it titles a reset code
+        // "รหัสยืนยัน BP Monitor" — which reads to the user as mail they did
+        // not ask for, in the one flow where that matters most.
+        sendVerificationOTP: async ({ email, otp, type }) => {
+          await mail.send({ to: email, ...otpEmail(type, otp) });
         },
       }),
       admin({
@@ -521,31 +552,12 @@ function googleProvider() {
 }
 
 /**
- * Email delivery is not wired up yet — the gateway has no mail provider.
+ * No SMS provider yet, and silence would be worse.
  *
- * This logs in development so the flows can be exercised, and throws in
- * production rather than silently dropping a password-reset link on the
- * floor. Replacing the body with a real send is the whole change.
+ * Email now goes through `MailService` (see `mail/`); this is the stub that
+ * used to sit beside it. Wiring a provider here is the same shape of change:
+ * an injected sender, not a module-level client.
  */
-async function deliverEmail(message: {
-  to: string;
-  subject: string;
-  body: string;
-}): Promise<void> {
-  if (isProduction()) {
-    throw new Error(
-      'No email provider is configured. Email verification and password ' +
-        'reset cannot be delivered. See docs/architecture/AUTH-better-auth-identity.md.',
-    );
-  }
-
-  // Development only. The body carries a reset link or a verification code —
-  // a live credential — so it must never reach a production log.
-  logger.debug(`email -> ${message.to}: ${message.subject} | ${message.body}`);
-  return Promise.resolve();
-}
-
-/** Same stance as email: no SMS provider yet, and silence would be worse. */
 async function deliverSms(message: {
   to: string;
   body: string;

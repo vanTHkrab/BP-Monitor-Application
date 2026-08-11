@@ -1,32 +1,33 @@
 ---
-title: Wiring up email delivery
-description: Choosing and configuring an SMTP provider so email OTP verification and password reset actually send, and what still has to be built before they can.
+title: Email delivery
+description: How the gateway sends email over SMTP, and the DNS and environment work needed to make it deliver from a real provider.
 status: current
 updated: 2026-08-11
 owner: gateway
 ---
 
-# Wiring up email delivery
+# Email delivery
 
-The gateway has **no mail provider**. `deliverEmail()` in
-[`better-auth.ts`](../../server/app/api-gateway/src/auth/better-auth.ts) logs
-the message in development and **throws in production**, deliberately — a
-password-reset link dropped silently on the floor is worse than a request that
-fails loudly.
+The gateway sends email over SMTP through
+[`MailService`](../../server/app/api-gateway/src/mail/mail.service.ts).
+**Configuring it is one environment variable plus DNS** — everything below the
+"install and implement" line is already built.
 
-This guide is the change that closes it: pick a provider, verify a domain,
-replace one function body, and forward five environment variables.
+With `SMTP_HOST` unset, `MailService` logs the message in development and
+**throws in production**, deliberately: a password-reset code dropped silently
+on the floor is worse than a request that fails loudly.
 
-## What is blocked until this is done
+## What this powers
 
 | Flow | Server call site | Client |
 | --- | --- | --- |
-| Email OTP verification | `emailOTP.sendVerificationOTP` | [`app/(auth)/verify-email.tsx`](../../client/src/app/%28auth%29/verify-email.tsx) — built and reachable |
-| Password reset | `emailOTP` `forget-password` type | [`app/(auth)/forgot-password.tsx`](../../client/src/app/%28auth%29/forgot-password.tsx) — built and reachable |
+| Email OTP verification | `emailOTP.sendVerificationOTP` | [`app/(auth)/verify-email.tsx`](../../client/src/app/%28auth%29/verify-email.tsx) |
+| Password reset | `emailOTP` `forget-password` type | [`app/(auth)/forgot-password.tsx`](../../client/src/app/%28auth%29/forgot-password.tsx) |
 | Google account linking | gated by `emailVerified` | no UI yet, blocked separately on OAuth credentials |
 
 Both mobile screens are finished and wired against endpoints that already
-exist. They fail at exactly one point: the mail never leaves the gateway.
+exist. Until a provider is configured, they fail at exactly one point: the mail
+never leaves the gateway.
 
 ## Decisions already made
 
@@ -77,75 +78,96 @@ and is unaffected; mail records and the Cloudflare Tunnel do not interact.
 
 Smoke-test with `delivered@resend.dev` before using a real inbox.
 
-## Step 2 — install and implement
+## Step 2 — how the send path is built
 
-From `server/app/api-gateway/` (never the repo root):
+Already done; this section is here so the shape is not re-derived. `nodemailer`
+is a direct dependency of `server/app/api-gateway/`, and `MailModule` is
+imported by `AuthModule`.
 
-```bash
-pnpm add nodemailer
-pnpm add -D @types/nodemailer
-```
+Three files, under `server/app/api-gateway/src/mail/`:
 
-`nodemailer` is CJS, so it needs none of the ESM isolation that
-`auth/android-origin.ts` and `push/expo-push.client.ts` exist for.
+| File | Holds |
+| --- | --- |
+| [`mail.service.ts`](../../server/app/api-gateway/src/mail/mail.service.ts) | the transport and the one `send()` method, plus the `MailSender` interface |
+| [`mail.templates.ts`](../../server/app/api-gateway/src/mail/mail.templates.ts) | every subject and body, Thai, text **and** HTML |
+| [`mail.module.ts`](../../server/app/api-gateway/src/mail/mail.module.ts) | the provider; not `@Global()` on purpose |
 
-Then replace the body of `deliverEmail()` in `src/auth/better-auth.ts`. The
-transporter must be built **once and reused** — `sendResetPassword` and
-`sendVerificationOTP` are awaited inside a request the user is watching, and a
-fresh TLS handshake per send adds seconds to it.
+### Why it is a module and not a function in `better-auth.ts`
 
-```ts
-import { createTransport, type Transporter } from 'nodemailer';
+`better-auth.ts` imports ESM-only packages that the CJS Jest setup cannot
+parse, so **nothing declared in that file can be unit-tested**. Putting the
+send path and the copy in their own module is what makes both reachable from a
+spec — the same isolation as `auth/android-origin.ts` and
+`push/expo-push.client.ts`.
 
-let transporter: Transporter | null = null;
+That creates a wiring problem, because `createBetterAuth()` runs *outside*
+Nest's DI graph: [`better-auth.provider.ts`](../../server/app/api-gateway/src/auth/better-auth.provider.ts)
+calls it from a `useFactory`. The resolution is to pass the sender in as an
+argument — the factory injects `MailService` and hands it over, and
+`createBetterAuth` accepts the narrow `MailSender` interface rather than the
+class. Importing `MailService` inside `better-auth.ts` and constructing one
+would be wrong twice: a second instance means a second nodemailer pool that
+`onModuleDestroy` never closes, and the send path would again be reachable only
+through a file Jest cannot load.
 
-function mailTransport(): Transporter | null {
-  const host = process.env.SMTP_HOST?.trim();
-  if (!host) return null;
+### What the transport does, and why
 
-  transporter ??= createTransport({
-    host,
-    port: Number(process.env.SMTP_PORT ?? 587),
-    // 465 is implicit TLS; 587 upgrades via STARTTLS and must stay false.
-    secure: process.env.SMTP_PORT === '465',
-    // Undefined, not empty strings: a local Mailpit accepts no AUTH at all
-    // and rejects an incomplete exchange.
-    auth: process.env.SMTP_USER
-      ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD ?? '' }
-      : undefined,
-    pool: true,
-    maxConnections: 3,
-    connectionTimeout: 5_000,
-    greetingTimeout: 5_000,
-    socketTimeout: 10_000,
-  });
+- **Built once and reused** (`pool: true`, `maxConnections: 3`).
+  `sendResetPassword` and `sendVerificationOTP` are awaited inside a request
+  the user is watching, and a fresh TLS handshake per send adds seconds to it.
+  A consequence worth knowing: `SMTP_*` is read once, so changing it needs a
+  restart.
+- **Short timeouts** (5s connect, 5s greeting, 10s socket) for the same reason.
+  nodemailer's defaults are minutes.
+- **`secure` only on 465.** 587 upgrades via STARTTLS; `secure: true` there
+  hangs until the connection timeout rather than failing with anything that
+  names the cause. The port is parsed as a number, and a non-numeric value
+  throws instead of reaching nodemailer as `NaN`.
+- **`auth: undefined`, not empty strings,** when `SMTP_USER` is unset — a local
+  Mailpit accepts no AUTH at all and rejects an incomplete exchange.
+- **`onModuleDestroy` closes the pool** so a rolling deploy does not leak
+  sockets.
+- **Both `text` and `html` on every message.** A text-only body whose entire
+  content is a six-digit number is a common spam-filter trigger.
 
-  return transporter;
-}
-```
+The unconfigured branch is unchanged from the stub this replaced: throw in
+production when `SMTP_HOST` is unset, `logger.debug` in development. The
+development log carries a live credential — a reset code — and must never reach
+a production log, which is what the `isProduction()` gate protects.
 
-`deliverEmail` then sends through it, keeping both existing branches: throw in
-production when `SMTP_HOST` is unset, log in development. The development log
-carries a live credential — a reset code — and must never reach a production
-log, which is what the `isProduction()` gate protects.
+### Subjects differ by OTP purpose
+
+`sendVerificationOTP` receives `{ email, otp, type }`, and `type` selects the
+copy in `mail.templates.ts`. Ignoring it — as the first version did — titles a
+password-reset code "รหัสยืนยัน BP Monitor", which reads to a user as mail they
+did not ask for, in the one flow where that matters most.
+
+The installed plugin issues four types, not three: `sign-in`,
+`email-verification`, `forget-password`, and `change-email`. An unrecognised
+fifth falls back to the verification copy rather than throwing inside the
+request.
 
 Send `html` as well as `text`. A text-only body whose entire content is a
 six-digit number is a common spam-filter trigger.
 
 ## Step 3 — configure
 
-Five variables, and they must be added in **three** places. Setting them in
-`.env` alone is not enough: `docker-compose.yml` declares environment
-variables one by one rather than passing the file through, and a variable
-missing from that list simply never reaches the container. This is the same
-failure that had `BETTER_AUTH_URL` unset in every containerised environment
-while `/api/auth/*` returned 404.
+Five variables. Set them in your own `.env`; the plumbing that carries them is
+already in place, in **three** files:
 
-| File | What to add |
+| File | Carries |
 | --- | --- |
 | [`server/app/api-gateway/.env.example`](../../server/app/api-gateway/.env.example) | the five names, commented |
 | [`infra/docker-compose/.env.example`](../../infra/docker-compose/.env.example) | the same |
 | [`infra/docker-compose/docker-compose.yml`](../../infra/docker-compose/docker-compose.yml) | the `environment:` block of `api-gateway` |
+
+That third one is the one that is easy to forget when adding a *sixth*
+variable: `docker-compose.yml` declares environment variables one by one rather
+than passing the file through, so a name missing from that block simply never
+reaches the container. This is the same failure that had `BETTER_AUTH_URL`
+unset in every containerised environment while `/api/auth/*` returned 404.
+`docker-compose.prod.yml` needs no entry of its own — it overlays the base
+file, which already forwards all five.
 
 ```yaml
       SMTP_HOST: ${SMTP_HOST:-}
@@ -165,9 +187,11 @@ SMTP_PASSWORD=re_xxxxxxxxxxxx    # an API key with Sending access
 MAIL_FROM=BP Monitor <no-reply@yourdomain.com>
 ```
 
-Also add the five rows to
+All five are documented in
 [environment-variables.md](../reference/environment-variables.md), in both the
-api-gateway table and the production table, in the same change.
+api-gateway table and the production table. Note what that second table says
+about `SMTP_PASSWORD`: it is a live credential sitting in the env file rather
+than in a Podman secret, unlike `JWT_SECRET` and the S3 keys beside it.
 
 ### Networking
 
@@ -191,9 +215,8 @@ which Linux needs and macOS does not.
 
 Two mechanisms, and they are complementary rather than alternatives:
 
-- **Leave `SMTP_HOST` unset** and the existing development branch logs the OTP
-  or reset link to the console. A fresh checkout keeps working with no
-  configuration.
+- **Leave `SMTP_HOST` unset** and `MailService` logs the OTP or reset link to
+  the console. A fresh checkout keeps working with no configuration.
 - **Add Mailpit to the dev stack** to exercise the real `nodemailer` path
   without anything leaving the network. It speaks SMTP on 1025 and serves an
   inbox on 8025.
@@ -208,19 +231,32 @@ base file.
 Point the gateway at it with `SMTP_HOST=mailpit`, `SMTP_PORT=1025` and no
 credentials.
 
-## Still to do on the gateway
+Mailpit is **not** in `docker-compose.dev.yml` yet — adding it is a one-service
+change to that file plus the two lines above.
 
-The two mobile screens work against endpoints Better Auth's `emailOTP` plugin
-already mounts, so no resolver work is needed. These two are not optional
-before production, though:
+## Rate limiting
 
-1. **Rate-limit `/forget-password/email-otp`.** `customRules` in
-   `better-auth.ts` throttles `/email-otp/send-verification-otp` at 3 per
-   15 min but not the password-reset request, which is equally unauthenticated
-   and equally able to spend the mail quota. Add it alongside.
-2. **Differentiate the subject by `type`.** `sendVerificationOTP` receives
-   `{ email, otp, type }` and currently ignores `type`, so a password-reset
-   code arrives with the subject "รหัสยืนยัน BP Monitor".
+Requesting a code is unauthenticated and spends the mail quota, so
+`customRules` in `better-auth.ts` budgets it through the same
+[`RateLimitService`](../../server/app/api-gateway/src/redis/rate-limit.service.ts)
+as the credential routes — 3 requests per 15 minutes, per path:
+
+| Path | Note |
+| --- | --- |
+| `/email-otp/send-verification-otp` | verification code |
+| `/forget-password/email-otp` | password reset — **what the mobile client calls today** |
+| `/email-otp/request-password-reset` | password reset, canonical; Better Auth deprecates the row above in its favour |
+
+Both reset paths are listed because they are two routes onto one handler and
+rules are keyed by path: limiting only the deprecated alias leaves its
+replacement uncapped, and limiting only the canonical one caps nothing the
+client actually hits. The cost is two independent counters — a caller willing
+to alternate paths gets 6 sends per window rather than 3. Still bounded, and it
+collapses back to 3 when the deprecated route is removed.
+
+**`/email-otp/request-email-change` is not limited.** It also sends mail, but
+it requires a session, so it is a different threat with a different key and was
+left for a change that can think about authenticated quotas properly.
 
 ## Noticed, not in scope
 

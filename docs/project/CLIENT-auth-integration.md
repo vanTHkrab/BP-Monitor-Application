@@ -122,11 +122,12 @@ Google OAuth is configured.
 
 ## Blocked until someone provides credentials
 
-- **Email delivery.** The provider is chosen (`nodemailer` over SMTP, first
-  provider Resend) but not wired: no package, no `SMTP_*` settings, and the
-  delivery stub still logs in development and throws in production.
-  Verification and password reset cannot be tested end to end or shipped
-  until it lands. Steps and traps:
+- **Email delivery.** The send path is built (`nodemailer` over SMTP, in the
+  gateway's `MailModule`), so what is left is genuinely credentials: a verified
+  sending domain and the five `SMTP_*` / `MAIL_FROM` values. With `SMTP_HOST`
+  unset the gateway logs the code in development and throws in production, so
+  verification and password reset cannot ship until someone provides them.
+  Steps and traps:
   [docs/guides/email-delivery-setup.md](../guides/email-delivery-setup.md).
 - **Google OAuth.** Needs a Cloud project, client id and secret, and
   redirect URIs covering the `bpmobile` scheme. Google sign-in is not

@@ -82,6 +82,24 @@ services:
       # tokens. Push works without it; nothing fails at boot.
       EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
       HAVE_I_BEEN_PWNED_ENABLED: ${HAVE_I_BEEN_PWNED_ENABLED:-}
+      # ── Email delivery ──────────────────────────────────────────────────
+      # Listed one by one like everything above, because Compose forwards
+      # only what is named here: a variable set in .env but missing from this
+      # block simply never reaches the container. That is the same failure
+      # that had BETTER_AUTH_URL unset in every containerised environment.
+      #
+      # Unset SMTP_HOST means the gateway logs the code in development and
+      # THROWS in production — email verification and password reset are
+      # broken, loudly, rather than silently dropped.
+      SMTP_HOST: ${SMTP_HOST:-}
+      # 587 (STARTTLS) or 465 (implicit TLS). Outbound 25 is blocked at the
+      # cloud-provider level, outside Docker, so no Compose setting helps.
+      SMTP_PORT: ${SMTP_PORT:-587}
+      # For Resend this is the literal string "resend", not an email address.
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Must be on a domain the provider has verified, or every send fails.
+      MAIL_FROM: ${MAIL_FROM:-}
     depends_on:
       postgres:
         condition: service_healthy
