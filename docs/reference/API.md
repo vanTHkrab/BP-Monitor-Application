@@ -170,6 +170,20 @@ own budget (10 per 10 minutes per caregiver).
 Both surface a 429 with `extensions.code = "TOO_MANY_REQUESTS"` and
 `extensions.retryAfterSec`.
 
+**Budgets are per client IP, per path.** Better Auth resolves the address
+from the `X-Real-IP` header, which nginx sets from the true client address
+(`real_ip_header CF-Connecting-IP`). Configured as
+`advanced.ipAddress.ipAddressHeaders` in `better-auth.ts`; the default
+`x-forwarded-for` does not work behind this stack, because the header
+arrives with two entries and Better Auth refuses a multi-entry XFF without a
+`trustedProxies` list. When no address can be resolved it does not fail — it
+substitutes a literal `no-trusted-ip`, so **every caller shares one bucket**
+and the login rule becomes five attempts for the entire user base. That
+state announces itself only as a single startup warning.
+
+Locally there is no proxy and therefore no header; Better Auth falls back to
+`127.0.0.1`, but only when `NODE_ENV` is exactly `development` or `dev`.
+
 ### 3.3 Client-side mapping
 
 - **Mobile**: `graphqlRequest` throws

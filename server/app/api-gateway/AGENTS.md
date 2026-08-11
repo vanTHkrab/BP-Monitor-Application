@@ -42,7 +42,8 @@ files; reorganising inside a module is a manual refactor.
 | `src/main.ts` | bootstrap, global `ValidationPipe`, CORS, listen |
 | `src/app.module.ts` | GraphQL driver config + `errorFormatter` (stamps `extensions.code`), feature module wiring |
 | `src/redis/redis.module.ts` | `@Global()` provider of `REDIS_CLIENT` (ioredis). Lazy-connects + suppresses errors — consumers check `redis.status === 'ready'` and degrade if not |
-| `src/redis/rate-limit.service.ts` | `RateLimitService` — the project's one rate limiter. Fixed window **by decision, not by omission** (A-008: the boundary burst of 2x `max` was weighed and accepted; the doc comment above `CONSUME` holds the rationale and the revisit triggers — don't "fix" it to a sliding window), atomic INCR + PEXPIRE in a single Lua call, falls back to a per-process counter if Redis isn't ready. Exported by the `@Global()` `RedisModule`, so inject it rather than writing a second INCR against `REDIS_CLIENT`. Used by Better Auth's credential routes (5/15min) via `betterAuthStorage()` and by `addCaregiverPatient` (10/10min per caregiver). Replaced the old `src/auth/login-throttle.guard.ts`, which no longer exists |
+| `src/redis/rate-limit.service.ts` | `RateLimitService` — the project's one rate limiter. Fixed window **by decision, not by omission** (A-008: the boundary burst of 2x `max` was weighed and accepted; the doc comment above `CONSUME` holds the rationale and the revisit triggers — don't "fix" it to a sliding window), atomic INCR + PEXPIRE in a single Lua call, falls back to a per-process counter if Redis isn't ready. Exported by the `@Global()` `RedisModule`, so inject it rather than writing a second INCR against `REDIS_CLIENT`. Used by Better Auth's credential routes (5/15min) via `betterAuthStorage()` and by `addCaregiverPatient` (10/10min per caregiver). Replaced the old `src/auth/login-throttle.guard.ts`, which no longer exists. **The key is the client IP plus the path, and resolving that IP is load-bearing** — unresolved, Better Auth substitutes a literal `no-trusted-ip` and every caller shares one bucket, turning 5-per-15-minutes into five attempts for the whole user base. See `advanced.ipAddress` in `better-auth.ts` |
+| `src/redis/secondary-storage.ts` | `betterAuthSecondaryStorage()` — the `secondaryStorage` adapter: sessions plus the single-use verification values behind email OTP and password reset. `getAndDelete` is the member that matters: it is `GETDEL`, one round trip, and Better Auth silently falls back to a non-atomic read-then-delete when it is absent, which lets two workers spend the same OTP. Lives here rather than in `better-auth.ts` for the same reason `betterAuthStorage()` does — that file cannot be loaded under Jest |
 | `src/auth/` | register/login/me, JWT guard, sessions, password change, account deletion. Rate limiting is configured here (`better-auth.ts`) but implemented in `src/redis/` |
 | `src/auth/auth.config.ts` | `getJwtSecret()` (fail-fast on missing/short), `JWT_EXPIRES_IN` (default `7d`), `BCRYPT_SALT_ROUNDS` |
 | `src/auth/auth.guard.ts` | `GqlAuthGuard` — verifies JWT, checks session active, throttled `lastActiveAt` update |
@@ -65,7 +66,7 @@ files; reorganising inside a module is a manual refactor.
 pnpm start:dev                # hot-reload
 pnpm build                    # tsc → dist/
 pnpm exec tsc --noEmit        # type-check only
-pnpm exec jest --watchman=false   # unit: 31 suites / 546 tests. NOT `pnpm test`
+pnpm exec jest --watchman=false   # unit: 32 suites / 555 tests. NOT `pnpm test`
 pnpm test:e2e                 # e2e (needs DB)
 pnpm prisma migrate dev       # apply pending migrations
 ```
@@ -138,8 +139,8 @@ pnpm prisma migrate dev       # apply pending migrations
   free-form, use `@IsString()` + `@MaxLength()` at minimum.
 - **Don't migrate the DB without `pnpm prisma migrate dev`.** Manually
   editing the database in dev causes drift.
-- **Add a service-level unit test with new behavior.** The suite is 31 files
-  / 546 tests and `auth/` is covered (`auth.service.spec.ts`,
+- **Add a service-level unit test with new behavior.** The suite is 32 files
+  / 555 tests and `auth/` is covered (`auth.service.spec.ts`,
   `android-origin.spec.ts`, `dto/select-role.input.spec.ts`,
   `types/auth.types.spec.ts`). Mock `PrismaService`; never hit a real DB from
   a unit test. **`better-auth.ts` itself cannot be covered** — it imports

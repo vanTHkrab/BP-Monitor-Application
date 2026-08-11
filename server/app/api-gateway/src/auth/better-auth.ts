@@ -20,6 +20,7 @@ import type Redis from 'ioredis';
 import type { MailSender } from '../mail/mail.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RateLimitService } from '../redis/rate-limit.service';
+import { betterAuthSecondaryStorage } from '../redis/secondary-storage';
 import { isProduction } from '../env';
 import {
   otpEmail,
@@ -148,45 +149,6 @@ const APP_ROLES = {
 export type BetterAuthInstance = ReturnType<typeof createBetterAuth>;
 
 /**
- * Redis is optional at boot everywhere else in this service, so the wrapper
- * degrades the same way: a store that fails is treated as a cache miss rather
- * than an error. Sessions still resolve from Postgres, and rate limits fall
- * back to counting nothing — availability is preferred over throttling a user
- * we cannot count.
- */
-function secondaryStorageFor(redis: Redis) {
-  const ready = () => redis.status === 'ready';
-
-  return {
-    get: async (key: string) => {
-      if (!ready()) return null;
-      try {
-        return await redis.get(key);
-      } catch {
-        return null;
-      }
-    },
-    set: async (key: string, value: string, ttl?: number) => {
-      if (!ready()) return;
-      try {
-        if (ttl) await redis.set(key, value, 'EX', ttl);
-        else await redis.set(key, value);
-      } catch {
-        // Cache write failures must not fail the request.
-      }
-    },
-    delete: async (key: string) => {
-      if (!ready()) return;
-      try {
-        await redis.del(key);
-      } catch {
-        // As above.
-      }
-    },
-  };
-}
-
-/**
  * `mail` is passed in rather than imported.
  *
  * This function runs outside Nest's DI graph — `better-auth.provider.ts` calls
@@ -225,8 +187,45 @@ export function createBetterAuth(
         // would mean rewriting those relations.
         generateId: () => randomUUID(),
       },
+      ipAddress: {
+        /**
+         * Every rate limit in this service is keyed by `<ip>|<path>`, and
+         * when the IP cannot be resolved Better Auth substitutes a literal
+         * `no-trusted-ip` — one shared bucket for every caller. That is not a
+         * degraded limit, it is a denial of service: the login rule of 5 per
+         * 15 minutes becomes five attempts for the entire user base, so one
+         * person fat-fingering a password locks everyone out.
+         *
+         * The default header is `x-forwarded-for`, and it does **not** work
+         * here. `getIPFromHeader` refuses any XFF carrying more than one
+         * entry unless `trustedProxies` is configured, and by the time a
+         * request reaches this service the header holds two: Cloudflare sets
+         * one at the edge and nginx appends `$remote_addr` via
+         * `$proxy_add_x_forwarded_for`. The result is `null` — silently, in
+         * production, where the warning is not being read.
+         *
+         * `x-real-ip` is a single value, and nginx sets it from
+         * `$remote_addr`, which `real_ip_header CF-Connecting-IP` has already
+         * rewritten to the true client address
+         * (`infra/nginx/templates/default.conf.template`).
+         *
+         * The trust this buys is only as good as the network: anything that
+         * can reach this service directly can claim any address. In the
+         * deployed stack nothing can — the api-gateway publishes no host port
+         * and only nginx sits on `bp-net` in front of it. Publishing a port,
+         * or putting a second client on that network, breaks this assumption
+         * without breaking anything visible.
+         *
+         * In development there is no proxy and therefore no header. Better
+         * Auth falls back to 127.0.0.1, but only when `NODE_ENV` is exactly
+         * `development` or `dev` — unlike this project's own `isProduction()`,
+         * which treats unset as development. An unset `NODE_ENV` locally is
+         * what produces the shared-bucket warning at startup.
+         */
+        ipAddressHeaders: ['x-real-ip'],
+      },
     },
-    secondaryStorage: secondaryStorageFor(redis),
+    secondaryStorage: betterAuthSecondaryStorage(redis),
 
     emailAndPassword: {
       enabled: true,
