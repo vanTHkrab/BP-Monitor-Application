@@ -49,7 +49,9 @@ pnpm start                    # Metro; runs verify-models first via prestart
 pnpm android                  # native build + install
 pnpm ios
 
-pnpm check                    # ⬅ THE GATE: lint → typecheck → verify-graphql → test
+pnpm check                    # ⬅ THE GATE: lint → typecheck → verify-graphql → test:unit
+pnpm test:screens             # whole-screen renders — NOT part of check
+pnpm test                     # both suites
 ```
 
 **`pnpm check` is the ship gate, not `pnpm test`.** The order matters. Lint

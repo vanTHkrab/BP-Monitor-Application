@@ -48,7 +48,9 @@ confirms.
 `pnpm test` alone.**
 
 ```bash
-pnpm check       # lint → typecheck → verify-graphql → test, fail-fast
+pnpm check         # lint → typecheck → verify-graphql → test:unit, fail-fast
+pnpm test:screens  # the whole-screen render suite — NOT part of check
+pnpm test          # everything, both suites
 ```
 
 The order is the point. Lint runs *first* because it catches the class of
@@ -72,6 +74,42 @@ warning rather than failing.
 The individual steps stay available for a tight edit loop
 (`pnpm lint` / `pnpm typecheck` / `pnpm verify-graphql` / `pnpm test`), but
 the finishing check is `pnpm check`.
+
+### The suite is split in two, and `check` runs only one half
+
+| Script | Matches | Covers |
+| --- | --- | --- |
+| `test:unit` | `/src/`, `/eslint-rules/`, `/scripts/` | functions, hooks, stores, repositories, lint rules, build scripts |
+| `test:screens` | `/__test__/` | whole-screen and component renders |
+| `test` | everything | both, and what any full audit should use |
+
+The two halves must **add up to `pnpm test`**: 111 + 76 = 187 suites and
+1746 + 670 = 2416 tests, which is what `pnpm test` reports. A test file
+outside all four matched directories is orphaned from both scripts and from
+CI, and **nothing reports it** — the run it is missing from still passes.
+That happened on the first version of this split, which omitted `/scripts/`
+and silently dropped `scripts/font-metrics.test.ts`. If you add a fifth
+location, add it to `test:unit` in the same change and re-check that the
+totals reconcile.
+
+`pnpm check` runs `test:unit`. The reason is iteration cost: a change to a
+pure function should not pay for ~30 screen renders, and the render suite is
+the slow half. The reason it is a *split* rather than a deletion is that the
+render tests catch a class of defect the unit tests structurally cannot — a
+whole-screen early return that vanishes in a refactor, a banner precedence
+that a hook cannot observe, a step transition that advances on a failed
+request.
+
+**The consequence to hold onto: a green `pnpm check` no longer means the
+screens render.** Run `pnpm test:screens` before calling a change to any
+file under `src/app/` done, and `pnpm test` before shipping. CI runs both —
+`release-mobile.yml` invokes `pnpm test:screens` as a separate step
+specifically so the split cannot quietly drop screen coverage from a
+release.
+
+This is a third thing that sits outside `pnpm check` alongside
+`verify-models` and `expo-doctor`. A green check has never been the whole
+gate; it is now one step further from it.
 
 `pnpm test` passes `--watchman=false`. Watchman only accelerates file
 crawling for `--watch`, and a one-shot run does not need it — but it does
@@ -277,9 +315,14 @@ for what the manifest cannot express: the non-obvious choices and their traps.
 
 ## Where tests live
 
-Three places for the app, and the split is by what is under test. (A fourth,
-`eslint-rules/*.test.js`, is not about the app at all — see "Project-owned lint
-rules" above.)
+Three places for the app, and the split is by what is under test. Two more sit
+outside the app: `eslint-rules/*.test.js` (see "Project-owned lint rules"
+above) and `scripts/font-metrics.test.ts`, which tests a build script.
+
+**Every one of the five has to be matched by `test:unit` or `test:screens`**
+— see the table under "Verification gate". A test file in a sixth directory
+runs under `pnpm test` and under neither script, which means it does not run
+in CI either.
 
 - **`src/**/*.test.ts(x)`** — colocated with the code. Pure logic, stores,
   repositories, single hooks.

@@ -101,8 +101,10 @@
     "preios": "node ./scripts/verify-models.mjs",
     "pretypecheck": "expo customize tsconfig.json",
     "typecheck": "tsc --noEmit -p .",
-    "check": "pnpm lint && pnpm typecheck && pnpm verify-graphql && pnpm test",
+    "check": "pnpm lint && pnpm typecheck && pnpm verify-graphql && pnpm test:unit",
     "test": "jest --watchman=false",
+    "test:unit": "jest --watchman=false /src/ /eslint-rules/ /scripts/",
+    "test:screens": "jest --watchman=false /__test__/",
     "test:watch": "jest --watch --coverage=false --changedSince=origin/main",
     "test:debug": "jest -o --watch --coverage=false",
     "test:update": "jest -u --coverage=false"

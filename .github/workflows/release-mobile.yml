@@ -87,11 +87,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The project gate: lint -> typecheck -> verify-graphql -> jest.
-      # Ahead of the build on purpose — an EAS build costs minutes and ~20
-      # minutes of waiting, and `pnpm check` answers in about one.
+      # The project gate: lint -> typecheck -> verify-graphql -> the unit
+      # suite. Ahead of the build on purpose — an EAS build costs minutes and
+      # ~20 minutes of waiting, and `pnpm check` answers in about one.
       - name: Gate — pnpm check
         run: pnpm check
+
+      # `pnpm check` runs `test:unit` only, so the whole-screen render suite
+      # would otherwise never run in CI. It is separate here rather than
+      # folded back into `check` because that split is the point: a developer
+      # iterating on a hook should not pay for ~30 screen renders, and a
+      # release should never skip them.
+      - name: Gate — screen render suite
+        run: pnpm test:screens
 
       # NOT part of `pnpm check`, and load-bearing. This hashes the bundled
       # yolo11n.onnx / crnn.onnx against the ai-service manifest. Drift means
