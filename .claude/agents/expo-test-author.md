@@ -144,8 +144,14 @@ everyone than a caller discovering it after you have reported DONE.
 ```bash
 # from client/
 pnpm exec prettier --write <the files you added>   # before the gate, not after
-pnpm check      # lint → typecheck → verify-graphql → test, fail-fast
+pnpm check      # lint → typecheck → verify-graphql → test:unit, fail-fast
+pnpm test:screens   # the render suite — NOT part of check
 ```
+
+**If you wrote a test under `__test__/`, `pnpm check` did not run it.** The
+suite is split: `check` runs `test:unit` (`/src/`, `/eslint-rules/`,
+`/scripts/`) and `test:screens` runs `/__test__/`. A new screen test passing
+`check` proves nothing about the test you just wrote.
 
 `pnpm check`, not `pnpm test` alone. Lint runs first on purpose:
 `react-hooks/set-state-in-effect` catches a defect no unit test asserts

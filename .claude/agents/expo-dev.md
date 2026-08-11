@@ -168,7 +168,9 @@ pnpm typecheck                   # tsc --noEmit -p .
 pnpm lint                        # --max-warnings 0; a warning fails like an error
 pnpm verify-graphql              # every GQL_* in src/ against the committed schema.gql
 pnpm test -- <single-file-or-pattern>
-pnpm check                       # lint → typecheck → verify-graphql → test, fail-fast
+pnpm check                       # lint → typecheck → verify-graphql → test:unit, fail-fast
+pnpm test:screens                # whole-screen renders; NOT part of check
+pnpm test                        # both halves — run before calling a screen change done
 
 # On-device model parity (NEVER bypass)
 pnpm verify-models               # SHA256 of yolo11n.onnx AND crnn.onnx; runs on every start

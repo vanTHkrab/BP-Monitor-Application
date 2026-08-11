@@ -35,18 +35,25 @@ pnpm start           # Metro
 pnpm android         # native build + install
 pnpm ios
 
-pnpm check           # ⬅ the gate: lint → typecheck → verify-graphql → test
+pnpm check           # ⬅ the gate: lint → typecheck → verify-graphql → test:unit
 pnpm lint            # --max-warnings 0: a warning fails like an error
 pnpm typecheck       # tsc --noEmit
 pnpm verify-graphql  # validate src/ operations against the gateway schema
-pnpm test            # jest --watchman=false
+pnpm test:unit       # functions, hooks, stores, lint rules, build scripts
+pnpm test:screens    # whole-screen renders — NOT part of check
+pnpm test            # both halves
 
 pnpm verify-models   # sha256 of bundled models vs the ai-service manifest
 pnpm sync-yolo-model # refresh the bundled model copies
 ```
 
-`pnpm check` is what "done" means — see [AGENTS.md](./AGENTS.md) for why the
-order of those four steps is load-bearing.
+`pnpm check` is most of what "done" means — see [AGENTS.md](./AGENTS.md) for
+why the order of those four steps is load-bearing.
+
+**It is not all of it.** `check` runs `test:unit` only, so a green check does
+not mean the screens render; run `pnpm test:screens` before calling a change
+to anything under `src/app/` done, and `pnpm test` before shipping. CI runs
+both. `verify-models` and `expo-doctor` sit outside `check` as well.
 
 ## Layout
 

@@ -22,7 +22,7 @@ Measured on `main` at `baa013da` plus the branches open on 2026-08-07.
 | App | Unit | E2E | What the gate actually is |
 | --- | --- | --- | --- |
 | `server/app/api-gateway` | 20 suites / 245 tests | 3 `*.e2e-spec.ts` in `test/`, **skipped unless `DATABASE_URL` is set** | `jest` + `tsc` + `lint` |
-| `client` | 56 suites / 713 tests | none | `pnpm check` — lint → typecheck → verify-graphql → test |
+| `client` | 56 suites / 713 tests | none | `pnpm check` — lint → typecheck → verify-graphql → `test:unit`. **`check` is no longer the whole suite**: the run is split into `test:unit` and `test:screens`, and only the first is in the gate. CI runs `test:screens` as its own step. |
 | `server/app/ai-service` | 214 tests, 11 files | none | `uv run pytest` |
 | `web` | **none at all** | none | `lint` + `tsc --noEmit` only |
 
