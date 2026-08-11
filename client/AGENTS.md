@@ -299,6 +299,16 @@ for what the manifest cannot express: the non-obvious choices and their traps.
   API's ergonomic path is `new Blob([bytes])`, which type-checks and then
   throws at runtime on native. Use `uploadAsync` from the legacy entry point,
   streaming from disk — see `src/services/upload-image.ts`.
+- **`expo-insights` has no import anywhere, and that is correct — do not
+  "clean it up".** It is the one manifest entry root `AGENTS.md` rule 13 (no
+  ghost packages) cannot apply to. Its JS entry point is literally
+  `export default {};`; the package works entirely through Expo autolinking,
+  registering an Android `ApplicationLifecycleListener` and an iOS
+  `AppDelegateSubscriber` that fire one `APP_LAUNCH` event per process. There
+  is nothing to import and no code to write. A ghost-dependency sweep will
+  find it with zero references and be wrong. It also means **the suite proves
+  nothing about it** — it is invisible to lint, typecheck, and jest alike, and
+  only a real build reports whether it works.
 - **`onnxruntime-react-native` is deliberately NOT a dependency.** Inference
   runs only in the Kotlin `bp-vision` module. The JS detector `client-old`
   once had was deleted rather than left broken. If you find yourself adding
