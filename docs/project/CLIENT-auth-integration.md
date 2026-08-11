@@ -2,7 +2,7 @@
 title: "Client: integrating the Better Auth gateway"
 description: The mobile-side work that follows the gateway auth migration, and the gateway decisions that constrain it.
 status: current
-updated: 2026-07-31
+updated: 2026-08-11
 owner: client
 ---
 
@@ -122,10 +122,13 @@ Google OAuth is configured.
 
 ## Blocked until someone provides credentials
 
-- **Email delivery.** No provider is configured; `sendVerificationEmail`
-  and `sendResetPassword` log in development and throw in production.
-  Verification and password reset cannot be tested end to end or shipped
-  until one is chosen.
+- **Email delivery.** The send path is built (`nodemailer` over SMTP, in the
+  gateway's `MailModule`), so what is left is genuinely credentials: a verified
+  sending domain and the five `SMTP_*` / `MAIL_FROM` values. With `SMTP_HOST`
+  unset the gateway logs the code in development and throws in production, so
+  verification and password reset cannot ship until someone provides them.
+  Steps and traps:
+  [docs/guides/email-delivery-setup.md](../guides/email-delivery-setup.md).
 - **Google OAuth.** Needs a Cloud project, client id and secret, and
   redirect URIs covering the `bpmobile` scheme. Google sign-in is not
   registered at all until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`

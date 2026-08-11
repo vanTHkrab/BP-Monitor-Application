@@ -2,7 +2,7 @@
 title: "Client: auth file structure and migration order"
 description: Where the mobile auth code lives and in what order to move it, companion to the integration plan.
 status: current
-updated: 2026-08-01
+updated: 2026-08-11
 owner: client
 ---
 
@@ -109,6 +109,7 @@ src/app/(auth)/           # route group — unchanged in name and location
 ├── login.tsx
 ├── register.tsx
 ├── verify-email.tsx      # new: six-digit OTP
+├── forgot-password.tsx   # new: reset by OTP, two steps on one route
 └── onboarding-phone.tsx  # new: mandatory after Google sign-up
 ```
 
@@ -214,6 +215,7 @@ Expected result: ~200 lines across `store/auth.store.ts` + `modules/auth/service
 | `app/(auth)/login.tsx` (321) | `app/(auth)/login.tsx` | |
 | `app/(auth)/register.tsx` (782) | `app/(auth)/register.tsx` + step components | email now required; `role` narrowed to `patient \| caregiver` |
 | — | `app/(auth)/verify-email.tsx` | new, built, reachable |
+| — | `app/(auth)/forgot-password.tsx` | new, built, reachable from the login screen |
 | — | `app/(auth)/onboarding-phone.tsx` | new, built, unreachable until OAuth |
 
 `register.tsx` at 782 lines should be split while porting, not ported whole and
@@ -337,9 +339,13 @@ against `1.7.0-rc.2`, still broken — see "P0" above).
 
 Both are external, both are named as open items in the gateway design doc.
 
-- **Email delivery.** No provider is configured; `sendVerificationEmail` and
-  `sendResetPassword` log in development and throw in production. Email
-  verification and password reset cannot be exercised end to end.
+- **Email delivery.** The send path is built (`nodemailer` over SMTP, in the
+  gateway's `MailModule`); what remains is a verified sending domain and the
+  `SMTP_*` / `MAIL_FROM` values. Until those are set the gateway logs the code
+  in development and throws in production, so email verification and password
+  reset cannot be exercised end to end — both screens are built and reachable
+  and fail at exactly this point. See
+  [docs/guides/email-delivery-setup.md](../guides/email-delivery-setup.md).
 - **Google OAuth credentials.** Google sign-in is not registered at all until
   `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set, deliberately, so it
   fails as "not set up" rather than at the redirect.

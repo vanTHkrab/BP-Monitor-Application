@@ -42,7 +42,8 @@ files; reorganising inside a module is a manual refactor.
 | `src/main.ts` | bootstrap, global `ValidationPipe`, CORS, listen |
 | `src/app.module.ts` | GraphQL driver config + `errorFormatter` (stamps `extensions.code`), feature module wiring |
 | `src/redis/redis.module.ts` | `@Global()` provider of `REDIS_CLIENT` (ioredis). Lazy-connects + suppresses errors — consumers check `redis.status === 'ready'` and degrade if not |
-| `src/redis/rate-limit.service.ts` | `RateLimitService` — the project's one rate limiter. Fixed window **by decision, not by omission** (A-008: the boundary burst of 2x `max` was weighed and accepted; the doc comment above `CONSUME` holds the rationale and the revisit triggers — don't "fix" it to a sliding window), atomic INCR + PEXPIRE in a single Lua call, falls back to a per-process counter if Redis isn't ready. Exported by the `@Global()` `RedisModule`, so inject it rather than writing a second INCR against `REDIS_CLIENT`. Used by Better Auth's credential routes (5/15min) via `betterAuthStorage()` and by `addCaregiverPatient` (10/10min per caregiver). Replaced the old `src/auth/login-throttle.guard.ts`, which no longer exists |
+| `src/redis/rate-limit.service.ts` | `RateLimitService` — the project's one rate limiter. Fixed window **by decision, not by omission** (A-008: the boundary burst of 2x `max` was weighed and accepted; the doc comment above `CONSUME` holds the rationale and the revisit triggers — don't "fix" it to a sliding window), atomic INCR + PEXPIRE in a single Lua call, falls back to a per-process counter if Redis isn't ready. Exported by the `@Global()` `RedisModule`, so inject it rather than writing a second INCR against `REDIS_CLIENT`. Used by Better Auth's credential routes (5/15min) via `betterAuthStorage()` and by `addCaregiverPatient` (10/10min per caregiver). Replaced the old `src/auth/login-throttle.guard.ts`, which no longer exists. **The key is the client IP plus the path, and resolving that IP is load-bearing** — unresolved, Better Auth substitutes a literal `no-trusted-ip` and every caller shares one bucket, turning 5-per-15-minutes into five attempts for the whole user base. See `advanced.ipAddress` in `better-auth.ts` |
+| `src/redis/secondary-storage.ts` | `betterAuthSecondaryStorage()` — the `secondaryStorage` adapter: sessions plus the single-use verification values behind email OTP and password reset. `getAndDelete` is the member that matters: it is `GETDEL`, one round trip, and Better Auth silently falls back to a non-atomic read-then-delete when it is absent, which lets two workers spend the same OTP. Lives here rather than in `better-auth.ts` for the same reason `betterAuthStorage()` does — that file cannot be loaded under Jest |
 | `src/auth/` | register/login/me, JWT guard, sessions, password change, account deletion. Rate limiting is configured here (`better-auth.ts`) but implemented in `src/redis/` |
 | `src/auth/auth.config.ts` | `getJwtSecret()` (fail-fast on missing/short), `JWT_EXPIRES_IN` (default `7d`), `BCRYPT_SALT_ROUNDS` |
 | `src/auth/auth.guard.ts` | `GqlAuthGuard` — verifies JWT, checks session active, throttled `lastActiveAt` update |
@@ -52,6 +53,7 @@ files; reorganising inside a module is a manual refactor.
 | `src/reading/`, `src/post/`, `src/comment/`, `src/alert/` | feature modules — same shape: `*.module.ts`, `*.resolver.ts`, `*.service.ts`, `*.types.ts` |
 | `src/caregiver/` | same shape, plus the three authorization guards every cross-patient path goes through: `assertCanViewPatient` (any accepted link), `assertCanRecordForPatient` (accepted + `full`), `assertCanEditPatientHealth` (accepted + `full`, but 404 for a missing link — its `patientId` is caller-supplied, so 403 everywhere would make it an existence oracle). Also owns `updatePatientHealth` + the `ProfileChangeLog` audit trail: a `full` caregiver may edit five health fields and **only** those five — `email`/`phone` are absent from `UpdatePatientHealthInput` rather than filtered out, because both are `@unique` Better Auth sign-in identities. Don't widen that input or reuse `UpdateProfileInput` here |
 | `src/push/` | Expo push delivery. `PushService` owns token registration (upsert keyed on the token, so a shared device *reassigns* rather than duplicates), the send path, and a 30-min `@Cron` receipt sweep that prunes `DeviceNotRegistered` tokens. **`expo-server-sdk` v7 is ESM-only and the Jest setup is CJS**, so the only runtime import of it lives in `expo-push.provider.ts`, which no spec loads — `expo-push.client.ts` holds just the DI token and the interface. Same isolation trick as `auth/android-origin.ts`; import the SDK from a service and the whole suite stops parsing |
+| `src/mail/` | SMTP delivery (nodemailer). `MailService` owns one pooled transport built on first use and closed in `onModuleDestroy`; `mail.templates.ts` owns every subject and body (Thai, `text` **and** `html`, subject chosen by the OTP `type`). Imported by `AuthModule` and injected into `createBetterAuth` as a `MailSender` argument — `better-auth.ts` is constructed outside the DI graph by a `useFactory`, and importing nodemailer there would put the send path back inside a file Jest cannot parse. Unset `SMTP_HOST` logs in development and **throws** in production |
 | `src/ai/` | bridges GraphQL to AI service over Redis transport |
 | `src/storage/` | S3 upload helpers (profile + BP image) + `StorageCleanupService` (`@Cron` daily orphan-image sweep) |
 | `src/prisma/` | `PrismaService` (extends PrismaClient), `prisma.module.ts` is global |
@@ -64,7 +66,7 @@ files; reorganising inside a module is a manual refactor.
 pnpm start:dev                # hot-reload
 pnpm build                    # tsc → dist/
 pnpm exec tsc --noEmit        # type-check only
-pnpm exec jest --watchman=false   # unit: 21 suites / 310 tests. NOT `pnpm test`
+pnpm exec jest --watchman=false   # unit: 32 suites / 555 tests. NOT `pnpm test`
 pnpm test:e2e                 # e2e (needs DB)
 pnpm prisma migrate dev       # apply pending migrations
 ```
@@ -137,11 +139,15 @@ pnpm prisma migrate dev       # apply pending migrations
   free-form, use `@IsString()` + `@MaxLength()` at minimum.
 - **Don't migrate the DB without `pnpm prisma migrate dev`.** Manually
   editing the database in dev causes drift.
-- **Add a service-level unit test with new behavior.** The suite is 21 files
-  / 310 tests and `auth/` is covered (`auth.service.spec.ts`,
+- **Add a service-level unit test with new behavior.** The suite is 32 files
+  / 555 tests and `auth/` is covered (`auth.service.spec.ts`,
   `android-origin.spec.ts`, `dto/select-role.input.spec.ts`,
   `types/auth.types.spec.ts`). Mock `PrismaService`; never hit a real DB from
-  a unit test.
+  a unit test. **`better-auth.ts` itself cannot be covered** — it imports
+  ESM-only packages the CJS Jest setup cannot parse, which is why the send
+  path lives in `mail/` and the message composition in `mail.templates.ts`.
+  Logic put directly in that file is permanently untestable; put it in a unit
+  the factory can be handed instead.
 - **Run the suite with `pnpm exec jest --watchman=false`.** The bare
   `pnpm test` script omits the flag and a poisoned watchman aborts with
   `ENOSPC` before any test runs, which reads like a real failure.

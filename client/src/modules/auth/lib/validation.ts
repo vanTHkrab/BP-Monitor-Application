@@ -17,6 +17,8 @@ export type FieldErrors<K extends string> = Partial<Record<K, string>>;
 
 export type LoginField = 'phone' | 'password';
 export type RegisterField = LoginField | 'firstname' | 'lastname' | 'email' | 'confirmPassword';
+export type ForgotPasswordField = 'email';
+export type ResetPasswordField = 'otp' | 'password' | 'confirmPassword';
 
 /** Matches the gateway's `PASSWORD_MIN`. */
 export const PASSWORD_MIN = 8;
@@ -67,6 +69,50 @@ export function validateRegister(values: RegisterFormValues): FieldErrors<Regist
   else if (!isValidEmail(values.email.trim())) errors.email = 'รูปแบบอีเมลไม่ถูกต้อง';
 
   if (!values.password) errors.password = 'กรุณากรอกรหัสผ่าน';
+  else if (values.password.length < PASSWORD_MIN)
+    errors.password = `รหัสผ่านต้องมีอย่างน้อย ${PASSWORD_MIN} ตัวอักษร`;
+
+  if (!values.confirmPassword) errors.confirmPassword = 'กรุณายืนยันรหัสผ่าน';
+  else if (values.confirmPassword !== values.password)
+    errors.confirmPassword = 'รหัสผ่านไม่ตรงกัน';
+
+  return errors;
+}
+
+/**
+ * Step one of the password reset: just an address to mail a code to.
+ *
+ * Deliberately does not check that the address is registered — the server
+ * will not say either, so there is nothing to check against and pretending
+ * otherwise would be the enumeration leak the endpoint exists to avoid.
+ */
+export function validateForgotPasswordEmail(email: string): FieldErrors<ForgotPasswordField> {
+  const errors: FieldErrors<ForgotPasswordField> = {};
+  const trimmed = email.trim();
+
+  if (!trimmed) errors.email = 'กรุณากรอกอีเมล';
+  else if (!isValidEmail(trimmed)) errors.email = 'รูปแบบอีเมลไม่ถูกต้อง';
+
+  return errors;
+}
+
+/**
+ * Step two: the code and the new password go up together, so a mistake in
+ * either one costs the same round trip. Catching the cheap ones here matters
+ * more than usual — a rejected request does **not** invalidate the code, but
+ * `TOO_MANY_ATTEMPTS` counts every wrong OTP the server sees.
+ */
+export function validateResetPassword(values: {
+  otp: string;
+  password: string;
+  confirmPassword: string;
+}): FieldErrors<ResetPasswordField> {
+  const errors: FieldErrors<ResetPasswordField> = {};
+
+  if (!values.otp) errors.otp = 'กรุณากรอกรหัสยืนยัน';
+  else if (!/^\d{6}$/.test(values.otp)) errors.otp = 'รหัสยืนยันต้องเป็นตัวเลข 6 หลัก';
+
+  if (!values.password) errors.password = 'กรุณากรอกรหัสผ่านใหม่';
   else if (values.password.length < PASSWORD_MIN)
     errors.password = `รหัสผ่านต้องมีอย่างน้อย ${PASSWORD_MIN} ตัวอักษร`;
 

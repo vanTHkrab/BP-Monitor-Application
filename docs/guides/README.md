@@ -2,7 +2,7 @@
 title: Guides
 description: Index of the how-to material — setup, run, deploy, and troubleshoot.
 status: current
-updated: 2026-08-09
+updated: 2026-08-11
 owner: cross
 ---
 
@@ -18,6 +18,7 @@ If you are asking "what is the contract" or "why is it like this", you want
 | [run.md](./run.md) | Day-to-day commands, and which check is the real ship gate |
 | [deploy.md](./deploy.md) | Putting the backend on a host, TLS, and the access model — **and which of the two runtimes you are on** (Podman Quadlet on EC2 is production; Docker Compose is development) |
 | [push-notifications-setup.md](./push-notifications-setup.md) | Turning the already-built push code into actual delivery — Firebase, FCM V1, and the ways this config fails without saying so |
+| [email-delivery-setup.md](./email-delivery-setup.md) | Same shape, for email — the OTP and password-reset screens are built and the gateway sends nothing until a provider is wired in |
 | [troubleshooting.md](./troubleshooting.md) | Something failed in a way that points at the wrong cause |
 
 These guides own the how-to steps. Where a per-app README or

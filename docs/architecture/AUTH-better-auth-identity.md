@@ -2,7 +2,7 @@
 title: "Auth migration: custom JWT to Better Auth"
 description: Identity model, account-linking rules, and the Better Auth feature set the gateway adopted, with the alternatives rejected.
 status: current
-updated: 2026-08-06
+updated: 2026-08-11
 owner: api-gateway
 ---
 
@@ -437,23 +437,63 @@ deep-link round trip and additionally supplies focus and online managers.
 
 ## Email delivery
 
-Not chosen yet. The gateway has no mail provider — no `nodemailer`, no
-`resend`, no SES, and no SMTP settings in `.env.example`.
+`nodemailer` over SMTP, with Resend as the first provider — SMTP because it
+makes a provider switch four environment variables rather than a dependency
+swap. The send path lives in the gateway's `MailModule`, not in
+`better-auth.ts`: that file imports ESM-only packages the CJS Jest setup
+cannot parse, so anything declared in it is permanently untestable.
+`createBetterAuth` therefore takes a `MailSender` argument, handed in by the
+`useFactory` in `better-auth.provider.ts` — the only bridge between Nest's DI
+graph and a Better Auth instance constructed outside it.
 
-Until one is picked, `sendVerificationEmail` and `sendResetPassword` log
-the message in development instead of sending it. That unblocks
-implementation, and the code path is exercised, but **neither email
-verification nor password reset can be tested end to end**, and neither
-can ship, until a provider is wired in.
+The steps, the DNS work, and the traps are in
+[docs/guides/email-delivery-setup.md](../guides/email-delivery-setup.md).
 
-This is a deliberate stub, not an oversight: swapping the log for a real
-send is a one-function change, and choosing a provider needs a domain and
-DNS access that the code does not.
+**What is still needed is credentials, not code.** With `SMTP_HOST` unset —
+which is the state of a fresh checkout — `sendVerificationEmail`,
+`sendResetPassword`, and `sendVerificationOTP` log the message in development
+instead of sending it, and throw in production rather than dropping a live
+credential on the floor. Until a verified sending domain and the `SMTP_*` /
+`MAIL_FROM` values exist, **neither email verification nor password reset can
+be tested end to end**, and neither can ship.
+
+That split is deliberate: verifying a sending domain needs DNS access the code
+does not have, so the unconfigured branch had to stay a first-class mode rather
+than a temporary stub.
+
+### Password reset is a code, not a link
+
+`sendResetPassword` builds its URL from `BETTER_AUTH_URL`, which points at
+the gateway — a service that serves no HTML. A reset link would leave for
+the system browser and land on nothing.
+
+The mobile flow therefore goes through the `emailOTP` plugin's
+password-reset endpoints instead, matching the decision already made for
+email verification:
+
+| Endpoint | Body |
+| --- | --- |
+| `POST /forget-password/email-otp` | `{ email }` |
+| `POST /email-otp/reset-password` | `{ email, otp, password }` |
+
+Two behaviours of these that the UI has to respect. The first resolves
+`{ success: true }` for an address that has no account, so the response
+cannot be used to enumerate users — which means the client may not tell the
+user a code was sent. The second sets `emailVerified = true` on success, on
+the reasoning that holding the code proves control of the address; that is a
+second route to the flag gating Google account linking.
+
+`sendResetPassword` stays configured for the link flow. Nothing calls it.
 
 ## Open items
 
-- **A mail provider.** Blocks shipping email verification and password
-  reset; see above.
+- **SMTP credentials and a verified sending domain.** The code is in place;
+  this is the DNS and account work that blocks shipping email verification and
+  password reset. See above and the setup guide.
+- **Rate-limiting `/email-otp/request-email-change`.** The two unauthenticated
+  code-request paths are budgeted at 3 per 15 minutes; this one also sends
+  mail but requires a session, so it needs a different key and was left out
+  rather than given a borrowed rule.
 - **Google OAuth credentials.** A Cloud project, a client id and secret,
   and redirect URIs covering the app's `bpmobile` scheme. Configuration
   work that lives outside this repository.

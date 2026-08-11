@@ -162,9 +162,18 @@ What it costs, concretely — these are not theoretical:
    is the single most likely way to break this deploy, and it breaks it at the
    moment you disconnect, not at the moment you make the mistake.
 3. **Source IP — the concern moved, it did not go away.** nginx's flood guard is
-   `limit_req_zone $binary_remote_addr`, and the gateway's login throttle is
-   keyed by phone number, so the nginx per-IP limit is the only thing that slows
-   an attacker rotating credentials.
+   `limit_req_zone $binary_remote_addr`, and the gateway's own throttle is keyed
+   by client IP plus path — not by phone number, as this said before the Better
+   Auth migration. Both layers are therefore per-IP, which means neither slows
+   an attacker rotating credentials from many addresses; that is Cloudflare's
+   WAF to catch, not this stack's.
+
+   The gateway resolves that IP from the `X-Real-IP` header nginx sets
+   (`advanced.ipAddress.ipAddressHeaders` in `src/auth/better-auth.ts`).
+   **Deploy order matters because of it:** a gateway image rolled out ahead of
+   an nginx config that sets the header finds no address, and Better Auth keys
+   every limit on a literal `no-trusted-ip` — one shared bucket for the whole
+   user base, announced by a single startup warning and nothing else.
 
    The old risk was the rootless port forwarder (`pasta` / `slirp4netns`)
    rewriting every client to one address. That risk is gone with the published

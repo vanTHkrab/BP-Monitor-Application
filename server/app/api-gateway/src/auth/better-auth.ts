@@ -17,9 +17,16 @@ import { defaultStatements } from 'better-auth/plugins/admin/access';
 import * as bcrypt from 'bcrypt';
 import type Redis from 'ioredis';
 
+import type { MailSender } from '../mail/mail.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RateLimitService } from '../redis/rate-limit.service';
+import { betterAuthSecondaryStorage } from '../redis/secondary-storage';
 import { isProduction } from '../env';
+import {
+  otpEmail,
+  resetPasswordEmail,
+  verifyEmailEmail,
+} from '../mail/mail.templates';
 import { androidOriginsFromFingerprints } from './android-origin';
 import {
   BCRYPT_SALT_ROUNDS,
@@ -142,48 +149,22 @@ const APP_ROLES = {
 export type BetterAuthInstance = ReturnType<typeof createBetterAuth>;
 
 /**
- * Redis is optional at boot everywhere else in this service, so the wrapper
- * degrades the same way: a store that fails is treated as a cache miss rather
- * than an error. Sessions still resolve from Postgres, and rate limits fall
- * back to counting nothing — availability is preferred over throttling a user
- * we cannot count.
+ * `mail` is passed in rather than imported.
+ *
+ * This function runs outside Nest's DI graph — `better-auth.provider.ts` calls
+ * it from a `useFactory` — so the only way a Nest-managed singleton reaches the
+ * plugin callbacks below is as an argument. Importing `MailService` here and
+ * constructing one would work at runtime and be wrong twice over: a second
+ * instance means a second nodemailer pool that `onModuleDestroy` never closes,
+ * and the send path would be reachable only through this file, which the CJS
+ * Jest setup cannot parse. Taking the `MailSender` interface keeps the
+ * dependency inverted and leaves the implementation testable on its own.
  */
-function secondaryStorageFor(redis: Redis) {
-  const ready = () => redis.status === 'ready';
-
-  return {
-    get: async (key: string) => {
-      if (!ready()) return null;
-      try {
-        return await redis.get(key);
-      } catch {
-        return null;
-      }
-    },
-    set: async (key: string, value: string, ttl?: number) => {
-      if (!ready()) return;
-      try {
-        if (ttl) await redis.set(key, value, 'EX', ttl);
-        else await redis.set(key, value);
-      } catch {
-        // Cache write failures must not fail the request.
-      }
-    },
-    delete: async (key: string) => {
-      if (!ready()) return;
-      try {
-        await redis.del(key);
-      } catch {
-        // As above.
-      }
-    },
-  };
-}
-
 export function createBetterAuth(
   prisma: PrismaService,
   redis: Redis,
   rateLimit: RateLimitService,
+  mail: MailSender,
 ) {
   return betterAuth({
     appName: 'BP Monitor',
@@ -206,8 +187,45 @@ export function createBetterAuth(
         // would mean rewriting those relations.
         generateId: () => randomUUID(),
       },
+      ipAddress: {
+        /**
+         * Every rate limit in this service is keyed by `<ip>|<path>`, and
+         * when the IP cannot be resolved Better Auth substitutes a literal
+         * `no-trusted-ip` — one shared bucket for every caller. That is not a
+         * degraded limit, it is a denial of service: the login rule of 5 per
+         * 15 minutes becomes five attempts for the entire user base, so one
+         * person fat-fingering a password locks everyone out.
+         *
+         * The default header is `x-forwarded-for`, and it does **not** work
+         * here. `getIPFromHeader` refuses any XFF carrying more than one
+         * entry unless `trustedProxies` is configured, and by the time a
+         * request reaches this service the header holds two: Cloudflare sets
+         * one at the edge and nginx appends `$remote_addr` via
+         * `$proxy_add_x_forwarded_for`. The result is `null` — silently, in
+         * production, where the warning is not being read.
+         *
+         * `x-real-ip` is a single value, and nginx sets it from
+         * `$remote_addr`, which `real_ip_header CF-Connecting-IP` has already
+         * rewritten to the true client address
+         * (`infra/nginx/templates/default.conf.template`).
+         *
+         * The trust this buys is only as good as the network: anything that
+         * can reach this service directly can claim any address. In the
+         * deployed stack nothing can — the api-gateway publishes no host port
+         * and only nginx sits on `bp-net` in front of it. Publishing a port,
+         * or putting a second client on that network, breaks this assumption
+         * without breaking anything visible.
+         *
+         * In development there is no proxy and therefore no header. Better
+         * Auth falls back to 127.0.0.1, but only when `NODE_ENV` is exactly
+         * `development` or `dev` — unlike this project's own `isProduction()`,
+         * which treats unset as development. An unset `NODE_ENV` locally is
+         * what produces the shared-bucket warning at startup.
+         */
+        ipAddressHeaders: ['x-real-ip'],
+      },
     },
-    secondaryStorage: secondaryStorageFor(redis),
+    secondaryStorage: betterAuthSecondaryStorage(redis),
 
     emailAndPassword: {
       enabled: true,
@@ -222,22 +240,14 @@ export function createBetterAuth(
       },
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
-        await deliverEmail({
-          to: user.email,
-          subject: 'ตั้งรหัสผ่านใหม่',
-          body: `Password reset link: ${url}`,
-        });
+        await mail.send({ to: user.email, ...resetPasswordEmail(url) });
       },
     },
 
     emailVerification: {
       sendOnSignUp: false,
       sendVerificationEmail: async ({ user, url }) => {
-        await deliverEmail({
-          to: user.email,
-          subject: 'ยืนยันอีเมล',
-          body: `Verification link: ${url}`,
-        });
+        await mail.send({ to: user.email, ...verifyEmailEmail(url) });
       },
     },
 
@@ -340,6 +350,25 @@ export function createBetterAuth(
           window: LOGIN_WINDOW_SECONDS,
           max: 3,
         },
+        // Requesting a password-reset code is unauthenticated and spends the
+        // mail quota exactly like the verification code above, so it gets the
+        // same budget.
+        //
+        // Both paths are listed because they are two routes onto one handler:
+        // `/forget-password/email-otp` is what the mobile client calls today
+        // (client/src/modules/auth/services/email-otp-api.ts) and Better Auth
+        // marks it deprecated in favour of the canonical one. Rules are keyed
+        // by path, so limiting only the deprecated alias leaves the
+        // replacement uncapped, and limiting only the canonical one caps
+        // nothing the client actually hits. The cost of listing both is that
+        // the two counters are independent — a caller willing to alternate
+        // paths gets 6 sends per window rather than 3. That is still bounded,
+        // and it collapses back to 3 when the deprecated route is removed.
+        '/forget-password/email-otp': { window: LOGIN_WINDOW_SECONDS, max: 3 },
+        '/email-otp/request-password-reset': {
+          window: LOGIN_WINDOW_SECONDS,
+          max: 3,
+        },
       },
     },
 
@@ -394,12 +423,13 @@ export function createBetterAuth(
       emailOTP({
         // Six digits typed into the app, rather than a link that leaves for
         // the system browser and has to deep-link back.
-        sendVerificationOTP: async ({ email, otp }) => {
-          await deliverEmail({
-            to: email,
-            subject: 'รหัสยืนยัน BP Monitor',
-            body: `Verification code: ${otp}`,
-          });
+        //
+        // `type` is load-bearing: the same callback serves sign-in,
+        // verification, and password reset, so ignoring it titles a reset code
+        // "รหัสยืนยัน BP Monitor" — which reads to the user as mail they did
+        // not ask for, in the one flow where that matters most.
+        sendVerificationOTP: async ({ email, otp, type }) => {
+          await mail.send({ to: email, ...otpEmail(type, otp) });
         },
       }),
       admin({
@@ -521,31 +551,12 @@ function googleProvider() {
 }
 
 /**
- * Email delivery is not wired up yet — the gateway has no mail provider.
+ * No SMS provider yet, and silence would be worse.
  *
- * This logs in development so the flows can be exercised, and throws in
- * production rather than silently dropping a password-reset link on the
- * floor. Replacing the body with a real send is the whole change.
+ * Email now goes through `MailService` (see `mail/`); this is the stub that
+ * used to sit beside it. Wiring a provider here is the same shape of change:
+ * an injected sender, not a module-level client.
  */
-async function deliverEmail(message: {
-  to: string;
-  subject: string;
-  body: string;
-}): Promise<void> {
-  if (isProduction()) {
-    throw new Error(
-      'No email provider is configured. Email verification and password ' +
-        'reset cannot be delivered. See docs/architecture/AUTH-better-auth-identity.md.',
-    );
-  }
-
-  // Development only. The body carries a reset link or a verification code —
-  // a live credential — so it must never reach a production log.
-  logger.debug(`email -> ${message.to}: ${message.subject} | ${message.body}`);
-  return Promise.resolve();
-}
-
-/** Same stance as email: no SMS provider yet, and silence would be worse. */
 async function deliverSms(message: {
   to: string;
   body: string;

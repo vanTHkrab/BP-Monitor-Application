@@ -98,10 +98,16 @@ map $http_upgrade $connection_upgrade {
 # anonymous caller can reach. The app's own login throttle
 # (server/app/api-gateway/src/redis/rate-limit.service.ts, configured per
 # credential route in src/auth/better-auth.ts, 5 attempts / 15 min) is keyed
-# by *phone number*, so it does not slow an attacker who rotates phones, and
-# when Redis isn't ready it drops to a per-process counter — which means one
-# budget per pod rather than one budget. This is the net-layer backstop for
-# both cases.
+# by `<ip>|<path>` — Better Auth's own key, not a phone number, which is what
+# this comment claimed before the migration to it. Two gaps remain that this
+# zone backstops: the app-level budget resolves its address from the
+# `X-Real-IP` set below, so a change to that header degrades it to one shared
+# bucket; and when Redis isn't ready it drops to a per-process counter, which
+# means one budget per pod rather than one budget.
+#
+# What neither layer covers is credential stuffing from many addresses against
+# many accounts — both are per-IP, so an attacker with a botnet is limited
+# only by Cloudflare's WAF.
 #
 # 10r/s with burst=40 is deliberately generous: a screen that fires several
 # queries on focus must never trip it. It is a flood guard, not a quota.
@@ -150,6 +156,18 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $host;
+        # LOAD-BEARING, not boilerplate. Better Auth keys every rate limit by
+        # `<ip>|<path>` and is configured (advanced.ipAddress.ipAddressHeaders
+        # in src/auth/better-auth.ts) to read the address from this header
+        # alone. Drop it and every caller shares one bucket per path, which
+        # turns the 5-per-15-minutes login rule into five attempts for the
+        # whole user base. It cannot use X-Forwarded-For below: that header
+        # arrives with two entries here (Cloudflare sets one, the directive
+        # below appends another) and Better Auth refuses a multi-entry XFF
+        # without a trustedProxies list.
+        #
+        # $remote_addr is already the true client address because
+        # `real_ip_header CF-Connecting-IP` above rewrote it.
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         # Hardcoded `https`, not `$scheme`. `$scheme` is `http` on this hop and

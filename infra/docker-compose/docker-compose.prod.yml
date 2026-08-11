@@ -39,7 +39,9 @@ services:
       # ANDROID_APP_*, EXPO_ACCESS_TOKEN) are forwarded by docker-compose.yml
       # for both stacks — they were missing entirely until this change, which
       # is why passkeys and Google sign-in were off in every containerised
-      # environment.
+      # environment. The same applies to SMTP_* / MAIL_FROM: forwarded by the
+      # base file, and with NODE_ENV=production above, an unset SMTP_HOST
+      # makes every password-reset and verification send throw.
     # No `ports:` — nginx is the only thing that reaches this service. Still
     # addressable from other bp-net containers as `api-gateway:3000`.
     expose:

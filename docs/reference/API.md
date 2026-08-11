@@ -2,7 +2,7 @@
 title: BP Monitor GraphQL API contract
 description: Endpoint, auth, error codes, and the operation catalogue client developers build against.
 status: current
-updated: 2026-08-07
+updated: 2026-08-11
 owner: api-gateway
 ---
 
@@ -169,6 +169,20 @@ own budget (10 per 10 minutes per caregiver).
 
 Both surface a 429 with `extensions.code = "TOO_MANY_REQUESTS"` and
 `extensions.retryAfterSec`.
+
+**Budgets are per client IP, per path.** Better Auth resolves the address
+from the `X-Real-IP` header, which nginx sets from the true client address
+(`real_ip_header CF-Connecting-IP`). Configured as
+`advanced.ipAddress.ipAddressHeaders` in `better-auth.ts`; the default
+`x-forwarded-for` does not work behind this stack, because the header
+arrives with two entries and Better Auth refuses a multi-entry XFF without a
+`trustedProxies` list. When no address can be resolved it does not fail — it
+substitutes a literal `no-trusted-ip`, so **every caller shares one bucket**
+and the login rule becomes five attempts for the entire user base. That
+state announces itself only as a single startup warning.
+
+Locally there is no proxy and therefore no header; Better Auth falls back to
+`127.0.0.1`, but only when `NODE_ENV` is exactly `development` or `dev`.
 
 ### 3.3 Client-side mapping
 
@@ -395,6 +409,49 @@ Rate-limited server-side to 3 requests / 15 min on the send endpoint (see
 [`better-auth.ts`](../../server/app/api-gateway/src/auth/better-auth.ts)).
 Error codes worth mapping client-side: `INVALID_OTP`, `OTP_EXPIRED`,
 `TOO_MANY_ATTEMPTS`.
+
+### Password reset — also REST, also a code
+
+Same plugin, same error shape. A code rather than a link because
+`sendResetPassword` builds its URL from `BETTER_AUTH_URL`, which points at a
+gateway that serves no HTML — the link has nowhere to land.
+
+```http
+POST /api/auth/forget-password/email-otp
+Content-Type: application/json
+
+{ "email": "user@example.com" }
+```
+
+```http
+POST /api/auth/email-otp/reset-password
+Content-Type: application/json
+
+{ "email": "user@example.com", "otp": "123456", "password": "new-password" }
+```
+
+Three behaviours a client has to account for:
+
+- **The request step resolves for an address with no account.** Better Auth
+  answers `{ success: true }` without sending, so the response cannot be used
+  to enumerate registered users. A client therefore must not claim a code was
+  sent — [`forgot-password.tsx`](../../client/src/app/%28auth%29/forgot-password.tsx)
+  says "หากมีบัญชีที่ใช้…" for exactly this reason. The consequence is that
+  `USER_NOT_FOUND` surfaces from the *reset* call instead.
+- **Success revokes every session.** `revokeSessionsOnPasswordReset` is
+  honoured here, and the rows are deleted rather than marked inactive — so
+  those devices vanish from the login-sessions screen rather than showing as
+  revoked.
+- **Success also sets `emailVerified = true`**, on the reasoning that holding
+  the code proves control of the address. This is a second route to the flag
+  that gates Google account linking.
+
+**Rate-limited to 3 requests / 15 min**, the same budget as the verification
+send. The rule is declared on both `/forget-password/email-otp` (used above)
+and its canonical replacement `/email-otp/request-password-reset`, because
+`customRules` is keyed by path and the two are separate counters — so a caller
+alternating between them gets 6 per window rather than 3. See
+[email-delivery-setup.md](../guides/email-delivery-setup.md).
 
 The mobile client calls these directly with `fetch` — see
 [`client/src/modules/auth/services/email-otp-api.ts`](../../client/src/modules/auth/services/email-otp-api.ts) —

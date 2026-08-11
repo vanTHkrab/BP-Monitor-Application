@@ -53,6 +53,8 @@ curl -s http://localhost:3000/graphql \
 | `BETTER_AUTH_SECRET` | no | falls back to `JWT_SECRET` | Set explicitly in prod so rotating one doesn't rotate both |
 | `PASSKEY_RP_ID` | no | — | A bare registered domain. Passkeys are absent, not broken, when unset |
 | `ANDROID_APP_SHA256_FINGERPRINT` | for passkeys | — | Comma-separated: debug, release, and Play App Signing are different keys |
+| `SMTP_HOST` · `SMTP_PORT` · `SMTP_USER` · `SMTP_PASSWORD` · `MAIL_FROM` | in prod | — / `587` | Email delivery. Unset `SMTP_HOST` logs the code in development and **throws in production**, so email verification and password reset fail with a server error rather than a missing message. `MAIL_FROM`'s domain must be verified with the provider. 587 or 465 only — outbound 25 is blocked by essentially every cloud host, and the symptom is a timeout that reads like a network fault. See [docs/guides/email-delivery-setup.md](../../../docs/guides/email-delivery-setup.md) |
+| `NODE_ENV` | no | — | Keep `development` locally. This project's `isProduction()` treats unset as development, but Better Auth compares strictly and falls back to a localhost IP only for exactly `development` or `dev` — unset, no client address resolves and every caller shares one rate-limit bucket |
 
 Generate a secret:
 
