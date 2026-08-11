@@ -122,6 +122,16 @@ export function formatAuthError(
     };
   }
 
+  // Password reset only. Step one refuses to say whether an address is
+  // registered, so this is the first point at which the answer is
+  // unavoidable — the server cannot set a password for a user it cannot
+  // find. Left as the plain fact rather than something vaguer: the user is
+  // holding a code they were told might not arrive, and "ลองใหม่" would send
+  // them round the same loop.
+  if (code === 'USER_NOT_FOUND') {
+    return { message: 'ไม่พบบัญชีที่ใช้อีเมลนี้', field: null, retryAfterSec: null };
+  }
+
   if (code === 'FORBIDDEN') {
     return {
       message: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ',

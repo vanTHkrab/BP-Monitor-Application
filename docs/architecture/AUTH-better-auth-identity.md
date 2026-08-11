@@ -2,7 +2,7 @@
 title: "Auth migration: custom JWT to Better Auth"
 description: Identity model, account-linking rules, and the Better Auth feature set the gateway adopted, with the alternatives rejected.
 status: current
-updated: 2026-08-06
+updated: 2026-08-11
 owner: api-gateway
 ---
 
@@ -437,23 +437,56 @@ deep-link round trip and additionally supplies focus and online managers.
 
 ## Email delivery
 
-Not chosen yet. The gateway has no mail provider — no `nodemailer`, no
-`resend`, no SES, and no SMTP settings in `.env.example`.
+**Chosen, not yet wired.** `nodemailer` over SMTP, with Resend as the first
+provider — SMTP because it makes a provider switch four environment
+variables rather than a dependency swap. Neither the package nor the
+`SMTP_*` settings are installed yet; the steps, the DNS work, and the traps
+are in
+[docs/guides/email-delivery-setup.md](../guides/email-delivery-setup.md).
 
-Until one is picked, `sendVerificationEmail` and `sendResetPassword` log
-the message in development instead of sending it. That unblocks
-implementation, and the code path is exercised, but **neither email
-verification nor password reset can be tested end to end**, and neither
-can ship, until a provider is wired in.
+Until that lands, `sendVerificationEmail` and `sendResetPassword` log the
+message in development instead of sending it, and throw in production
+rather than dropping a live credential on the floor. The code path is
+exercised, but **neither email verification nor password reset can be
+tested end to end**, and neither can ship.
 
 This is a deliberate stub, not an oversight: swapping the log for a real
-send is a one-function change, and choosing a provider needs a domain and
-DNS access that the code does not.
+send is a one-function change, and verifying a sending domain needs DNS
+access that the code does not.
+
+### Password reset is a code, not a link
+
+`sendResetPassword` builds its URL from `BETTER_AUTH_URL`, which points at
+the gateway — a service that serves no HTML. A reset link would leave for
+the system browser and land on nothing.
+
+The mobile flow therefore goes through the `emailOTP` plugin's
+password-reset endpoints instead, matching the decision already made for
+email verification:
+
+| Endpoint | Body |
+| --- | --- |
+| `POST /forget-password/email-otp` | `{ email }` |
+| `POST /email-otp/reset-password` | `{ email, otp, password }` |
+
+Two behaviours of these that the UI has to respect. The first resolves
+`{ success: true }` for an address that has no account, so the response
+cannot be used to enumerate users — which means the client may not tell the
+user a code was sent. The second sets `emailVerified = true` on success, on
+the reasoning that holding the code proves control of the address; that is a
+second route to the flag gating Google account linking.
+
+`sendResetPassword` stays configured for the link flow. Nothing calls it.
 
 ## Open items
 
-- **A mail provider.** Blocks shipping email verification and password
-  reset; see above.
+- **Wiring the mail provider.** Blocks shipping email verification and
+  password reset; see above and the setup guide.
+- **Rate-limiting `/forget-password/email-otp`.** `customRules` throttles
+  `/email-otp/send-verification-otp` but not this one, which is equally
+  unauthenticated and equally able to spend the mail quota.
+- **A subject per OTP `type`.** `sendVerificationOTP` ignores the `type` it
+  is handed, so a password-reset code arrives titled "รหัสยืนยัน BP Monitor".
 - **Google OAuth credentials.** A Cloud project, a client id and secret,
   and redirect URIs covering the app's `bpmobile` scheme. Configuration
   work that lives outside this repository.

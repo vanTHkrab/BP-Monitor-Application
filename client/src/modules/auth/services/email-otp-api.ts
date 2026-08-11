@@ -23,7 +23,7 @@ import { getApiBaseUrl } from '@/services/endpoint';
 const REQUEST_TIMEOUT_MS = 30_000;
 const AUTH_BASE_PATH = '/api/auth';
 
-export type OtpPurpose = 'email-verification';
+export type OtpPurpose = 'email-verification' | 'forget-password';
 
 type BetterAuthErrorBody = {
   code?: string;
@@ -95,4 +95,39 @@ export async function sendVerificationOtp(email: string): Promise<void> {
  */
 export async function verifyEmailOtp(email: string, otp: string): Promise<void> {
   await postAuthJson<{ status: boolean }>('/email-otp/verify-email', { email, otp });
+}
+
+/**
+ * Starts a password reset by mailing a six-digit code.
+ *
+ * **This resolves for an address that has no account.** Better Auth returns
+ * `{ success: true }` without sending, so that the response cannot be used to
+ * enumerate registered users. The caller therefore may not tell the user "we
+ * sent you a code" — it does not know that, and the screen's copy is
+ * conditional for exactly this reason.
+ *
+ * The `type` discriminator that `sendVerificationOtp` passes is not accepted
+ * here: this endpoint sets `type: 'forget-password'` itself, and the code it
+ * issues is only redeemable by `resetPasswordWithOtp`.
+ */
+export async function requestPasswordResetOtp(email: string): Promise<void> {
+  await postAuthJson<{ success: boolean }>('/forget-password/email-otp', { email });
+}
+
+/**
+ * Consumes the code and sets the new password in one call — there is no
+ * intermediate "the code was right" round trip, so a wrong code and a
+ * too-short password surface from the same request and have to be told apart
+ * by their error code.
+ *
+ * On success the user is **not** signed in: the gateway sets
+ * `revokeSessionsOnPasswordReset`, so every existing session dies and the
+ * caller has to send them to the login screen.
+ */
+export async function resetPasswordWithOtp(input: {
+  email: string;
+  otp: string;
+  password: string;
+}): Promise<void> {
+  await postAuthJson<{ success: boolean }>('/email-otp/reset-password', input);
 }

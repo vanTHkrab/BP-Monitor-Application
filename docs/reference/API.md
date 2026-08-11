@@ -2,7 +2,7 @@
 title: BP Monitor GraphQL API contract
 description: Endpoint, auth, error codes, and the operation catalogue client developers build against.
 status: current
-updated: 2026-08-07
+updated: 2026-08-11
 owner: api-gateway
 ---
 
@@ -395,6 +395,46 @@ Rate-limited server-side to 3 requests / 15 min on the send endpoint (see
 [`better-auth.ts`](../../server/app/api-gateway/src/auth/better-auth.ts)).
 Error codes worth mapping client-side: `INVALID_OTP`, `OTP_EXPIRED`,
 `TOO_MANY_ATTEMPTS`.
+
+### Password reset — also REST, also a code
+
+Same plugin, same error shape. A code rather than a link because
+`sendResetPassword` builds its URL from `BETTER_AUTH_URL`, which points at a
+gateway that serves no HTML — the link has nowhere to land.
+
+```http
+POST /api/auth/forget-password/email-otp
+Content-Type: application/json
+
+{ "email": "user@example.com" }
+```
+
+```http
+POST /api/auth/email-otp/reset-password
+Content-Type: application/json
+
+{ "email": "user@example.com", "otp": "123456", "password": "new-password" }
+```
+
+Three behaviours a client has to account for:
+
+- **The request step resolves for an address with no account.** Better Auth
+  answers `{ success: true }` without sending, so the response cannot be used
+  to enumerate registered users. A client therefore must not claim a code was
+  sent — [`forgot-password.tsx`](../../client/src/app/%28auth%29/forgot-password.tsx)
+  says "หากมีบัญชีที่ใช้…" for exactly this reason. The consequence is that
+  `USER_NOT_FOUND` surfaces from the *reset* call instead.
+- **Success revokes every session.** `revokeSessionsOnPasswordReset` is
+  honoured here, and the rows are deleted rather than marked inactive — so
+  those devices vanish from the login-sessions screen rather than showing as
+  revoked.
+- **Success also sets `emailVerified = true`**, on the reasoning that holding
+  the code proves control of the address. This is a second route to the flag
+  that gates Google account linking.
+
+**Not yet rate-limited.** `customRules` covers
+`/email-otp/send-verification-otp` but not `/forget-password/email-otp`. See
+[email-delivery-setup.md](../guides/email-delivery-setup.md).
 
 The mobile client calls these directly with `fetch` — see
 [`client/src/modules/auth/services/email-otp-api.ts`](../../client/src/modules/auth/services/email-otp-api.ts) —

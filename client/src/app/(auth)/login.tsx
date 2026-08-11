@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
 import { useGoogleSignIn, useLogin } from '@/modules/auth';
@@ -146,6 +147,22 @@ export default function LoginScreen() {
           disabled={throttle.isThrottled}
           size="large"
         />
+      </View>
+
+      {/*
+        * Below the submit button rather than beside the password field: this
+        * is the exit from a failed sign-in, and putting it inline invites a
+        * tap from people who have not tried their password yet.
+        */}
+      <View className="mt-4 items-center">
+        <ThemedText
+          testID="login-forgot-password"
+          type="label"
+          weight="regular"
+          themeColor="secondary"
+          onPress={() => router.push('/(auth)/forgot-password')}>
+          ลืมรหัสผ่าน?
+        </ThemedText>
       </View>
 
       <AlternateSignIn
