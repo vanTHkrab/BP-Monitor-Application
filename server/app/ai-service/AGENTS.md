@@ -47,8 +47,8 @@ three are ONNX-only — torch / joblib / sklearn are never imported at
 request time. Each reply carries `engine` + per-stage `metrics`
 (fetch / detect / ocr / validate ms, RSS before/after/delta, image
 size) so the gateway can append a JSONL row to S3 for offline
-comparison. 305 tests cover config / debug_dump / fetch / handlers /
-pipeline / rectify / validation / yolo / crnn / engines /
+comparison. 326 tests cover config / debug_dump / fetch / handlers /
+pipeline / ranges / rectify / validation / yolo / crnn / engines /
 cnn_classifiers / ssocr.
 
 The wire contract on `analyze_bp_image` stays additive: `ocrEngine` is
@@ -71,7 +71,8 @@ it the service replies with a structured error ("missing imageUrl").
 | `src/ai_service/analyzer/yolo.py` | `YoloDetector` — onnxruntime session, letterbox preprocess, anchor decode + NMS post-process. Loaded once, shared across engines |
 | `src/ai_service/analyzer/rectify.py` | Two-stage LCD straightening. Stage 1: 4-point perspective rectification of the BP_Screen_Monitor (class 1) bbox — `detect_screen_quad()` finds the LCD corners via auto-Canny + `approxPolyDP`; `rectify_perspective()` warps them to an axis-aligned rectangle. Stage 2 (fallback): field-layout rotation — `estimate_rotation_from_fields()` fits a line through the first-pass sys/dia/pulse boxes (right-edge midpoint by default — `USE_RIGHT_EDGE_ALIGNMENT`, since right-aligned LCD digits make centroids scatter by digit count; flip to `False` for the legacy centroid reference); `rotate_image_keep_content()` rotates the whole image by that angle and the second YOLO pass runs on the rotated frame. Stage 2 catches rounded-bezel monitors (Omron and similar) whose contour can't reduce to 4 vertices. Silent fallback (`None`) on every failure mode so the pipeline keeps running on the original image |
 | `src/ai_service/analyzer/preprocessing.py` | `letterbox()` (shared by detector and any future ROI preprocess) |
-| `src/ai_service/analyzer/validation.py` | range + sys>dia sanity (`is_value_in_range`, `is_reading_consistent`) |
+| `src/ai_service/analyzer/ranges.py` | **Single source of truth for BP value ranges and field labels.** Three tables that answer different questions and must not be collapsed: `CLINICAL_RANGES` ("plausible enough to report?" — wide, used by `validation.py`), `CANDIDATE_RANGES` ("which digit substring is the reading?" — narrower, used by the OCR engines, keyed by label), `HARD_CEILINGS` ("physically impossible?" — noise detection in the SSOCR scorer). Also owns the `BPClass` ↔ `"sys"`/`"dia"`/`"pul"` mapping. The relationships between the tables are enforced in `tests/test_ranges.py`, not just documented |
+| `src/ai_service/analyzer/validation.py` | range + sys>dia sanity (`is_value_in_range`, `is_reading_consistent`). `RANGES` is an alias for `ranges.CLINICAL_RANGES` |
 | `src/ai_service/analyzer/types.py` | `AnalysisResult`, `FieldReading`, `BoundingBox`, `BPClass`, `AnalysisStatus`, `PipelineMetrics` — shared dataclasses |
 | `src/ai_service/analyzer/ocr/base.py` | `OCRReader` Protocol + `OCRResult` — the seam every engine implements |
 | `src/ai_service/analyzer/ocr/crnn.py` | `CRNNEngine` + `CRNNSession` — ONNX int8 CRNN, ~30 ms/image |
@@ -86,7 +87,7 @@ it the service replies with a structured error ("missing imageUrl").
 | `models/crnn.pt` | Training-source PyTorch checkpoint for the CRNN (~4.7 MB). **Not** fetched at runtime — kept in R2 as a training-only artifact and intentionally absent from `EXPECTED_HASHES.json`. |
 | `docker-entrypoint.sh` | POSIX-sh shim that runs before the FastAPI CMD inside the container. Reads `$AI_MODELS_R2_BASE_URL`, downloads each `EXPECTED_HASHES.json` entry into `$MODELS_DIR` (default `/app/models`) with curl, verifies sha256, and refuses to `exec "$@"` on any mismatch. Cached on a Compose named volume (`ai_models`) so the download cost is paid once per host. |
 | `src/ai_service/scripts/fetch_models.py` | Local-dev mirror of the entrypoint — `uv run python -m ai_service.scripts.fetch_models [--dry-run]`. Uses httpx (already a dep) and reads the same manifest. Run once after `cp .env.example .env` before `uv run fastapi dev`. |
-| `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`, `test_ssocr` (segment classification, numeric extraction, trial scoring, asterisk repair, and the sys-prefix fabrication rule — the DIP `cand_*` kernels are deliberately left to a golden-image suite). Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
+| `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`, `test_listener` (bounded-concurrency dispatch, supervisor backoff, shutdown drain, `/health` vs `/ready` — the row lost this entry in the #142/#143 merge), `test_ranges` (the invariants between the three range tables: candidate ⊆ clinical, ceilings ≤ clinical max, and that each consumer holds the shared object rather than a copy), `test_ssocr` (segment classification, numeric extraction, trial scoring, asterisk repair, and the sys-prefix fabrication rule — the DIP `cand_*` kernels are deliberately left to a golden-image suite). Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
 | `debug_images/` | Dev-only output directory for `DebugDumper` when `AI_DEBUG_DUMP_ENABLED=1`. Layout: `debug_images/<jobId>/NN_<stage>.jpg`. Created lazily on first dump; gitignored. Never written when the toggle is off |
 | `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`, `ruff`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. Also holds the `[tool.ruff]` config: `select = ["E", "F", "I"]` only, because that set passes clean on the tree today and is therefore usable as a CI gate. The opinionated families (`B`, `BLE`, `RUF`, `SIM`, `UP`, `S`) report ~70 more findings, nearly all in `ocr/ssocr.py` — enable them in a dedicated cleanup, never as a drive-by. |
 | `Dockerfile` | container build for prod/staging |
@@ -230,6 +231,14 @@ without the other will silently break the AI flow.
 
 ## Working rules for Claude
 
+- **Clinical numbers have one home: `analyzer/ranges.py`.** Value
+  ranges, hard ceilings, and the `BPClass` ↔ label mapping had four
+  hand-kept copies that had already drifted. Don't add a fifth — and
+  don't collapse the three tables into one either, because they answer
+  different questions (report-worthiness vs candidate tie-break vs
+  noise detection). Changing a bound means changing it there and
+  checking `tests/test_ranges.py` still passes: the relationships
+  between the tables are assertions, not prose.
 - **`imageUrl` is attacker-shaped input, not trusted input.** It
   arrives in a Redis payload, so the trust boundary is "who can publish
   to the channel", not "the gateway wrote it". Anything that fetches,
