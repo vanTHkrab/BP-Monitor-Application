@@ -142,6 +142,12 @@ Lint and tests both run on every PR touching this directory
 `uv sync --frozen`, so a manifest edited without committing `uv.lock`
 fails there even when it works locally.
 
+Tests that load real weights (YOLO session load, ONNX metadata, the
+fetch-path wiring check) **skip** when `models/` has not been populated
+— they cannot run on a fresh checkout, since the weights come from R2
+rather than git. Run `fetch_models` to get full local coverage; the
+skip message names the command.
+
 ---
 
 ## Troubleshooting

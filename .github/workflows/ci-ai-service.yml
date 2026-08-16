@@ -19,10 +19,20 @@
 # change — but CI must not inherit it, or the drift never surfaces anywhere.
 #
 # ── Why no model download ───────────────────────────────────────────────────
-# The suite mocks every ONNX session (that's why it runs in seconds), so it
-# needs no weights and no AI_MODELS_R2_BASE_URL secret. The flip side is that
-# CI proves the wiring, not the accuracy — an end-to-end golden-image job
-# against the real models is tracked separately.
+# Most of the suite mocks ONNX (that's why it runs in seconds). The handful of
+# tests that load the real weights skip on a fresh checkout, because the
+# weights are not in git — they come from R2 against models/EXPECTED_HASHES.json
+# (ADR-005). So CI needs no AI_MODELS_R2_BASE_URL secret and no ~62 MB download
+# per run, and it does not go red because an external bucket had a bad minute.
+#
+# The cost is honest and bounded: ~10 tests are skipped here, covering YOLO
+# session load, ONNX metadata, and the fetch-path/config wiring check. Those
+# still run on any developer machine that has fetched the weights, and the
+# `require_model` fixture prints the exact command when they don't.
+#
+# The larger gap is unchanged either way: CI proves the wiring, not the
+# accuracy. An end-to-end golden-image job against the real models is tracked
+# separately.
 
 name: CI ai-service
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -10,6 +11,48 @@ import pytest
 
 from ai_service.analyzer.ocr.base import OCRResult
 from ai_service.analyzer.types import BoundingBox, BPClass
+
+# ─── Model artifacts ────────────────────────────────────────────────────
+#
+# Most of the suite mocks ONNX entirely, which is why it runs in seconds.
+# A handful of tests load the real weights instead — and those weights
+# are NOT in git: they are fetched from R2 against
+# `models/EXPECTED_HASHES.json` (ADR-005). So they are present on a
+# developer machine that has run `fetch_models`, and absent on a fresh
+# CI checkout.
+#
+# `test_crnn.py` already skipped in that case; `test_yolo.py` and
+# `test_config.py` hard-failed instead, which nobody noticed until CI
+# existed to run them without weights. `require_model` is that same
+# convention, stated once.
+#
+# A skip here means "not covered on this machine", never "passing".
+# Anything that must hold without weights belongs in a mocked test.
+
+MODELS_DIR: Path = Path(__file__).resolve().parents[1] / "models"
+
+
+@pytest.fixture(scope="session")
+def require_model():
+    """Factory: return an artifact's path, or skip when it isn't fetched.
+
+    A fixture rather than a plain helper because `tests/` is not a
+    package — importing across test modules would depend on pytest's
+    sys.path insertion. Session-scoped so module-scoped fixtures (the
+    YOLO detector, the CRNN session) can depend on it.
+    """
+
+    def _require(filename: str) -> Path:
+        path = MODELS_DIR / filename
+        if not path.exists():
+            pytest.skip(
+                f"model artifact {filename} not fetched — run "
+                f"`uv run python -m ai_service.scripts.fetch_models` "
+                f"(expected at {path})"
+            )
+        return path
+
+    return _require
 
 
 @pytest.fixture

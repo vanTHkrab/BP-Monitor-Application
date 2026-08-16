@@ -18,13 +18,17 @@ from ai_service.analyzer.yolo import (
     FIELD_CLASS_IDS,
     YoloDetector,
 )
-from ai_service.config import AI_SERVICE_ROOT
 
 
 @pytest.fixture(scope="module")
-def detector() -> YoloDetector:
-    """Module-scoped — load model once, share across tests (saves ~100 ms x N)."""
-    return YoloDetector.load(AI_SERVICE_ROOT / "models" / "yolo11n.onnx")
+def detector(require_model) -> YoloDetector:
+    """Module-scoped — load model once, share across tests (saves ~100 ms x N).
+
+    Skips when the weights have not been fetched from R2 (a fresh CI
+    checkout) rather than erroring — same convention as the CRNN
+    fixture. See `require_model` in conftest.
+    """
+    return YoloDetector.load(require_model("yolo11n.onnx"))
 
 
 class TestModelMetadata:
