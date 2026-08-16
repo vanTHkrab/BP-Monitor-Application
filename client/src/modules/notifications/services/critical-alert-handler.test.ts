@@ -1,20 +1,26 @@
 /**
- * What a tapped critical-BP push does — and the ordering that makes it safe.
+ * What a tapped critical-BP push does.
  *
- * `/alerts` renders whoever `useSubject()` resolves to. A caregiver taps an
- * alert about patient X while the app still points at themselves, so the
- * subject has to be switched *before* the navigation or the screen answers
- * with the wrong person's medical data. That ordering is the whole test: it is
- * invisible in a manual run where the caregiver happens to already be viewing
- * the right patient, and it is a disclosure the one time they are not.
+ * The property under test **inverted** when the alert fan-out landed, and the
+ * tests are the record of why.
+ *
+ * The old rule was "switch the subject to the patient before navigating, or
+ * the screen answers with the wrong person's data". That was right while
+ * `Alert.userId` was only ever the patient: a caregiver owned no rows, so
+ * pointing `/alerts` at the patient was the only way to show anything.
+ *
+ * Now `ReadingService.createAlertForReading` writes each linked caregiver
+ * their own row, worded to name the patient rather than address them. `/alerts`
+ * renders whoever `useSubject()` resolves to, so switching would hand the
+ * caregiver a sentence written *to the patient* — "ค่าความดันสูงมาก … ควรพบแพทย์"
+ * — on their own phone, and disable the read control while doing it.
+ *
+ * So the assertion is now that the handler leaves the subject **alone**. It is
+ * asserted on the store rather than on a mock call, because the failure being
+ * guarded is a switch happening at all, by any route.
  */
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ router: { push: (...args: unknown[]) => mockPush(...args) } }));
-
-const mockFetchMyPatients = jest.fn();
-jest.mock('@/modules/caregivers/services/caregivers-api', () => ({
-  fetchMyPatients: () => mockFetchMyPatients(),
-}));
 
 import { useActivePatientStore } from '@/modules/caregivers/hooks/use-active-patient';
 import type { PatientSummary } from '@/modules/caregivers/types';
@@ -41,53 +47,56 @@ const payload = {
 beforeEach(() => {
   jest.clearAllMocks();
   useActivePatientStore.setState({ patientId: null, patient: null });
-  mockFetchMyPatients.mockResolvedValue([PATIENT]);
 });
 
 describe('handleCriticalAlertResponse', () => {
-  it('makes the alert be about the patient before opening the screen', async () => {
-    const order: string[] = [];
-    mockFetchMyPatients.mockImplementation(async () => {
-      order.push('resolve-patient');
-      return [PATIENT];
-    });
-    mockPush.mockImplementation(() => order.push('navigate'));
+  it('opens the alert list', () => {
+    expect(handleCriticalAlertResponse(payload)).toBe(true);
 
-    await expect(handleCriticalAlertResponse(payload)).resolves.toBe(true);
-
-    expect(useActivePatientStore.getState().patientId).toBe('p1');
-    expect(useActivePatientStore.getState().patient).toEqual(PATIENT);
-    expect(mockPush).toHaveBeenCalledWith('/alerts');
-    expect(order).toEqual(['resolve-patient', 'navigate']);
-  });
-
-  it('costs no request when that patient is already the one on screen', async () => {
-    useActivePatientStore.setState({ patientId: 'p1', patient: PATIENT });
-
-    await handleCriticalAlertResponse(payload);
-
-    expect(mockFetchMyPatients).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/alerts');
   });
 
-  /**
-   * Offline, or a link removed since the push was sent. Navigating anyway
-   * would show the caregiver *their own* alerts under a banner naming nobody,
-   * which is a worse answer than leaving the app where it opened.
+  /*
+   * The regression this fix exists for. A caregiver who is acting as
+   * themselves must stay that way, because their own row is the one worded
+   * for them and the only one they can mark read. Switching here is what put
+   * the patient's copy — "ค่าความดันสูงมาก … ควรพบแพทย์" — on the caregiver's
+   * screen.
    */
-  it('does not navigate when the patient cannot be resolved', async () => {
-    mockFetchMyPatients.mockRejectedValue(new Error('offline'));
-
-    await expect(handleCriticalAlertResponse(payload)).resolves.toBe(true);
+  it('does not point the app at the patient', () => {
+    handleCriticalAlertResponse(payload);
 
     expect(useActivePatientStore.getState().patientId).toBeNull();
+    expect(useActivePatientStore.getState().patient).toBeNull();
+  });
+
+  /*
+   * The other direction, and the one a naive "just clear the subject" fix
+   * would break: a caregiver already looking at a patient stays there. The
+   * handler navigates; it does not decide who the app is acting as, in either
+   * direction.
+   */
+  it('leaves an existing patient context untouched', () => {
+    useActivePatientStore.setState({ patientId: 'p1', patient: PATIENT });
+
+    handleCriticalAlertResponse(payload);
+
+    expect(useActivePatientStore.getState().patientId).toBe('p1');
+    expect(mockPush).toHaveBeenCalledWith('/alerts');
+  });
+
+  it("leaves the app's own local notifications to their own branches", () => {
+    expect(handleCriticalAlertResponse({ kind: 'bp_reminder' })).toBe(false);
+
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("leaves the app's own local notifications to their own branches", async () => {
-    await expect(
-      handleCriticalAlertResponse({ kind: 'bp_reminder' }),
-    ).resolves.toBe(false);
+  /*
+   * A malformed payload must not navigate. It reaches `/alerts` through no
+   * other route, so a silent `return false` here is the whole guard.
+   */
+  it('does not navigate on a payload it cannot parse', () => {
+    expect(handleCriticalAlertResponse({ type: 'bp-critical' })).toBe(false);
 
     expect(mockPush).not.toHaveBeenCalled();
   });
