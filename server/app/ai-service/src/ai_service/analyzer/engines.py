@@ -177,6 +177,11 @@ def build_registry(
     inherit the same models directory AND the shared ORT
     ``SessionOptions`` (thread caps + execution mode) because both
     caches are module-level.
+
+    ``sys_prefix_repair`` is passed to the systolic readers only: the
+    2-digit rescue it gates is a sys-specific rule (dia and pulse are
+    legitimately 2-digit, so there is nothing to complete). Leaving it
+    off the dia/pul constructors is deliberate, not an omission.
     """
     session_options = cfg.build_onnx_session_options()
     cnn_classifiers.set_models_dir(
@@ -202,18 +207,32 @@ def build_registry(
         OCREngine.SSOCR_CNN: BPAnalysisPipeline(
             detector=detector,
             ocr_readers={
-                BPClass.SYSTOLIC: SSOCREngine(expected_label="sys", use_classifiers=True),
-                BPClass.DIASTOLIC: SSOCREngine(expected_label="dia", use_classifiers=True),
-                BPClass.PULSE: SSOCREngine(expected_label="pul", use_classifiers=True),
+                BPClass.SYSTOLIC: SSOCREngine(
+                    expected_label="sys", use_classifiers=True,
+                    sys_prefix_repair=cfg.ssocr_sys_prefix_repair,
+                ),
+                BPClass.DIASTOLIC: SSOCREngine(
+                    expected_label="dia", use_classifiers=True,
+                ),
+                BPClass.PULSE: SSOCREngine(
+                    expected_label="pul", use_classifiers=True,
+                ),
             },
             field_timeout_s=cfg.ocr_field_timeout_s,
         ),
         OCREngine.SSOCR: BPAnalysisPipeline(
             detector=detector,
             ocr_readers={
-                BPClass.SYSTOLIC: SSOCREngine(expected_label="sys", use_classifiers=False),
-                BPClass.DIASTOLIC: SSOCREngine(expected_label="dia", use_classifiers=False),
-                BPClass.PULSE: SSOCREngine(expected_label="pul", use_classifiers=False),
+                BPClass.SYSTOLIC: SSOCREngine(
+                    expected_label="sys", use_classifiers=False,
+                    sys_prefix_repair=cfg.ssocr_sys_prefix_repair,
+                ),
+                BPClass.DIASTOLIC: SSOCREngine(
+                    expected_label="dia", use_classifiers=False,
+                ),
+                BPClass.PULSE: SSOCREngine(
+                    expected_label="pul", use_classifiers=False,
+                ),
             },
             field_timeout_s=cfg.ocr_field_timeout_s,
         ),
