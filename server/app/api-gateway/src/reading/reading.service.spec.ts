@@ -187,6 +187,96 @@ describe('ReadingService', () => {
     });
   });
 
+  /**
+   * `@IsEnum(BpStatus)` asks whether the status is a word the enum knows,
+   * never whether it matches the numbers beside it. These pin that the
+   * gateway now decides, because the stored value drives the alert level,
+   * whether caregivers are interrupted, the colour on every screen, the
+   * history filters and the export.
+   */
+  describe('create — the status is derived, not accepted', () => {
+    it('stores its own classification, not the one that arrived', async () => {
+      await service.create(
+        PATIENT_ID,
+        { ...baseInput, systolic: 120, diastolic: 80, status: 'critical' },
+        PATIENT_ID,
+      );
+
+      expect(
+        prisma.bloodPressureReading.create.mock.calls[0][0].data.status,
+      ).toBe('normal');
+    });
+
+    /*
+     * The direction that matters most. A client claiming `normal` for a
+     * reading of 200/130 used to buy silence: no alert row for the patient,
+     * no row for the caregiver, and no push.
+     */
+    it('raises the alert a mislabelled critical reading would have suppressed', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+
+      await service.create(
+        PATIENT_ID,
+        { ...baseInput, systolic: 200, diastolic: 130, status: 'normal' },
+        PATIENT_ID,
+      );
+
+      expect(prisma.alert.create.mock.calls[0][0].data.alertLevel).toBe(
+        'critical',
+      );
+      expect(push.notifyUsers).toHaveBeenCalled();
+    });
+
+    /*
+     * And the other direction: a client cannot manufacture an interruption
+     * for a reading that does not warrant one.
+     */
+    it('raises nothing for a normal reading labelled critical', async () => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+
+      await service.create(
+        PATIENT_ID,
+        { ...baseInput, systolic: 118, diastolic: 76, status: 'critical' },
+        PATIENT_ID,
+      );
+
+      expect(prisma.alert.create).not.toHaveBeenCalled();
+      expect(push.notifyUsers).not.toHaveBeenCalled();
+    });
+
+    /*
+     * Corrected, never refused. The app is offline-first, so a reading queued
+     * by an older build with different thresholds has to be able to sync — a
+     * 400 here would strand it forever, which is data loss from the patient's
+     * point of view for doing nothing wrong.
+     */
+    it('accepts the reading rather than rejecting the disagreement', async () => {
+      await expect(
+        service.create(
+          PATIENT_ID,
+          { ...baseInput, systolic: 200, diastolic: 130, status: 'normal' },
+          PATIENT_ID,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it('leaves an honest status alone', async () => {
+      await service.create(
+        PATIENT_ID,
+        { ...baseInput, systolic: 145, diastolic: 92, status: 'high' },
+        PATIENT_ID,
+      );
+
+      expect(
+        prisma.bloodPressureReading.create.mock.calls[0][0].data.status,
+      ).toBe('high');
+    });
+  });
+
   describe('create — push delivery to caregivers', () => {
     const critical = { ...baseInput, systolic: 195, status: 'critical' };
     const warning = { ...baseInput, systolic: 145, status: 'high' };

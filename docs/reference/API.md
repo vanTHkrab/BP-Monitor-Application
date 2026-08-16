@@ -479,10 +479,29 @@ mutation CreateReading($input: CreateReadingInput!) {
 }
 ```
 
-- `status` is the BP category (`normal` / `elevated` / `high-stage-1` /
-  …). The client computes it before submitting; see
+- `status` is the BP category, and the enum has exactly five members:
+  `low` / `normal` / `elevated` / `high` / `critical`.
+
+  **It is derived server-side and the value you send is a hint.** The gateway
+  re-classifies from `systolic` / `diastolic` in
+  [`bp-status.ts`](../../server/app/api-gateway/src/reading/bp-status.ts) and
+  stores its own answer, because `@IsEnum` only checks that the word is known
+  — not that it matches the numbers — and the stored value drives the alert
+  level, whether caregivers are pushed, the colour on every screen, the
+  history filters and the export.
+
+  A disagreement is **corrected, never rejected**: this app is offline-first,
+  so a reading queued by an older build with different thresholds has to be
+  able to sync. The correction is logged at `warn`. The response carries the
+  derived value, so a client that stores what came back — as the mobile
+  mirror does — self-corrects.
+
+  Clients still classify locally for the offline case, before there is any
+  network to ask; see
   [`client/src/modules/readings/lib/status.ts`](../../client/src/modules/readings/lib/status.ts)
-  (the colours for each category live in `client/src/theme/tokens.js`).
+  (the colours for each category live in `client/src/theme/tokens.js`). Keep
+  the two ladders in step: the window they can disagree in is between
+  measuring and syncing, which is exactly when a critical reading matters.
 - `s3Key` is optional and only set when the reading came from the image
   flow (after `analyzeBPImage` returns). The gateway enforces that the
   key is owned by the calling user.

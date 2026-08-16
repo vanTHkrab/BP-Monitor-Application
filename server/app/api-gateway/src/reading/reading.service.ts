@@ -2,11 +2,13 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
-import { AlertLevel, BpStatus } from '../prisma/generated/enums';
+import { AlertLevel } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
 import { RateLimitService } from '../redis/rate-limit.service';
+import { classifyReading } from './bp-status';
 
 /**
  * How old a reading may be and still be worth pushing about.
@@ -57,6 +59,8 @@ const READING_INCLUDE = {
 
 @Injectable()
 export class ReadingService {
+  private readonly logger = new Logger(ReadingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: PushService,
@@ -128,6 +132,29 @@ export class ReadingService {
       }
     }
 
+    // The client's `status` is a hint, not the answer. `@IsEnum(BpStatus)`
+    // only checks that it is a word the enum knows — never that it matches
+    // the numbers beside it — and the stored value drives the alert level,
+    // whether caregivers are interrupted, the colour on every screen, the
+    // history filters and the export. So it is re-derived here and the
+    // derived value is what persists.
+    const status = classifyReading(data.systolic, data.diastolic);
+
+    if (status !== data.status) {
+      // Overwritten rather than refused. This app is offline-first: readings
+      // queued by an older build with different thresholds must still sync,
+      // and a 400 here would strand them forever — data loss, from the
+      // patient's point of view, for doing nothing wrong.
+      //
+      // Logged because overwriting silently would also hide the drift it
+      // exists to correct. A steady trickle of these means old clients are
+      // still in the field; a sudden burst means the two ladders have parted.
+      this.logger.warn(
+        `Reading status corrected: client sent "${data.status}", ` +
+          `${data.systolic}/${data.diastolic} classifies as "${status}"`,
+      );
+    }
+
     // Prisma turns the nested `images.connect` into a single transaction:
     // create the reading, then UPDATE the Image row to point readingId at
     // the new id. The @unique on Image.readingId is the final guard against
@@ -139,7 +166,7 @@ export class ReadingService {
         systolic: data.systolic,
         diastolic: data.diastolic,
         pulse: data.pulse,
-        status: data.status as BpStatus,
+        status,
         measuredAt: data.measuredAt,
         clientId: data.clientId || null,
         notes: data.notes || null,
@@ -156,7 +183,10 @@ export class ReadingService {
       systolic: data.systolic,
       diastolic: data.diastolic,
       pulse: data.pulse,
-      status: data.status,
+      // The derived status, not the one that arrived — otherwise a client
+      // could raise or suppress its own caregiver alerts by mislabelling a
+      // reading the gateway has already reclassified.
+      status,
       // Not `now`: an offline reading is created long after it was taken, and
       // whether a caregiver should be interrupted depends on when the
       // measurement happened, not on when the queue drained.
