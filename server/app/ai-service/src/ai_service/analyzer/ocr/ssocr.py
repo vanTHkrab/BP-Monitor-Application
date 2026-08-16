@@ -38,6 +38,7 @@ from typing import Any, Sequence
 import cv2
 import numpy as np
 
+from ..ranges import CANDIDATE_RANGES, HARD_CEILING_DEFAULT, HARD_CEILINGS
 from .base import OCRReader, OCRResult
 from .cnn_classifiers import (
     classify_by_cnn_2ch,
@@ -120,16 +121,12 @@ DEFAULT_SDP_GROUPS = ("dia", "sys", "pul")
 IMG_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 READABLE_SCORE_THRESHOLD = 1.4
 
-LABEL_VALUE_RULES = {
-    "dia": (40, 140),
-    "sys": (70, 300),
-    "pul": (40, 200),
-}
-
-# Hard physical ceilings — values above these are clinically impossible
-# and indicate noise contamination, never a real reading.
-HARD_CEILING = {"dia": 200, "sys": 300, "pul": 250}
-HARD_CEILING_DEFAULT = 350
+# Both tables live in ``analyzer/ranges.py``; these are aliases kept
+# because the names are read throughout this module and by its tests.
+# ``CANDIDATE_RANGES`` breaks ties between digit substrings;
+# ``HARD_CEILINGS`` marks values that are noise, not measurement.
+LABEL_VALUE_RULES = CANDIDATE_RANGES
+HARD_CEILING = HARD_CEILINGS
 
 # Confidence multiplier for a systolic reading whose leading '1' was
 # fabricated by the 2-digit rescue (see the block in ``_run_candidate``).
