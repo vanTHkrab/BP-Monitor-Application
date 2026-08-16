@@ -151,12 +151,31 @@ class AnalysisResult:
     Per PLAN.md, public ``systolic/diastolic/pulse`` are nulled when
     validation rejects them; the original numeric reads remain accessible
     through the matching ``FieldReading`` in ``fields``.
+
+    **Three confidence numbers, deliberately.** ``confidence`` is the
+    historical blend — ``min(yolo x ocr x in_range_penalty)`` — kept
+    unchanged because it is what the gateway stores and what the mobile
+    app renders to the patient as "ความมั่นใจ N%".
+
+    It is, however, a poor answer to "how much do we trust these
+    digits", and measurably so: across 135 real photos it correlates
+    0.878 with detection quality and only 0.688 with read quality. A
+    slightly blurry photo of a perfectly legible display scores low.
+    Multiplying the two signals also loses the ability to say *which*
+    one was weak.
+
+    ``detection_confidence`` and ``read_confidence`` therefore report
+    the two inputs separately: "could we find the fields" and "could we
+    read the digits". ``AnalysisStatus`` is decided from these, not from
+    the blend.
     """
 
     systolic: int | None
     diastolic: int | None
     pulse: int | None
     confidence: float                    # min of per-field combined_confidence
+    detection_confidence: float          # min per-field YOLO confidence
+    read_confidence: float               # min per-field OCR confidence
     raw_text: str                        # e.g. "sys=120 dia=80 pulse=72"
     status: AnalysisStatus
     fields: tuple[FieldReading, ...]    # tuple, not list — frozen dataclass invariant
