@@ -24,8 +24,20 @@ the code and the ADRs.
 
 FastAPI microservice (Python 3.13, managed by `uv`) that handles BP image
 analysis on behalf of the NestJS API gateway. It is **not** an HTTP API for
-clients — the only HTTP route is `/health`. All real work flows over Redis
-pub/sub using the `@nestjs/microservices` Redis transport.
+clients — the only HTTP routes are `/health` (liveness) and `/ready`
+(readiness). All real work flows over Redis pub/sub using the
+`@nestjs/microservices` Redis transport.
+
+**Health vs readiness.** `/health` answers "is this process serving
+HTTP" and nothing more — it gates container restarts, so it must not
+fail on a Redis blip the service is about to recover from. `/ready`
+answers "is this process actually consuming analysis jobs" and returns
+503 when it isn't (Redis unreachable, subscriber task dead, registry
+never built). Every real failure mode of this service is invisible to
+`/health`; don't add dependency checks there. Note that
+[web/src/lib/ai-service.ts](../../../web/src/lib/ai-service.ts) still
+probes `/health` — moving the dashboard to `/ready` is a separate
+`web/` change.
 
 **Status:** Milestone 2.2 in flight — OCR engine comparison framework.
 Three engines (`crnn`, `ssocr_cnn`, `ssocr`) load side-by-side at
@@ -50,9 +62,9 @@ it the service replies with a structured error ("missing imageUrl").
 | Path | Responsibility |
 | --- | --- |
 | `main.py` | entry shim — re-exports `app` from `ai_service.main` so `uv run fastapi dev main.py` works without exposing the package layout |
-| `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds the engine registry, wires the Redis listener. Keep thin — only orchestration belongs here |
-| `src/ai_service/handlers.py` | Redis pub/sub handler — parses `ocrEngine`, dispatches via `EngineRegistry`, emits `engine` + `metrics` in the reply. Owns the wire contract |
-| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence / IoU thresholds, timeouts, ORT thread caps, debug-dump toggle + dir). `confidence_threshold` (0.25) + `iou_threshold` (0.45) **mirror `client/src/modules/capture/lib/detection.ts`** — cross-process wire contract see [ADR-002](../../../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md). `build_onnx_session_options()` produces the shared `SessionOptions` (intra=2 / inter=1 / sequential / ORT_ENABLE_ALL) every ORT session in the service uses. |
+| `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds the engine registry, wires the **supervised** Redis listener, and serves `/health` + `/ready`. Keep thin — only orchestration belongs here |
+| `src/ai_service/handlers.py` | Redis pub/sub handler — parses `ocrEngine`, dispatches via `EngineRegistry`, emits `engine` + `metrics` in the reply. Owns the wire contract. Also owns `listen()` (bounded-concurrency dispatch), `supervise_listener()` (resubscribe with backoff), and `ListenerState` (what `/ready` reports) |
+| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence / IoU thresholds, timeouts, listener concurrency + shutdown grace, ORT thread caps, debug-dump toggle + dir). `confidence_threshold` (0.25) + `iou_threshold` (0.45) **mirror `client/src/modules/capture/lib/detection.ts`** — cross-process wire contract see [ADR-002](../../../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md). `build_onnx_session_options()` produces the shared `SessionOptions` (intra=2 / inter=1 / sequential / ORT_ENABLE_ALL) every ORT session in the service uses. |
 | `src/ai_service/debug_dump.py` | Per-request `DebugDumper` + `@debug_stage` decorator + `ContextVar`. When `AI_DEBUG_DUMP_ENABLED=1` the handler installs one dumper per Redis request and pipeline / rectify code writes intermediates (raw input, YOLO overlays, ROI, Canny, quad overlay, rectified, per-field OCR crops) to `debug_images/<jobId>/NN_<stage>.jpg`. Disabled-state is a single-branch no-op — no directories created, no disk writes. Dev-only; never enable in production |
 | `src/ai_service/analyzer/engines.py` | `EngineRegistry`, `AnalysisMetrics`, `build_registry()` — loads all three M2.2 engines side-by-side and resolves per-request selection |
 | `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector. Runs a first YOLO pass on the source image, calls `analyzer.rectify` to straighten the LCD, then a second YOLO pass on the rectified image before OCR — fallback to the original image is silent on any rectify failure |
@@ -76,7 +88,7 @@ it the service replies with a structured error ("missing imageUrl").
 | `src/ai_service/scripts/fetch_models.py` | Local-dev mirror of the entrypoint — `uv run python -m ai_service.scripts.fetch_models [--dry-run]`. Uses httpx (already a dep) and reads the same manifest. Run once after `cp .env.example .env` before `uv run fastapi dev`. |
 | `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`, `test_ssocr` (segment classification, numeric extraction, trial scoring, asterisk repair, and the sys-prefix fabrication rule — the DIP `cand_*` kernels are deliberately left to a golden-image suite). Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
 | `debug_images/` | Dev-only output directory for `DebugDumper` when `AI_DEBUG_DUMP_ENABLED=1`. Layout: `debug_images/<jobId>/NN_<stage>.jpg`. Created lazily on first dump; gitignored. Never written when the toggle is off |
-| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
+| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`, `ruff`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. Also holds the `[tool.ruff]` config: `select = ["E", "F", "I"]` only, because that set passes clean on the tree today and is therefore usable as a CI gate. The opinionated families (`B`, `BLE`, `RUF`, `SIM`, `UP`, `S`) report ~70 more findings, nearly all in `ocr/ssocr.py` — enable them in a dedicated cleanup, never as a drive-by. |
 | `Dockerfile` | container build for prod/staging |
 
 ## Run / build / verify
@@ -87,6 +99,8 @@ cp .env.example .env                 # then set AI_MODELS_R2_BASE_URL
 uv run python -m ai_service.scripts.fetch_models   # pull models from R2
 uv run fastapi dev main.py           # dev (auto-reload, port 8000)
 uv run fastapi run main.py           # production-style
+uv run ruff check .                  # lint (CI gate)
+uv run ruff check . --fix            # ... and autofix the mechanical half
 uv run pytest                        # tests
 ```
 
@@ -173,6 +187,20 @@ without the other will silently break the AI flow.
 - **Lifespan owns I/O.** Redis client + background listener task are
   created in `lifespan()` and torn down on shutdown — don't create extra
   global clients.
+- **The listener is supervised, and dispatch is concurrent.**
+  `lifespan()` starts `supervise_listener()`, never a bare `listen()`.
+  A bare task that raised (Redis down at boot, connection dropped
+  later) died silently: nothing awaited it, the exception surfaced
+  only as a GC-time warning, and the process served `/health` forever
+  while consuming nothing. The supervisor resubscribes with
+  exponential backoff (1s → 30s, reset after a 60s healthy run) and
+  records `restarts` / `last_error` on `ListenerState`.
+  Inside `listen()`, messages are dispatched to tasks bounded by
+  `AI_MAX_CONCURRENT_REQUESTS` (default 2) rather than awaited inline
+  — awaiting inline serialised the service and defeated the
+  `asyncio.to_thread` offloading the whole pipeline is built around.
+  Keep a strong reference to every dispatched task (asyncio holds only
+  a weak one; a collected pending task is a dropped analysis).
 - **Reply shape is fixed.** Always include `isDisposed: True` on the
   reply so NestJS's `ClientRedis` considers the request complete. On
   error, use the `err` field instead of `response`.

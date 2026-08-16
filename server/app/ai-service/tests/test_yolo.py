@@ -18,13 +18,17 @@ from ai_service.analyzer.yolo import (
     FIELD_CLASS_IDS,
     YoloDetector,
 )
-from ai_service.config import AI_SERVICE_ROOT
 
 
 @pytest.fixture(scope="module")
-def detector() -> YoloDetector:
-    """Module-scoped — load model once, share across tests (saves ~100 ms x N)."""
-    return YoloDetector.load(AI_SERVICE_ROOT / "models" / "yolo11n.onnx")
+def detector(require_model) -> YoloDetector:
+    """Module-scoped — load model once, share across tests (saves ~100 ms x N).
+
+    Skips when the weights have not been fetched from R2 (a fresh CI
+    checkout) rather than erroring — same convention as the CRNN
+    fixture. See `require_model` in conftest.
+    """
+    return YoloDetector.load(require_model("yolo11n.onnx"))
 
 
 class TestModelMetadata:
@@ -92,9 +96,13 @@ class TestDetectSmoke:
     def test_class_filter_constrains_output(self, detector, fake_image):
         all_boxes = detector.detect(fake_image)
         field_only = detector.detect(fake_image, class_filter=FIELD_CLASS_IDS)
-        # field_only is a subset of all by class membership
+        # field_only is a subset of all by class membership. The second
+        # half was previously unasserted — `all_boxes` was bound and never
+        # read, so the filter could have returned boxes the unfiltered
+        # pass never produced and the test would still have passed.
         for b in field_only:
             assert b.cls in FIELD_CLASS_IDS
+        assert len(field_only) <= len(all_boxes)
 
     def test_results_in_source_coords(self, detector, fake_image):
         h, w = fake_image.shape[:2]

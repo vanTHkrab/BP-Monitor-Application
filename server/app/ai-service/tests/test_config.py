@@ -28,11 +28,19 @@ class TestDefaults:
         cfg = AnalyzerConfig()
         assert cfg.detector_path == AI_SERVICE_ROOT / "models" / "yolo11n.onnx"
 
-    def test_model_file_actually_exists_at_default(self):
+    def test_model_file_actually_exists_at_default(self, require_model):
+        """The fetched artifact lands exactly where config looks for it.
+
+        This is a wiring check between `fetch_models` / the Docker
+        entrypoint and `AnalyzerConfig.detector_path` — so it is only
+        answerable on a checkout where the weights were fetched. On a
+        fresh CI checkout it skips; the path-resolution assertions above
+        cover the part that holds without weights.
+        """
+        fetched = require_model("yolo11n.onnx")
         cfg = AnalyzerConfig()
-        assert cfg.detector_path.exists(), (
-            f"Bundled model missing at default path: {cfg.detector_path}"
-        )
+        assert cfg.detector_path == fetched
+        assert cfg.detector_path.exists()
 
     def test_default_engine_is_crnn(self):
         assert AnalyzerConfig().default_engine == OCREngine.CRNN

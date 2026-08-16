@@ -10,7 +10,6 @@ dependencies = [
     "numpy>=2.4.5",
     "onnxruntime>=1.26.0",
     "opencv-python-headless>=4.13.0.92",
-    "pillow>=12.2.0",
     "psutil>=7.2.2",
     "pydantic-settings>=2.13.1",
     "redis>=7.4.0",
@@ -22,6 +21,38 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_service"]
+
+[tool.ruff]
+# Match the runtime floor in `requires-python` so ruff doesn't suggest
+# rewrites that only parse on an older interpreter.
+target-version = "py313"
+line-length = 100
+extend-exclude = ["prepare", "debug_images", "models"]
+
+[tool.ruff.lint]
+# Deliberately narrow: pyflakes (F) catches genuine defects — undefined
+# names, unused imports, shadowed bindings — and pycodestyle errors (E)
+# plus import sorting (I) keep diffs boring. This set passes clean on
+# the tree TODAY, which is what makes it usable as a CI gate.
+#
+# The opinionated families (B, BLE, RUF, SIM, UP, S) report ~70 more
+# findings, almost all in `ocr/ssocr.py`. Turning them on here would
+# either fail CI on day one or bury the real signal under `noqa`s.
+# Enable them per-family in a dedicated cleanup change, not as a
+# drive-by on top of a feature.
+select = ["E", "F", "I"]
+ignore = [
+    # Long lines are overwhelmingly the explanatory comments and
+    # docstrings this codebase leans on. Reflowing them adds noise to
+    # every future blame without making anything clearer.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests bind intermediate values purely to assert on them, and star
+# imports never appear here — E402 fires on the deliberate
+# import-after-fixture pattern in a couple of modules.
+"tests/*" = ["E402"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -35,4 +66,5 @@ dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.1.0",
+    "ruff>=0.16.3",
 ]

@@ -30,9 +30,26 @@ curl -s http://localhost:8000/health
 # {"status":"ok","service":"ai-service"}
 ```
 
+`/health` is **liveness only** — it proves FastAPI is answering and
+nothing else. To check that analysis actually works, use `/ready`:
+
+```bash
+curl -s http://localhost:8000/ready
+# {"status":"ok","service":"ai-service","listener_alive":true,
+#  "subscribed":true,"redis":true,"engines":["crnn","ssocr","ssocr_cnn"],
+#  "model_version":"2025-01-01","listener_restarts":0,"last_error":null}
+```
+
+`/ready` returns **503** when the service is up but not consuming jobs —
+Redis unreachable, the subscriber task dead, or the engine registry
+never built. A climbing `listener_restarts` with `status: ok` is the
+signature of a flapping Redis connection.
+
 > ⚠️ Redis must be reachable (default `redis://localhost:6379`). The service
 > subscribes to `analyze_bp_image` during lifespan startup. If Redis is
-> unreachable, HTTP `/health` still responds but no analysis jobs will be processed.
+> unreachable at boot the subscriber retries with exponential backoff
+> (1s → 30s) and `/ready` reports `degraded` until it connects — `/health`
+> keeps answering `ok` throughout, by design.
 
 ---
 
@@ -51,6 +68,8 @@ curl -s http://localhost:8000/health
 | `AI_IMAGE_FETCH_TIMEOUT_S` | – | `5` | Timeout for presigned-URL image download |
 | `AI_OCR_FIELD_TIMEOUT_S` | – | `5` | Per-field OCR wall-clock cap (asyncio) |
 | `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout enforced in `handle_message` |
+| `AI_MAX_CONCURRENT_REQUESTS` | – | `2` | How many `analyze_bp_image` messages the listener processes at once. Each in-flight analysis holds up to 3 OCR threads plus a YOLO thread — raise only alongside the container's CPU limit. |
+| `AI_SHUTDOWN_GRACE_S` | – | `5` | How long shutdown waits for in-flight analyses before cancelling them |
 | `AI_ONNX_INTRA_OP_THREADS` | – | `2` | `SessionOptions.intra_op_num_threads` cap for every ORT session (YOLO + CRNN + per-bucket CNNs) |
 | `AI_ONNX_INTER_OP_THREADS` | – | `1` | `SessionOptions.inter_op_num_threads` cap (paired with `ORT_SEQUENTIAL`) |
 | `AI_SSOCR_SYS_PREFIX_REPAIR` | – | `1` | Enables the SSOCR rescue that completes a 2-digit systolic read below 70 into 3 digits by prefixing a `1`. **That digit is invented, not read** — readings produced this way are reported with confidence × `SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY` (0.7). Set to `0` to disable; such reads then surface as out-of-range instead. `ssocr` / `ssocr_cnn` only. |
@@ -132,9 +151,22 @@ ai-service/
 ```bash
 uv run fastapi dev main.py         # dev (auto-reload)
 uv run fastapi run main.py         # production-style
-uv run pytest                      # full test suite (214 tests)
+uv run pytest                      # full test suite
 uv run pytest tests/test_handlers.py  # single file
+uv run ruff check .                # lint — same command CI runs
+uv run ruff check . --fix          # autofix imports and the mechanical half
 ```
+
+Lint and tests both run on every PR touching this directory
+(`.github/workflows/ci-ai-service.yml`). CI installs with
+`uv sync --frozen`, so a manifest edited without committing `uv.lock`
+fails there even when it works locally.
+
+Tests that load real weights (YOLO session load, ONNX metadata, the
+fetch-path wiring check) **skip** when `models/` has not been populated
+— they cannot run on a fresh checkout, since the weights come from R2
+rather than git. Run `fetch_models` to get full local coverage; the
+skip message names the command.
 
 ---
 

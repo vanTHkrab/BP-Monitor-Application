@@ -48,6 +48,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -62,7 +63,6 @@ from .analyzer.engines import (
 from .analyzer.types import AnalysisResult
 from .debug_dump import DebugDumper
 from .storage.fetch import ImageFetchError, fetch_image
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,11 @@ class HandlerDeps:
     ``debug_dump_enabled`` + ``debug_dump_dir`` gate the per-request
     ``DebugDumper`` (see ``debug_dump.py``). When disabled the dumper
     is constructed in a no-op state and never touches disk.
+
+    ``max_concurrent_requests`` bounds how many messages ``listen()``
+    processes at once. It defaults to ``1`` — the historical serial
+    behaviour — so every existing caller and test keeps its exact
+    semantics; ``main.lifespan()`` raises it from ``cfg``.
     """
 
     registry: EngineRegistry
@@ -90,6 +95,27 @@ class HandlerDeps:
     pipeline_timeout_s: float = 30.0
     debug_dump_enabled: bool = False
     debug_dump_dir: Path = Path("debug_images")
+    max_concurrent_requests: int = 1
+    shutdown_grace_s: float = 5.0
+
+
+@dataclass
+class ListenerState:
+    """Mutable liveness record for the Redis subscriber.
+
+    Deliberately **not** frozen — this is the one piece of shared
+    mutable state in the service, and it exists so ``/ready`` can
+    answer "is this process actually consuming messages?" instead of
+    the process-is-alive tautology ``/health`` returns.
+
+    Written only by ``listen()`` / ``supervise_listener()`` on the
+    event loop (no lock needed — single-threaded async), read by the
+    readiness route.
+    """
+
+    subscribed: bool = False
+    restarts: int = 0
+    last_error: str | None = None
 
 
 async def reply(client: redis.Redis, request_id: str, response: dict[str, Any]) -> None:
@@ -291,16 +317,50 @@ async def handle_message(
     await reply(redis_client, request_id, _to_wire_response(result, metrics))
 
 
-async def listen(redis_client: redis.Redis, deps: HandlerDeps) -> None:
+async def listen(
+    redis_client: redis.Redis,
+    deps: HandlerDeps,
+    state: ListenerState | None = None,
+) -> None:
     """Subscribe to ``REQUEST_PATTERN`` and dispatch each message to ``handle_message``.
 
-    The outer ``except Exception`` is deliberate — see PLAN.md "Logging
-    over exceptions". One malformed message must not kill the subscriber
-    for everyone else.
+    Messages are dispatched to background tasks bounded by
+    ``deps.max_concurrent_requests`` rather than awaited inline. The
+    inline version serialised the whole service: every stage of
+    ``pipeline.analyze`` already hands its blocking CPU work to
+    ``asyncio.to_thread`` precisely so the loop can keep reading, but
+    awaiting the handler here meant nothing else was ever read until
+    the current image finished. A single 4-second ``ssocr_cnn`` request
+    stalled every job behind it.
+
+    The semaphore is the backpressure. Without it an unbounded burst
+    would spawn one YOLO + OCR thread set per message and thrash the
+    container; with it, at most N analyses are in flight and the rest
+    queue as cheap pending tasks.
+
+    Exceptions are swallowed per-message — see PLAN.md "Logging over
+    exceptions". One malformed message must not kill the subscriber
+    for everyone else. Failures of the *subscription itself* do
+    propagate, so ``supervise_listener`` can resubscribe.
     """
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(REQUEST_PATTERN)
-    logger.info("Subscribed to %s", REQUEST_PATTERN)
+    if state is not None:
+        state.subscribed = True
+    logger.info(
+        "Subscribed to %s (max_concurrent=%d)",
+        REQUEST_PATTERN, deps.max_concurrent_requests,
+    )
+
+    semaphore = asyncio.Semaphore(deps.max_concurrent_requests)
+    inflight: set[asyncio.Task[None]] = set()
+
+    async def _dispatch(payload: str) -> None:
+        async with semaphore:
+            try:
+                await handle_message(redis_client, payload, deps)
+            except Exception:  # noqa: BLE001 — defensive; one bad message must not kill the loop
+                logger.exception("Failed to handle analyze_bp_image message")
 
     try:
         async for raw in pubsub.listen():
@@ -309,14 +369,114 @@ async def listen(redis_client: redis.Redis, deps: HandlerDeps) -> None:
             payload = raw.get("data")
             if not isinstance(payload, (str, bytes)):
                 continue
-            try:
-                await handle_message(
-                    redis_client,
-                    payload.decode() if isinstance(payload, bytes) else payload,
-                    deps,
-                )
-            except Exception:  # noqa: BLE001 — defensive; one bad message must not kill the loop
-                logger.exception("Failed to handle analyze_bp_image message")
+            task = asyncio.create_task(
+                _dispatch(payload.decode() if isinstance(payload, bytes) else payload)
+            )
+            # Hold a strong reference until completion — asyncio only
+            # keeps a weak one, and a garbage-collected pending task is
+            # a silently dropped analysis.
+            inflight.add(task)
+            task.add_done_callback(inflight.discard)
     finally:
+        if state is not None:
+            state.subscribed = False
+        await _drain_inflight(inflight, deps.shutdown_grace_s)
+        await _close_pubsub(pubsub)
+
+
+async def _drain_inflight(
+    inflight: set[asyncio.Task[None]],
+    grace_s: float,
+) -> None:
+    """Give in-flight analyses ``grace_s`` to finish, then cancel them.
+
+    Cancelling the listener task does **not** cancel the children it
+    spawned, so without this a shutdown would leave orphaned analyses
+    publishing replies into a closing Redis client. The grace period
+    matters because a reply that lands is a BullMQ job that doesn't
+    have to be retried; past it, dropping is the documented behaviour
+    (see the SINGLETON CONSTRAINT note at the top of this module) and
+    the gateway's retry covers it.
+    """
+    pending = {t for t in inflight if not t.done()}
+    if not pending:
+        return
+    logger.info("draining %d in-flight analyses (grace %.1fs)", len(pending), grace_s)
+    done, still_pending = await asyncio.wait(pending, timeout=grace_s)
+    for task in still_pending:
+        task.cancel()
+    if still_pending:
+        logger.warning(
+            "cancelled %d analyses that outlived the shutdown grace period",
+            len(still_pending),
+        )
+        await asyncio.gather(*still_pending, return_exceptions=True)
+
+
+async def _close_pubsub(pubsub: Any) -> None:
+    """Best-effort unsubscribe + close.
+
+    Both calls talk to the socket, so both fail when the listener is
+    unwinding *because* the connection dropped. Letting that failure
+    propagate from a ``finally`` would replace the real error with a
+    connection error and confuse the supervisor's log line.
+    """
+    try:
         await pubsub.unsubscribe(REQUEST_PATTERN)
+    except Exception:  # noqa: BLE001 — teardown must not mask the original failure
+        logger.debug("unsubscribe failed during teardown", exc_info=True)
+    try:
         await pubsub.aclose()
+    except Exception:  # noqa: BLE001 — same
+        logger.debug("pubsub close failed during teardown", exc_info=True)
+
+
+# Resubscribe backoff. Starts at ``BASE`` and doubles to ``MAX`` so a
+# Redis that is down at boot doesn't spin the loop, while a transient
+# blip recovers in about a second.
+LISTENER_BACKOFF_BASE_S: float = 1.0
+LISTENER_BACKOFF_MAX_S: float = 30.0
+
+# A subscription that survived this long counts as healthy, so the next
+# failure restarts the backoff from ``BASE`` instead of inheriting the
+# delay from an unrelated outage hours earlier.
+LISTENER_HEALTHY_RUN_S: float = 60.0
+
+
+async def supervise_listener(
+    redis_client: redis.Redis,
+    deps: HandlerDeps,
+    state: ListenerState | None = None,
+) -> None:
+    """Keep ``listen()`` running for the lifetime of the process.
+
+    Previously ``lifespan`` fired ``listen()`` as a bare task. If Redis
+    was not up yet at boot, or the connection dropped later, the task
+    raised, nothing awaited it, and the exception surfaced only as a
+    "Task exception was never retrieved" warning at GC time. The
+    process stayed up, ``/health`` kept answering ``ok``, and the
+    service consumed nothing — permanently, with no signal anywhere.
+
+    This wrapper turns that into a visible, self-healing loop and
+    records the failure on ``state`` so ``/ready`` can report it.
+    """
+    delay = LISTENER_BACKOFF_BASE_S
+    while True:
+        started = time.perf_counter()
+        try:
+            await listen(redis_client, deps, state)
+            logger.warning("listener returned without error; resubscribing")
+        except asyncio.CancelledError:
+            logger.info("listener supervisor cancelled")
+            raise
+        except Exception as e:  # noqa: BLE001 — the whole point is to survive anything
+            logger.exception("listener crashed; resubscribing in %.1fs", delay)
+            if state is not None:
+                state.last_error = f"{type(e).__name__}: {e}"
+
+        if time.perf_counter() - started >= LISTENER_HEALTHY_RUN_S:
+            delay = LISTENER_BACKOFF_BASE_S
+        if state is not None:
+            state.restarts += 1
+        await asyncio.sleep(delay)
+        delay = min(delay * 2, LISTENER_BACKOFF_MAX_S)

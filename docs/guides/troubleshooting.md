@@ -153,12 +153,27 @@ on `securityOverview.passkeySupported` rather than probing.
 
 ### `/health` is `ok` but no analysis ever completes
 
-**Cause.** A green health check does not mean the pipeline works. The Redis
-subscription is established during lifespan startup; if Redis was unreachable,
+**Cause.** A green health check does not mean the pipeline works — `/health`
+is liveness only and proves nothing beyond "FastAPI is answering". The Redis
+subscription is established during lifespan startup and can be down while
 HTTP still serves.
 
-**Fix.** Check `REDIS_URL`, restart the service, and confirm the boot log
-reaches "AI service ready".
+**Fix.** Ask `/ready` instead — it returns 503 with the reason:
+
+```bash
+curl -s http://localhost:8000/ready | jq
+```
+
+| Field | Meaning when false / non-zero |
+| --- | --- |
+| `redis: false` | `REDIS_URL` is wrong or the broker is unreachable |
+| `subscribed: false` | The subscriber is between retries — the supervisor resubscribes with 1s→30s backoff, so this clears on its own once Redis is back |
+| `listener_alive: false` | The supervisor task itself died. This should be impossible; capture the logs and file it |
+| `engines: []` | The registry never built — check the boot log for an ONNX load failure |
+| `listener_restarts` climbing | A flapping Redis connection. `last_error` carries the most recent exception |
+
+The subscriber no longer needs a restart to recover from a Redis outage;
+if `/ready` stays degraded with `redis: true`, that is a real bug.
 
 ### The service refuses to start
 
