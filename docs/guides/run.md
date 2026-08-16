@@ -30,7 +30,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 | --- | --- |
 | api-gateway | `http://localhost:3000/graphql` (GraphiQL at `/graphiql`) |
 | web | `http://localhost:3001` |
-| ai-service | `http://localhost:8000/health` |
+| ai-service | `http://localhost:8000/health` (liveness) · `/ready` (consuming jobs) |
 | postgres | `localhost:5432` |
 | redis | `localhost:6379` |
 

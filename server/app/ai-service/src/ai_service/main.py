@@ -18,12 +18,13 @@ from typing import AsyncIterator
 
 import httpx
 import redis.asyncio as redis
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from .analyzer.engines import build_registry
 from .analyzer.yolo import YoloDetector
 from .config import AnalyzerConfig
-from .handlers import HandlerDeps, listen
+from .handlers import HandlerDeps, ListenerState, supervise_listener
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover —
         pipeline_timeout_s=cfg.pipeline_timeout_s,
         debug_dump_enabled=cfg.debug_dump_enabled,
         debug_dump_dir=cfg.debug_dump_dir,
+        max_concurrent_requests=cfg.max_concurrent_requests,
+        shutdown_grace_s=cfg.shutdown_grace_s,
     )
     if cfg.debug_dump_enabled:
         logger.warning(
@@ -91,13 +94,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover —
         )
 
     # ── Listener ──────────────────────────────────────────────────────
-    listener_task = asyncio.create_task(listen(redis_client, deps))
+    # Supervised, not bare: a bare ``listen()`` task dies silently when
+    # Redis is down at boot or drops later, and the process keeps
+    # serving ``/health`` while consuming nothing. ``supervise_listener``
+    # resubscribes with backoff and records the failure on
+    # ``listener_state`` so ``/ready`` can report it.
+    listener_state = ListenerState()
+    listener_task = asyncio.create_task(
+        supervise_listener(redis_client, deps, listener_state)
+    )
 
     app.state.config = cfg
     app.state.registry = registry
     app.state.http_client = http_client
     app.state.redis = redis_client
     app.state.listener_task = listener_task
+    app.state.listener_state = listener_state
+    app.state.model_version = detector.model_version
     logger.info(
         "ai-service ready: model_version=%s engines=%s default=%s redis=%s",
         detector.model_version, registry.engine_names(),
@@ -122,4 +135,62 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
+    """Liveness — "this process is up and serving HTTP", nothing more.
+
+    Deliberately unchanged and dependency-free: an orchestrator uses
+    this to decide whether to restart the container, and a probe that
+    fails on a Redis blip would restart a process that is about to
+    recover on its own. For "is analysis actually working?", see
+    ``/ready``.
+    """
     return {"status": "ok", "service": "ai-service"}
+
+
+@app.get("/ready")
+async def ready(request: Request) -> JSONResponse:
+    """Readiness — is this process actually consuming analysis jobs?
+
+    ``/health`` answers a tautology: FastAPI replying proves only that
+    FastAPI is replying. Every real failure mode of this service is
+    invisible to it — Redis unreachable, the subscriber task dead, the
+    engine registry never built — and each leaves a process that looks
+    healthy and analyses nothing.
+
+    Returns 503 when degraded so a probe or dashboard can act on it.
+    ``restarts`` and ``last_error`` come from the listener supervisor:
+    a climbing restart count with the service otherwise "ready" is the
+    signature of a flapping Redis connection.
+    """
+    state: ListenerState | None = getattr(request.app.state, "listener_state", None)
+    task: asyncio.Task[None] | None = getattr(request.app.state, "listener_task", None)
+    registry = getattr(request.app.state, "registry", None)
+    redis_client = getattr(request.app.state, "redis", None)
+
+    listener_alive = task is not None and not task.done()
+    subscribed = bool(state is not None and state.subscribed)
+
+    redis_ok = False
+    if redis_client is not None:
+        try:
+            await redis_client.ping()
+            redis_ok = True
+        except Exception:  # noqa: BLE001 — a failed ping IS the answer
+            logger.debug("readiness ping failed", exc_info=True)
+
+    engines = registry.engine_names() if registry is not None else []
+    ok = listener_alive and subscribed and redis_ok and bool(engines)
+
+    return JSONResponse(
+        {
+            "status": "ok" if ok else "degraded",
+            "service": "ai-service",
+            "listener_alive": listener_alive,
+            "subscribed": subscribed,
+            "redis": redis_ok,
+            "engines": engines,
+            "model_version": getattr(request.app.state, "model_version", None),
+            "listener_restarts": state.restarts if state is not None else 0,
+            "last_error": state.last_error if state is not None else None,
+        },
+        status_code=200 if ok else 503,
+    )

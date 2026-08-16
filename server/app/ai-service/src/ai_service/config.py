@@ -13,9 +13,13 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if TYPE_CHECKING:  # pragma: no cover — import-time cost stays zero at runtime
+    import onnxruntime as ort
 
 
 # Resolved once at import. config.py lives at src/ai_service/config.py:
@@ -152,6 +156,31 @@ class AnalyzerConfig(BaseSettings):
                     "headroom — 30s leaves ~10s of slack on both sides.",
     )
 
+    max_concurrent_requests: int = Field(
+        default=2,
+        ge=1,
+        description="How many analyze_bp_image messages the Redis "
+                    "listener processes concurrently. The listener used "
+                    "to await each handler inline, which serialised the "
+                    "whole service — a 4s ssocr_cnn request stalled "
+                    "every job behind it even though the pipeline "
+                    "already offloads its CPU work to threads. This is "
+                    "the backpressure bound on that concurrency: each "
+                    "in-flight analysis holds up to 3 OCR threads plus "
+                    "a YOLO thread, so the default of 2 assumes the "
+                    "same 4-core container ``onnx_intra_op_threads`` "
+                    "assumes. Raise only alongside the container's CPU "
+                    "limit. Override via ``AI_MAX_CONCURRENT_REQUESTS``.",
+    )
+    shutdown_grace_s: float = Field(
+        default=5.0,
+        ge=0.0,
+        description="How long shutdown waits for in-flight analyses to "
+                    "finish before cancelling them. A reply that lands "
+                    "inside the window is a BullMQ job the gateway "
+                    "doesn't have to retry.",
+    )
+
     onnx_intra_op_threads: int = Field(
         default=2,
         ge=0,
@@ -176,6 +205,22 @@ class AnalyzerConfig(BaseSettings):
                     "per-op overhead outweighs the parallelism gain. "
                     "0 lets onnxruntime pick. Override via "
                     "``AI_ONNX_INTER_OP_THREADS``.",
+    )
+
+    ssocr_sys_prefix_repair: bool = Field(
+        default=True,
+        description="Enables the SSOCR rescue that turns a 2-digit "
+                    "systolic read below 70 into a 3-digit value by "
+                    "prefixing a '1' (a clipped LCD really does lose the "
+                    "leading digit). The prefixed digit is INVENTED, not "
+                    "read, so a reading produced this way is reported "
+                    "with its confidence multiplied by "
+                    "``ssocr.SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY``. Set "
+                    "``AI_SSOCR_SYS_PREFIX_REPAIR=0`` to disable the "
+                    "rescue outright — out-of-range 2-digit reads then "
+                    "surface as low-confidence instead of being "
+                    "completed. Affects the ``ssocr`` and ``ssocr_cnn`` "
+                    "engines only; ``crnn`` has no such rule.",
     )
 
     debug_dump_enabled: bool = Field(
@@ -215,7 +260,7 @@ class AnalyzerConfig(BaseSettings):
             return ["CUDAExecutionProvider", "CPUExecutionProvider"]
         return ["CPUExecutionProvider"]
 
-    def build_onnx_session_options(self) -> "ort.SessionOptions":  # type: ignore[name-defined]
+    def build_onnx_session_options(self) -> "ort.SessionOptions":
         """Construct shared ``SessionOptions`` for every ORT session.
 
         Centralises three settings the service has burned itself on:

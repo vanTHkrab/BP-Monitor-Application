@@ -22,7 +22,6 @@ import onnxruntime as ort
 from .preprocessing import LetterboxPad, letterbox
 from .types import BoundingBox
 
-
 # ---------------------------------------------------------------------------
 # Model metadata — kept inline so cold start doesn't need to parse ONNX.
 # Source of truth lives in models/yolo11n.onnx's metadata_props (verifiable

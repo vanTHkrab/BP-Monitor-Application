@@ -34,7 +34,6 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-
 # Defense-in-depth: presigned URLs come from our gateway, not user input,
 # but cap at 20 MB so a misconfigured upload can't OOM the worker.
 MAX_IMAGE_BYTES: Final[int] = 20 * 1024 * 1024

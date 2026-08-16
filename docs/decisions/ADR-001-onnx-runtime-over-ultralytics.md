@@ -14,9 +14,14 @@ export-time tool that lives outside the service container.
 
 **Status.** In force. Verified against
 [`pyproject.toml`](../../server/app/ai-service/pyproject.toml) — the runtime
-dependency set is `onnxruntime`, `opencv-python-headless`, `numpy`, `pillow`,
-`httpx`, `pydantic-settings`, `redis`, `fastapi`, `psutil`. Neither `torch` nor
+dependency set is `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`,
+`pydantic-settings`, `redis`, `fastapi`, `psutil`. Neither `torch` nor
 `ultralytics` appears in the runtime set or the dev group.
+
+`pillow` was listed here until 2026-08-16, when it was removed: nothing in
+`src/` or `tests/` ever imported it — image I/O is `cv2.imdecode` end to end.
+The decision this ADR records is unchanged; only the verified dependency set
+moved.
 
 ## Why
 
