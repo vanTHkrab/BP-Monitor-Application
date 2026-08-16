@@ -2,7 +2,7 @@
 title: BP Monitor GraphQL API contract
 description: Endpoint, auth, error codes, and the operation catalogue client developers build against.
 status: current
-updated: 2026-08-11
+updated: 2026-08-12
 owner: api-gateway
 ---
 
@@ -655,6 +655,24 @@ is a `token` Expo's own validator rejects.
   mattered.
 - **Only caregivers are pushed, never the patient.** The patient is holding
   the phone that just took the measurement.
+- **A critical reading does not guarantee a push.** Two gates sit in front of
+  the send, and neither affects the alert rows — those are always written, so
+  nothing is hidden from either bell. Only the interruption is withheld.
+  1. **Staleness.** A reading whose `measuredAt` is more than 6 hours old does
+     not push. Readings are captured offline-first and drained one mutation at
+     a time, so a patient who was offline for days arrives as a burst of
+     `createReading` calls; a push saying "ค่าความดันวิกฤต" has to mean *now*,
+     because that is how the recipient reads it. A future `measuredAt` (a
+     skewed device clock) counts as fresh.
+  2. **Burst.** At most one critical push per patient per 15 minutes, across
+     all their caregivers, via the same `RateLimitService` the credential
+     routes use. The staleness gate does not cover a twenty-minute outage with
+     three readings in it, and three pushes in five minutes tell a caregiver
+     nothing the first did not.
+
+  The order matters: staleness is evaluated first so a backlog cannot spend
+  the burst budget and silence a genuinely live reading that syncs a moment
+  later. Both fail **open** — if the limiter cannot answer, the push goes.
 - **No token registered is not an error.** Expo Go on Android cannot obtain a
   push token at all (remote push was dropped in SDK 53), so this feature needs
   a dev build. The gateway treats "no device to notify" as an ordinary

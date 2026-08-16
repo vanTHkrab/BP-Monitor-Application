@@ -6,6 +6,45 @@ import {
 import { AlertLevel, BpStatus } from '../prisma/generated/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
+import { RateLimitService } from '../redis/rate-limit.service';
+
+/**
+ * How old a reading may be and still be worth pushing about.
+ *
+ * Readings are captured offline-first: the app queues them in SQLite and
+ * `lib/sync.ts` drains the queue one mutation at a time when connectivity
+ * returns. A patient offline for three days therefore arrives as several
+ * separate `createReading` calls in a burst, each of which used to fire its
+ * own push — a caregiver woken up over readings taken days ago, which they
+ * can do nothing about.
+ *
+ * Six hours covers "measured this morning, synced at lunch" while refusing
+ * anything a caregiver could no longer act on. The number is a judgement, not
+ * a clinical threshold; the thing worth preserving is that a push claiming
+ * "ค่าความดันวิกฤต" must mean *now*, because that is how the recipient will
+ * read it.
+ *
+ * The alert row is written either way. Nothing is hidden — only the
+ * interruption is withheld.
+ */
+const CRITICAL_PUSH_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * At most one critical push per patient per window, across all their
+ * caregivers.
+ *
+ * The staleness gate above does not cover a patient who was offline for
+ * twenty minutes and took three readings in it: all three are fresh, and all
+ * three would push. This is the guard for that, and for genuine deterioration
+ * measured repeatedly — three pushes in five minutes tell a caregiver nothing
+ * the first one did not, and the cost of learning to ignore them is that they
+ * ignore the next one too.
+ *
+ * Keyed by patient rather than by caregiver: `notifyUsers` sends to every
+ * linked caregiver in one call, so the decision is "should anyone be
+ * interrupted about this patient again yet".
+ */
+const CRITICAL_PUSH_RULE = { window: 15 * 60, max: 1 } as const;
 
 // Shape returned to the resolver. The `images` relation is included so
 // the resolver can derive a signed s3Key without a second query, and
@@ -21,6 +60,12 @@ export class ReadingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: PushService,
+    // The project's one rate limiter, exported by the `@Global()` RedisModule.
+    // Used here as a "have we interrupted about this patient recently" gate
+    // rather than to refuse a request — same atomic INCR + PEXPIRE primitive,
+    // and writing a second counter against REDIS_CLIENT is what AGENTS.md
+    // exists to prevent.
+    private readonly rateLimit: RateLimitService,
   ) {}
 
   async listByUser(userId: string, limit: number, offset: number) {
@@ -112,6 +157,10 @@ export class ReadingService {
       diastolic: data.diastolic,
       pulse: data.pulse,
       status: data.status,
+      // Not `now`: an offline reading is created long after it was taken, and
+      // whether a caregiver should be interrupted depends on when the
+      // measurement happened, not on when the queue drained.
+      measuredAt: data.measuredAt,
     });
 
     return reading;
@@ -157,6 +206,7 @@ export class ReadingService {
       diastolic: number;
       pulse: number;
       status: string;
+      measuredAt: Date;
     },
   ) {
     if (data.status === 'normal') {
@@ -223,7 +273,10 @@ export class ReadingService {
       // Fire-and-forget: an outbound HTTPS call to Expo must not sit inside
       // the reading mutation's latency budget, and `notifyUsers` never
       // rejects, for the same reason this whole block is wrapped in a catch.
-      if (data.status === 'critical') {
+      if (
+        data.status === 'critical' &&
+        (await this.shouldInterruptCaregivers(patientId, data.measuredAt))
+      ) {
         void this.push
           .notifyUsers(
             links.map((link) => link.caregiverId),
@@ -249,6 +302,43 @@ export class ReadingService {
     } catch {
       // Swallowed on purpose: the patient has been alerted, the reading is
       // saved, and a failed fan-out must not surface as a failed save.
+    }
+  }
+
+  /**
+   * Whether a critical reading has earned an interruption, as opposed to a
+   * row in a list.
+   *
+   * Two gates, and the **order is load-bearing**. Staleness is checked first
+   * because it costs nothing and, more importantly, because a stale reading
+   * must not spend the burst budget: draining a three-day backlog would
+   * otherwise consume the window and silence a genuinely live reading that
+   * synced moments later, which is the one this whole path exists for.
+   *
+   * Fails **open**. `RateLimitService` already degrades to a per-process
+   * counter when Redis is unready, and any unexpected error here resolves to
+   * "yes, push". A missed critical alert is worse than a duplicate one, so
+   * the failure direction is deliberate — this is a filter on noise, never a
+   * gate on safety.
+   */
+  private async shouldInterruptCaregivers(
+    patientId: string,
+    measuredAt: Date,
+  ): Promise<boolean> {
+    const age = Date.now() - measuredAt.getTime();
+
+    // A future `measuredAt` is a clock-skewed device, not a reason to refuse:
+    // a negative age passes, and the burst gate below still applies.
+    if (age > CRITICAL_PUSH_MAX_AGE_MS) return false;
+
+    try {
+      const decision = await this.rateLimit.consume(
+        `push:critical:${patientId}`,
+        CRITICAL_PUSH_RULE,
+      );
+      return decision.allowed;
+    } catch {
+      return true;
     }
   }
 

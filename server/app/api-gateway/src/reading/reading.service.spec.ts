@@ -9,17 +9,32 @@ jest.mock('../prisma/prisma.service', () => ({
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
+import { RateLimitService } from '../redis/rate-limit.service';
 import { ReadingService } from './reading.service';
 
 const PATIENT_ID = '11111111-1111-4111-8111-111111111111';
 const CAREGIVER_ID = '22222222-2222-4222-8222-222222222222';
+
+const MINUTE_MS = 60 * 1000;
+
+/**
+ * `measuredAt` is now relative to the clock, not a fixed calendar date.
+ *
+ * It used to be `2026-07-01T08:00:00Z`, which was harmless while nothing read
+ * it — and became a trap the moment the push path started asking how old a
+ * reading is. A pinned past date makes every reading permanently stale, so
+ * every push assertion in this file would have failed for a reason that has
+ * nothing to do with what it tests.
+ */
+const minutesAgo = (minutes: number) =>
+  new Date(Date.now() - minutes * MINUTE_MS);
 
 const baseInput = {
   systolic: 120,
   diastolic: 80,
   pulse: 70,
   status: 'normal',
-  measuredAt: new Date('2026-07-01T08:00:00Z'),
+  measuredAt: minutesAgo(5),
 };
 
 describe('ReadingService', () => {
@@ -37,6 +52,7 @@ describe('ReadingService', () => {
     user: { findUnique: jest.Mock };
   };
   let push: { notifyUsers: jest.Mock };
+  let rateLimit: { consume: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -72,11 +88,19 @@ describe('ReadingService', () => {
 
     push = { notifyUsers: jest.fn().mockResolvedValue(undefined) };
 
+    // Allows by default, so every pre-existing test keeps asserting what it
+    // was written to assert. The burst gate is exercised by its own describe
+    // block, which overrides this per case.
+    rateLimit = {
+      consume: jest.fn().mockResolvedValue({ allowed: true, retryAfter: null }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReadingService,
         { provide: PrismaService, useValue: prisma },
         { provide: PushService, useValue: push },
+        { provide: RateLimitService, useValue: rateLimit },
       ],
     }).compile();
 
@@ -227,6 +251,117 @@ describe('ReadingService', () => {
       await expect(
         service.create(PATIENT_ID, critical, PATIENT_ID),
       ).resolves.toBeDefined();
+    });
+  });
+
+  /**
+   * Readings are captured offline-first and drained one mutation at a time,
+   * so a patient who was offline arrives as a burst of `create` calls. Every
+   * one of them used to push. These are the two gates that stop that, and the
+   * thing they must never do is suppress the **alert row** — only the
+   * interruption is withheld.
+   */
+  describe('create — a burst of critical readings does not become a burst of pushes', () => {
+    const criticalAt = (measuredAt: Date) => ({
+      ...baseInput,
+      systolic: 195,
+      status: 'critical',
+      measuredAt,
+    });
+
+    beforeEach(() => {
+      prisma.caregiverPatient.findMany.mockResolvedValue([
+        { caregiverId: CAREGIVER_ID },
+      ]);
+    });
+
+    it('does not push about a reading taken hours ago', async () => {
+      await service.create(
+        PATIENT_ID,
+        criticalAt(minutesAgo(7 * 60)),
+        PATIENT_ID,
+      );
+
+      expect(push.notifyUsers).not.toHaveBeenCalled();
+    });
+
+    it('still writes the alert rows for a stale reading', async () => {
+      await service.create(
+        PATIENT_ID,
+        criticalAt(minutesAgo(7 * 60)),
+        PATIENT_ID,
+      );
+
+      // The patient's own row, and the caregiver's copy. Nothing is hidden —
+      // a stale critical reading is still in both bells, it just does not
+      // ring a phone.
+      expect(prisma.alert.create).toHaveBeenCalled();
+      expect(prisma.alert.createMany).toHaveBeenCalled();
+    });
+
+    it('still pushes about one taken minutes ago', async () => {
+      await service.create(PATIENT_ID, criticalAt(minutesAgo(5)), PATIENT_ID);
+
+      expect(push.notifyUsers).toHaveBeenCalled();
+    });
+
+    /*
+     * The ordering that matters. A stale reading must not spend the burst
+     * budget, or draining a three-day backlog would silence the live reading
+     * that synced a second later — the one case this path exists for.
+     */
+    it('does not spend the burst budget on a stale reading', async () => {
+      await service.create(
+        PATIENT_ID,
+        criticalAt(minutesAgo(7 * 60)),
+        PATIENT_ID,
+      );
+
+      expect(rateLimit.consume).not.toHaveBeenCalled();
+    });
+
+    it('keys the burst budget by patient, not by caregiver', async () => {
+      await service.create(PATIENT_ID, criticalAt(minutesAgo(5)), PATIENT_ID);
+
+      // One send reaches every linked caregiver, so the question is whether
+      // anyone should be interrupted about *this patient* again yet.
+      expect(rateLimit.consume).toHaveBeenCalledWith(
+        `push:critical:${PATIENT_ID}`,
+        expect.objectContaining({ max: 1 }),
+      );
+    });
+
+    it('stays quiet for a second critical reading inside the window', async () => {
+      rateLimit.consume.mockResolvedValue({ allowed: false, retryAfter: 600 });
+
+      await service.create(PATIENT_ID, criticalAt(minutesAgo(2)), PATIENT_ID);
+
+      expect(push.notifyUsers).not.toHaveBeenCalled();
+      // Suppressed the push, not the record.
+      expect(prisma.alert.createMany).toHaveBeenCalled();
+    });
+
+    /*
+     * Fails open, deliberately. A missed critical alert is worse than a
+     * duplicate one, so a limiter that cannot answer must not be the reason
+     * a caregiver hears nothing.
+     */
+    it('pushes anyway when the limiter itself fails', async () => {
+      rateLimit.consume.mockRejectedValue(new Error('redis exploded'));
+
+      await service.create(PATIENT_ID, criticalAt(minutesAgo(2)), PATIENT_ID);
+
+      expect(push.notifyUsers).toHaveBeenCalled();
+    });
+
+    /*
+     * A device with a skewed clock reports a measurement in the future. That
+     * is not a reason to refuse — the burst gate still applies to it.
+     */
+    it('treats a future timestamp as fresh rather than refusing it', async () => {
+      await service.create(PATIENT_ID, criticalAt(minutesAgo(-30)), PATIENT_ID);
+
+      expect(push.notifyUsers).toHaveBeenCalled();
     });
   });
 
