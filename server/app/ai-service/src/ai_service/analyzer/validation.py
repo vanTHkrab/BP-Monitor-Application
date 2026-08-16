@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from .types import BPClass
 
-
 # Inclusive on both bounds. Tuned per PLAN.md's "Validation ranges" table.
 RANGES: dict[BPClass, tuple[int, int]] = {
     BPClass.SYSTOLIC: (40, 300),

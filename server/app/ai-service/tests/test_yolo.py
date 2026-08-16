@@ -92,9 +92,13 @@ class TestDetectSmoke:
     def test_class_filter_constrains_output(self, detector, fake_image):
         all_boxes = detector.detect(fake_image)
         field_only = detector.detect(fake_image, class_filter=FIELD_CLASS_IDS)
-        # field_only is a subset of all by class membership
+        # field_only is a subset of all by class membership. The second
+        # half was previously unasserted — `all_boxes` was bound and never
+        # read, so the filter could have returned boxes the unfiltered
+        # pass never produced and the test would still have passed.
         for b in field_only:
             assert b.cls in FIELD_CLASS_IDS
+        assert len(field_only) <= len(all_boxes)
 
     def test_results_in_source_coords(self, detector, fake_image):
         h, w = fake_image.shape[:2]

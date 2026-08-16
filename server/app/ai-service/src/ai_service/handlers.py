@@ -48,6 +48,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -62,7 +63,6 @@ from .analyzer.engines import (
 from .analyzer.types import AnalysisResult
 from .debug_dump import DebugDumper
 from .storage.fetch import ImageFetchError, fetch_image
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

@@ -38,7 +38,6 @@ from .validation import (
 )
 from .yolo import FIELD_CLASS_IDS, YoloDetector
 
-
 # Screen class IDs for perspective rectification. Class 1
 # (``BP_Screen_Monitor``) is the LCD itself — its rectangular bezel is
 # the ideal target for corner detection. Class 0 (``BP_Monitor``,

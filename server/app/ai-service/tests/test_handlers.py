@@ -27,7 +27,6 @@ from ai_service.handlers import (
     handle_message,
 )
 
-
 # ─── pipeline + registry mocks ─────────────────────────────────────────
 
 
