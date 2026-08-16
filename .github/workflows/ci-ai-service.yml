@@ -1,0 +1,93 @@
+# ai-service CI — lint + tests on every PR that touches the service.
+#
+# ── Why this exists ─────────────────────────────────────────────────────────
+# The service has a real test suite (200+ cases, ~2s) and, until this file,
+# nothing ran it. `deploy-server.yml` deploys; `release-mobile.yml` builds the
+# app. A branch could land with a red suite and the first sign would be a
+# broken analysis path in production, where the failure mode is silent: the
+# gateway publishes to Redis, gets no usable reply, and BullMQ retries until
+# it gives up.
+#
+# ── Why `uv sync --frozen` ──────────────────────────────────────────────────
+# `--frozen` fails when uv.lock disagrees with pyproject.toml instead of
+# quietly re-resolving. That disagreement is exactly the mistake this gate
+# should catch: a hand-edited manifest, or a dependency added without
+# committing the lockfile (root AGENTS.md rule 10).
+#
+# Note this is stricter than the Dockerfile, which falls back to a plain
+# `uv sync` when `--frozen` fails. Tightening that fallback is a separate
+# change — but CI must not inherit it, or the drift never surfaces anywhere.
+#
+# ── Why no model download ───────────────────────────────────────────────────
+# Most of the suite mocks ONNX (that's why it runs in seconds). The handful of
+# tests that load the real weights skip on a fresh checkout, because the
+# weights are not in git — they come from R2 against models/EXPECTED_HASHES.json
+# (ADR-005). So CI needs no AI_MODELS_R2_BASE_URL secret and no ~62 MB download
+# per run, and it does not go red because an external bucket had a bad minute.
+#
+# The cost is honest and bounded: ~10 tests are skipped here, covering YOLO
+# session load, ONNX metadata, and the fetch-path/config wiring check. Those
+# still run on any developer machine that has fetched the weights, and the
+# `require_model` fixture prints the exact command when they don't.
+#
+# The larger gap is unchanged either way: CI proves the wiring, not the
+# accuracy. An end-to-end golden-image job against the real models is tracked
+# separately.
+
+name: CI ai-service
+
+on:
+  pull_request:
+    paths:
+      - 'server/app/ai-service/**'
+      - '.github/workflows/ci-ai-service.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'server/app/ai-service/**'
+      - '.github/workflows/ci-ai-service.yml'
+  workflow_dispatch:
+
+# Supersede an in-flight run when the PR gets new commits — the older result
+# is about code nobody will merge.
+concurrency:
+  group: ci-ai-service-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: server/app/ai-service
+
+jobs:
+  test:
+    name: Lint + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          # The lockfile is the cache key — a dependency bump gets a fresh
+          # environment instead of a stale one that happens to still resolve.
+          cache-dependency-glob: server/app/ai-service/uv.lock
+
+      # Pinned by .python-version; kept explicit so a runner-image default
+      # change can't silently move the interpreter under the suite.
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        run: uv run pytest -q

@@ -32,7 +32,6 @@ from ai_service.analyzer.rectify import (
 )
 from ai_service.analyzer.types import BoundingBox, BPClass
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────────
 
 

@@ -76,7 +76,7 @@ it the service replies with a structured error ("missing imageUrl").
 | `src/ai_service/scripts/fetch_models.py` | Local-dev mirror of the entrypoint — `uv run python -m ai_service.scripts.fetch_models [--dry-run]`. Uses httpx (already a dep) and reads the same manifest. Run once after `cp .env.example .env` before `uv run fastapi dev`. |
 | `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`. Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
 | `debug_images/` | Dev-only output directory for `DebugDumper` when `AI_DEBUG_DUMP_ENABLED=1`. Layout: `debug_images/<jobId>/NN_<stage>.jpg`. Created lazily on first dump; gitignored. Never written when the toggle is off |
-| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pillow`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. |
+| `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`, `ruff`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. Also holds the `[tool.ruff]` config: `select = ["E", "F", "I"]` only, because that set passes clean on the tree today and is therefore usable as a CI gate. The opinionated families (`B`, `BLE`, `RUF`, `SIM`, `UP`, `S`) report ~70 more findings, nearly all in `ocr/ssocr.py` — enable them in a dedicated cleanup, never as a drive-by. |
 | `Dockerfile` | container build for prod/staging |
 
 ## Run / build / verify
@@ -87,6 +87,8 @@ cp .env.example .env                 # then set AI_MODELS_R2_BASE_URL
 uv run python -m ai_service.scripts.fetch_models   # pull models from R2
 uv run fastapi dev main.py           # dev (auto-reload, port 8000)
 uv run fastapi run main.py           # production-style
+uv run ruff check .                  # lint (CI gate)
+uv run ruff check . --fix            # ... and autofix the mechanical half
 uv run pytest                        # tests
 ```
 

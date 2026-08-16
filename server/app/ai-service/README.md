@@ -131,9 +131,22 @@ ai-service/
 ```bash
 uv run fastapi dev main.py         # dev (auto-reload)
 uv run fastapi run main.py         # production-style
-uv run pytest                      # full test suite (214 tests)
+uv run pytest                      # full test suite
 uv run pytest tests/test_handlers.py  # single file
+uv run ruff check .                # lint — same command CI runs
+uv run ruff check . --fix          # autofix imports and the mechanical half
 ```
+
+Lint and tests both run on every PR touching this directory
+(`.github/workflows/ci-ai-service.yml`). CI installs with
+`uv sync --frozen`, so a manifest edited without committing `uv.lock`
+fails there even when it works locally.
+
+Tests that load real weights (YOLO session load, ONNX metadata, the
+fetch-path wiring check) **skip** when `models/` has not been populated
+— they cannot run on a fresh checkout, since the weights come from R2
+rather than git. Run `fetch_models` to get full local coverage; the
+skip message names the command.
 
 ---
 

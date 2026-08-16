@@ -13,9 +13,13 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if TYPE_CHECKING:  # pragma: no cover — import-time cost stays zero at runtime
+    import onnxruntime as ort
 
 
 # Resolved once at import. config.py lives at src/ai_service/config.py:
@@ -196,7 +200,7 @@ class AnalyzerConfig(BaseSettings):
             return ["CUDAExecutionProvider", "CPUExecutionProvider"]
         return ["CPUExecutionProvider"]
 
-    def build_onnx_session_options(self) -> "ort.SessionOptions":  # type: ignore[name-defined]
+    def build_onnx_session_options(self) -> "ort.SessionOptions":
         """Construct shared ``SessionOptions`` for every ORT session.
 
         Centralises three settings the service has burned itself on:

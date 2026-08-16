@@ -48,7 +48,6 @@ import onnxruntime as ort
 
 from .base import OCRReader, OCRResult
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -317,3 +316,11 @@ def _extract_digit_string(text: str, label: str) -> str | None:
     # garbled rather than a different valid number.
     matches.sort(key=lambda s: (-len(s), text.find(s)))
     return matches[0]
+
+
+# Static type assertion: CRNNEngine satisfies the OCRReader Protocol.
+# Mirrors the identical line at the bottom of ``ssocr.py`` — the pipeline
+# depends on the Protocol, not on either class, so a signature drift
+# should fail here rather than at the first request.
+def _assert_protocol(engine: CRNNEngine) -> OCRReader:
+    return engine

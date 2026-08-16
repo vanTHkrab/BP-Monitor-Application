@@ -1,17 +1,15 @@
 """CRNN engine — preprocessing, digit extraction, session load."""
 from __future__ import annotations
 
-from pathlib import Path
-
 import cv2
 import numpy as np
 import pytest
 
 from ai_service.analyzer.ocr.base import OCRResult
 from ai_service.analyzer.ocr.crnn import (
+    LABEL_VALUE_RULES,
     CRNNEngine,
     CRNNSession,
-    LABEL_VALUE_RULES,
     _extract_digit_string,
     _preprocess,
 )

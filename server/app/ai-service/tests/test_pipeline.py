@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import pytest
 
-from ai_service.analyzer.ocr.base import OCRResult
 from ai_service.analyzer.pipeline import (
     BPAnalysisPipeline,
     _mean_field_confidence,
@@ -16,7 +15,10 @@ from ai_service.analyzer.pipeline import (
     _pick_best_per_class,
 )
 from ai_service.analyzer.types import (
-    AnalysisStatus, BoundingBox, BPClass, PipelineMetrics,
+    AnalysisStatus,
+    BoundingBox,
+    BPClass,
+    PipelineMetrics,
 )
 
 
