@@ -49,6 +49,7 @@ curl -s http://localhost:8000/health
 | `AI_CONFIDENCE_THRESHOLD` | – | `0.25` | YOLO detection confidence floor. **Mirrors `client/src/modules/capture/lib/detection.ts` `DEFAULT_CONF_THRESHOLD`** — cross-process wire contract; change both sides together. |
 | `AI_IOU_THRESHOLD` | – | `0.45` | YOLO per-class NMS IoU threshold. **Mirrors `client/src/modules/capture/lib/detection.ts` `DEFAULT_IOU_THRESHOLD`** — same wire-contract rule. |
 | `AI_IMAGE_FETCH_TIMEOUT_S` | – | `5` | Timeout for presigned-URL image download |
+| `AI_ALLOWED_IMAGE_HOSTS` | – | *(empty)* | JSON list of hostnames `fetch_image` may GET, e.g. `'["bucket.r2.cloudflarestorage.com"]'`. `imageUrl` arrives over Redis, so an allowlist is what stops a publisher aiming this service at an arbitrary URL. Empty keeps the permissive default: http/https only, link-local (`169.254.0.0/16`, the cloud metadata service) refused. **Set this in production.** |
 | `AI_OCR_FIELD_TIMEOUT_S` | – | `5` | Per-field OCR wall-clock cap (asyncio) |
 | `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout enforced in `handle_message` |
 | `AI_ONNX_INTRA_OP_THREADS` | – | `2` | `SessionOptions.intra_op_num_threads` cap for every ORT session (YOLO + CRNN + per-bucket CNNs) |

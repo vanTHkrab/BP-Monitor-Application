@@ -35,7 +35,7 @@ three are ONNX-only — torch / joblib / sklearn are never imported at
 request time. Each reply carries `engine` + per-stage `metrics`
 (fetch / detect / ocr / validate ms, RSS before/after/delta, image
 size) so the gateway can append a JSONL row to S3 for offline
-comparison. 214 tests cover config / debug_dump / fetch / handlers /
+comparison. 231 tests cover config / debug_dump / fetch / handlers /
 pipeline / rectify / validation / yolo / crnn / engines /
 cnn_classifiers.
 
@@ -64,8 +64,8 @@ it the service replies with a structured error ("missing imageUrl").
 | `src/ai_service/analyzer/ocr/base.py` | `OCRReader` Protocol + `OCRResult` — the seam every engine implements |
 | `src/ai_service/analyzer/ocr/crnn.py` | `CRNNEngine` + `CRNNSession` — ONNX int8 CRNN, ~30 ms/image |
 | `src/ai_service/analyzer/ocr/ssocr.py` | `SSOCREngine` — rule-based 7-segment OCR; `use_classifiers` flag toggles the `ssocr_cnn` (full ensemble) vs `ssocr` (rule-only baseline) mode |
-| `src/ai_service/analyzer/ocr/cnn_classifiers.py` | ONNX CNN (`classify_by_cnn_2ch`) + numpy KNN (`classify_by_knn`) + template match + `detect_brand`. Configured once at lifespan via `set_models_dir()`; consumed by `ssocr.py` |
-| `src/ai_service/storage/fetch.py` | async `fetch_image()` (presigned URL → BGR ndarray) + `ImageFetchError` |
+| `src/ai_service/analyzer/ocr/cnn_classifiers.py` | ONNX CNN (`classify_by_cnn_2ch`) + numpy KNN (`classify_by_knn`) + template match + `detect_brand`. Configured once at lifespan via `set_models_dir()`, then **warmed** by `warm_caches()` from `build_registry` — `set_models_dir` clears the caches, so without the warm-up the ~58 MB KNN matrix and four ORT sessions were built by whichever request first picked an SSOCR engine. Every lazy loader is behind `_CACHE_LOCK` with double-checked locking, because concurrent dispatch makes first-use genuinely re-entrant. Consumed by `ssocr.py` |
+| `src/ai_service/storage/fetch.py` | async `fetch_image()` (presigned URL → BGR ndarray) + `ImageFetchError`. Streams the body and enforces `MAX_IMAGE_BYTES` against `Content-Length` **and** chunk-by-chunk — the old `response.content` read buffered everything first, so the cap could not fire before an OOM. `_validate_url` gates the destination: http/https only, literal link-local refused, and an exact-match host allowlist (`AI_ALLOWED_IMAGE_HOSTS`) when configured. It deliberately does **not** resolve hostnames — see the docstring for why that costs availability without buying much |
 | `models/EXPECTED_HASHES.json` | SHA256 manifest — **single source of truth** for which model artifacts the service expects and what their bytes look like. Consumed by both `docker-entrypoint.sh` and `src/ai_service/scripts/fetch_models.py`. Tracked in git; the binaries it describes are not. |
 | `models/yolo11n.onnx` | YOLOv11n detector, 5 BP-specific classes, exported with `nms=False` (10.7 MB). **Fetched from R2 at startup**, not tracked in git. **Also bundled verbatim in the mobile app** at `client/assets/models/yolo11n.onnx` for on-device pre-flight (see [client/AGENTS.md](../../../client/AGENTS.md)). The canonical sha256 lives in `EXPECTED_HASHES.json`; when you retrain, regenerate the manifest, upload the new bytes to R2, and refresh the mobile copy in the same change — `client/scripts/verify-models.mjs` runs on every `pnpm start` and fails the dev build on SHA256 drift. |
 | `models/crnn.onnx` | Trained 7-seg CRNN, ONNX (~4.5 MB) — `crnn` engine. Fetched from R2. **Also bundled verbatim in the mobile app** at `client/assets/models/crnn.onnx` for on-device offline OCR (the `client/modules/bp-vision` native module); `client/scripts/verify-models.mjs` gates its SHA256 against `EXPECTED_HASHES.json` alongside the YOLO model. Preprocessing (BGR2GRAY + INTER_AREA 96×32) and CTC decode are ported to Kotlin verbatim — retrain one side, refresh the other. |
@@ -202,6 +202,12 @@ without the other will silently break the AI flow.
 
 ## Working rules for Claude
 
+- **`imageUrl` is attacker-shaped input, not trusted input.** It
+  arrives in a Redis payload, so the trust boundary is "who can publish
+  to the channel", not "the gateway wrote it". Anything that fetches,
+  parses, or follows it goes through `storage.fetch._validate_url`, and
+  size limits are enforced while streaming rather than after buffering.
+  Adding a second fetch path means adding the same two guards.
 - **Don't add HTTP routes** beyond `/health` unless the task explicitly
   requires them. This service's surface is the Redis channel — adding HTTP
   endpoints invites a second source of truth.
