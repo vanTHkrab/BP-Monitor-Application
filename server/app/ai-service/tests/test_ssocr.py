@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ai_service.analyzer.ocr.cnn_classifiers import detect_brand
 from ai_service.analyzer.ocr.ssocr import (
     HARD_CEILING,
     LABEL_VALUE_RULES,
@@ -31,8 +32,6 @@ from ai_service.analyzer.ocr.ssocr import (
     digits_to_string,
     get_params_for_label,
 )
-from ai_service.analyzer.ocr.cnn_classifiers import detect_brand
-
 
 # ─── Segment → digit classification ─────────────────────────────────────
 

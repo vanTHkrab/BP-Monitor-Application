@@ -29,7 +29,6 @@ from ai_service.handlers import (
 )
 from ai_service.main import app
 
-
 # ─── Fakes ──────────────────────────────────────────────────────────────
 
 

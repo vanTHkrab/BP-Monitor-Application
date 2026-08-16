@@ -78,6 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover —
         registry=registry,
         http_client=http_client,
         image_fetch_timeout_s=cfg.image_fetch_timeout_s,
+        allowed_image_hosts=tuple(cfg.allowed_image_hosts),
         model_version=detector.model_version,
         pipeline_timeout_s=cfg.pipeline_timeout_s,
         debug_dump_enabled=cfg.debug_dump_enabled,

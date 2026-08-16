@@ -92,6 +92,7 @@ class HandlerDeps:
     http_client: httpx.AsyncClient
     image_fetch_timeout_s: float
     model_version: str
+    allowed_image_hosts: tuple[str, ...] = ()
     pipeline_timeout_s: float = 30.0
     debug_dump_enabled: bool = False
     debug_dump_dir: Path = Path("debug_images")
@@ -252,6 +253,7 @@ async def handle_message(
             image_url,
             timeout_s=deps.image_fetch_timeout_s,
             client=deps.http_client,
+            allowed_hosts=deps.allowed_image_hosts,
         )
     except ImageFetchError as e:
         logger.warning("fetch failed jobId=%s: %s", job_id, e)

@@ -115,6 +115,25 @@ class AnalyzerConfig(BaseSettings):
                     "wire-contract rule as ``confidence_threshold``.",
     )
 
+    allowed_image_hosts: list[str] = Field(
+        default_factory=list,
+        description="Optional allowlist of hostnames ``fetch_image`` may "
+                    "GET. ``imageUrl`` arrives over Redis, so anything "
+                    "able to publish on that channel can otherwise point "
+                    "this service at a URL of its choosing — SSRF, with "
+                    "cloud metadata endpoints as the prize. Empty (the "
+                    "default) keeps the permissive path: http/https only, "
+                    "and link-local addresses (169.254.0.0/16, the "
+                    "metadata service) blocked outright. Set it in "
+                    "production to the S3/R2 host that presigns your "
+                    "URLs — e.g. "
+                    "``AI_ALLOWED_IMAGE_HOSTS='[\"bucket.r2.cloudflarestorage.com\"]'`` "
+                    "— and the permissive checks are replaced by exact "
+                    "host matching. Left empty by default so an upgrade "
+                    "cannot break a deployment whose endpoint we cannot "
+                    "guess.",
+    )
+
     image_fetch_timeout_s: float = Field(
         default=5.0,
         gt=0,

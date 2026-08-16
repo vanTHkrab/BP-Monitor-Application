@@ -187,6 +187,11 @@ def build_registry(
     cnn_classifiers.set_models_dir(
         cfg.models_dir, session_options=session_options,
     )
+    # set_models_dir clears the caches, so warm them here — otherwise the
+    # first request to pick an SSOCR engine pays for the ~58 MB KNN
+    # matrix and four ORT sessions, and (with concurrent dispatch) two
+    # requests can pay for it at the same time.
+    cnn_classifiers.warm_caches()
 
     crnn_session = CRNNSession.load(
         cfg.crnn_path,
