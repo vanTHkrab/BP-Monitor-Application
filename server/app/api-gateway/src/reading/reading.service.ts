@@ -28,6 +28,31 @@ import { classifyReading } from './bp-status';
  *
  * The alert row is written either way. Nothing is hidden — only the
  * interruption is withheld.
+ *
+ * ## The residual, named rather than left implicit
+ *
+ * This gate keys on `measuredAt`, which the client supplies — while
+ * `classifyReading` exists a few lines below on the premise that a
+ * client-supplied field must not decide who gets alerted. The two are in
+ * tension and the tension is accepted, because unlike `status` there is no
+ * better source **in the current wire contract**: only the device knows when
+ * the cuff was on the arm, and nothing else on the input separates a
+ * three-day backlog from a reading taken a minute ago. `clientId` does not —
+ * every reading goes through the outbox whether or not the device was online.
+ *
+ * What it costs: a device whose clock is more than six hours *behind* reality
+ * writes the alert rows and silently loses the caregiver interruption, on a
+ * reading the gateway has just classified `critical`. Rare — clocks are
+ * normally NTP-synced — and bounded by the row still existing in both bells.
+ * A clock skewed the other way is handled below and simply counts as fresh.
+ *
+ * The fix, if it ever proves worth the wire change: have the client send a
+ * `clientSentAt` beside `measuredAt` and gate on the age *corrected by the
+ * observed skew* (`serverNow − clientSentAt`) rather than on the absolute
+ * value. A clock uniformly eight hours behind then reports an age of minutes,
+ * which is the truth. It does not help a clock that is randomly wrong, and it
+ * costs a new field on `CreateReadingInput` — a change crossing into
+ * `client/`, which is why it is recorded here rather than done.
  */
 const CRITICAL_PUSH_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 

@@ -283,8 +283,10 @@ and verified with.
 
 ## Related
 
-- [API.md §5.5.1](../reference/API.md#551-push-notifications) — the mutations and
-  why only critical readings push, and only to caregivers
+- [API.md §5.5.1](../reference/API.md#551-push-notifications) — the mutations,
+  and the four things that decide whether a send happens at all: critical only,
+  caregivers only, not for a reading measured more than 6 hours ago, and at
+  most one per patient per 15 minutes
 - [CLIENT-caregiver.md §4](../project/CLIENT-caregiver.md) — the client-side
   work that remains (`C-001`)
 - [TESTING-plan.md](../project/TESTING-plan.md) — why the dev build gates
