@@ -52,7 +52,35 @@ logger = logging.getLogger(__name__)
 # Confidence floor for the SUCCESS verdict per PLAN.md "Status mapping".
 # Below this (or with any out-of-range field) the pipeline returns
 # LOW_CONFIDENCE so the gateway / client can decide whether to re-prompt.
+#
+# RETAINED FOR THE WIRE, NO LONGER THE GATE. ``AnalysisResult.confidence``
+# still carries the historical blend and this is still the threshold that
+# describes it, but the SUCCESS verdict is now decided by the two floors
+# below. See ``_assemble`` for why.
 SUCCESS_CONFIDENCE_FLOOR: float = 0.60
+
+# The verdict's two bars, applied separately rather than multiplied.
+#
+# Measured on 135 real photos x 3 engines before this changed: gating on
+# the product downgraded 24 images per engine whose readings were fully
+# in range, mutually consistent, and read with confidence 0.89-0.96 —
+# purely because a mediocre detection box dragged the product under
+# 0.60 (e.g. det 0.49 x read 0.89 = 0.44). Switching to two bars
+# produced 24 upgrades and **zero** downgrades: nothing that used to
+# pass stops passing, and images that were only ever penalised for
+# framing stop being penalised for framing.
+#
+# Both values are provisional in the same sense as
+# ``SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY``: chosen to sit sensibly
+# within the measured distributions, not fitted to ground truth,
+# because there is no labelled set yet. ``READ`` at 0.5 clears the
+# rule-engine's coarse 0.7/1.0 buckets and the CRNN's p10 of 0.84
+# while still rejecting a collapsed read; ``DETECTION`` at 0.35 keeps
+# genuinely bad framing out without re-introducing the blend.
+# Override per deployment via ``AI_SUCCESS_READ_FLOOR`` /
+# ``AI_SUCCESS_DETECTION_FLOOR``.
+DEFAULT_SUCCESS_READ_FLOOR: float = 0.50
+DEFAULT_SUCCESS_DETECTION_FLOOR: float = 0.35
 
 # Quality gate for the field-layout rotation fallback. The rotation angle
 # is estimated from field-box centroids, which scatter when the readings
@@ -86,6 +114,8 @@ class BPAnalysisPipeline:
         detector: YoloDetector,
         ocr_readers: dict[BPClass, OCRReader],
         field_timeout_s: float,
+        success_read_floor: float = DEFAULT_SUCCESS_READ_FLOOR,
+        success_detection_floor: float = DEFAULT_SUCCESS_DETECTION_FLOOR,
     ) -> None:
         missing = set(BPClass) - ocr_readers.keys()
         if missing:
@@ -95,6 +125,8 @@ class BPAnalysisPipeline:
         self._detector = detector
         self._ocr_readers = ocr_readers
         self._field_timeout_s = field_timeout_s
+        self._success_read_floor = success_read_floor
+        self._success_detection_floor = success_detection_floor
 
     async def analyze(
         self, image: np.ndarray
@@ -439,14 +471,39 @@ class BPAnalysisPipeline:
             dia_v = None
 
         # Confidence: weakest-link min of per-field combined confidences.
+        # Unchanged — the gateway persists it and the mobile app renders
+        # it to the patient as a percentage, so its meaning must not
+        # move under them. It is no longer what decides the verdict.
         combined = [f.combined_confidence for f in fields]
         confidence = min(combined) if combined else 0.0
 
-        # Status per PLAN.md Status Mapping table. Note that ``consistent``
-        # gates SUCCESS even when per-field in_range is True — swapped
-        # sys/dia each fall in their own range but the *pair* is invalid.
+        # The two signals the blend used to hide, reported separately.
+        # Weakest-link again: one unreadable field makes the whole
+        # reading untrustworthy, however clear the other two were.
+        detection_confidence = min((f.yolo_confidence for f in fields), default=0.0)
+        read_confidence = min((f.ocr_confidence for f in fields), default=0.0)
+
+        # Status per PLAN.md Status Mapping table, with the confidence
+        # gate split in two.
+        #
+        # It used to be ``min(yolo x ocr x penalty) >= 0.60``. Because
+        # that product mixes "could we find the fields" with "could we
+        # read them", a sharp read of a slightly awkwardly framed photo
+        # failed it: det 0.49 x read 0.89 = 0.44. Measured across 135
+        # photos, the reported number tracked detection (r=0.878) more
+        # closely than reading (r=0.688) — so the verdict was largely
+        # a framing verdict wearing a reading verdict's name.
+        #
+        # ``consistent`` still gates SUCCESS even when every field is
+        # individually in range: swapped sys/dia each fall inside their
+        # own range but the *pair* is impossible.
         all_in_range = all(f.in_range for f in fields)
-        if all_in_range and consistent and confidence >= SUCCESS_CONFIDENCE_FLOOR:
+        if (
+            all_in_range
+            and consistent
+            and read_confidence >= self._success_read_floor
+            and detection_confidence >= self._success_detection_floor
+        ):
             status = AnalysisStatus.SUCCESS
         else:
             status = AnalysisStatus.LOW_CONFIDENCE
@@ -462,6 +519,8 @@ class BPAnalysisPipeline:
             diastolic=dia_v,
             pulse=pul_v,
             confidence=confidence,
+            detection_confidence=detection_confidence,
+            read_confidence=read_confidence,
             raw_text=raw_text,
             status=status,
             fields=tuple(fields),
@@ -475,6 +534,8 @@ class BPAnalysisPipeline:
             diastolic=None,
             pulse=None,
             confidence=0.0,
+            detection_confidence=0.0,
+            read_confidence=0.0,
             raw_text="",
             status=AnalysisStatus.UNREADABLE,
             fields=(),

@@ -47,7 +47,7 @@ three are ONNX-only — torch / joblib / sklearn are never imported at
 request time. Each reply carries `engine` + per-stage `metrics`
 (fetch / detect / ocr / validate ms, RSS before/after/delta, image
 size) so the gateway can append a JSONL row to S3 for offline
-comparison. 326 tests cover config / debug_dump / fetch / handlers /
+comparison. 336 tests cover config / debug_dump / fetch / handlers /
 pipeline / ranges / rectify / validation / yolo / crnn / engines /
 cnn_classifiers / ssocr.
 
@@ -138,7 +138,7 @@ Whenever either model's bytes change, both sides ship in the same PR — see
 | Channel | Direction | Payload |
 | --- | --- | --- |
 | `analyze_bp_image` | gateway → ai-service | `{ pattern, id, data: { jobId, userId, s3Key, imageUrl, mimeType, ocrEngine? } }` |
-| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status, engine, metrics, image_quality_score }, isDisposed: true }` |
+| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, detection_confidence, read_confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status, engine, metrics, image_quality_score }, isDisposed: true }` |
 | `analyze_bp_image.reply` (error) | ai-service → gateway | `{ id, err: <message>, isDisposed: true }` |
 
 `imageUrl` is a presigned GET URL the gateway adds to the request
@@ -231,6 +231,19 @@ without the other will silently break the AI flow.
 
 ## Working rules for Claude
 
+- **`status` is decided by rules and two named signals, never by one
+  blended number.** The SUCCESS gate was `min(yolo x ocr x penalty) >=
+  0.60`, which mixed "could we find the fields" with "could we read
+  them" — measured over 135 real photos, the reported number tracked
+  detection (r=0.878) more than reading (r=0.688), so a sharp read of an
+  awkwardly framed photo was downgraded. It is now: all three fields
+  present, all in range, sys > dia, `read_confidence >=
+  AI_SUCCESS_READ_FLOOR`, `detection_confidence >=
+  AI_SUCCESS_DETECTION_FLOOR`. Keep `confidence` on the wire with its
+  old value regardless — the mobile app renders it to a patient as a
+  percentage, so redefining it changes what a patient reads without
+  anyone deciding to. Both floors are provisional until a labelled set
+  exists; they are config, not constants.
 - **Clinical numbers have one home: `analyzer/ranges.py`.** Value
   ranges, hard ceilings, and the `BPClass` ↔ label mapping had four
   hand-kept copies that had already drifted. Don't add a fifth — and

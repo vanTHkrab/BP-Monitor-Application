@@ -161,12 +161,21 @@ def _to_wire_response(
 
     ``fields[]`` stays internal (debug-only). ``engine`` and ``metrics``
     are additive M2.2 fields; old gateway clients that ignore unknown
-    keys continue to work. ``image_quality_score`` is the
+    keys continue to work.
+
+    ``detection_confidence`` / ``read_confidence`` are additive too, and
+    exist because ``confidence`` alone cannot say *which* half of the
+    pipeline was unsure. ``confidence`` keeps its old meaning and value
+    — the gateway persists it and the mobile app renders it to the
+    patient as a percentage, so moving it would change what a patient
+    reads without anyone deciding to. ``image_quality_score`` is the
     Image-as-base-model addition (gateway PR2) — see
     ``_image_quality_score`` for current derivation and migration plan.
     """
     return {
         "confidence": result.confidence,
+        "detection_confidence": result.detection_confidence,
+        "read_confidence": result.read_confidence,
         "systolic": result.systolic,
         "diastolic": result.diastolic,
         "pulse": result.pulse,

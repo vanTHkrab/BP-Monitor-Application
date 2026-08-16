@@ -233,16 +233,22 @@ def build_registry(
                 for bp_class in BPClass
             },
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
         ),
         OCREngine.SSOCR_CNN: BPAnalysisPipeline(
             detector=detector,
             ocr_readers=_ssocr_readers(use_classifiers=True),
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
         ),
         OCREngine.SSOCR: BPAnalysisPipeline(
             detector=detector,
             ocr_readers=_ssocr_readers(use_classifiers=False),
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
         ),
     }
     logger.info(
