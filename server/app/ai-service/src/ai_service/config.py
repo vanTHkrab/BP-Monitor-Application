@@ -139,6 +139,33 @@ class AnalyzerConfig(BaseSettings):
         gt=0,
         description="httpx GET timeout when downloading the presigned image URL.",
     )
+    success_read_floor: float = Field(
+        default=0.50,
+        ge=0.0,
+        le=1.0,
+        description="Minimum per-field OCR confidence (weakest field) for "
+                    "a SUCCESS verdict. Half of the gate that replaced the "
+                    "old single ``min(yolo x ocr x penalty) >= 0.60`` "
+                    "threshold — that product mixed 'could we find the "
+                    "fields' with 'could we read them', so a sharp read of "
+                    "an awkwardly framed photo failed it. Provisional: "
+                    "chosen to sit sensibly inside the measured "
+                    "distributions, not fitted to ground truth. Override "
+                    "via ``AI_SUCCESS_READ_FLOOR``.",
+    )
+    success_detection_floor: float = Field(
+        default=0.35,
+        ge=0.0,
+        le=1.0,
+        description="Minimum per-field YOLO confidence (weakest field) for "
+                    "a SUCCESS verdict — the other half of the split gate. "
+                    "Keeps genuinely bad framing out without re-introducing "
+                    "the blend. Note this is a *verdict* floor and is "
+                    "unrelated to ``confidence_threshold``, which decides "
+                    "whether a detection exists at all. Override via "
+                    "``AI_SUCCESS_DETECTION_FLOOR``.",
+    )
+
     ocr_field_timeout_s: float = Field(
         default=5.0,
         gt=0,

@@ -208,6 +208,8 @@ def build_registry(
                 BPClass.PULSE: CRNNEngine(crnn_session, expected_label="pul"),
             },
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
         ),
         OCREngine.SSOCR_CNN: BPAnalysisPipeline(
             detector=detector,
@@ -224,6 +226,8 @@ def build_registry(
                 ),
             },
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
         ),
         OCREngine.SSOCR: BPAnalysisPipeline(
             detector=detector,
@@ -240,6 +244,8 @@ def build_registry(
                 ),
             },
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
         ),
     }
     logger.info(

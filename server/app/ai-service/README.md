@@ -68,6 +68,8 @@ signature of a flapping Redis connection.
 | `AI_IMAGE_FETCH_TIMEOUT_S` | – | `5` | Timeout for presigned-URL image download |
 | `AI_ALLOWED_IMAGE_HOSTS` | – | *(empty)* | JSON list of hostnames `fetch_image` may GET, e.g. `'["bucket.r2.cloudflarestorage.com"]'`. `imageUrl` arrives over Redis, so an allowlist is what stops a publisher aiming this service at an arbitrary URL. Empty keeps the permissive default: http/https only, link-local (`169.254.0.0/16`, the cloud metadata service) refused. **Set this in production.** |
 | `AI_OCR_FIELD_TIMEOUT_S` | – | `5` | Per-field OCR wall-clock cap (asyncio) |
+| `AI_SUCCESS_READ_FLOOR` | – | `0.50` | Minimum OCR confidence (weakest field) for a `success` verdict |
+| `AI_SUCCESS_DETECTION_FLOOR` | – | `0.35` | Minimum YOLO confidence (weakest field) for a `success` verdict. Unrelated to `AI_CONFIDENCE_THRESHOLD`, which decides whether a detection exists at all |
 | `AI_PIPELINE_TIMEOUT_S` | – | `30` | End-to-end pipeline timeout enforced in `handle_message` |
 | `AI_MAX_CONCURRENT_REQUESTS` | – | `2` | How many `analyze_bp_image` messages the listener processes at once. Each in-flight analysis holds up to 3 OCR threads plus a YOLO thread — raise only alongside the container's CPU limit. |
 | `AI_SHUTDOWN_GRACE_S` | – | `5` | How long shutdown waits for in-flight analyses before cancelling them |
@@ -87,12 +89,21 @@ publishes according to the NestJS pattern.
 | Channel | Direction | Payload shape |
 | --- | --- | --- |
 | `analyze_bp_image` | gateway → ai-service | `{ pattern, id, data: { jobId, userId, s3Key, imageUrl, mimeType, ocrEngine? } }` |
-| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status, engine, metrics, image_quality_score }, isDisposed: true }` |
+| `analyze_bp_image.reply` | ai-service → gateway | `{ id, response: { confidence, detection_confidence, read_confidence, systolic, diastolic, pulse, raw_text, roi_image_url, model_version, status, engine, metrics, image_quality_score }, isDisposed: true }` |
 | `analyze_bp_image.reply` (error) | ai-service → gateway | `{ id, err: <message>, isDisposed: true }` |
 
 `imageUrl` is a presigned GET URL the gateway generates before publishing.
 `ocrEngine` is optional — absent requests use `AI_DEFAULT_ENGINE` (`crnn`).
 `engine` and `metrics` (per-stage timing + RSS deltas) are present in every reply.
+
+`confidence` is the historical blend `min(yolo x ocr x in_range_penalty)`.
+It keeps its exact meaning and value — the gateway persists it and the
+mobile app shows it to the patient as a percentage. It is no longer what
+decides `status`: measured across 135 real photos it correlates 0.878
+with detection quality and only 0.688 with read quality, so a sharp read
+of a slightly awkward photo scored low. `detection_confidence` and
+`read_confidence` report those two inputs separately, and the `success`
+verdict now requires both to clear their own floor.
 
 > ⚠️ Never change the channel name or payload shape on one side without updating
 > the other. The AI flow fails silently — no HTTP-layer error surfaces.
