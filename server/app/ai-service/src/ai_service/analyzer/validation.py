@@ -8,14 +8,17 @@ than nulling them outright; nulling happens at the public-API layer.
 """
 from __future__ import annotations
 
+from .ranges import CLINICAL_RANGES
 from .types import BPClass
 
 # Inclusive on both bounds. Tuned per PLAN.md's "Validation ranges" table.
-RANGES: dict[BPClass, tuple[int, int]] = {
-    BPClass.SYSTOLIC: (40, 300),
-    BPClass.DIASTOLIC: (20, 200),
-    BPClass.PULSE: (20, 300),
-}
+#
+# Defined in ``analyzer/ranges.py`` — this name is the historical alias
+# kept because it is what the validation API and its tests read. The OCR
+# engines use the *narrower* ``CANDIDATE_RANGES`` from the same module;
+# the two answer different questions, and that module's docstring
+# explains why keeping them separate is deliberate rather than sloppy.
+RANGES: dict[BPClass, tuple[int, int]] = CLINICAL_RANGES
 
 
 def range_for(bp_class: BPClass) -> tuple[int, int]:
