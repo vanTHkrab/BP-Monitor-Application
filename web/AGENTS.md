@@ -16,11 +16,13 @@ Next.js **16.2.6**, App Router, React 19.2, Tailwind v4, shadcn/ui.
 
 ## What this app actually is
 
-Two things in one Next.js app, with different audiences:
+Three things in one Next.js app, with different audiences:
 
 1. **The project documentation site**, at `/` and `/docs` — the public face,
    rendered from the repo's `docs/**/*.md` at build time.
-2. **An internal service-status dashboard**, under `/admin` — for the
+2. **A diagram browser**, at `/diagrams` — the same system diagrams, on pages
+   sized for a large SVG instead of for prose.
+3. **An internal service-status dashboard**, under `/admin` — for the
    development team.
 
 Read that literally. It is smaller and more specific than "web dashboard"
@@ -31,15 +33,21 @@ What exists, in full:
 | Route group | Pages |
 | --- | --- |
 | `(docs)` | The documentation site at `/docs` — one prerendered page per file in the repo's `docs/**/*.md`, read at build time. **This app holds no copy of that content** |
+| `(diagram)` | `/diagrams` gallery plus 13 hand-written diagram pages. Nav comes from `src/lib/diagram-registry.ts`; each page owns its own Mermaid source |
 | `admin/` | 7 service-status pages: `/admin/{overview,gateway,database,redis,s3,ai-service,clients}` |
 | `/` | `src/app/page.tsx` — redirects to `/docs` |
 
-That is the whole app. The 10 hand-written Mermaid pages that used to live in
-a `(diagram)` route group are now `docs/architecture/*.md` and render through
-the same `/docs` pipeline as everything else. The `/diagrams/*` URLs no longer
-exist and **no redirects were added** — this is an internal site with no
-external consumers, so a 404 on a stale bookmark is cheaper than a redirect
-table nobody maintains. That is a decision, not an oversight.
+That is the whole app.
+
+⚠️ **The `(diagram)` pages hold a second copy of each diagram.** The canonical
+copy is the ```mermaid fence in `docs/architecture/*.md`, which is what GitHub,
+an editor, and an agent grepping the repo all see, and what
+`/docs/architecture/…` renders. The `(diagram)` route exists because a diagram
+page wants a wider shell and its own commentary, and it was brought back
+deliberately after having been removed once for exactly the drift risk it
+reintroduces. **Edit the Markdown first, then port the change into the page.**
+Every page renders a link back to its `sourceDoc` so the other copy is never
+out of sight.
 
 > ⚠️ **This app is not deployed.** It is defined in
 > `infra/docker-compose/docker-compose.dev.yml` and nowhere else, so it cannot
@@ -110,6 +118,9 @@ There is no test suite here. The gate is `pnpm lint` plus
 | --- | --- |
 | `src/app/page.tsx` | Redirects to `/docs` |
 | `src/app/(docs)/` | Docs shell + `[...slug]` renderer |
+| `src/app/(diagram)/` | Diagram shell + gallery + 13 hand-written diagram pages |
+| `src/lib/diagram-registry.ts` | Nav index for `/diagrams` — titles, categories, and the `sourceDoc` each page came from. **Never diagram source** |
+| `src/components/diagram-shell.tsx` | Shared chrome for a diagram page; the page passes its own Mermaid |
 | `src/lib/docs.ts` | Reads `docs/**/*.md` at build time. The build needs the repo root in scope — hence the Docker context |
 | `src/components/markdown.tsx` | Markdown renderer: routes ```mermaid fences to `<Mermaid>`, rewrites relative `.md` links |
 | `src/app/admin/` | The 7 service-status pages |
@@ -158,11 +169,14 @@ Components or Server Actions. Copy `.env.example` to `.env.local`.
   gateway — a probe, never a boot dependency.
 - **shadcn/ui first.** Reuse `src/components/ui/` before installing another
   component library.
-- **Diagrams are Mermaid**, rendered by `src/components/mermaid.tsx`. A
-  ```mermaid fence in a `docs/**/*.md` file is the only place a diagram
-  belongs — the Markdown renderer routes it to the same component, and the
-  diagram stays readable on GitHub, in an editor, and to an agent grepping the
-  repo. Don't put Mermaid source back into a `.tsx` template string.
+- **Diagrams are Mermaid**, rendered by `src/components/mermaid.tsx`. A new
+  diagram is authored as a ```mermaid fence in a `docs/**/*.md` file first —
+  that copy is the one GitHub, an editor, and an agent grepping the repo can
+  read, and the Markdown renderer routes it to the same component. Adding a
+  page under `src/app/(diagram)/` is a *second* step, and it means signing up
+  to keep the two in sync; register it in `src/lib/diagram-registry.ts` with
+  its `sourceDoc` so the page can point at the original. A `.tsx` template
+  string that exists nowhere in `docs/` is the case this rule still forbids.
 - **The docs site holds no copy of the content.** `src/lib/docs.ts` reads
   `docs/` at build time. Never paste documentation prose into a `.tsx` — a
   second copy is how two documents describing the same thing start

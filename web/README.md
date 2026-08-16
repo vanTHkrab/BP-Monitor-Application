@@ -1,8 +1,10 @@
 # Web dashboard
 
 Next.js App Router dashboard the **development team** uses to inspect the BP
-Monitor backend. It surfaces live service health for each backend and renders
-the repo's `docs/**/*.md` — architecture diagrams included — as a static site.
+Monitor backend. It surfaces live service health for each backend, renders the
+repo's `docs/**/*.md` as a static site, and serves the system diagrams at
+`/diagrams` on pages sized for a large SVG. The Markdown under
+`docs/architecture/` stays the canonical copy of every diagram.
 
 > ⚠️ This is not a patient- or clinician-facing app, and it has **no
 > authentication**. No auth library is installed and there is no login form —
@@ -55,9 +57,10 @@ web/src/
 ├── app/
 │   ├── page.tsx               # redirects to /docs
 │   ├── (docs)/docs/           # the documentation site — renders docs/**/*.md
+│   ├── (diagram)/diagrams/    # gallery + 13 diagram pages (source of truth: docs/architecture/*.md)
 │   └── admin/                 # overview · gateway · database · redis · s3 · ai-service · clients
 ├── actions/                   # Server Actions — every backend call
-├── components/                # docs + dashboard shells, sidebars, markdown & mermaid renderers, shadcn ui/
+├── components/                # docs + diagram + dashboard shells, sidebars, markdown & mermaid renderers, shadcn ui/
 ├── hooks/                     # use-mobile
 └── lib/                       # one thin client per backend
 ```

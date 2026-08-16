@@ -1,96 +1,140 @@
 ---
 title: BP Capture Flow
 description: >-
-    From shutter tap to confirmed reading. Captures a blood-pressure monitor
-    image, gates it through the on-device YOLO detector, uploads to S3, asks
-    the AI service for sys/dia/pulse, then writes a reading once the user
-    confirms. The same flow respects offline mode by deferring the final
-    mutation.
+    From live framing to confirmed reading. The on-device detector coaches the
+    shot and can fire the shutter itself; the photo goes to S3 through a
+    presigned PUT, the gateway queues analysis on BullMQ and asks ai-service
+    over Redis, and the reading is written through the offline outbox once the
+    user confirms.
 status: current
-updated: 2026-08-06
+updated: 2026-08-16
 owner: cross
 ---
 
 ## End-to-end sequence
 
-Numbers in the diagram match the ordering below. Steps 11-14 (poll loop)
-collapse to a single done in the common case.
+Three round trips pretend to be one call: presign + PUT + confirm puts the
+photo on the server, `analyzeBPImage` only *enqueues* the work, and the numbers
+arrive through a poll. The offline branch skips all of it and reads the display
+on the phone. Both branches end at the same save.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant U as Patient
-    participant App as Expo App
-    participant YOLO as On-device YOLO
+    participant App as Expo app
+    participant NV as bp-vision (Kotlin)
     participant GW as API Gateway
-    participant S3 as S3 Bucket
-    participant R as Redis
+    participant S3 as S3 bucket
+    participant Q as BullMQ (Redis)
     participant AI as AI Service
     participant PG as Postgres
 
-    U->>App: Open camera, capture photo
-    App->>YOLO: preflightCheckImage(uri)
-    YOLO-->>App: verdict { ok | no-monitor | missing-fields }, bbox
-
-    alt verdict ok
-        App->>App: Auto-crop around monitor + padding
-    else verdict not ok
-        App->>U: Show banner: "ถ่ายใหม่" / "ส่งต่อไป"
-        U->>App: Tap "ส่งต่อไป" (override)
+    Note over App,NV: Live framing — analysis stream at ~4 fps
+    loop every analysis frame
+        App->>NV: detect(frame)
+        NV-->>App: Detection[] (5 classes, source-image px)
+        App->>App: evaluateFraming + advanceHysteresis<br/>searching / too-far / too-close / off-center / ready
     end
 
-    App->>GW: mutation uploadBPImage (multipart)
-    GW->>S3: putObject (s3Key)
-    GW-->>App: { jobId, s3Key }
-    GW->>R: publish analyze_bp_image { jobId, userId, s3Key, presignedGetUrl }
-    R-->>AI: deliver analyze_bp_image
-    AI->>S3: GET presigned image
-    AI->>AI: YOLO ROI → OCR → parse sys/dia/pulse
-    AI->>R: publish analyze_bp_image.reply { jobId, sys, dia, pulse, score }
-    R-->>GW: deliver reply
-    GW->>PG: update Image.image_quality_score by s3Key (updateMany)
-
-    loop poll every 1.5s
-        App->>GW: query analysisJob(jobId)
-        GW-->>App: status pending / done / failed
+    alt framing holds "ready" and auto-capture is on
+        App->>U: Arm after 300 ms, ring counts down 1500 ms
+        App->>App: Shutter fires by itself
+    else user taps the shutter
+        App->>App: Manual capture — the gate never blocks it
     end
 
-    App->>U: Pre-fill sys/dia/pulse for confirmation
+    App->>App: cropToViewport + prepareImageForAnalysis
+
+    alt online
+        App->>GW: mutation requestImageUpload { kind, mimeType, size }
+        GW-->>App: { uploadUrl, key, headers, expiresAt }
+        App->>S3: PUT bytes (uploadAsync, BINARY_CONTENT)
+        App->>GW: mutation confirmImageUpload { key, kind }
+        GW->>PG: insert Image row
+        GW-->>App: { key, url, imageId }
+
+        App->>GW: mutation analyzeBPImage { s3Key, mimeType, ocrEngine? }
+        GW->>GW: assert s3Key belongs to caller + presign GET (600 s)
+        GW->>Q: add job "analyze-bp-image" (3 attempts, exp backoff)
+        GW-->>App: AnalysisJob { jobId, status: pending }
+
+        Q-->>GW: worker reserves the job
+        GW->>AI: PUBLISH analyze_bp_image { jobId, userId, s3Key, imageUrl, mimeType }
+        AI->>S3: GET presigned image
+        AI->>AI: YOLO → rectify → OCR → validate
+        AI-->>GW: PUBLISH analyze_bp_image.reply { systolic, diastolic, pulse,<br/>confidence, status, engine, metrics, image_quality_score }
+        GW->>PG: updateMany Image.image_quality_score by s3Key
+        GW->>Q: store AnalysisResult on the job
+
+        loop poll every 1.5 s, give up at 60 s
+            App->>GW: query analysisJob(jobId)
+            GW-->>App: pending / processing / done / failed
+        end
+    else offline or no network
+        App->>NV: readBp(imageUri)
+        NV-->>App: { sys, dia, pulse, confidence } or { unavailable }
+    end
+
+    alt confidence >= 0.5
+        App->>U: Form pre-filled
+    else lower, or no numbers at all
+        App->>U: Ask to check the values, or leave the form empty
+    end
+
     U->>App: Confirm + save
-    App->>App: createReading() optimistic update
-    App->>GW: mutation submitBPReading
-    GW->>PG: insert BloodPressureReading (+ Alert if needed)
+    App->>App: createReading() — enqueue into pending_readings
+    App->>GW: mutation createReading { clientId, imageId?, ... }
+    GW->>PG: insert BloodPressureReading (+ Alert if out of range)
     GW-->>App: BloodPressureReading { id, status }
     App->>App: promoteToMirror() — insert readings,<br/>delete pending_readings, one transaction
 ```
 
-## Why on-device pre-flight
+## Why on-device detection
 
-- **Save backend roundtrips on obviously bad shots** — If the model says
-  no-monitor we never burn the AI service compute or the user's data plan.
-  Verdict comes from a 10.7 MB ONNX model already on the phone.
-- **Same model file on both sides** — client/assets/models/yolo11n.onnx and
-  server/app/ai-service/models/yolo11n.onnx are byte-identical (SHA256 enforced
-  by prestart hook). The phone's verdict is the backend's verdict.
-- **Warn, do not block** — A "ส่งต่อไป" button always lets the user override.
-  False negatives are common (lighting, glare); blocking would strand the
-  patient.
+- **Coach the shot instead of judging it afterwards** — the detector runs on
+  the live analysis stream, so the user is told "too far" while they can still
+  move, rather than after a round trip. The same pass is what fires
+  auto-capture. See [flow-yolo-preflight.md](./flow-yolo-preflight.md).
+- **Same model file on both sides** — `client/assets/models/yolo11n.onnx` and
+  the ai-service copy are byte-identical, SHA256-gated by
+  `scripts/verify-models.mjs` on every `pnpm start`. The phone's classes mean
+  what the server's classes mean.
+- **Nudge, never gate** — nothing in the framing logic can stop a manual
+  shutter tap. A detector false negative must not be able to prevent someone
+  recording their blood pressure.
+- **It degrades to nothing gracefully** — `bp-vision` is Android-only and
+  resolved with `requireOptionalNativeModule`, so on iOS, web, and Expo Go
+  every export returns "unavailable" and the screen falls through to the online
+  or manual path.
 
 ## Latency budget
 
-- **Capture → upload starts: under 1s** — YOLO inference + crop + image-prepare
-  on a mid-range Android phone. Above this the camera feels broken.
-- **Upload → AI ack: 2-6s typical** — S3 PUT + Redis publish + AI service
-  handling. Poll cadence is 1.5s so the user sees a result within one tick of
-  completion.
-- **Save is independent of AI** — If AI fails or the network drops, the user
-  can still type values manually and the reading saves via the offline queue.
+- **Frame → framing verdict: one analysis frame** — roughly 4 fps, and the
+  verdict is smoothed by hysteresis before the UI shows it, so a flickering
+  detection does not produce flickering coaching copy.
+- **Capture → upload starts: under 1 s** — crop + `prepareImageForAnalysis` on
+  a mid-range Android phone.
+- **Upload → result: seconds, and allowed to be** — presign + PUT + confirm,
+  then a BullMQ job, then the Redis round trip. The client polls every 1.5 s and
+  gives up at 60 s; the gateway's own call to ai-service times out at 55 s.
+- **Save is independent of every one of those** — if analysis fails, times out,
+  or the network is gone, the user types the numbers and the reading saves
+  through the outbox.
 
 ## Failure modes worth naming
 
-- **Stale job after app restart** — If the user backgrounds the app, the
-  polling resumes by querying analysisJob(jobId) — we don't lose the result,
-  but we do drop the visible spinner.
-- **Image quality score back-write race** — AiProcessor writes
-  image_quality_score via updateMany by s3Key — a deleted Image row
-  (cron-swept) does not fail the analysis.
+- **The reply is pub/sub, so an ai-service restart mid-job loses the message** —
+  the gateway's `send()` times out at 55 s and BullMQ retries (3 attempts,
+  exponential backoff). This is also why a second ai-service replica would
+  double-analyse every image.
+- **`imageId` must be carried into `createReading`** — `analyzeImage` returns
+  the `Image.id` the upload minted. Dropping it makes the outbox drain upload
+  the same photo a second time.
+- **Image-quality back-write is best-effort** — `AiProcessor` writes
+  `image_quality_score` with `updateMany` keyed by `s3Key`, so a row already
+  swept by the orphan cleanup records zero updates instead of failing the
+  analysis.
+- **A cancelled analysis is not a failure** — the screen aborts the poll on
+  retake or unmount, and an `AbortError` resolves to "no prefill", never to an
+  error banner.

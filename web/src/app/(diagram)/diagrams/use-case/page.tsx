@@ -1,22 +1,6 @@
----
-title: Use Case Diagram
-description: >-
-    Who uses the system, and for what. Three human actors and one machine
-    actor. The mobile app is patient-centric, with caregivers as a second
-    persona whose reach is set by a per-link permission. The web app is
-    team-only, run locally, and has no patient-facing UI at all.
-status: current
-updated: 2026-08-16
-owner: cross
----
+import { DiagramShell } from "@/components/diagram-shell";
 
-## Actors and surfaces
-
-Solid links: actor uses use case. Dotted links: one use case triggers another.
-Caregiver edges are drawn for the `full` permission; a `view` link keeps only
-the read-only ones.
-
-```mermaid
+const CHART = `
 graph TB
     P((Patient))
     C((Caregiver))
@@ -100,23 +84,21 @@ graph TB
     class P,C,D actor
     class AI sys
     class UC1,UC2,UC3,UC4,UC5,UC6,UC7,UC8,UC9,UC10,UC11,UC12,UC13,UC14,UC15,UC16,UC17,UC18,UC19,UC20,UC21,UC22,UC23,UC24 uc
-```
+`;
 
-## Persona notes
-
-- **Patient** — the primary actor on mobile. Owns readings, posts, and
-  comments; logs BP by camera or by hand; reviews history and alerts; grants
-  and revokes caregiver access.
-- **Caregiver** — reaches a patient through a `CaregiverPatient` link that
-  carries a `RelationshipType` (parent / patient / caregiver / child / spouse),
-  a `CaregiverLinkStatus` (pending / accepted / rejected), and a
-  `CaregiverPermission`. `view` is read-only; `full` additionally allows
-  recording a reading on the patient's behalf and editing their health fields —
-  never their login identity, since `email` and `phone` are both sign-in
-  identifiers.
-- **Developer / Ops** — a local-only persona. The web app is not deployed and
-  has no authentication of its own, so this actor exists at a laptop, not in
-  production. No patient-facing surface, and no write path to patient data.
-- **AI Service** — a non-human actor reached only through the gateway's BullMQ
-  worker and the `analyze_bp_image` channel pair. A black box from the
-  gateway's perspective: the contract is the payload, not an API.
+export default function DiagramPage() {
+    return (
+        <DiagramShell
+            slug="use-case"
+            chart={CHART}
+            caption="Solid links: actor uses use case. Dotted: one use case triggers another."
+        >
+            <h2>Worth knowing</h2>
+            <ul>
+                <li>Caregiver edges are drawn for the full permission. A view link keeps only the read-only ones.</li>
+                <li>A caregiver can never edit a patient&apos;s email or phone — both are sign-in identifiers, so the caregiver edit path has its own input type.</li>
+                <li>The web column is a laptop, not a deployment. There is no authentication anywhere in that app.</li>
+            </ul>
+        </DiagramShell>
+    );
+}
