@@ -165,6 +165,8 @@ uv run fastapi dev main.py         # dev (auto-reload)
 uv run fastapi run main.py         # production-style
 uv run pytest                      # full test suite
 uv run pytest tests/test_handlers.py  # single file
+uv run pytest -m golden            # accuracy regression vs ground truth
+uv run python -m ai_service.scripts.golden_report   # readable accuracy report
 uv run ruff check .                # lint — same command CI runs
 uv run ruff check . --fix          # autofix imports and the mechanical half
 ```
@@ -173,6 +175,12 @@ Lint and tests both run on every PR touching this directory
 (`.github/workflows/ci-ai-service.yml`). CI installs with
 `uv sync --frozen`, so a manifest edited without committing `uv.lock`
 fails there even when it works locally.
+
+The `golden` suite is excluded from the default run and from CI: it
+loads the real ONNX sessions and runs all three engines over every
+labelled image. It is the only test that checks **whether the digits are
+right** rather than whether the code does what it says — see
+[tests/golden/labels.json](./tests/golden/labels.json).
 
 Tests that load real weights (YOLO session load, ONNX metadata, the
 fetch-path wiring check) **skip** when `models/` has not been populated

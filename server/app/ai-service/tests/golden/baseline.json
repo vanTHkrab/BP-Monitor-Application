@@ -1,0 +1,66 @@
+{
+  "_README": "Recorded accuracy per engine on the golden set. tests/test_golden.py asserts the current run is no worse. Regenerate with `--update` only when a change is MEANT to move accuracy, and say so in the PR \u2014 never to turn a red suite green.",
+  "image_count": 10,
+  "engines": {
+    "crnn": {
+      "total": 10,
+      "exact": 9,
+      "exact_rate": 0.9,
+      "per_field_correct": {
+        "systolic": 10,
+        "diastolic": 10,
+        "pulse": 9
+      },
+      "per_field_missing": {
+        "systolic": 0,
+        "diastolic": 0,
+        "pulse": 0
+      },
+      "per_field_wrong": {
+        "systolic": 0,
+        "diastolic": 0,
+        "pulse": 1
+      }
+    },
+    "ssocr_cnn": {
+      "total": 10,
+      "exact": 2,
+      "exact_rate": 0.2,
+      "per_field_correct": {
+        "systolic": 5,
+        "diastolic": 7,
+        "pulse": 4
+      },
+      "per_field_missing": {
+        "systolic": 1,
+        "diastolic": 1,
+        "pulse": 0
+      },
+      "per_field_wrong": {
+        "systolic": 4,
+        "diastolic": 2,
+        "pulse": 6
+      }
+    },
+    "ssocr": {
+      "total": 10,
+      "exact": 2,
+      "exact_rate": 0.2,
+      "per_field_correct": {
+        "systolic": 5,
+        "diastolic": 7,
+        "pulse": 4
+      },
+      "per_field_missing": {
+        "systolic": 1,
+        "diastolic": 1,
+        "pulse": 0
+      },
+      "per_field_wrong": {
+        "systolic": 4,
+        "diastolic": 2,
+        "pulse": 6
+      }
+    }
+  }
+}
