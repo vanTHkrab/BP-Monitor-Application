@@ -29,6 +29,7 @@ from .ocr import cnn_classifiers
 from .ocr.crnn import CRNNEngine, CRNNSession
 from .ocr.ssocr import SSOCREngine
 from .pipeline import BPAnalysisPipeline
+from .ranges import label_for
 from .types import BPClass, PipelineMetrics
 from .yolo import YoloDetector
 
@@ -199,13 +200,37 @@ def build_registry(
         session_options=session_options,
     )
 
+    def _ssocr_readers(*, use_classifiers: bool) -> dict[BPClass, SSOCREngine]:
+        """One SSOCR reader per field, labelled from ``ranges.label_for``.
+
+        The label strings were previously typed out at each call site —
+        nine literals whose only contract was matching the per-label
+        model buckets and tuning tables. They now come from the same
+        mapping the rest of the service uses.
+
+        ``sys_prefix_repair`` reaches the systolic reader only: the
+        2-digit rescue it gates is a sys-specific rule (dia and pulse
+        are legitimately 2-digit, so there is nothing to complete).
+        """
+        return {
+            bp_class: SSOCREngine(
+                expected_label=label_for(bp_class),
+                use_classifiers=use_classifiers,
+                **(
+                    {"sys_prefix_repair": cfg.ssocr_sys_prefix_repair}
+                    if bp_class is BPClass.SYSTOLIC
+                    else {}
+                ),
+            )
+            for bp_class in BPClass
+        }
+
     pipelines: dict[OCREngine, BPAnalysisPipeline] = {
         OCREngine.CRNN: BPAnalysisPipeline(
             detector=detector,
             ocr_readers={
-                BPClass.SYSTOLIC: CRNNEngine(crnn_session, expected_label="sys"),
-                BPClass.DIASTOLIC: CRNNEngine(crnn_session, expected_label="dia"),
-                BPClass.PULSE: CRNNEngine(crnn_session, expected_label="pul"),
+                bp_class: CRNNEngine(crnn_session, expected_label=label_for(bp_class))
+                for bp_class in BPClass
             },
             field_timeout_s=cfg.ocr_field_timeout_s,
             success_read_floor=cfg.success_read_floor,
@@ -213,36 +238,14 @@ def build_registry(
         ),
         OCREngine.SSOCR_CNN: BPAnalysisPipeline(
             detector=detector,
-            ocr_readers={
-                BPClass.SYSTOLIC: SSOCREngine(
-                    expected_label="sys", use_classifiers=True,
-                    sys_prefix_repair=cfg.ssocr_sys_prefix_repair,
-                ),
-                BPClass.DIASTOLIC: SSOCREngine(
-                    expected_label="dia", use_classifiers=True,
-                ),
-                BPClass.PULSE: SSOCREngine(
-                    expected_label="pul", use_classifiers=True,
-                ),
-            },
+            ocr_readers=_ssocr_readers(use_classifiers=True),
             field_timeout_s=cfg.ocr_field_timeout_s,
             success_read_floor=cfg.success_read_floor,
             success_detection_floor=cfg.success_detection_floor,
         ),
         OCREngine.SSOCR: BPAnalysisPipeline(
             detector=detector,
-            ocr_readers={
-                BPClass.SYSTOLIC: SSOCREngine(
-                    expected_label="sys", use_classifiers=False,
-                    sys_prefix_repair=cfg.ssocr_sys_prefix_repair,
-                ),
-                BPClass.DIASTOLIC: SSOCREngine(
-                    expected_label="dia", use_classifiers=False,
-                ),
-                BPClass.PULSE: SSOCREngine(
-                    expected_label="pul", use_classifiers=False,
-                ),
-            },
+            ocr_readers=_ssocr_readers(use_classifiers=False),
             field_timeout_s=cfg.ocr_field_timeout_s,
             success_read_floor=cfg.success_read_floor,
             success_detection_floor=cfg.success_detection_floor,
