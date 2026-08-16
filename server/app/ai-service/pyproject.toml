@@ -58,7 +58,14 @@ ignore = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-ra --strict-markers"
+# `golden` is excluded by default: it loads the real ONNX sessions and
+# runs three engines over every labelled image, so it is seconds rather
+# than milliseconds and needs artifacts a fresh checkout does not have.
+# Run it with `uv run pytest -m golden`.
+addopts = "-ra --strict-markers -m 'not golden'"
+markers = [
+    "golden: accuracy regression against tests/golden/labels.json (needs real weights + the image corpus)",
+]
 
 [dependency-groups]
 dev = [

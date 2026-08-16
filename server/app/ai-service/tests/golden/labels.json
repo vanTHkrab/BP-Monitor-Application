@@ -1,0 +1,80 @@
+{
+  "_README": [
+    "Ground truth for the golden-image regression set: what a human reads",
+    "off the LCD in each photo. This is the only file in the repo that",
+    "knows what the right answer IS — every accuracy number the service",
+    "reports is measured against it.",
+    "",
+    "PROVENANCE: transcribed by reading each photo directly. They are",
+    "legible at full size (device brand, SYS/DIA/PULSE labels and digits",
+    "all clearly visible), but they have NOT yet been double-checked by a",
+    "second person. Treat a disagreement between this file and an engine",
+    "as 'investigate', not automatically 'the engine is wrong' — verify",
+    "the photo first. Mark an entry 'verified': true once a human has",
+    "confirmed it.",
+    "",
+    "IMAGES ARE NOT IN GIT. Each id is a directory under debug_images/,",
+    "which is gitignored (139 MB of dev output). The suite skips when they",
+    "are absent, the same way the model-dependent tests do. To share this",
+    "corpus properly it should follow ADR-005: upload to R2 with a sha256",
+    "manifest and fetch on demand.",
+    "",
+    "SELECTION IS DELIBERATELY BIASED toward images where crnn and",
+    "ssocr_cnn disagreed, because those carry the most information per",
+    "label. So per-engine accuracy here is NOT an estimate of field",
+    "accuracy — it is a regression baseline. Do not quote these numbers",
+    "as 'the accuracy of the service'."
+  ],
+  "images": {
+    "00680f63-62e3-4ea0-993f-15bc243942fb": {
+      "systolic": 162, "diastolic": 86, "pulse": 128,
+      "device": "rossmax", "verified": false,
+      "notes": "clean overhead shot, high contrast"
+    },
+    "0455acac-91d3-4bfd-9ea7-87811ed30789": {
+      "systolic": 120, "diastolic": 80, "pulse": 72,
+      "device": "dr_morepen", "verified": false,
+      "notes": "orange bezel, slightly soft focus"
+    },
+    "08899fef-b2bd-4b73-9be9-c864e99f4ea1": {
+      "systolic": 118, "diastolic": 75, "pulse": 75,
+      "device": "rossmax", "verified": false,
+      "notes": "dia and pulse are both 75 - a genuine repeat, not a copy error"
+    },
+    "09a324b0-84e5-4f25-bc24-1b64ff2187b8": {
+      "systolic": 122, "diastolic": 75, "pulse": 83,
+      "device": "rossmax", "verified": false,
+      "notes": "handheld, busy background"
+    },
+    "0c7e3661-7004-448b-bce8-0e26460ee6eb": {
+      "systolic": 116, "diastolic": 72, "pulse": 92,
+      "device": "omron", "verified": false,
+      "notes": "dim lighting, low contrast LCD"
+    },
+    "0f9f36b1-6814-422b-87ce-5a38a267d2d6": {
+      "systolic": 118, "diastolic": 70, "pulse": 76,
+      "device": "yuwell", "verified": false,
+      "notes": "photo of a screen showing the device; amber LCD"
+    },
+    "19570be5-fb20-4e77-966e-dbd8242fa2d7": {
+      "systolic": 85, "diastolic": 60, "pulse": 76,
+      "device": "rossmax", "verified": false,
+      "notes": "photo of a cracked phone screen; 2-digit systolic"
+    },
+    "1a076002-411b-45e8-89bf-fb453249cf93": {
+      "systolic": 118, "diastolic": 70, "pulse": 76,
+      "device": "yuwell", "verified": false,
+      "notes": "same reading as 0f9f36b1, different framing/angle"
+    },
+    "401c8f4e-adc7-4206-8231-959a901ad827": {
+      "systolic": 127, "diastolic": 83, "pulse": 83,
+      "device": "rossmax", "verified": false,
+      "notes": "control case - both engines already agree here"
+    },
+    "53c1c3d1-1c25-4395-b8b6-4252e7a9bed5": {
+      "systolic": 101, "diastolic": 68, "pulse": 88,
+      "device": "omron", "verified": false,
+      "notes": "control case - both engines already agree here"
+    }
+  }
+}

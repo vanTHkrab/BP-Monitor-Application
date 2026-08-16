@@ -86,6 +86,8 @@ it the service replies with a structured error ("missing imageUrl").
 | `models/crnn.pt` | Training-source PyTorch checkpoint for the CRNN (~4.7 MB). **Not** fetched at runtime — kept in R2 as a training-only artifact and intentionally absent from `EXPECTED_HASHES.json`. |
 | `docker-entrypoint.sh` | POSIX-sh shim that runs before the FastAPI CMD inside the container. Reads `$AI_MODELS_R2_BASE_URL`, downloads each `EXPECTED_HASHES.json` entry into `$MODELS_DIR` (default `/app/models`) with curl, verifies sha256, and refuses to `exec "$@"` on any mismatch. Cached on a Compose named volume (`ai_models`) so the download cost is paid once per host. |
 | `src/ai_service/scripts/fetch_models.py` | Local-dev mirror of the entrypoint — `uv run python -m ai_service.scripts.fetch_models [--dry-run]`. Uses httpx (already a dep) and reads the same manifest. Run once after `cp .env.example .env` before `uv run fastapi dev`. |
+| `tests/golden/` | `labels.json` — ground truth (what a human reads off each photo), the only file in the repo that knows the right answer. `baseline.json` — the accuracy each engine last achieved, asserted by `tests/test_golden.py`. Regenerate with `golden_report --update`, **deliberately**, never to turn a red suite green. The image corpus itself is gitignored dev output, so the suite skips without it |
+| `src/ai_service/scripts/golden_report.py` | `uv run python -m ai_service.scripts.golden_report [--update]` — per-engine exact-match and per-field accuracy against the labels, plus a list of the actual misses. The only answer to "is engine A better than engine B" that isn't the pipeline's opinion of itself |
 | `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`, `test_ssocr` (segment classification, numeric extraction, trial scoring, asterisk repair, and the sys-prefix fabrication rule — the DIP `cand_*` kernels are deliberately left to a golden-image suite). Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
 | `debug_images/` | Dev-only output directory for `DebugDumper` when `AI_DEBUG_DUMP_ENABLED=1`. Layout: `debug_images/<jobId>/NN_<stage>.jpg`. Created lazily on first dump; gitignored. Never written when the toggle is off |
 | `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`, `ruff`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. Also holds the `[tool.ruff]` config: `select = ["E", "F", "I"]` only, because that set passes clean on the tree today and is therefore usable as a CI gate. The opinionated families (`B`, `BLE`, `RUF`, `SIM`, `UP`, `S`) report ~70 more findings, nearly all in `ocr/ssocr.py` — enable them in a dedicated cleanup, never as a drive-by. |
@@ -230,6 +232,14 @@ without the other will silently break the AI flow.
 
 ## Working rules for Claude
 
+- **Accuracy is only measurable against `tests/golden/labels.json`.**
+  Everything else the service reports — confidence, scores, status — is
+  its opinion of itself, and the mocked suite stays green through an
+  accuracy collapse (a threshold moved in `get_params_for_label`, a
+  flipped `USE_RIGHT_EDGE_ALIGNMENT`). Any change that could move what
+  the OCR reads must run `uv run pytest -m golden` before it ships and
+  say in the PR whether the numbers moved. Rebaselining to make it pass
+  is falsifying the gate.
 - **`imageUrl` is attacker-shaped input, not trusted input.** It
   arrives in a Redis payload, so the trust boundary is "who can publish
   to the channel", not "the gateway wrote it". Anything that fetches,
