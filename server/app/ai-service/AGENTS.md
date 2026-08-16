@@ -47,9 +47,9 @@ three are ONNX-only — torch / joblib / sklearn are never imported at
 request time. Each reply carries `engine` + per-stage `metrics`
 (fetch / detect / ocr / validate ms, RSS before/after/delta, image
 size) so the gateway can append a JSONL row to S3 for offline
-comparison. 233 tests cover config / debug_dump / fetch / handlers /
+comparison. 269 tests cover config / debug_dump / fetch / handlers /
 pipeline / rectify / validation / yolo / crnn / engines /
-cnn_classifiers.
+cnn_classifiers / ssocr.
 
 The wire contract on `analyze_bp_image` stays additive: `ocrEngine` is
 optional on the request (default falls through to ``cfg.default_engine``);
@@ -75,7 +75,7 @@ it the service replies with a structured error ("missing imageUrl").
 | `src/ai_service/analyzer/types.py` | `AnalysisResult`, `FieldReading`, `BoundingBox`, `BPClass`, `AnalysisStatus`, `PipelineMetrics` — shared dataclasses |
 | `src/ai_service/analyzer/ocr/base.py` | `OCRReader` Protocol + `OCRResult` — the seam every engine implements |
 | `src/ai_service/analyzer/ocr/crnn.py` | `CRNNEngine` + `CRNNSession` — ONNX int8 CRNN, ~30 ms/image |
-| `src/ai_service/analyzer/ocr/ssocr.py` | `SSOCREngine` — rule-based 7-segment OCR; `use_classifiers` flag toggles the `ssocr_cnn` (full ensemble) vs `ssocr` (rule-only baseline) mode |
+| `src/ai_service/analyzer/ocr/ssocr.py` | `SSOCREngine` — rule-based 7-segment OCR; `use_classifiers` flag toggles the `ssocr_cnn` (full ensemble) vs `ssocr` (rule-only baseline) mode. **Contains the service's only path that reports a digit nobody read**: a 2-digit systolic below 70 gets a leading `1` prefixed (a clipped LCD really does lose it). Gated by `AI_SSOCR_SYS_PREFIX_REPAIR` and penalised by `SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY` — see below |
 | `src/ai_service/analyzer/ocr/cnn_classifiers.py` | ONNX CNN (`classify_by_cnn_2ch`) + numpy KNN (`classify_by_knn`) + template match + `detect_brand`. Configured once at lifespan via `set_models_dir()`; consumed by `ssocr.py` |
 | `src/ai_service/storage/fetch.py` | async `fetch_image()` (presigned URL → BGR ndarray) + `ImageFetchError` |
 | `models/EXPECTED_HASHES.json` | SHA256 manifest — **single source of truth** for which model artifacts the service expects and what their bytes look like. Consumed by both `docker-entrypoint.sh` and `src/ai_service/scripts/fetch_models.py`. Tracked in git; the binaries it describes are not. |
@@ -86,7 +86,7 @@ it the service replies with a structured error ("missing imageUrl").
 | `models/crnn.pt` | Training-source PyTorch checkpoint for the CRNN (~4.7 MB). **Not** fetched at runtime — kept in R2 as a training-only artifact and intentionally absent from `EXPECTED_HASHES.json`. |
 | `docker-entrypoint.sh` | POSIX-sh shim that runs before the FastAPI CMD inside the container. Reads `$AI_MODELS_R2_BASE_URL`, downloads each `EXPECTED_HASHES.json` entry into `$MODELS_DIR` (default `/app/models`) with curl, verifies sha256, and refuses to `exec "$@"` on any mismatch. Cached on a Compose named volume (`ai_models`) so the download cost is paid once per host. |
 | `src/ai_service/scripts/fetch_models.py` | Local-dev mirror of the entrypoint — `uv run python -m ai_service.scripts.fetch_models [--dry-run]`. Uses httpx (already a dep) and reads the same manifest. Run once after `cp .env.example .env` before `uv run fastapi dev`. |
-| `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`, `test_listener` (bounded-concurrency dispatch, supervisor backoff, shutdown drain, `/health` vs `/ready`). Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
+| `tests/` | `pytest-asyncio` suite across `test_config`, `test_debug_dump`, `test_fetch`, `test_handlers`, `test_pipeline`, `test_rectify`, `test_validation`, `test_yolo`, `test_crnn`, `test_engines`, `test_cnn_classifiers`, `test_ssocr` (segment classification, numeric extraction, trial scoring, asterisk repair, and the sys-prefix fabrication rule — the DIP `cand_*` kernels are deliberately left to a golden-image suite). Shared fixtures (`FakeRedis`, `MockOCR`, `BoundingBox` helpers) live in `conftest.py`. Run with `uv run pytest`. |
 | `debug_images/` | Dev-only output directory for `DebugDumper` when `AI_DEBUG_DUMP_ENABLED=1`. Layout: `debug_images/<jobId>/NN_<stage>.jpg`. Created lazily on first dump; gitignored. Never written when the toggle is off |
 | `pyproject.toml` | `uv` deps. Runtime: `fastapi[standard]`, `redis`, `onnxruntime`, `opencv-python-headless`, `numpy`, `httpx`, `pydantic-settings`, `psutil`. Dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `onnx`, `ruff`. Manage via `uv add` / `uv remove` (rule 10) — never hand-edit. Also holds the `[tool.ruff]` config: `select = ["E", "F", "I"]` only, because that set passes clean on the tree today and is therefore usable as a CI gate. The opinionated families (`B`, `BLE`, `RUF`, `SIM`, `UP`, `S`) report ~70 more findings, nearly all in `ocr/ssocr.py` — enable them in a dedicated cleanup, never as a drive-by. |
 | `Dockerfile` | container build for prod/staging |
@@ -230,9 +230,25 @@ without the other will silently break the AI flow.
 
 ## Working rules for Claude
 
-- **Don't add HTTP routes** beyond `/health` and `/ready` unless the task
-  explicitly requires them. This service's surface is the Redis channel —
-  adding HTTP endpoints invites a second source of truth.
+- **A fabricated reading is never reported at full confidence.** The
+  SSOCR sys rescue (`_run_candidate` in `ocr/ssocr.py`) turns a 2-digit
+  systolic below 70 into 3 digits by prefixing a `1`. The rescue is
+  justified — a clipped LCD really does lose the leading digit — but
+  the digit is a hypothesis, and this number reaches a patient. Two
+  rules follow, and both are load-bearing:
+  1. The penalty is applied in `SSOCREngine.read`, **outside the trial
+     scorer**, because the scorer *rewards* the prefixed value for
+     being 3 digits and in-range — it would otherwise score higher than
+     the honest 2-digit read it replaced.
+  2. `SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY` (0.7) is a placeholder, not
+     a measurement. The right value is the rescue's observed precision
+     on ground truth; set it once the golden-image set exists.
+  Any future heuristic that invents or repairs a value follows the same
+  shape: record it on the trial, penalise the confidence, make it
+  switchable from config.
+- **Don't add HTTP routes** beyond `/health` unless the task explicitly
+  requires them. This service's surface is the Redis channel — adding HTTP
+  endpoints invites a second source of truth.
 - **Don't change channel names or payload keys** without updating
   [../api-gateway/src/ai/](../api-gateway/src/ai/) in the same diff. The
   protocol is the contract — call out cross-cutting impact in the PR.

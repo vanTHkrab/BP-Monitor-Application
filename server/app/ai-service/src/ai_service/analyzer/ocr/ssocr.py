@@ -131,6 +131,23 @@ LABEL_VALUE_RULES = {
 HARD_CEILING = {"dia": 200, "sys": 300, "pul": 250}
 HARD_CEILING_DEFAULT = 350
 
+# Confidence multiplier for a systolic reading whose leading '1' was
+# fabricated by the 2-digit rescue (see the block in ``_run_candidate``).
+#
+# The reading is a hypothesis, not an observation: two digits were read
+# and a third was supplied from a prior about where systolic values live.
+# That is often right on a clipped LCD, which is why the rescue exists —
+# but "often right" must not be reported with the same confidence as
+# "actually read", because this number reaches a patient.
+#
+# 0.7 is a deliberate placeholder, not a measured value: it is large
+# enough that a clean rescue still clears the pipeline's 0.60 SUCCESS
+# floor (1.0 × 0.9 yolo × 0.7 = 0.63) and small enough that a merely
+# decent one drops to LOW_CONFIDENCE and re-prompts. Replace it with a
+# measured value once the golden-image set exists — the right number is
+# the observed precision of the rescue on ground truth.
+SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY: float = 0.7
+
 
 # ---------------------------------------------------------------------------
 # DIPParams — Action Plan Part 1.1
@@ -1916,9 +1933,11 @@ def _run_candidate(
     expected_label: str | None = None,
     debug: bool = False,
     brand: str | None = None,
+    sys_prefix_repair: bool = True,
 ) -> dict[str, Any]:
     binary = candidate["binary"]
     fg_ratio = float(candidate["fg_ratio"])
+    sys_prefix_applied = False
     try:
         tokens, annotated = recognize_digits_from_binary(
             binary, params, method=recognition_method, draw=True, debug=debug,
@@ -1935,7 +1954,22 @@ def _run_candidate(
         # minimum (70). Otherwise the 2-digit could be a legit 70-99 sys
         # (range allows it) and prefixing would turn truth "98" into "198".
         # Train-data analysis showed 7+ cases of "198→98" misfires.
-        if _normalize_label(expected_label) == "sys" and len(normalized_text) == 2:
+        #
+        # ⚠️ THIS DIGIT IS INVENTED, NOT READ. The leading '1' comes from
+        # a prior about where systolic values live, not from anything in
+        # the image — the OCR saw two digits and we report three. That is
+        # defensible on a clipped LCD (the '1' really was cut off) and
+        # indefensible if it silently rides out at full confidence to a
+        # patient looking at a blood-pressure number. So the fabrication
+        # is now recorded on the trial: ``SSOCREngine.read`` applies
+        # ``SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY`` when this fires, and
+        # ``sys_prefix_repair=False`` disables the rescue entirely
+        # (``AI_SSOCR_SYS_PREFIX_REPAIR=0``).
+        if (
+            sys_prefix_repair
+            and _normalize_label(expected_label) == "sys"
+            and len(normalized_text) == 2
+        ):
             try:
                 two_digit_val = int(normalized_text)
             except ValueError:
@@ -1943,6 +1977,11 @@ def _run_candidate(
             if two_digit_val < 70:
                 normalized_text = "1" + normalized_text
                 raw_text = "1" + raw_text
+                sys_prefix_applied = True
+                logger.debug(
+                    "ssocr[sys]: fabricated leading '1' on 2-digit read %s → %s",
+                    two_digit_val, normalized_text,
+                )
 
         value_rule = _evaluate_value_range(expected_label, normalized_text)
         score = _score_prediction(
@@ -1984,6 +2023,7 @@ def _run_candidate(
             "value_in_range": value_rule["in_range"],
             "value_rule_reason": value_rule["reason"],
             "parsed_value": value_rule["parsed_value"],
+            "sys_prefix_applied": sys_prefix_applied,
             "error": "",
         }
     except Exception as exc:
@@ -1997,7 +2037,8 @@ def _run_candidate(
             "expected_label": _normalize_label(expected_label),
             "value_rule_applied": False, "value_range": "",
             "value_in_range": None, "value_rule_reason": "runtime_error",
-            "parsed_value": None, "error": str(exc),
+            "parsed_value": None, "sys_prefix_applied": False,
+            "error": str(exc),
         }
 
 
@@ -2117,6 +2158,7 @@ def read_digits_with_rule_engine(
     debug: bool = False,
     brand_hint: str = "",
     use_classifiers: bool = True,
+    sys_prefix_repair: bool = True,
 ) -> dict[str, Any]:
     """Run the rule-based 7-segment OCR engine on a single ROI.
 
@@ -2125,6 +2167,10 @@ def read_digits_with_rule_engine(
     ad-hoc inspection and tests). When given an ndarray, ``brand_hint``
     is the only way to inform brand-specific candidate selection; pass
     "" to use the default candidate set.
+
+    ``sys_prefix_repair`` gates the "2-digit sys below 70 → prefix a 1"
+    rescue. The returned dict carries ``sys_prefix_applied`` so the
+    caller can tell a read apart from a read-plus-a-guessed-digit.
     """
     image_path: Path | None = None
     if isinstance(image, np.ndarray):
@@ -2209,6 +2255,7 @@ def read_digits_with_rule_engine(
                 expected_label=expected_label,
                 debug=debug,
                 brand=brand,
+                sys_prefix_repair=sys_prefix_repair,
             ))
     trials.sort(key=lambda item: item["score"], reverse=True)
     best = trials[0]
@@ -2242,6 +2289,7 @@ def read_digits_with_rule_engine(
         "value_range": best["value_range"],
         "value_in_range": best["value_in_range"],
         "value_rule_reason": best["value_rule_reason"],
+        "sys_prefix_applied": bool(best.get("sys_prefix_applied", False)),
         "error": best["error"],
         "trials": trials,
     }
@@ -2272,6 +2320,11 @@ class SSOCREngine:
             distinguishes the M2.2 ``ssocr`` engine (rule-only baseline)
             from the ``ssocr_cnn`` engine (full ensemble) — same code,
             different capability budget.
+        sys_prefix_repair: when False, the "2-digit sys below 70 → prefix
+            a 1" rescue never fires. Wired to
+            ``AI_SSOCR_SYS_PREFIX_REPAIR``; see the constant below for
+            why a reading produced by that rescue is penalised even when
+            it is left on.
     """
 
     def __init__(
@@ -2279,10 +2332,12 @@ class SSOCREngine:
         expected_label: str | None = None,
         prefer_method: str = "line",
         use_classifiers: bool = True,
+        sys_prefix_repair: bool = True,
     ) -> None:
         self._expected_label = expected_label
         self._prefer_method = prefer_method
         self._use_classifiers = use_classifiers
+        self._sys_prefix_repair = sys_prefix_repair
 
     def read(self, image: np.ndarray) -> OCRResult:
         try:
@@ -2292,6 +2347,7 @@ class SSOCREngine:
                 expected_label=self._expected_label,
                 debug=False,
                 use_classifiers=self._use_classifiers,
+                sys_prefix_repair=self._sys_prefix_repair,
             )
         except Exception:
             logger.exception("ssocr crashed on %s", self._expected_label)
@@ -2306,6 +2362,21 @@ class SSOCREngine:
         # well-aligned readings score ~2.0+. Map to [0, 1] by clipping.
         score = float(result.get("score", 0.0))
         confidence = min(max(score / 2.0, 0.0), 1.0)
+
+        # One of these digits was never in the image. The scorer can't see
+        # that — it rewards the prefixed value for being 3 digits and
+        # in-range, so the fabricated read scores *higher* than the honest
+        # 2-digit one it replaced. The penalty is applied here, outside the
+        # scorer, precisely so it can't be competed away by the trial
+        # ranking. It flows into FieldReading.combined_confidence and from
+        # there into the SUCCESS/LOW_CONFIDENCE verdict the client shows.
+        if result.get("sys_prefix_applied", False):
+            confidence *= SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY
+            logger.info(
+                "ssocr[sys]: reporting %s with a fabricated leading digit "
+                "(confidence ×%.2f)",
+                text, SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY,
+            )
         return OCRResult(text=text, confidence=confidence)
 
 

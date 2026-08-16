@@ -72,6 +72,7 @@ signature of a flapping Redis connection.
 | `AI_SHUTDOWN_GRACE_S` | – | `5` | How long shutdown waits for in-flight analyses before cancelling them |
 | `AI_ONNX_INTRA_OP_THREADS` | – | `2` | `SessionOptions.intra_op_num_threads` cap for every ORT session (YOLO + CRNN + per-bucket CNNs) |
 | `AI_ONNX_INTER_OP_THREADS` | – | `1` | `SessionOptions.inter_op_num_threads` cap (paired with `ORT_SEQUENTIAL`) |
+| `AI_SSOCR_SYS_PREFIX_REPAIR` | – | `1` | Enables the SSOCR rescue that completes a 2-digit systolic read below 70 into 3 digits by prefixing a `1`. **That digit is invented, not read** — readings produced this way are reported with confidence × `SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY` (0.7). Set to `0` to disable; such reads then surface as out-of-range instead. `ssocr` / `ssocr_cnn` only. |
 | `AI_DEBUG_DUMP_ENABLED` | – | `0` | Set to `1` to write per-stage debug images (dev only) |
 | `AI_DEBUG_DUMP_DIR` | – | `<ai-service>/debug_images/` | Output directory for debug dumps |
 

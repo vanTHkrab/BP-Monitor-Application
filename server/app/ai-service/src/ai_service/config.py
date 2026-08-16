@@ -188,6 +188,22 @@ class AnalyzerConfig(BaseSettings):
                     "``AI_ONNX_INTER_OP_THREADS``.",
     )
 
+    ssocr_sys_prefix_repair: bool = Field(
+        default=True,
+        description="Enables the SSOCR rescue that turns a 2-digit "
+                    "systolic read below 70 into a 3-digit value by "
+                    "prefixing a '1' (a clipped LCD really does lose the "
+                    "leading digit). The prefixed digit is INVENTED, not "
+                    "read, so a reading produced this way is reported "
+                    "with its confidence multiplied by "
+                    "``ssocr.SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY``. Set "
+                    "``AI_SSOCR_SYS_PREFIX_REPAIR=0`` to disable the "
+                    "rescue outright — out-of-range 2-digit reads then "
+                    "surface as low-confidence instead of being "
+                    "completed. Affects the ``ssocr`` and ``ssocr_cnn`` "
+                    "engines only; ``crnn`` has no such rule.",
+    )
+
     debug_dump_enabled: bool = Field(
         default=False,
         description="When true, the Redis handler instantiates a "
