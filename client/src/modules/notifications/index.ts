@@ -39,13 +39,13 @@ export type {
 export {
   DAY_OPTIONS,
   DEFAULT_REMINDER_SETTINGS,
-  HOUR_OPTIONS,
-  INTERVAL_OPTIONS,
   REMINDER_SOUND_OPTIONS,
   getReminderSoundOption,
+  normalizeReminderTimes,
   type ReminderDiagnostics,
   type ReminderPermissionState,
   type ReminderSettings,
   type ReminderSoundId,
   type ReminderSoundOption,
+  type ReminderTime,
 } from './types';

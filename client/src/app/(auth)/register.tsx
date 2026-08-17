@@ -14,16 +14,13 @@
  * queue behind it yet, so a failed upload is simply dropped and the user
  * keeps a working account with no photo.
  */
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
-import { useTheme } from '@/hooks/use-theme';
 import { useRegister } from '@/modules/auth';
 import { AuthErrorBanner } from '@/modules/auth/components/auth-error-banner';
 import { AuthShell } from '@/modules/auth/components/auth-shell';
@@ -36,7 +33,10 @@ import {
   type RegisterField,
 } from '@/modules/auth/lib/validation';
 import type { Gender } from '@/modules/auth/types';
-import { formatIsoDate, parseIsoDate } from '@/utils/date-formatter';
+// Through the barrel, not by path: this is a screen, and the barrel rule that
+// sends `modules/profile`'s own lib files around it applies to lib files, not
+// to screens. `app/profile.tsx` reaches both of these the same way.
+import { DateField, formatBirthday } from '@/modules/profile';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
 
 const GENDERS: readonly { value: Gender; label: string }[] = [
@@ -54,16 +54,16 @@ const optionalNumber = (text: string): number | undefined => {
 };
 
 export default function RegisterScreen() {
-  const colors = useTheme();
-
   const [firstname, setFirstname] = useState('');
   const [lastname, setLastname] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [dob, setDob] = useState('');
-  const [showDobPicker, setShowDobPicker] = useState(false);
+  // A `Date`, not the ISO string this screen used to hold. `DateField` takes
+  // and returns `Date | null`, and threading both representations through the
+  // screen is how the two drift — the conversion happens once, at submit.
+  const [dob, setDob] = useState<Date | null>(null);
   const [gender, setGender] = useState<Gender | null>(null);
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
@@ -73,8 +73,9 @@ export default function RegisterScreen() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<RegisterField>>({});
   const { register, isPending, error, clearError } = useRegister();
 
-  const bind = (field: RegisterField, setter: (value: string) => void) => (text: string) => {
-    setter(text);
+  // Split out of `bind` so the date picker — which sets a `Date`, not a
+  // string — clears its error the same way every text input does.
+  const clearFieldError = (field: RegisterField) => {
     if (fieldErrors[field] !== undefined) {
       setFieldErrors((prev) => {
         const next = { ...prev };
@@ -85,18 +86,9 @@ export default function RegisterScreen() {
     clearError();
   };
 
-  // `onChange` (discriminating on `event.type === 'dismissed'`) is deprecated
-  // in favour of these two separate callbacks — `onValueChange` only fires
-  // for a real selection, so there is no dismissed case to filter out here.
-  const handleDobChange = (_event: unknown, selected: Date) => {
-    // Android's picker is a modal the OS dismisses on any action; iOS renders
-    // an inline spinner that stays until the user closes it.
-    if (Platform.OS !== 'ios') setShowDobPicker(false);
-    setDob(formatIsoDate(selected));
-  };
-
-  const handleDobDismiss = () => {
-    if (Platform.OS !== 'ios') setShowDobPicker(false);
+  const bind = (field: RegisterField, setter: (value: string) => void) => (text: string) => {
+    setter(text);
+    clearFieldError(field);
   };
 
   const handleSubmit = async () => {
@@ -109,6 +101,11 @@ export default function RegisterScreen() {
       email,
       password,
       confirmPassword,
+      dob,
+      gender,
+      weight,
+      height,
+      congenitalDisease,
     });
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -120,7 +117,7 @@ export default function RegisterScreen() {
         phone: stripPhoneDigits(phone),
         email: email.trim(),
         password,
-        dob: parseIsoDate(dob) ?? undefined,
+        dob: dob ?? undefined,
         gender: gender ?? undefined,
         weight: optionalNumber(weight),
         height: optionalNumber(height),
@@ -193,28 +190,25 @@ export default function RegisterScreen() {
         ข้อมูลสุขภาพ (ไม่บังคับ)
       </ThemedText>
 
-      <Pressable
-        onPress={() => setShowDobPicker(true)}
-        accessibilityRole="button"
-        accessibilityLabel="เลือกวันเกิด"
-        className="mb-4 flex-row items-center rounded-[14px] border-2 px-[14px] py-4"
-        style={{ borderColor: colors.border, backgroundColor: colors.surface }}>
-        <Ionicons name="calendar-outline" size={20} color={colors['text-secondary']} />
-        <ThemedText type="body" weight="semibold" className="ml-3 flex-1" style={{ color: dob ? colors['text-primary'] : colors['text-secondary'] }}>
-          {dob || 'วันเกิด'}
-        </ThemedText>
-      </Pressable>
+      {/*
+        * The same control the profile and caregiver forms use. The hand-rolled
+        * copy this replaces had no clear button, so an optional field became
+        * permanent the moment it was filled; it also seeded the spinner at
+        * 1970 and skipped `validateDob` entirely.
+        */}
+      <DateField
+        testID="register-dob"
+        value={dob}
+        onChange={(value) => {
+          setDob(value);
+          clearFieldError('dob');
+        }}
+        displayValue={formatBirthday(dob)}
+        placeholder="วันเกิด"
+        error={errorFor('dob')}
+        maximumDate={new Date()}
+      />
 
-      {showDobPicker ? (
-        <DateTimePicker
-          value={parseIsoDate(dob) ?? new Date(1970, 0, 1)}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          maximumDate={new Date()}
-          onValueChange={handleDobChange}
-          onDismiss={handleDobDismiss}
-        />
-      ) : null}
 
       <OptionRow label="เพศ" options={GENDERS} value={gender} onChange={setGender} />
 
@@ -224,8 +218,9 @@ export default function RegisterScreen() {
             testID="register-weight"
             placeholder="น้ำหนัก (กก.)"
             value={weight}
-            onChangeText={setWeight}
+            onChangeText={bind('weight', setWeight)}
             keyboardType="numeric"
+            error={errorFor('weight')}
           />
         </View>
         <View className="flex-1">
@@ -233,8 +228,9 @@ export default function RegisterScreen() {
             testID="register-height"
             placeholder="ส่วนสูง (ซม.)"
             value={height}
-            onChangeText={setHeight}
+            onChangeText={bind('height', setHeight)}
             keyboardType="numeric"
+            error={errorFor('height')}
           />
         </View>
       </View>
@@ -243,9 +239,10 @@ export default function RegisterScreen() {
         testID="register-congenital-disease"
         placeholder="โรคประจำตัว"
         value={congenitalDisease}
-        onChangeText={setCongenitalDisease}
+        onChangeText={bind('congenitalDisease', setCongenitalDisease)}
         icon="medkit-outline"
         autoCapitalize="sentences"
+        error={errorFor('congenitalDisease')}
       />
 
       <ThemedText type="label" themeColor="text-secondary" className="mb-3 ml-1">

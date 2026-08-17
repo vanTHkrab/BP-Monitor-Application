@@ -22,6 +22,10 @@ export async function readBpFromImage(input: OnDeviceOcrInput): Promise<OnDevice
     return await readBpOnDevice(input.imageUri);
   } catch (error) {
     if (__DEV__) console.warn('[ocr] on-device readBp threw; treating as unavailable', error);
-    return { unavailable: true, reason: 'native-error' };
+    // Reaching this catch means the native call was actually attempted (the
+    // module-missing case in `readBpOnDevice` returns normally, it never
+    // throws), so this is always a genuine on-device failure, never a
+    // platform that lacks the engine.
+    return { unavailable: true, reason: 'native-error', platformUnsupported: false };
   }
 }

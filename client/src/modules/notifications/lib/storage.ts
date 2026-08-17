@@ -16,7 +16,7 @@ import { reminderSettingsKey } from '@/config';
 
 import {
   DEFAULT_REMINDER_SETTINGS,
-  INTERVAL_OPTIONS,
+  normalizeReminderTimes,
   REMINDER_SOUND_OPTIONS,
   type ReminderSettings,
   type ReminderSoundId,
@@ -42,21 +42,7 @@ export function normalizeReminderSettings(raw: unknown): ReminderSettings {
 
   const value = raw as Record<string, unknown>;
 
-  const intervalHours =
-    typeof value.intervalHours === 'number' &&
-    (INTERVAL_OPTIONS as readonly number[]).includes(value.intervalHours)
-      ? value.intervalHours
-      : DEFAULT_REMINDER_SETTINGS.intervalHours;
-
-  const startHour =
-    typeof value.startHour === 'number' && value.startHour >= 0 && value.startHour <= 23
-      ? Math.floor(value.startHour)
-      : DEFAULT_REMINDER_SETTINGS.startHour;
-
-  const endHour =
-    typeof value.endHour === 'number' && value.endHour >= 0 && value.endHour <= 23
-      ? Math.floor(value.endHour)
-      : DEFAULT_REMINDER_SETTINGS.endHour;
+  const reminderTimes = normalizeReminderTimes(value.reminderTimes);
 
   const selectedDays = Array.isArray(value.selectedDays)
     ? [...new Set(value.selectedDays)].filter(
@@ -66,16 +52,8 @@ export function normalizeReminderSettings(raw: unknown): ReminderSettings {
 
   return {
     enabled: value.enabled === true,
-    intervalHours,
-    // A window that closes before it opens cannot be scheduled. Restoring
-    // both ends of the default is the only repair that keeps them coherent —
-    // clamping one to the other would invent a window nobody chose.
-    ...(endHour < startHour
-      ? {
-          startHour: DEFAULT_REMINDER_SETTINGS.startHour,
-          endHour: DEFAULT_REMINDER_SETTINGS.endHour,
-        }
-      : { startHour, endHour }),
+    reminderTimes:
+      reminderTimes.length > 0 ? reminderTimes : [...DEFAULT_REMINDER_SETTINGS.reminderTimes],
     selectedDays:
       selectedDays.length > 0 ? selectedDays : DEFAULT_REMINDER_SETTINGS.selectedDays,
     soundId: isSoundId(value.soundId)

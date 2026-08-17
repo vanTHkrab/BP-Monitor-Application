@@ -2,7 +2,7 @@
 title: "Client: what is left after the screen ports"
 description: The sub-screen features and infrastructure the client-old ports worked around, plus the decisions already closed.
 status: current
-updated: 2026-08-06
+updated: 2026-08-17
 owner: client
 ---
 
@@ -83,13 +83,19 @@ taken. Built as this file predicted: the pure part in
 test the decisions.
 
 **It derives rounds from `planReminders(settings)`, not from
-`settings.intervalHours`** — the one place it is not a copy of client-old's
-`buildReminderTimelineForDate`. This tree thins the schedule to fit the OS's
-64-notification ceiling, so the requested interval and the firing interval
-differ under load; reading the request would show a round the OS was never
-asked to send and then mark it missed. The reasoning and the two other
+`settings.reminderTimes` directly** — the one place it is not a copy of
+client-old's `buildReminderTimelineForDate`. This tree caps the schedule to
+fit the OS's 64-notification ceiling, so the requested times and the firing
+times differ under load; reading the request would show a round the OS was
+never asked to send and then mark it missed. The reasoning and the two other
 decisions (an injected `now`, and hiding the card while a caregiver is viewing
 a patient) are in [CLIENT-history.md](./CLIENT-history.md).
+
+Reminder scheduling itself is now a free-form, alarm-style list of specific
+times rather than an interval + hour-window formula — set individually on
+`app/reminders.tsx`. The over-budget defence moved up a layer: the settings
+screen refuses to add a time or a day that would exceed the OS ceiling, with
+an explanation, before it ever reaches `planReminders`.
 
 **One deliberate non-fix**, carried over from the original: a round reads
 "ค้างวัด" from the instant its hour arrives, including the round in progress.

@@ -6,10 +6,13 @@
  * `phone` column, and a profile form stricter than the register form would
  * make an account unable to re-save the number it signed up with.
  *
- * Everything except the name fields is optional. The bounds below are
- * plausibility checks, not medical ones — they exist to catch a slipped
- * decimal point ("1750" cm) before a round trip, not to tell anyone their
- * body is out of range. They are deliberately wide for that reason.
+ * Everything except the name fields is optional. The bounds and the two
+ * measurement validators are **not defined here** — they live in
+ * `@/lib/health-validation`, because `modules/auth` (sign-up) and
+ * `modules/caregivers` (editing on the patient's behalf) write the same
+ * columns and a rule only one of them enforces produces a value that form then
+ * refuses to re-save. They are re-exported below so this file's public shape
+ * is unchanged for anything that already imported them from here.
  */
 // Reached by path, not through `@/modules/auth`'s barrel: the barrel pulls in
 // `bootstrap.ts` → AsyncStorage → a native module, and a pure validation
@@ -17,59 +20,28 @@
 // exists to stop screens skipping the hooks' cache invalidation, which does
 // not apply between two pure lib files.
 import { isValidPhone, type FieldErrors } from '@/modules/auth/lib/validation';
+import {
+  HEIGHT_RANGE_CM,
+  WEIGHT_RANGE_KG,
+  validateCongenitalDisease,
+  validateDob,
+  validateMeasurement,
+} from '@/lib/health-validation';
 import { stripPhoneDigits } from '@/utils/phone-format';
 
 import type { ProfileField, ProfileForm } from '../types';
 
-export const WEIGHT_RANGE_KG = { min: 20, max: 300 } as const;
-export const HEIGHT_RANGE_CM = { min: 50, max: 250 } as const;
-/** Matches the gateway's column; a longer note is truncated server-side. */
-export const CONGENITAL_DISEASE_MAX = 500;
-/** Nobody alive was born earlier, and a typo'd year is the real target. */
-export const MAX_AGE_YEARS = 120;
+export {
+  CONGENITAL_DISEASE_MAX,
+  HEIGHT_RANGE_CM,
+  MAX_AGE_YEARS,
+  WEIGHT_RANGE_KG,
+  validateCongenitalDisease,
+  validateDob,
+  validateMeasurement,
+} from '@/lib/health-validation';
 
 export type ProfileErrors = FieldErrors<ProfileField>;
-
-/**
- * Empty is valid — these fields are optional. Returns a Thai message if not.
- *
- * Exported because `modules/caregivers/lib/health-form.ts` validates the same
- * `weight` and `height` columns from the caregiver's edit screen. A second
- * implementation there would eventually let a caregiver save a weight the
- * patient's own form rejects, into the same column.
- */
-export function validateMeasurement(
-  raw: string,
-  { min, max }: { min: number; max: number },
-  unit: string,
-): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed)) return 'กรุณากรอกเป็นตัวเลข';
-  if (parsed < min || parsed > max) return `กรุณากรอกระหว่าง ${min}-${max} ${unit}`;
-
-  return null;
-}
-
-/**
- * Same contract and same reason as `validateMeasurement`: the caregiver's
- * edit screen writes this column too, and a birthday one form accepts and the
- * other refuses is a bug the patient meets only when someone edits on their
- * behalf.
- */
-export function validateDob(dob: Date | null, now: Date = new Date()): string | null {
-  if (!dob) return null;
-
-  const oldest = new Date(now);
-  oldest.setFullYear(oldest.getFullYear() - MAX_AGE_YEARS);
-
-  if (dob.getTime() > now.getTime()) return 'วันเกิดต้องไม่เป็นวันในอนาคต';
-  if (dob.getTime() < oldest.getTime()) return 'กรุณาตรวจสอบปีเกิดอีกครั้ง';
-
-  return null;
-}
 
 export function validateProfile(form: ProfileForm, now: Date = new Date()): ProfileErrors {
   const errors: ProfileErrors = {};
@@ -79,7 +51,7 @@ export function validateProfile(form: ProfileForm, now: Date = new Date()): Prof
 
   const phone = stripPhoneDigits(form.phone);
   if (!phone) errors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
-  else if (!isValidPhone(phone)) errors.phone = 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก';
+  else if (!isValidPhone(phone)) errors.phone = 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-15 หลัก';
 
   const dobError = validateDob(form.dob, now);
   if (dobError) errors.dob = dobError;
@@ -90,9 +62,8 @@ export function validateProfile(form: ProfileForm, now: Date = new Date()): Prof
   const heightError = validateMeasurement(form.height, HEIGHT_RANGE_CM, 'ซม.');
   if (heightError) errors.height = heightError;
 
-  if (form.congenitalDisease.trim().length > CONGENITAL_DISEASE_MAX) {
-    errors.congenitalDisease = `กรอกได้ไม่เกิน ${CONGENITAL_DISEASE_MAX} ตัวอักษร`;
-  }
+  const congenitalError = validateCongenitalDisease(form.congenitalDisease);
+  if (congenitalError) errors.congenitalDisease = congenitalError;
 
   return errors;
 }

@@ -31,21 +31,60 @@ const mockAppLock = {
   },
 };
 
-jest.mock('@/modules/security', () => ({
-  ...jest.requireActual('@/modules/security'),
-  SecurityHeader: () => null,
-  useSecurityOverview: () => mockOverview.current,
-  useAppLock: () => mockAppLock.current,
-}));
+/*
+ * `PASSKEY_ENABLED` ships `false`. It is overridden through a getter rather
+ * than a plain property because it is a constant read at render time: a
+ * property would freeze at whatever the factory returned and could not vary
+ * per test. Kept switchable so the enabled row stays covered while it is
+ * hidden — deleting that coverage is how the feature stops working before
+ * anyone flips the flag back.
+ *
+ * `defineProperty` after the fact, not `get PASSKEY_ENABLED()` in the literal:
+ * babel routes a literal that also spreads `requireActual` through its
+ * object-spread helper, which copies properties by *reading* them and so fires
+ * the getter while the factory is still running — before this `const` exists.
+ */
+const mockPasskeyEnabled = { current: false };
+
+jest.mock('@/modules/security', () => {
+  const mocked = {
+    ...jest.requireActual('@/modules/security'),
+    SecurityHeader: () => null,
+    useSecurityOverview: () => mockOverview.current,
+    useAppLock: () => mockAppLock.current,
+  };
+
+  Object.defineProperty(mocked, 'PASSKEY_ENABLED', {
+    get: () => mockPasskeyEnabled.current,
+  });
+
+  return mocked;
+});
 
 const mockSession = {
   current: { user: null as Record<string, unknown> | null },
 };
 const mockSessions = { current: [] as Record<string, unknown>[] };
-jest.mock('@/modules/auth', () => ({
-  useSession: () => mockSession.current,
-  useLoginSessions: () => ({ sessions: mockSessions.current }),
-}));
+
+// Same switchable-getter treatment as `mockPasskeyEnabled` above, and for the
+// same reason: `GOOGLE_SIGN_IN_ENABLED` ships `false`, and the row it gates
+// needs to stay covered in both states or the flip-back-on path rots
+// unnoticed.
+const mockGoogleSignInEnabled = { current: false };
+
+jest.mock('@/modules/auth', () => {
+  const mocked = {
+    ...jest.requireActual('@/modules/auth'),
+    useSession: () => mockSession.current,
+    useLoginSessions: () => ({ sessions: mockSessions.current }),
+  };
+
+  Object.defineProperty(mocked, 'GOOGLE_SIGN_IN_ENABLED', {
+    get: () => mockGoogleSignInEnabled.current,
+  });
+
+  return mocked;
+});
 
 import SecurityScreen from '@/app/security/index';
 import { renderScreen } from '../test-utils';
@@ -75,6 +114,9 @@ beforeEach(() => {
   };
   mockSession.current = { user: { email: 'somchai@example.com' } };
   mockSessions.current = [];
+  // Matches what ships. Tests that need the enabled row opt in explicitly.
+  mockPasskeyEnabled.current = false;
+  mockGoogleSignInEnabled.current = false;
 });
 
 describe('SecurityScreen — loading', () => {
@@ -122,14 +164,29 @@ describe('SecurityScreen — the sign-in group', () => {
     expect(view.getByTestId('security-password')).toHaveTextContent(/ตั้งไว้แล้ว/);
   });
 
-  it('reports whether Google is linked', async () => {
+  it('reports whether Google is linked, when the row is switched on', async () => {
+    mockGoogleSignInEnabled.current = true;
     mockOverview.current.overview = overview({ hasGoogleAccount: true });
     const view = await renderScreen(<SecurityScreen />);
 
     expect(view.getByTestId('security-google')).toHaveTextContent(/เชื่อมแล้ว/);
   });
 
+  /*
+   * The shipped state. Google sign-in itself is hidden (`login.tsx`'s
+   * button, gated on the same flag), so a row reporting the link status of a
+   * feature nobody can reach would make no sense to show — even though the
+   * row is purely informational and has no `onPress` of its own.
+   */
+  it('hides the Google row by default, since Google sign-in itself is hidden', async () => {
+    mockOverview.current.overview = overview({ hasGoogleAccount: true });
+    const view = await renderScreen(<SecurityScreen />);
+
+    expect(view.queryByTestId('security-google')).toBeNull();
+  });
+
   it('counts registered passkeys', async () => {
+    mockPasskeyEnabled.current = true;
     mockOverview.current.overview = overview({ passkeyCount: 2 });
     const view = await renderScreen(<SecurityScreen />);
 
@@ -142,12 +199,64 @@ describe('SecurityScreen — the sign-in group', () => {
    * than not offering it.
    */
   it('hides the passkey row when the server does not support passkeys', async () => {
+    mockPasskeyEnabled.current = true;
     mockOverview.current.overview = overview({ passkeySupported: false });
     const view = await renderScreen(<SecurityScreen />);
 
     expect(view.queryByTestId('security-passkeys')).toBeNull();
     // The rest of the group survives — this is one row, not a broken screen.
     expect(view.getByTestId('security-password')).toBeOnTheScreen();
+  });
+
+  /*
+   * The shipped state. This row and the server's `passkeySupported` are two
+   * independent gates, and the client-side one has to win on its own — a
+   * server that reports support is exactly the case where the row would
+   * otherwise appear and lead somewhere the user cannot use.
+   */
+  it('hides the passkey row while the feature is switched off, even when the server supports it', async () => {
+    mockOverview.current.overview = overview({ passkeySupported: true, passkeyCount: 2 });
+    const view = await renderScreen(<SecurityScreen />);
+
+    expect(view.queryByTestId('security-passkeys')).toBeNull();
+  });
+
+  // Two rows removed, not a group emptied: the sign-in section still has to
+  // answer the questions it was already answering, and the last visible row
+  // (password, with both flags off) has to close the group off cleanly
+  // rather than leave a divider dangling with nothing below it.
+  it('leaves the rest of the sign-in group intact with passkeys and Google both hidden', async () => {
+    const view = await renderScreen(<SecurityScreen />);
+
+    expect(view.getByTestId('security-last-login')).toBeOnTheScreen();
+    expect(view.getByTestId('security-password')).toBeOnTheScreen();
+    expect(view.queryByTestId('security-passkeys')).toBeNull();
+    expect(view.queryByTestId('security-google')).toBeNull();
+  });
+
+  // With every optional row switched back on, the *last* one — not
+  // password — is the one that has to close the group off.
+  it('shows both optional rows together when both flags are on', async () => {
+    mockPasskeyEnabled.current = true;
+    mockGoogleSignInEnabled.current = true;
+    mockOverview.current.overview = overview({ passkeySupported: true, hasGoogleAccount: true });
+    const view = await renderScreen(<SecurityScreen />);
+
+    expect(view.getByTestId('security-passkeys')).toBeOnTheScreen();
+    expect(view.getByTestId('security-google')).toBeOnTheScreen();
+  });
+
+  /*
+   * `lastLoginMethod` comes from the *server* and reports history, not an
+   * offer. An account that last signed in with a passkey is still told so —
+   * blanking it would replace a true statement with "ไม่ทราบ", and this row
+   * routes nowhere, so it cannot be a way back into the hidden feature.
+   */
+  it('still names a passkey sign-in in the history row', async () => {
+    mockOverview.current.overview = overview({ lastLoginMethod: 'passkey' });
+    const view = await renderScreen(<SecurityScreen />);
+
+    expect(view.getByTestId('security-last-login')).toHaveTextContent(/Passkey/);
   });
 });
 

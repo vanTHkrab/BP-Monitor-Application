@@ -40,17 +40,18 @@ import { formatIsoDate } from '@/utils/date-formatter';
 
 import type { FieldErrors } from '../../auth/lib/validation';
 import type { Gender } from '../../auth/types';
-// Deep import for the reason `modules/profile/lib/validation.ts` gives about
-// its own: the barrel rule guards cache invalidation, which two pure lib
-// files cannot skip, and `@/modules/profile`'s barrel drags an image picker
-// in behind `use-profile-avatar`.
+// Neutral module, not `modules/profile`: the patient's own form, the sign-up
+// form, and this one all write the same columns, so the rules belong to none
+// of the three. Reaching into profile for them also made this file's imports
+// read as if the caregiver form were a variant of the profile form, which the
+// docblock above spends thirty lines saying it is not.
 import {
   HEIGHT_RANGE_CM,
   WEIGHT_RANGE_KG,
-  CONGENITAL_DISEASE_MAX,
+  validateCongenitalDisease,
   validateDob,
   validateMeasurement,
-} from '../../profile/lib/validation';
+} from '@/lib/health-validation';
 import {
   HEALTH_FIELDS,
   type HealthFieldName,
@@ -210,9 +211,9 @@ export const hasHealthChanges = (patch: UpdatePatientHealthInput): boolean =>
 /**
  * Plausibility checks, not medical ones — deliberately wide. They exist to
  * catch a slipped decimal ("1750" cm) before a round trip, and they are the
- * *same* checks `app/profile.tsx` runs, imported rather than restated: a
- * caregiver form stricter or looser than the patient's own would disagree
- * about the same column.
+ * *same* checks `app/profile.tsx` and the sign-up form run, imported from
+ * `@/lib/health-validation` rather than restated: a caregiver form stricter or
+ * looser than the patient's own would disagree about the same column.
  */
 export function validateHealthForm(form: HealthForm, now: Date = new Date()): HealthErrors {
   const errors: HealthErrors = {};
@@ -226,9 +227,8 @@ export function validateHealthForm(form: HealthForm, now: Date = new Date()): He
   const heightError = validateMeasurement(form.height, HEIGHT_RANGE_CM, 'ซม.');
   if (heightError) errors.height = heightError;
 
-  if (form.congenitalDisease.trim().length > CONGENITAL_DISEASE_MAX) {
-    errors.congenitalDisease = `กรอกได้ไม่เกิน ${CONGENITAL_DISEASE_MAX} ตัวอักษร`;
-  }
+  const congenitalError = validateCongenitalDisease(form.congenitalDisease);
+  if (congenitalError) errors.congenitalDisease = congenitalError;
 
   return errors;
 }

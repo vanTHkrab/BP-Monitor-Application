@@ -32,10 +32,8 @@ jest.mock('@/modules/notifications', () => ({
   useReminderSettings: () => ({
     settings: {
       enabled: false,
-      intervalHours: 4,
+      reminderTimes: [{ hour: 8, minute: 0 }],
       selectedDays: [],
-      startHour: 8,
-      endHour: 20,
     },
     isLoading: false,
   }),

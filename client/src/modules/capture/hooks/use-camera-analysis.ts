@@ -3,14 +3,20 @@
  *
  * Two ways in, one way out. Online, the photo goes to the backend pipeline
  * (`analyze`). Offline, it goes to the on-device engine (`readOnDevice`).
- * Both return the same `ReadOutcome`, both raise the same `lowConfidence`
- * flag, and both end at the same `save`, so the offline path can never drift
- * into being a second, less tested way of recording a reading.
+ * Both return the same `ReadOutcome`, both raise the same `lowConfidence` /
+ * `unreadable` flags, and both end at the same `save`, so the offline path
+ * can never drift into being a second, less tested way of recording a
+ * reading.
  *
  * **Nothing here can block a save.** Every failure — no network, no detector,
- * an unreadable display, a timeout — resolves to "the form is empty, type the
- * numbers". That is the whole design constraint: the patient came to record a
- * measurement, and the reading assistance is an optimisation on top of that.
+ * an unreadable display, a timeout — still resolves to "the form is empty,
+ * type the numbers". What changed is whether the patient is told *why* it is
+ * empty: a photo the engine genuinely could not read now sets `unreadable`,
+ * rather than failing exactly as silently as a platform with no on-device
+ * engine at all. That is still the whole design constraint underneath it: the
+ * patient came to record a measurement, and the reading assistance —
+ * including telling them it did not work — is an optimisation on top of that,
+ * never a gate in front of it.
  */
 import { useCallback, useRef, useState } from 'react';
 
@@ -67,12 +73,19 @@ const CONFIDENCE_THRESHOLD = 0.5;
  * awaited the read: an effect that writes form state from analysis state is a
  * cascading render, and it was also the subtler of the two places the
  * "don't clobber what the user typed" guard had to live.
+ *
+ * `readings` is nullable for exactly one reason: a completed analysis that
+ * read nothing (`unreadable`) still has to be distinguishable, by the
+ * returned value alone, from an analysis that never settled at all — an
+ * aborted or hard-failed `analyze()` call returns `null` outright (see
+ * below). The screen's online branch uses that split to decide whether to
+ * react to the promise settling, not just what to fill.
  */
-export type ReadOutcome = {
-  readings: BPValues;
-  /** False when the user should be asked to check the numbers first. */
-  confident: boolean;
-};
+export type ReadOutcome =
+  | { confident: true; readings: BPValues }
+  /** False when the user should be asked to check the numbers first, or
+   *  (`readings: null`) when there was nothing to check at all. */
+  | { confident: false; readings: BPValues | null };
 
 interface AnalysisState {
   phase: AnalysisPhase;
@@ -82,6 +95,12 @@ interface AnalysisState {
   uploadedImageId: number | null;
   /** Values came back, but not confidently. The screen asks before filling. */
   lowConfidence: boolean;
+  /**
+   * The engine ran — on-device or backend — and produced nothing. Distinct
+   * from `lowConfidence`: there are no values to offer here, only a reason
+   * to fall back to manual entry.
+   */
+  unreadable: boolean;
   error: string | null;
 }
 
@@ -91,6 +110,7 @@ const INITIAL_STATE: AnalysisState = {
   result: null,
   uploadedImageId: null,
   lowConfidence: false,
+  unreadable: false,
   error: null,
 };
 
@@ -114,9 +134,38 @@ export function useCameraAnalysis() {
 
     const ocr = await readBpFromImage({ imageUri });
     if (isOcrUnavailable(ocr)) {
-      // Clear the phase, or the preview chip sits on "กำลังอ่านค่าในเครื่อง..."
-      // forever after we have given up.
-      setState((prev) => ({ ...prev, phase: 'idle' }));
+      if (ocr.platformUnsupported) {
+        // No engine on this device at all (iOS, web, Expo Go) — the
+        // expected, every-time outcome there, not a failure. Clear the
+        // phase, or the preview chip sits on "กำลังอ่านค่าในเครื่อง..." forever
+        // after we have given up, and stay exactly as silent as before.
+        setState((prev) => ({ ...prev, phase: 'idle' }));
+        return null;
+      }
+      // The engine exists here and ran on this photo, but produced nothing:
+      // no monitor found, unreadable digits, an implausible value, or an
+      // unexpected native error. Unlike the platform-absence case above,
+      // this is a per-photo outcome worth telling the user about — see the
+      // `unreadable` banner it drives. Still returns `null`: the screen's
+      // offline branch already opens the entry sheet unconditionally, so
+      // there is nothing left for the return value to distinguish here
+      // (contrast `analyze`, whose caller does need that distinction).
+      setState((prev) => ({
+        ...prev,
+        phase: 'done',
+        result: {
+          readings: null,
+          confidence: 0,
+          roiImageUrl: null,
+          rawText: null,
+          status: 'unreadable',
+          engine: null,
+          metrics: null,
+        },
+        unreadable: true,
+        lowConfidence: false,
+        error: null,
+      }));
       return null;
     }
 
@@ -136,16 +185,34 @@ export function useCameraAnalysis() {
         metrics: null,
       },
       lowConfidence: !confident,
+      unreadable: false,
       error: null,
     }));
-    return { readings, confident };
+    return confident ? { confident: true, readings } : { confident: false, readings };
   }, []);
 
   /** The online read. */
   const analyze = useCallback(
     async (
       imageUri: string,
-      options?: { ocrEngine?: OcrEngine },
+      options?: {
+        ocrEngine?: OcrEngine;
+        /**
+         * Called synchronously, in the same tick as the `setState` below —
+         * deliberately not left for the caller's own `.then()` on the
+         * promise this function returns. A `.then()` chained onto an async
+         * function's own return is always a separate microtask (settling a
+         * promise never runs its continuations inline), so a caller reacting
+         * that way is not guaranteed to land in the same React commit as
+         * `phase: 'done'` landing here — two renders, not one, and on a slow
+         * device that gap is a visible beat between the phase pill reading
+         * "วิเคราะห์เสร็จแล้ว ✓" and whatever the caller does in response (the
+         * entry sheet opening, in `startCaptureFlow`). Calling it here, right
+         * next to the state update it needs to land with, is what makes
+         * React 18's automatic batching actually apply.
+         */
+        onSettled?: (outcome: ReadOutcome | null) => void;
+      },
     ): Promise<ReadOutcome | null> => {
     abortRef.current?.abort();
     const abort = new AbortController();
@@ -167,6 +234,24 @@ export function useCameraAnalysis() {
       const lowConfidence = Boolean(
         result?.readings && result.confidence < CONFIDENCE_THRESHOLD,
       );
+      const unreadable = result?.status === 'unreadable';
+
+      // `null` only for "nothing settled here" (an aborted request, below,
+      // or the absence of a result object at all — a malformed reply this
+      // defends against but should not itself happen). The caller
+      // (`startCaptureFlow`'s online branch) uses that to decide whether to
+      // react at all: a completed job returns an object even when there is
+      // nothing to prefill, so "the pipeline finished" (confident,
+      // low-confidence, or unreadable) is distinguishable from "the user
+      // already moved on" or a hard failure, which already has its own
+      // recovery banner on this screen.
+      const outcome: ReadOutcome | null = !result
+        ? null
+        : result.readings && confident
+          ? { confident: true, readings: result.readings }
+          : { confident: false, readings: result.readings };
+
+      options?.onSettled?.(outcome);
 
       setState((prev) => ({
         ...prev,
@@ -175,10 +260,11 @@ export function useCameraAnalysis() {
         result,
         uploadedImageId,
         lowConfidence,
+        unreadable,
         error: null,
       }));
 
-      return result?.readings ? { readings: result.readings, confident } : null;
+      return outcome;
     } catch (error) {
       // A cancelled analysis is the user moving on, not a failure to report.
       if (error instanceof Error && error.name === 'AbortError') return null;
@@ -202,6 +288,15 @@ export function useCameraAnalysis() {
    */
   const dismissLowConfidence = useCallback(() => {
     setState((prev) => ({ ...prev, lowConfidence: false }));
+  }, []);
+
+  /**
+   * The user has acknowledged "we couldn't read this photo" and is moving on
+   * to manual entry. Unlike `dismissLowConfidence`, there are no values to
+   * offer here — this only clears the flag.
+   */
+  const dismissUnreadable = useCallback(() => {
+    setState((prev) => ({ ...prev, unreadable: false }));
   }, []);
 
   /**
@@ -244,5 +339,6 @@ export function useCameraAnalysis() {
     save,
     reset,
     dismissLowConfidence,
+    dismissUnreadable,
   };
 }

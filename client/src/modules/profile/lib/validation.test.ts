@@ -44,6 +44,18 @@ describe('validateProfile', () => {
     expect(validateProfile(form({ phone: '0812' }), NOW).phone).toBeDefined();
   });
 
+  /*
+   * This screen shares `isValidPhone` with the auth forms deliberately — the
+   * two write the same column, and a profile form stricter than the register
+   * form makes an account unable to re-save the number it signed up with. The
+   * rule was `{9,10}` against a gateway `{9,15}`, so the assertion is that the
+   * widening reached here and not just the sign-in path.
+   */
+  it('accepts the international lengths the gateway accepts', () => {
+    expect(validateProfile(form({ phone: '66812345678' }), NOW).phone).toBeUndefined();
+    expect(validateProfile(form({ phone: '123456789012345' }), NOW).phone).toBeUndefined();
+  });
+
   it('rejects a future date of birth', () => {
     const tomorrow = new Date(NOW.getTime() + 86_400_000);
 

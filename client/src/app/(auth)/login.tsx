@@ -12,7 +12,7 @@ import { View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
 import { TextField } from '@/components/ui/text-field';
-import { useGoogleSignIn, useLogin } from '@/modules/auth';
+import { GOOGLE_SIGN_IN_ENABLED, useGoogleSignIn, useLogin } from '@/modules/auth';
 import { AlternateSignIn } from '@/modules/auth/components/alternate-sign-in';
 import { AuthErrorBanner } from '@/modules/auth/components/auth-error-banner';
 import { AuthShell } from '@/modules/auth/components/auth-shell';
@@ -24,7 +24,7 @@ import {
   type LastLoginMethod,
 } from '@/modules/auth/lib/last-login-method';
 import { validateLogin, type FieldErrors, type LoginField } from '@/modules/auth/lib/validation';
-import { isPasskeyAvailableOnDevice, usePasskeySignIn } from '@/modules/security';
+import { PASSKEY_ENABLED, isPasskeyAvailableOnDevice, usePasskeySignIn } from '@/modules/security';
 import { useAuthStore } from '@/stores';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
 
@@ -170,8 +170,12 @@ export default function LoginScreen() {
         // Both are omitted rather than disabled when unavailable: a greyed-out
         // "sign in with Passkey" on a phone with no screen lock is a dead end
         // the user cannot resolve from this screen.
+        // `PASSKEY_ENABLED` is off until the RP-ID / signing-key / domain /
+        // package-name configuration lands; see `modules/security/lib/feature-flags.ts`.
+        // Omitting the handler is enough — `AlternateSignIn` drops the row it
+        // has no handler for, and drops itself when no method survives.
         onPasskey={
-          isPasskeyAvailableOnDevice()
+          PASSKEY_ENABLED && isPasskeyAvailableOnDevice()
             ? () => {
                 void passkey.signInWithPasskey().then(
                   () => router.replace('/(tabs)'),
@@ -181,8 +185,12 @@ export default function LoginScreen() {
               }
             : undefined
         }
+        // `GOOGLE_SIGN_IN_ENABLED` is off by product decision, not a missing
+        // configuration — see `modules/auth/lib/feature-flags.ts`. Both
+        // conditions are checked because flipping the flag back on must not
+        // by itself offer sign-in on a build with no client ID configured.
         onGoogle={
-          isGoogleSignInConfigured()
+          GOOGLE_SIGN_IN_ENABLED && isGoogleSignInConfigured()
             ? () => {
                 void google.signInWithGoogle().then(
                   () => router.replace('/(tabs)'),

@@ -89,7 +89,11 @@ beforeEach(() => {
   mockAnalyzeImage.mockReset();
   mockCreateReading.mockReset();
 
-  mockReadBpFromImage.mockResolvedValue({ unavailable: true, reason: 'no-module' });
+  mockReadBpFromImage.mockResolvedValue({
+    unavailable: true,
+    reason: 'module-unavailable',
+    platformUnsupported: true,
+  });
   mockAnalyzeImage.mockResolvedValue(outcome(0.9));
   mockCreateReading.mockResolvedValue('reading-1');
   mockReadings.isSaving = false;
@@ -158,8 +162,12 @@ describe('reading on this device', () => {
     expect(view.result.current.lowConfidence).toBe(false);
   });
 
-  it('falls through to manual entry when there is no detector', async () => {
-    mockReadBpFromImage.mockResolvedValue({ unavailable: true, reason: 'model-load-failed' });
+  it('falls through to manual entry silently when this platform has no on-device engine at all', async () => {
+    mockReadBpFromImage.mockResolvedValue({
+      unavailable: true,
+      reason: 'module-unavailable',
+      platformUnsupported: true,
+    });
 
     const view = await renderHook(() => useCameraAnalysis());
     let read;
@@ -167,14 +175,46 @@ describe('reading on this device', () => {
       read = await view.result.current.readOnDevice(IMAGE_URI);
     });
 
-    // `null`, and crucially *not* an error: an unavailable OCR is a missing
-    // optimisation, not a failure the patient has to acknowledge.
+    // `null`, and crucially *not* an error: this is the expected, every-time
+    // outcome on iOS / web / Expo Go, not a failure the patient has to
+    // acknowledge.
     expect(read).toBeNull();
     expect(view.result.current.error).toBeNull();
     expect(view.result.current.result).toBeNull();
+    expect(view.result.current.unreadable).toBe(false);
     // Back to idle, or the preview chip sits on "กำลังอ่านค่าในเครื่อง..."
     // forever after we have given up.
     expect(view.result.current.phase).toBe('idle');
+  });
+
+  it('tells the user when the engine ran on this photo and found nothing', async () => {
+    // `platformUnsupported: false` — this is Android, the engine is present,
+    // it ran on this specific photo, and it could not produce a reading
+    // (model load, no monitor found, unreadable digits, ...). Unlike the
+    // platform-absence case above, this is worth surfacing.
+    mockReadBpFromImage.mockResolvedValue({
+      unavailable: true,
+      reason: 'model-load-failed',
+      platformUnsupported: false,
+    });
+
+    const view = await renderHook(() => useCameraAnalysis());
+    let read;
+    await act(async () => {
+      read = await view.result.current.readOnDevice(IMAGE_URI);
+    });
+
+    // Still no prefill and still not routed through `error` — this is a
+    // distinct concept from a transport failure, same as `lowConfidence`.
+    expect(read).toBeNull();
+    expect(view.result.current.error).toBeNull();
+    expect(view.result.current.unreadable).toBe(true);
+    expect(view.result.current.lowConfidence).toBe(false);
+    expect(view.result.current.result?.status).toBe('unreadable');
+    // `done`, not `idle`: the offline branch opens the entry sheet
+    // unconditionally on completion, and the sheet needs `phase !== 'idle'`
+    // style signals to be coherent with what it is showing.
+    expect(view.result.current.phase).toBe('done');
   });
 
   it('reports the reading phase while the on-device pass runs', async () => {
@@ -189,7 +229,7 @@ describe('reading on this device', () => {
     expect(view.result.current.phase).toBe('reading');
 
     await act(async () => {
-      settle({ unavailable: true, reason: 'no-module' });
+      settle({ unavailable: true, reason: 'module-unavailable', platformUnsupported: true });
     });
   });
 });
@@ -301,12 +341,41 @@ describe('reading through the backend', () => {
       read = await view.result.current.analyze(IMAGE_URI);
     });
 
-    expect(read).toBeNull();
+    // Not `null` — the job still completed, it just found nothing. `null` is
+    // reserved for "nothing settled here at all" (aborted / hard-failed), so
+    // the screen's `onSettled` callback can tell a genuinely
+    // finished-but-empty result apart from a request it should not react to
+    // (see `startCaptureFlow`).
+    expect(read).toEqual({ confident: false, readings: null });
     // An unreadable photo is still an uploaded photo, and the id has to
     // survive or the drain uploads the same bytes a second time.
     expect(view.result.current.uploadedImageId).toBe(42);
     expect(view.result.current.lowConfidence).toBe(false);
+    expect(view.result.current.unreadable).toBe(true);
     expect(view.result.current.error).toBeNull();
+  });
+
+  it('treats a job with no result object at all as unsettled, not as unreadable', async () => {
+    // Defensive-only: the gateway should never send a `done` job with no
+    // `result` field. If it somehow did, this must not be confused with a
+    // genuinely completed-but-empty (`unreadable`) analysis — the caller's
+    // `onSettled` relies on `null` here to mean "nothing to react to."
+    mockAnalyzeImage.mockResolvedValue({
+      job: { jobId: 'job-1', status: 'done' as const },
+      result: null,
+      uploadedUrl: 'https://s3.example/bp/capture-1.jpg',
+      uploadedImageId: 42,
+    });
+
+    const view = await renderHook(() => useCameraAnalysis());
+    let read;
+    await act(async () => {
+      read = await view.result.current.analyze(IMAGE_URI);
+    });
+
+    expect(read).toBeNull();
+    expect(view.result.current.unreadable).toBe(false);
+    expect(view.result.current.phase).toBe('done');
   });
 
   it('surfaces a transport failure as a message, never as a thrown error', async () => {
@@ -355,6 +424,31 @@ describe('reading through the backend', () => {
     // A retry that inherits the previous error shows a failure banner over a
     // successful read.
     expect(view.result.current.error).toBeNull();
+    expect(view.result.current.phase).toBe('done');
+  });
+
+  it('clears a previous unreadable flag once a new analysis produces real numbers', async () => {
+    mockAnalyzeImage.mockResolvedValueOnce({
+      job: { jobId: 'job-1', status: 'done' as const },
+      result: { ...analysisResult(0.9, null), status: 'unreadable' as const },
+      uploadedUrl: 'https://s3.example/bp/capture-1.jpg',
+      uploadedImageId: 42,
+    });
+
+    const view = await renderHook(() => useCameraAnalysis());
+    await act(async () => {
+      await view.result.current.analyze(IMAGE_URI);
+    });
+    expect(view.result.current.unreadable).toBe(true);
+
+    mockAnalyzeImage.mockResolvedValue(outcome(0.9));
+    await act(async () => {
+      await view.result.current.analyze(IMAGE_URI);
+    });
+
+    // A retake that reads fine must not leave the previous photo's "couldn't
+    // read this" banner sitting over a perfectly good result.
+    expect(view.result.current.unreadable).toBe(false);
     expect(view.result.current.phase).toBe('done');
   });
 });
@@ -435,6 +529,29 @@ describe('the low-confidence banner', () => {
     // the screen's call, so `result.readings` has to survive the dismissal
     // either way the user answered.
     expect(view.result.current.result?.readings).toEqual(READINGS);
+  });
+});
+
+describe('the unreadable banner', () => {
+  it('dismisses the flag — there are no values to keep, unlike low confidence', async () => {
+    mockAnalyzeImage.mockResolvedValue({
+      job: { jobId: 'job-1', status: 'done' as const },
+      result: { ...analysisResult(0.9, null), status: 'unreadable' as const },
+      uploadedUrl: 'https://s3.example/bp/capture-1.jpg',
+      uploadedImageId: 42,
+    });
+
+    const view = await renderHook(() => useCameraAnalysis());
+    await act(async () => {
+      await view.result.current.analyze(IMAGE_URI);
+    });
+    expect(view.result.current.unreadable).toBe(true);
+
+    await act(async () => {
+      view.result.current.dismissUnreadable();
+    });
+
+    expect(view.result.current.unreadable).toBe(false);
   });
 });
 
