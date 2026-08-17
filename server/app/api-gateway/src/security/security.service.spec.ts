@@ -230,16 +230,72 @@ describe('SecurityService.overview', () => {
     });
   });
 
-  it('counts only sessions that are still active', async () => {
+  it('counts only sessions that are still active and not yet expired', async () => {
     seed({});
     const service = await build({ api: passkeyApi() }, prisma);
     await service.overview(USER_ID);
 
     // Dropping `isActive` would count every session the user ever opened and
-    // tell them a revoked device is still signed in.
+    // tell them a revoked device is still signed in. Dropping the
+    // `expiresAt` gate would keep counting a session whose TTL simply lapsed
+    // — nothing ever flips `isActive` on natural expiry, only an explicit
+    // logout does — inflating the security hub's headline warning forever.
     expect(prisma.userSession.count).toHaveBeenCalledWith({
-      where: { userId: USER_ID, isActive: true },
+      where: {
+        userId: USER_ID,
+        isActive: true,
+        expiresAt: { gt: expect.any(Date) as Date },
+      },
     });
+  });
+
+  it('excludes an expired session from the active count, even though isActive is still true in the row', async () => {
+    // Prisma is mocked everywhere in this suite, so the only way to prove
+    // the `where` clause this service builds actually excludes an expired
+    // row is to evaluate it ourselves against fixture rows, the same
+    // predicate Postgres applies for `isActive` + `expiresAt: { gt }`. If
+    // the `expiresAt` gate is ever dropped from the query, this fixture
+    // still has an `isActive: true` expired row in it and the count comes
+    // back 3 instead of 2.
+    seed({});
+    const rows = [
+      {
+        userId: USER_ID,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      {
+        userId: USER_ID,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 120_000),
+      },
+      // Expired, but never touched by logout — isActive is still true.
+      {
+        userId: USER_ID,
+        isActive: true,
+        expiresAt: new Date(Date.now() - 60_000),
+      },
+    ];
+    prisma.userSession.count.mockImplementation(
+      ({
+        where,
+      }: {
+        where: { userId: string; isActive: boolean; expiresAt: { gt: Date } };
+      }) =>
+        Promise.resolve(
+          rows.filter(
+            (row) =>
+              row.userId === where.userId &&
+              row.isActive === where.isActive &&
+              row.expiresAt.getTime() > where.expiresAt.gt.getTime(),
+          ).length,
+        ),
+    );
+
+    const service = await build({ api: passkeyApi() }, prisma);
+    const result = await service.overview(USER_ID);
+
+    expect(result.activeSessionCount).toBe(2);
   });
 
   it('scopes every read to the caller', async () => {
