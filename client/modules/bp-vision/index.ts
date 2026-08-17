@@ -64,12 +64,22 @@ export async function detectInImage(
  * Run the on-device OCR pipeline. Reports `{ unavailable: true }` rather than
  * throwing when the module is missing, so `capture/lib/ocr/read.ts` stays a
  * pass-through.
+ *
+ * `platformUnsupported` is stamped here, not on the native side: Kotlin has
+ * no notion of "this platform lacks OCR" — by the time it can answer at all,
+ * it does. `true` only on the short-circuit below; every result that came
+ * back from an actual native call is `false`, because reaching that call is
+ * itself proof the engine exists here.
  */
 export async function readBpOnDevice(imageUri: string): Promise<OnDeviceOcrResult> {
   if (!BPVision || typeof BPVision.readBp !== 'function') {
-    return { unavailable: true, reason: 'module-unavailable' };
+    return { unavailable: true, reason: 'module-unavailable', platformUnsupported: true };
   }
-  return BPVision.readBp(imageUri);
+  const result = await BPVision.readBp(imageUri);
+  if ('unavailable' in result && result.unavailable) {
+    return { ...result, platformUnsupported: false };
+  }
+  return result;
 }
 
 /**

@@ -23,7 +23,11 @@ jest.mock(
 // `modules/notifications/lib/schedule-plan.test.ts`. Mocking the hook keeps
 // this file about the screen rather than about expo-notifications.
 const mockReminders = {
-  settings: { enabled: true, intervalHours: 4, selectedDays: [1, 2, 3], startHour: 8, endHour: 20 },
+  settings: {
+    enabled: true,
+    reminderTimes: [{ hour: 8, minute: 0 }, { hour: 14, minute: 0 }, { hour: 20, minute: 0 }],
+    selectedDays: [1, 2, 3],
+  },
   isLoading: false,
 };
 jest.mock('@/modules/notifications', () => ({
@@ -78,10 +82,8 @@ beforeEach(() => {
   jest.spyOn(router, 'push').mockImplementation(() => {});
   mockReminders.settings = {
     enabled: true,
-    intervalHours: 4,
+    reminderTimes: [{ hour: 8, minute: 0 }, { hour: 14, minute: 0 }, { hour: 20, minute: 0 }],
     selectedDays: [1, 2, 3],
-    startHour: 8,
-    endHour: 20,
   };
   mockReminders.isLoading = false;
   mockReadings.current = [{ key: 'k1' }, { key: 'k2' }];
@@ -137,7 +139,7 @@ describe('SettingsScreen', () => {
   it('states the live reminder schedule in the row subtitle', async () => {
     const view = await renderScreen(<SettingsScreen />);
 
-    expect(view.getByText('เตือนทุก 4 ชั่วโมง · เลือกไว้ 3 วัน')).toBeTruthy();
+    expect(view.getByText('เตือนวันละ 3 ครั้ง · เลือกไว้ 3 วัน')).toBeTruthy();
   });
 
   it('says so plainly when reminders are off', async () => {

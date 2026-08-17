@@ -5,8 +5,8 @@
  * auto-capture row, the corner-bracket guide frame with its crosshair and
  * coaching pill, the 88px shutter with its countdown ring, the three-action
  * control row, and the bottom-sheet entry form with its offline /
- * low-confidence / error banners. Copy, radii, and the status colour language
- * are unchanged.
+ * unreadable / low-confidence / error banners. Copy, radii, and the status
+ * colour language are unchanged.
  *
  * What the flow does, in one paragraph, because it is spread across several
  * handlers: a capture (or a gallery pick) is resized, stamped with the moment
@@ -160,6 +160,21 @@ export default function CameraScreen() {
   /** When the photo was taken. This is the measurement time — see `saveReading`. */
   const capturedAtRef = useRef<Date | null>(null);
 
+  /**
+   * Guards the online analysis's `onSettled` callback (see `startCaptureFlow`)
+   * against popping the entry sheet after the user has already left this
+   * screen — an online analysis can run for up to a minute
+   * (`POLL_TIMEOUT_MS`), long enough to navigate away in the meantime. A
+   * same-screen do-over (retake, a new capture) is already handled by
+   * `analyze`'s own abort; this only covers "the screen itself is gone."
+   */
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
@@ -176,12 +191,14 @@ export default function CameraScreen() {
     phase,
     result,
     lowConfidence,
+    unreadable,
     isSaving,
     analyze,
     readOnDevice,
     save,
     reset: resetAnalysis,
     dismissLowConfidence,
+    dismissUnreadable,
   } = useCameraAnalysis();
 
   // ── Live framing gate ─────────────────────────────────────────────────────
@@ -278,6 +295,9 @@ export default function CameraScreen() {
 
   const lowConfidenceReadings = lowConfidence && result?.readings ? result.readings : null;
   const lowConfidencePct = Math.round((result?.confidence ?? 0) * 100);
+  // `PHASE_LABEL`'s 'done' entry covers both "read it" and "found nothing" —
+  // this is the one place that tells the two apart for the pill.
+  const phaseLabel = phase === 'done' && unreadable ? 'อ่านค่าไม่สำเร็จ' : PHASE_LABEL[phase];
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -349,9 +369,31 @@ export default function CameraScreen() {
     }
 
     // Not awaited: the preview and its controls stay live while the backend
-    // works. An uncertain read is left for the banner to offer.
-    void analyze(prepared.uri).then((outcome) => {
-      if (outcome?.confident) applyReading(outcome.readings);
+    // works. Once it settles, open the entry sheet the same way the offline
+    // branch above already does — unconditionally on completion, so a
+    // confident read, a low-confidence one, and a genuinely unreadable one
+    // all land the user on the same sheet the offline path already shows for
+    // all three, which is what already renders the low-confidence /
+    // unreadable banners. `outcome` is `null` for both an aborted analysis
+    // (the user retook or reset — `analyze`'s own `abortRef` already
+    // distinguishes that from a real failure) and a hard failure (network,
+    // timeout — its own recovery banner already owns that case on the
+    // photo-confirm screen); only a completed pipeline reaches here with a
+    // non-null outcome. `isMountedRef` guards only the sheet, not the fill
+    // below: a filled-but-unseen form is harmless, but popping a sheet on a
+    // screen the user has already left is not.
+    //
+    // `onSettled`, not `.then()` on the returned promise: the phase pill
+    // reaching "วิเคราะห์เสร็จแล้ว ✓" and the sheet opening have to read as one
+    // event, and only a callback invoked inside `analyze`'s own synchronous
+    // update — not a `.then()`, which is always a separate microtask — lands
+    // in the same React batch as `phase: 'done'`. See the comment on
+    // `onSettled` in `use-camera-analysis.ts`.
+    void analyze(prepared.uri, {
+      onSettled: (outcome) => {
+        if (outcome?.confident) applyReading(outcome.readings);
+        if (outcome && isMountedRef.current) setShowEntryModal(true);
+      },
     });
   };
 
@@ -405,7 +447,27 @@ export default function CameraScreen() {
       quality: 0.8,
     });
     const asset = picked.assets?.[0];
-    if (picked.canceled || !asset) return;
+    if (picked.canceled || !asset) {
+      // The gallery picker backgrounds the hosting Activity/view while it is
+      // open (a separate system picker on top) and the live preview stays
+      // mounted underneath the whole time — a successful pick does not hit
+      // this, because `startCaptureFlow` swaps the screen to the captured-
+      // image view, and a later retake always remounts the camera fresh.
+      // Recovering the *live* preview after that round trip is nominally
+      // automatic (CameraX / expo-camera resume on the host's lifecycle),
+      // but this exact preview already needed a manual workaround once for
+      // an RN-embedded-view quirk (see `BPVisionCameraView.kt`'s
+      // `requestLayout` override), so an unreported, silent resume failure
+      // here is plausible and nothing else would notice one: `onMountError`
+      // only fires from the very first bind, and the `phase === 'failed'`
+      // banner needs an actual analysis attempt neither of which a merely
+      // dead preview triggers. Reusing the same remount `retryCamera()`
+      // already offers the user is cheaper than trying to detect the
+      // failure, at the cost of a brief "กำลังเปิดกล้อง..." reopen on every
+      // cancel even when the preview was fine.
+      retryCamera();
+      return;
+    }
     await startCaptureFlow(asset.uri, asset.width, asset.height);
   };
 
@@ -1032,7 +1094,7 @@ export default function CameraScreen() {
               <View className="absolute left-0 right-0 top-20 items-center">
                 <View
                   accessibilityLiveRegion="polite"
-                  accessibilityLabel={PHASE_LABEL[phase]}
+                  accessibilityLabel={phaseLabel}
                   className="flex-row items-center gap-2 rounded-full border px-3.5 py-2"
                   style={{
                     backgroundColor: colors.surface,
@@ -1044,7 +1106,7 @@ export default function CameraScreen() {
                     style={{
                       backgroundColor:
                         phase === 'done'
-                          ? statusColor.normal
+                          ? (unreadable ? statusColor.elevated : statusColor.normal)
                           : phase === 'failed'
                             ? statusColor.high
                             : phase === 'queued'
@@ -1053,7 +1115,7 @@ export default function CameraScreen() {
                     }}
                   />
                   <ThemedText type="label">
-                    {PHASE_LABEL[phase]}
+                    {phaseLabel}
                   </ThemedText>
                 </View>
 
@@ -1290,6 +1352,60 @@ export default function CameraScreen() {
                       <ThemedText type="caption" weight="semibold" className="flex-1" style={{ color: statusColor.high }}>
                         {saveError}
                       </ThemedText>
+                    </View>
+                  ) : null}
+
+                  {/* The engine ran and genuinely found nothing — no values to
+                      offer, unlike the low-confidence banner below, so a
+                      single acknowledgement is the whole action set. Same
+                      structural shape (icon + headline + detail + action row)
+                      as that banner, kept in the same amber "reading quality"
+                      family rather than the red used for a hard failure:
+                      nothing broke, the photo just did not yield digits. */}
+                  {unreadable ? (
+                    <View
+                      accessibilityLiveRegion="polite"
+                      className="mb-3 rounded-xl px-3.5 py-3"
+                      style={{
+                        backgroundColor: 'rgba(243,156,18,0.12)',
+                        borderWidth: 1,
+                        borderColor: statusColor.elevated,
+                      }}
+                    >
+                      <View className="mb-1 flex-row items-center">
+                        <Ionicons
+                          name="alert-circle-outline"
+                          size={18}
+                          color="#B97400"
+                          style={{ marginRight: 8 }}
+                        />
+                        <ThemedText type="body" weight="semibold" style={{ color: '#7A4E00' }}>
+                          อ่านค่าจากภาพนี้ไม่ได้
+                        </ThemedText>
+                      </View>
+                      <ThemedText type="caption" className="mb-3" style={{ color: 'rgba(122,78,0,0.92)' }}>
+                        ระบบมองไม่เห็นตัวเลขบนหน้าจอเครื่องวัดในภาพนี้
+                        กรุณากรอกค่า SYS / DIA / ชีพจรด้วยตนเอง
+                      </ThemedText>
+                      <TapScale
+                        onPress={dismissUnreadable}
+                        className="overflow-hidden rounded-lg"
+                        accessibilityRole="button"
+                        accessibilityLabel="เข้าใจแล้ว กรอกค่าด้วยตนเอง"
+                      >
+                        <View
+                          className="items-center px-3 py-2"
+                          style={{
+                            backgroundColor: '#FFF4E0',
+                            borderWidth: 1,
+                            borderColor: 'rgba(217,119,6,0.45)',
+                          }}
+                        >
+                          <ThemedText type="caption" weight="semibold" style={{ color: '#7A4E00' }}>
+                            เข้าใจแล้ว กรอกด้วยตนเอง
+                          </ThemedText>
+                        </View>
+                      </TapScale>
                     </View>
                   ) : null}
 

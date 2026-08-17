@@ -6,6 +6,11 @@
  * and a list with an Add button teaches nobody. So the empty state carries the
  * pitch in plain Thai, and the rows say the one thing that actually differs
  * between credentials — whether losing this phone loses the passkey.
+ *
+ * All of that is behind `PASSKEY_ENABLED`, which is off. The route stays
+ * registered in `_layout.tsx` — a deep link, a stale back-stack entry, or a
+ * notification can still land here with every row that points at it hidden —
+ * so the screen closes itself rather than the router pretending it is gone.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
@@ -17,6 +22,7 @@ import { GradientButton } from '@/components/ui/gradient-button';
 import { useTheme } from '@/hooks/use-theme';
 import { formatAuthError } from '@/modules/auth';
 import {
+  PASSKEY_ENABLED,
   isPasskeyAvailableOnDevice,
   useDeletePasskey,
   usePasskeys,
@@ -28,7 +34,57 @@ import {
 } from '@/modules/security';
 import type { Passkey } from '@/modules/security';
 
+/**
+ * The gate is a separate component from the manager, not an early return
+ * inside it. `PasskeysManager`'s hooks fetch the security overview and the
+ * passkey list on mount, and a feature nobody can reach must not keep asking
+ * the server about itself.
+ */
 export default function PasskeysScreen() {
+  if (!PASSKEY_ENABLED) return <PasskeysUnavailable />;
+
+  return <PasskeysManager />;
+}
+
+/**
+ * Reachable only by deep link or a stale back-stack entry, so it says the
+ * feature is not open yet rather than reporting an error — nothing has gone
+ * wrong and there is nothing for the user to fix.
+ *
+ * It keeps `SecurityHeader`, because the one thing this screen must do is let
+ * someone leave it. Same card as `Explainer` below: `rounded-2xl`, the surface
+ * colour, and the same spacing, so a screen the user did not expect still
+ * looks like part of the app.
+ */
+function PasskeysUnavailable() {
+  const colors = useTheme();
+
+  return (
+    <GradientBackground>
+      <View className="flex-1">
+        <SecurityHeader title="Passkey" subject="self" />
+
+        <View className="flex-1 px-4">
+          <View
+            className="mt-2 rounded-2xl p-5"
+            style={{ backgroundColor: colors.surface }}
+            accessibilityLiveRegion="polite"
+          >
+            <ThemedText type="bodyLarge" weight="bold">
+              ยังไม่เปิดให้ใช้งาน
+            </ThemedText>
+            <ThemedText type="body" weight="regular" themeColor="text-secondary" className="mt-2">
+              การเข้าสู่ระบบด้วย Passkey กำลังอยู่ระหว่างเตรียมความพร้อม
+              ตอนนี้ใช้รหัสผ่านเข้าสู่ระบบได้ตามปกติ
+            </ThemedText>
+          </View>
+        </View>
+      </View>
+    </GradientBackground>
+  );
+}
+
+function PasskeysManager() {
   const colors = useTheme();
   const { overview } = useSecurityOverview();
   const { passkeys, isLoading, refetch } = usePasskeys();

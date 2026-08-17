@@ -37,7 +37,7 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, TextInput, View } from 'react-native';
+import { Alert, ScrollView, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
@@ -141,6 +141,21 @@ export default function ProfileScreen() {
   const phoneChanged =
     stripPhoneDigits(form?.phone ?? '') !== stripPhoneDigits(user?.phone ?? '');
 
+  /**
+   * Same action sheet as `auth/components/avatar-picker.tsx`'s register-form
+   * picker, copy included — `useProfileAvatar` already implements both
+   * sources (`change-avatar.ts`'s `AvatarSource`), so this screen only needed
+   * to offer the choice `ProfileHero`'s single `onChangeAvatar` callback was
+   * hiding behind a hardcoded `'library'`.
+   */
+  const openAvatarPicker = () => {
+    Alert.alert('เลือกรูปโปรไฟล์', 'กรุณาเลือกวิธีการ', [
+      { text: 'ถ่ายภาพ', onPress: () => void avatar.changeAvatar('camera') },
+      { text: 'เลือกรูปจากแกลเลอรี', onPress: () => void avatar.changeAvatar('library') },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
   return (
     <GradientBackground>
       <View className="flex-1">
@@ -157,7 +172,7 @@ export default function ProfileScreen() {
             avatarUri={avatar.localPreview ?? user?.avatar}
             role={user?.role}
             isUploading={avatar.isUploading}
-            onChangeAvatar={() => void avatar.changeAvatar('library')}
+            onChangeAvatar={openAvatarPicker}
           />
 
           {avatar.error ? (

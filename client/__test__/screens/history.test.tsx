@@ -75,9 +75,12 @@ jest.mock('@/modules/readings', () => ({
 // join the screen actually performs.
 const remindersOff = {
   enabled: false,
-  intervalHours: 4,
-  startHour: 7,
-  endHour: 19,
+  reminderTimes: [
+    { hour: 7, minute: 0 },
+    { hour: 11, minute: 0 },
+    { hour: 15, minute: 0 },
+    { hour: 19, minute: 0 },
+  ],
   selectedDays: [0, 1, 2, 3, 4, 5, 6],
   soundId: 'voice1' as const,
 };

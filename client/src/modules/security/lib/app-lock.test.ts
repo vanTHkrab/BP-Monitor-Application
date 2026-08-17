@@ -151,16 +151,17 @@ describe('getBiometricCapability', () => {
     await expect(getBiometricCapability()).resolves.toEqual({ available: true, kind, label });
   });
 
-  it('prefers face over fingerprint when both are enrolled', async () => {
-    // Ordering is the invariant, not the mere presence of a label: a device
-    // with both should name the faster modality in the prompt.
+  // Reversed by explicit user decision: fingerprint over face. Ordering is
+  // the invariant under test, not the mere presence of a label — a device
+  // enrolling both should name fingerprint in the prompt, not face.
+  it('prefers fingerprint over face when both are enrolled', async () => {
     mockSupportedTypes.mockResolvedValue([
-      AuthenticationType.FINGERPRINT,
       AuthenticationType.FACIAL_RECOGNITION,
+      AuthenticationType.FINGERPRINT,
       AuthenticationType.IRIS,
     ]);
 
-    await expect(getBiometricCapability()).resolves.toMatchObject({ kind: 'face' });
+    await expect(getBiometricCapability()).resolves.toMatchObject({ kind: 'fingerprint' });
   });
 
   it('prefers fingerprint over iris', async () => {

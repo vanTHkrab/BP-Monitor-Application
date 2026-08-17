@@ -2,7 +2,7 @@
 title: "Client: the caregiver role"
 description: How the caregiver role works end to end, the permission model, and what is still open.
 status: current
-updated: 2026-08-12
+updated: 2026-08-17
 owner: client
 ---
 
@@ -708,10 +708,19 @@ object, and `app/patient-health.tsx`, which is a separate screen rather than
 `app/profile.tsx` with inputs hidden. Sharing that form would leave
 `firstname`, `lastname`, `phone` and the avatar one render condition away from
 the wire. What *is* shared is the vocabulary — `GENDER_OPTIONS`,
-`formatBirthday`, `ProfileField`, `DateField`, `validateMeasurement`,
-`validateDob`, now in `modules/profile/lib/display.ts` and
-`.../validation.ts` — because two screens writing the same column must not
-name or validate it differently.
+`formatBirthday`, `ProfileField` and `DateField` in
+`modules/profile/lib/display.ts` and `modules/profile/components/`, and the
+bounds plus `validateMeasurement` / `validateDob` /
+`validateCongenitalDisease` in **`src/lib/health-validation.ts`** — because
+two screens writing the same column must not name or validate it differently.
+
+The validators moved out of `modules/profile/lib/validation.ts` (which
+re-exports them, so nothing that already imported them from there changed)
+once the **sign-up** form became a third writer of the same columns. It could
+not import them from profile: `modules/profile/lib/validation.ts` imports
+`isValidPhone` from `modules/auth/lib/validation.ts`, so a back-reference
+would have closed a cycle between the two modules. The neutral module imports
+nothing, so nothing can cycle through it.
 
 #### Two of the five cannot be read back, and that shapes the form
 

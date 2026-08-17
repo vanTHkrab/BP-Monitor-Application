@@ -182,14 +182,15 @@ describe('hydrate', () => {
     expect(read().capability).toEqual({ available: true, kind, label });
   });
 
-  it('prefers the face label when a device offers both', async () => {
+  // Reversed by explicit user decision: fingerprint over face when a device
+  // enrolls both. The prompt itself shows whatever the OS picks, but the
+  // settings row names one thing, and fingerprint is the one asked for.
+  it('prefers the fingerprint label when a device offers both', async () => {
     device({ stored: 'true', types: [FINGERPRINT, FACE] });
 
     await hydrate();
 
-    // The prompt shows whatever the OS picks, but the settings row names one
-    // thing; naming the weaker of the two reads as wrong on a Face-ID phone.
-    expect(read().capability?.kind).toBe('face');
+    expect(read().capability?.kind).toBe('fingerprint');
   });
 
   it('still reports an enrolled PIN as usable', async () => {

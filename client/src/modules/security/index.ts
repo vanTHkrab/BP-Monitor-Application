@@ -20,6 +20,11 @@ export {
 } from './hooks/use-passkeys';
 export { useSecurityOverview } from './hooks/use-security-overview';
 
+/**
+ * Off, and deliberately not deleted — the file says what has to be true before
+ * it goes back to `true`. Screens read it to close the ways in to passkeys.
+ */
+export { PASSKEY_ENABLED } from './lib/feature-flags';
 export {
   biometricErrorMessage,
   getBiometricCapability,

@@ -38,7 +38,7 @@ export default function OnboardingPhoneScreen() {
       return;
     }
     if (!isValidPhone(digits)) {
-      setFieldError('เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก');
+      setFieldError('เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-15 หลัก');
       return;
     }
 

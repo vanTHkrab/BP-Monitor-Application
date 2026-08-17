@@ -4,16 +4,16 @@
  * Ported from client-old's `buildReminderTimelineForDate`
  * (`utils/reminders.ts`), with one substantive change and two contract ones.
  *
- * **The rounds come from `planReminders`, not from `settings.intervalHours`.**
- * client-old had no notification budget, so its timeline could read the
- * requested interval straight off the settings. This tree thins the schedule
- * when a week of reminders would not fit the OS's 64-notification ceiling
- * (see `schedule-plan.ts`), so the requested interval and the interval that
- * actually fires are not always the same value. Building rounds from the
- * request would put 09:00 on screen on a schedule that fires 07:00 / 11:00,
- * and then mark it "ค้างวัด" — telling a patient they missed a reminder that
- * was never sent. Deriving from the plan means this screen and the OS queue
- * cannot disagree, because they are the same function.
+ * **The rounds come from `planReminders`, not from `settings.reminderTimes`
+ * directly.** client-old had no notification budget, so its timeline could
+ * read the requested times straight off the settings. This tree caps the
+ * schedule when a week of reminders would not fit the OS's 64-notification
+ * ceiling (see `schedule-plan.ts`), so the requested times and the times that
+ * actually fire are not always the same set. Building rounds from the
+ * request would put a capped-away time on screen and then mark it "ค้างวัด"
+ * — telling a patient they missed a reminder that was never sent. Deriving
+ * from the plan means this screen and the OS queue cannot disagree, because
+ * they are the same function.
  *
  * **`now` is a parameter, not `new Date()`.** The completed / missed /
  * upcoming split is entirely a function of the clock, so the clock has to be
@@ -38,10 +38,10 @@ export type ReminderRoundStatus =
   | 'upcoming';
 
 export type ReminderRound = {
-  /** Stable list key. Local calendar date + hour, so it never shifts on a re-render. */
+  /** Stable list key. Local calendar date + time, so it never shifts on a re-render. */
   key: string;
   scheduledAt: Date;
-  /** `HH:00`, already padded. */
+  /** `HH:mm`, already padded. */
   label: string;
   status: ReminderRoundStatus;
   /** When the matched reading was taken. Absent unless `completed`. */
@@ -80,7 +80,8 @@ function roundKey(scheduledAt: Date): string {
   const month = String(scheduledAt.getMonth() + 1).padStart(2, '0');
   const day = String(scheduledAt.getDate()).padStart(2, '0');
   const hour = String(scheduledAt.getHours()).padStart(2, '0');
-  return `${year}-${month}-${day}:${hour}`;
+  const minute = String(scheduledAt.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}:${hour}:${minute}`;
 }
 
 /**
@@ -101,17 +102,17 @@ export function buildReminderTimeline({
   const dayStart = startOfDay(date);
 
   // `planReminders` already applies every guard — disabled, no selected days,
-  // an interval that does not fit the budget — so this needs none of its own.
-  const hours = planReminders(settings)
+  // a request that does not fit the budget — so this needs none of its own.
+  const times = planReminders(settings)
     .slots.filter((slot) => slot.weekday === dayStart.getDay())
-    .map((slot) => slot.hour)
-    .sort((a, b) => a - b);
+    .map((slot) => ({ hour: slot.hour, minute: slot.minute }))
+    .sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
 
-  if (hours.length === 0) return [];
+  if (times.length === 0) return [];
 
-  const scheduled = hours.map((hour) => {
+  const scheduled = times.map(({ hour, minute }) => {
     const at = new Date(dayStart);
-    at.setHours(hour, 0, 0, 0);
+    at.setHours(hour, minute, 0, 0);
     return at;
   });
 
@@ -156,7 +157,7 @@ export function buildReminderTimeline({
     return {
       key: roundKey(at),
       scheduledAt: at,
-      label: `${String(at.getHours()).padStart(2, '0')}:00`,
+      label: `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`,
       status,
       measuredAt: match?.measuredAt,
       minutesLate: match

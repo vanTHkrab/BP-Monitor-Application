@@ -1,9 +1,18 @@
 /**
  * Reminder settings, and the OS schedule that has to agree with them.
  *
- * Three properties carry the weight here, and none of them is visible in a
+ * Four properties carry the weight here, and none of them is visible in a
  * type:
  *
+ *   - **Every consumer shares one cache entry.** `settings.tsx` (a subtitle)
+ *     and `reminders.tsx` (the edit screen) both call this hook, and used to
+ *     each hold their own `useState` copy with no channel between them —
+ *     saving on one screen left the other showing whatever it read at its own
+ *     original mount. `describe('sharing settings across two consumers')`
+ *     below is the regression test for exactly that bug: it mounts the hook
+ *     twice under one `QueryClient`, the shape every real screen pair shares
+ *     via `app/_layout.tsx`, and asserts the second instance sees an update
+ *     made through the first.
  *   - **Reconcile runs once per user per app session.** The guard is
  *     module-level rather than a ref because two screens read these settings,
  *     and reconciling *cancels before it re-adds*. A per-instance guard would
@@ -52,7 +61,9 @@ jest.mock('../services/reminder-service', () => ({
   sendTestReminder: (...a: unknown[]) => mockSendTestReminder(...a),
 }));
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { createElement, type ReactNode } from 'react';
 
 import {
   actAsSignedOut,
@@ -66,19 +77,21 @@ import {
   type ReminderDiagnostics,
   type ReminderSettings,
 } from '../types';
-import { resetReminderReconciliation, useReminderSettings } from './use-reminder-settings';
+import {
+  reminderSettingsQueryKey,
+  resetReminderReconciliation,
+  useReminderSettings,
+} from './use-reminder-settings';
 
 const ENABLED_SETTINGS: ReminderSettings = {
   ...DEFAULT_REMINDER_SETTINGS,
   enabled: true,
-  intervalHours: 4,
-  startHour: 8,
-  endHour: 20,
+  reminderTimes: [{ hour: 8, minute: 0 }, { hour: 20, minute: 30 }],
   selectedDays: [1, 2, 3, 4, 5],
   soundId: 'voice2',
 };
 
-const PLAN: ReminderPlan = { slots: [], effectiveIntervalHours: 4, thinned: false };
+const PLAN: ReminderPlan = { slots: [], requestedCount: 0, thinned: false };
 
 const diagnostics = (overrides: Partial<ReminderDiagnostics> = {}): ReminderDiagnostics => ({
   permission: 'granted',
@@ -86,6 +99,16 @@ const diagnostics = (overrides: Partial<ReminderDiagnostics> = {}): ReminderDiag
   reason: 'พร้อมแจ้งเตือน',
   ...overrides,
 });
+
+// One shared client per test, mirroring the single `QueryClientProvider`
+// `app/_layout.tsx` mounts for the whole app — every screen in production
+// reads this hook against that one cache, so a test that gave each
+// `renderHook` call its own client would not be able to catch the bug this
+// file exists to guard against.
+let client: QueryClient;
+
+const wrapper = ({ children }: { children: ReactNode }) =>
+  createElement(QueryClientProvider, { client }, children);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -111,10 +134,19 @@ beforeEach(() => {
   // The reconcile guard is module state and survives between tests in this
   // file — without this, every test after the first sees "already reconciled".
   resetReminderReconciliation();
+
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
+  });
+});
+
+afterEach(() => {
+  client.cancelQueries();
+  client.clear();
 });
 
 const mountSettled = async () => {
-  const view = await renderHook(() => useReminderSettings());
+  const view = await renderHook(() => useReminderSettings(), { wrapper });
   await waitFor(() => expect(view.result.current.isLoading).toBe(false));
   return view;
 };
@@ -338,7 +370,10 @@ describe('editing settings that are already on', () => {
     await waitFor(() => expect(view.result.current.settings.enabled).toBe(true));
 
     await act(async () => {
-      await view.result.current.update({ ...ENABLED_SETTINGS, intervalHours: 6 });
+      await view.result.current.update({
+        ...ENABLED_SETTINGS,
+        reminderTimes: [{ hour: 6, minute: 0 }],
+      });
     });
 
     // The negative that matters: asking at a moment the user cannot connect
@@ -346,7 +381,7 @@ describe('editing settings that are already on', () => {
     expect(mockRequestReminderPermission).not.toHaveBeenCalled();
     expect(mockApplyReminderSchedule).toHaveBeenCalledWith({
       ...ENABLED_SETTINGS,
-      intervalHours: 6,
+      reminderTimes: [{ hour: 6, minute: 0 }],
     });
   });
 
@@ -487,6 +522,114 @@ describe('refreshing diagnostics on demand', () => {
     // app is backgrounded, and this is the only way back to the truth.
     expect(view.result.current.diagnostics).toEqual(
       diagnostics({ scheduledCount: 12, reason: 'ตั้งเวลาไว้ 12 รายการ' }),
+    );
+  });
+});
+
+/**
+ * The regression this whole file exists to guard against: `settings.tsx`'s
+ * subtitle and `reminders.tsx`'s switch used to be two independent
+ * `useState` copies, so saving on one screen left the other showing whatever
+ * it read at its own original mount — specifically wrong the moment Expo
+ * Router's stack keeps the settings screen mounted underneath while
+ * `reminders.tsx` is pushed on top. Every test above this point would have
+ * passed against that broken version too, because each one only ever mounts
+ * the hook once. These mount it twice under the one shared `QueryClient`
+ * every real screen pair reads through `app/_layout.tsx`, which is the only
+ * arrangement that can catch the bug at all.
+ */
+describe('sharing settings across two consumers', () => {
+  it('reflects an update made through one instance on a second, already-mounted instance', async () => {
+    const settingsRow = await mountSettled();
+    const editScreen = await mountSettled();
+
+    expect(settingsRow.result.current.settings.enabled).toBe(false);
+    expect(editScreen.result.current.settings.enabled).toBe(false);
+
+    await act(async () => {
+      await editScreen.result.current.update(ENABLED_SETTINGS);
+    });
+
+    // The edit screen sees its own write immediately — this alone would also
+    // pass against the old `useState` version, so it is not the interesting
+    // assertion here.
+    expect(editScreen.result.current.settings).toEqual(ENABLED_SETTINGS);
+
+    // The settings row never called `update` itself. Under the old
+    // `useState` hook this stays `false` forever, because nothing tells that
+    // instance's own state that the other one wrote. This is the assertion
+    // that would have failed before the fix.
+    await waitFor(() =>
+      expect(settingsRow.result.current.settings).toEqual(ENABLED_SETTINGS),
+    );
+  });
+
+  it('reflects an update in whichever order the two screens mounted', async () => {
+    // `reminders.tsx` opens first, `settings.tsx` is still underneath in the
+    // router stack from before. The fix cannot depend on which one happened
+    // to mount first.
+    const editScreen = await mountSettled();
+    await act(async () => {
+      await editScreen.result.current.update(ENABLED_SETTINGS);
+    });
+
+    const settingsRow = await mountSettled();
+
+    await waitFor(() =>
+      expect(settingsRow.result.current.settings).toEqual(ENABLED_SETTINGS),
+    );
+  });
+
+  /*
+   * `reconciledUserId` is only ever set inside the mount effect's own
+   * branch — `update()` applies a schedule unconditionally and does not
+   * touch the guard. That is unchanged from before this file's rewrite: a
+   * screen that mounts fresh *after* a live `update()` call (rather than
+   * after a natural mount that already observed `enabled: true` from
+   * storage) still finds `reconciledUserId` unset and reconciles once more.
+   * Pre-existing, not a regression introduced by moving `settings` into
+   * TanStack Query — asserted here as a documented characteristic rather
+   * than silently relied on or silently "fixed" by widening what the guard
+   * means, which the guard's own module comment says not to do.
+   */
+  it('reconciles once more when a fresh instance mounts after a live update, same as before this rewrite', async () => {
+    const editScreen = await mountSettled();
+    await act(async () => {
+      await editScreen.result.current.update(ENABLED_SETTINGS);
+    });
+    expect(mockApplyReminderSchedule).toHaveBeenCalledTimes(1);
+
+    const settingsRow = await mountSettled();
+    expect(mockApplyReminderSchedule).toHaveBeenCalledTimes(2);
+    // The double registration is a pre-existing inefficiency, not a
+    // correctness bug: both calls schedule the exact same settings, so the
+    // OS ends up with the right notifications either way.
+    expect(settingsRow.result.current.settings).toEqual(ENABLED_SETTINGS);
+  });
+
+  it('keeps a refused permission in sync too, not only a successful save', async () => {
+    mockRequestReminderPermission.mockResolvedValue('denied');
+
+    const settingsRow = await mountSettled();
+    const editScreen = await mountSettled();
+
+    await act(async () => {
+      await editScreen.result.current.update(ENABLED_SETTINGS);
+    });
+
+    // Both instances must agree the switch snapped back to off, not just the
+    // one that touched it.
+    await waitFor(() =>
+      expect(settingsRow.result.current.settings.enabled).toBe(false),
+    );
+    expect(editScreen.result.current.settings.enabled).toBe(false);
+  });
+
+  it('files the two hook instances under the same cache key so there is only one entry to disagree', async () => {
+    const view = await mountSettled();
+
+    expect(client.getQueryData(reminderSettingsQueryKey(SELF.id))).toEqual(
+      view.result.current.settings,
     );
   });
 });
