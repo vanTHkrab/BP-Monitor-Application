@@ -6,12 +6,26 @@
  * colour palette, next to hex values, which is why the palette port
  * (`theme/tokens.js`) left them behind.
  *
- * **The client is not the authority.** `CreateReadingInput.status` is sent by
- * the client and stored by the gateway, so this function decides what gets
- * persisted — but a reading fetched back carries whatever status was stored
- * with it, including one written by an older build with different
- * thresholds. Rendering therefore trusts the stored value; only a *new*
- * reading is classified here.
+ * **The client is not the authority, and no longer pretends to be.** This used
+ * to decide what got persisted: `CreateReadingInput.status` was sent by the
+ * client and stored verbatim. The gateway now re-derives it from the numbers
+ * in `server/app/api-gateway/src/reading/bp-status.ts` and stores its own
+ * answer, so what is sent from here is a hint. A disagreement is corrected
+ * silently — never rejected, because a reading queued offline by an older
+ * build has to be able to sync — and logged server-side.
+ *
+ * What this function is still for is the moment before any of that: offline,
+ * at the instant of measurement, the patient has to be told what 190/125
+ * means without waiting for a network. The mirror then takes the server's
+ * value (`toMirrorRow` reads `created.status`), so a drifted classification
+ * self-corrects on sync.
+ *
+ * **The window that does not self-correct is the one that matters most:** the
+ * colour and words on screen between measuring and syncing. Keep the ladder
+ * below in step with the gateway's copy — treat them as a pair, the way
+ * `capture/lib/detection.ts` and `analyzer/yolo.py` are treated.
+ *
+ * Rendering trusts the stored value; only a *new* reading is classified here.
  */
 import { status as statusColor } from '@/theme';
 import type { BPStatus } from '../types';

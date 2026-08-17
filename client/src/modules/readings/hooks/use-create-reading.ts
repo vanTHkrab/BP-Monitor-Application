@@ -62,8 +62,12 @@ export function useCreateReading() {
           diastolic: input.diastolic,
           pulse: input.pulse,
           measuredAt: input.measuredAt.toISOString(),
-          // The client decides the status that gets persisted; a reading read
-          // back later keeps whatever was stored with it. See `lib/status.ts`.
+          // What the patient is shown until this row syncs, not what gets
+          // persisted — the gateway re-derives the status from the numbers and
+          // stores its own answer (`reading/bp-status.ts`), and the drain
+          // takes that value back from the response. Classified here because
+          // offline there is nobody to ask, and a reading of 190/125 has to
+          // say so at the moment it is taken. See `lib/status.ts`.
           status: classifyReading(input.systolic, input.diastolic),
           notes: input.notes ?? null,
           imageUri: imageUri ?? null,
