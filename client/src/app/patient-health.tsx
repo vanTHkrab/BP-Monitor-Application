@@ -54,7 +54,7 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { GradientBackground } from '@/components/gradient-background';
 import { ThemedText } from '@/components/themed-text';
@@ -223,6 +223,17 @@ export default function PatientHealthScreen() {
       <View className="flex-1">
         <SecurityHeader title="ข้อมูลสุขภาพ" subject="patient" />
 
+        {/*
+          Same split as `app/profile.tsx`: `padding` on iOS, no `behavior` on
+          Android — `adjustResize` already resizes the window there, and
+          `'height'` on top of it double-compensates. Wraps only the
+          scrollable form so the header above it never shifts.
+        */}
+        <KeyboardAvoidingView
+          testID="patient-health-keyboard-avoiding-view"
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="flex-1"
+        >
         <ScrollView
           className="flex-1 px-4"
           showsVerticalScrollIndicator={false}
@@ -416,6 +427,7 @@ export default function PatientHealthScreen() {
 
           <View className="h-10" />
         </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     </GradientBackground>
   );
