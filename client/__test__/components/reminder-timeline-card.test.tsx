@@ -62,9 +62,7 @@ import { renderScreen, within } from '../test-utils';
 const SETTINGS: ReminderSettings = {
   ...DEFAULT_REMINDER_SETTINGS,
   enabled: true,
-  intervalHours: 4,
-  startHour: 8,
-  endHour: 16,
+  reminderTimes: [{ hour: 8, minute: 0 }, { hour: 12, minute: 0 }, { hour: 16, minute: 0 }],
   selectedDays: [0, 1, 2, 3, 4, 5, 6],
 };
 
@@ -73,9 +71,9 @@ const at = (hour: number, minute = 0) => new Date(2026, 0, 15, hour, minute, 0, 
 /** 13:00 — 08:00 is past, 12:00 is past, 16:00 is still ahead. */
 const NOW = at(13);
 
-const ROUND_0800 = 'reminder-round-2026-01-15:08';
-const ROUND_1200 = 'reminder-round-2026-01-15:12';
-const ROUND_1600 = 'reminder-round-2026-01-15:16';
+const ROUND_0800 = 'reminder-round-2026-01-15:08:00';
+const ROUND_1200 = 'reminder-round-2026-01-15:12:00';
+const ROUND_1600 = 'reminder-round-2026-01-15:16:00';
 
 /**
  * `props.style` on these cards is an array — NativeWind's compiled className

@@ -37,7 +37,7 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
@@ -141,11 +141,42 @@ export default function ProfileScreen() {
   const phoneChanged =
     stripPhoneDigits(form?.phone ?? '') !== stripPhoneDigits(user?.phone ?? '');
 
+  /**
+   * Same action sheet as `auth/components/avatar-picker.tsx`'s register-form
+   * picker, copy included — `useProfileAvatar` already implements both
+   * sources (`change-avatar.ts`'s `AvatarSource`), so this screen only needed
+   * to offer the choice `ProfileHero`'s single `onChangeAvatar` callback was
+   * hiding behind a hardcoded `'library'`.
+   */
+  const openAvatarPicker = () => {
+    Alert.alert('เลือกรูปโปรไฟล์', 'กรุณาเลือกวิธีการ', [
+      { text: 'ถ่ายภาพ', onPress: () => void avatar.changeAvatar('camera') },
+      { text: 'เลือกรูปจากแกลเลอรี', onPress: () => void avatar.changeAvatar('library') },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
   return (
     <GradientBackground>
       <View className="flex-1">
         <SecurityHeader title="โปรไฟล์ของฉัน" subject="self" />
 
+        {/*
+          Wraps only the scrollable form, not the header above it — the
+          header has nothing to avoid and shouldn't shift when the keyboard
+          opens. No `behavior` on Android: `AndroidManifest.xml` sets
+          `windowSoftInputMode="adjustResize"` app-wide, so the OS already
+          resizes the window for a focused input — `'height'` on top of that
+          double-compensates. Matches `security/password.tsx` and
+          `camera.tsx`, both of which already made this choice; only
+          `auth-shell.tsx` uses `'height'`, and nothing records why, so it is
+          not treated as the pattern to copy here.
+        */}
+        <KeyboardAvoidingView
+          testID="profile-keyboard-avoiding-view"
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="flex-1"
+        >
         <ScrollView
           className="flex-1 px-4"
           showsVerticalScrollIndicator={false}
@@ -157,7 +188,7 @@ export default function ProfileScreen() {
             avatarUri={avatar.localPreview ?? user?.avatar}
             role={user?.role}
             isUploading={avatar.isUploading}
-            onChangeAvatar={() => void avatar.changeAvatar('library')}
+            onChangeAvatar={openAvatarPicker}
           />
 
           {avatar.error ? (
@@ -369,6 +400,7 @@ export default function ProfileScreen() {
 
           <View className="h-10" />
         </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     </GradientBackground>
   );

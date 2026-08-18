@@ -46,9 +46,23 @@ const mockGoogle = {
     error: null as Error | null,
   },
 };
+/*
+ * `GOOGLE_SIGN_IN_ENABLED` ships `false` — off by product decision, not a
+ * missing configuration; see `modules/auth/lib/feature-flags.ts`. A getter,
+ * not a plain property, for the same reason as `PASSKEY_ENABLED` below: the
+ * screen reads the live binding on every render, and a property would freeze
+ * at whatever this factory returned on first import. This object literal has
+ * no `...jest.requireActual(...)` spread, so — unlike the `@/modules/security`
+ * mock further down — a getter written directly in the literal is safe here;
+ * there is nothing to eagerly read it during construction.
+ */
+const mockGoogleEnabled = { current: false };
 jest.mock('@/modules/auth', () => ({
   useLogin: () => mockLogin.current,
   useGoogleSignIn: () => mockGoogle.current,
+  get GOOGLE_SIGN_IN_ENABLED() {
+    return mockGoogleEnabled.current;
+  },
 }));
 
 const mockGoogleConfigured = { current: true };
@@ -65,6 +79,18 @@ jest.mock('@/modules/auth/lib/last-login-method', () => ({
 }));
 
 const mockPasskeyAvailable = { current: true };
+/*
+ * `PASSKEY_ENABLED` ships `false` — the whole feature is hidden until the
+ * RP-ID / signing-key / domain / package-name configuration lands. It is a
+ * constant, so it is mocked through a *getter*: a plain property would be
+ * captured once when the module factory runs and could not vary per test, and
+ * the screen reads the live binding on every render.
+ *
+ * Kept switchable rather than pinned to `false` so the enabled path stays
+ * covered. A hidden feature whose tests were deleted is a feature that does
+ * not work when someone flips the flag back.
+ */
+const mockPasskeyEnabled = { current: false };
 const mockPasskey = {
   current: {
     signInWithPasskey: jest.fn(),
@@ -73,6 +99,9 @@ const mockPasskey = {
   },
 };
 jest.mock('@/modules/security', () => ({
+  get PASSKEY_ENABLED() {
+    return mockPasskeyEnabled.current;
+  },
   isPasskeyAvailableOnDevice: () => mockPasskeyAvailable.current,
   usePasskeySignIn: () => mockPasskey.current,
 }));
@@ -107,6 +136,10 @@ beforeEach(() => {
   };
   mockGoogleConfigured.current = true;
   mockPasskeyAvailable.current = true;
+  // Matches what ships — both kill switches off. Tests that need either
+  // enabled path opt in explicitly, same discipline for both flags.
+  mockPasskeyEnabled.current = false;
+  mockGoogleEnabled.current = false;
   mockLastUsed.current = null;
   useAuthStore.setState({ endedReason: null });
 });
@@ -242,6 +275,13 @@ describe('LoginScreen — which failure wins the banner', () => {
 });
 
 describe('LoginScreen — the alternate methods', () => {
+  // The state both feature flags are built for, so the device/config checks
+  // below them do not rot while both are switched off.
+  beforeEach(() => {
+    mockPasskeyEnabled.current = true;
+    mockGoogleEnabled.current = true;
+  });
+
   it('offers both when both are available', async () => {
     const view = await renderScreen(<LoginScreen />);
 
@@ -277,6 +317,158 @@ describe('LoginScreen — the alternate methods', () => {
 
     expect(view.queryByTestId('login-passkey')).toBeNull();
     expect(view.queryByTestId('login-google')).toBeNull();
+    expect(view.getByTestId('login-submit')).toBeOnTheScreen();
+  });
+});
+
+/*
+ * `PASSKEY_ENABLED` is off until the RP-ID / signing-key / domain /
+ * package-name configuration lands. This block isolates *its* effect: Google
+ * is deliberately switched on here (`mockGoogleEnabled.current = true`, its
+ * own flag defaults off — see the sibling describe below) so a test failure
+ * in this block can only mean the passkey flag reached further than it
+ * should have.
+ */
+describe('LoginScreen — passkey hidden behind its own flag', () => {
+  beforeEach(() => {
+    mockGoogleEnabled.current = true;
+  });
+
+  it('hides the passkey button even on a device that supports it', async () => {
+    mockPasskeyAvailable.current = true;
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.queryByTestId('login-passkey')).toBeNull();
+  });
+
+  it('leaves Google and the password form untouched', async () => {
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.getByTestId('login-google')).toBeOnTheScreen();
+    expect(view.getByTestId('login-submit')).toBeOnTheScreen();
+    expect(view.getByTestId('login-phone')).toBeOnTheScreen();
+  });
+
+  // The divider belongs to the section, not to the screen, so the section
+  // taking itself out has to take the rule with it.
+  it('keeps the divider while Google still holds the section open', async () => {
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.getByText('หรือ')).toBeOnTheScreen();
+  });
+
+  it('drops the divider once Google is also unavailable, leaving no orphaned rule', async () => {
+    // Reached via the *config* gate here, not the flag — this exercises a
+    // different code path (`isGoogleSignInConfigured()`) than
+    // `GOOGLE_SIGN_IN_ENABLED`, and both have to independently empty the
+    // section for the divider logic to be trustworthy either way.
+    mockGoogleConfigured.current = false;
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.queryByText('หรือ')).toBeNull();
+    expect(view.queryByTestId('login-passkey')).toBeNull();
+    expect(view.queryByTestId('login-google')).toBeNull();
+  });
+
+  /*
+   * A device that signed in with a passkey before this shipped still has
+   * `'passkey'` in device-local storage. Nothing migrates it, and nothing
+   * needs to: the ordering sort no-ops against a key that is not in the list,
+   * and the badge is keyed by identity. What must not happen is Google
+   * inheriting the badge and being presented as the method used last.
+   */
+  it('does not hand the "used last" badge to Google on a stale passkey device', async () => {
+    mockLastUsed.current = 'passkey';
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.queryByText('ใช้ครั้งล่าสุด')).toBeNull();
+    expect(view.getByTestId('login-google')).toHaveProp(
+      'accessibilityLabel',
+      'เข้าสู่ระบบด้วย Google',
+    );
+  });
+});
+
+/*
+ * The mirror image of the block above: isolates `GOOGLE_SIGN_IN_ENABLED`'s
+ * effect by switching passkey on, so a failure here can only mean the Google
+ * flag reached further than it should have. Off by product decision, not a
+ * missing configuration — see `modules/auth/lib/feature-flags.ts`.
+ */
+describe('LoginScreen — Google hidden behind its own flag', () => {
+  beforeEach(() => {
+    mockPasskeyEnabled.current = true;
+  });
+
+  it('hides the Google button even when the build has credentials configured', async () => {
+    mockGoogleConfigured.current = true;
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.queryByTestId('login-google')).toBeNull();
+  });
+
+  it('leaves passkey and the password form untouched', async () => {
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.getByTestId('login-passkey')).toBeOnTheScreen();
+    expect(view.getByTestId('login-submit')).toBeOnTheScreen();
+    expect(view.getByTestId('login-phone')).toBeOnTheScreen();
+  });
+
+  it('keeps the divider while passkey still holds the section open', async () => {
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.getByText('หรือ')).toBeOnTheScreen();
+  });
+
+  /*
+   * The reverse of the passkey block's stale-badge test: a device that used
+   * Google last, before this flag shipped, must not hand that badge to
+   * passkey once Google is the one hidden.
+   */
+  it('does not hand the "used last" badge to passkey on a stale Google device', async () => {
+    mockLastUsed.current = 'google';
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.queryByText('ใช้ครั้งล่าสุด')).toBeNull();
+    expect(view.getByTestId('login-passkey')).toHaveProp(
+      'accessibilityLabel',
+      'เข้าสู่ระบบด้วย Passkey',
+    );
+  });
+});
+
+/*
+ * What actually ships: both flags default `false`, independently of each
+ * other's coverage above. Neither block alone proves the screen still reads
+ * as complete when *both* are off at once — an empty `AlternateSignIn`
+ * returns `null` (see its own test file), and this is the assertion that a
+ * vanished section does not leave the login card looking unfinished.
+ */
+describe('LoginScreen — the shipped default: both alternate methods off', () => {
+  it('offers neither method', async () => {
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.queryByTestId('login-passkey')).toBeNull();
+    expect(view.queryByTestId('login-google')).toBeNull();
+  });
+
+  it('draws no divider for a section with nothing in it', async () => {
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.queryByText('หรือ')).toBeNull();
+  });
+
+  /*
+   * The screen must still read as finished, not truncated. "ลืมรหัสผ่าน?" is
+   * the last thing left below the button, and it is inside the card whose own
+   * padding closes the layout — the `mt-6` that would have dangled belongs to
+   * `AlternateSignIn`'s root, which is gone with it.
+   */
+  it('still ends on the forgot-password link with the section gone entirely', async () => {
+    const view = await renderScreen(<LoginScreen />);
+
+    expect(view.getByTestId('login-forgot-password')).toBeOnTheScreen();
     expect(view.getByTestId('login-submit')).toBeOnTheScreen();
   });
 });

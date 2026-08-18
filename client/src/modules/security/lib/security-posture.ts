@@ -11,6 +11,7 @@
  * account) is worse than any layout mistake here.
  */
 import type { LoginMethod, SecurityOverview } from '../types';
+import { PASSKEY_ENABLED } from './feature-flags';
 
 export type PostureTone = 'good' | 'attention' | 'risk';
 
@@ -43,6 +44,13 @@ export function describeLoginMethod(method?: LoginMethod): string {
 export function assessSecurity(
   overview: SecurityOverview,
   appLockEnabled: boolean,
+  /**
+   * A seam, not a second flag: it defaults to the one constant, and exists so
+   * the suppressed branch below can still be exercised in both states. A test
+   * that could only see the disabled half would let the recommendation rot
+   * while it is switched off.
+   */
+  passkeyEnabled: boolean = PASSKEY_ENABLED,
 ): SecurityPosture {
   const { hasPassword, hasGoogleAccount, passkeyCount, passkeySupported, activeSessionCount } =
     overview;
@@ -62,7 +70,11 @@ export function assessSecurity(
     };
   }
 
-  if (passkeySupported && passkeyCount === 0) {
+  // This branch is itself a passkey entry point — it routes to
+  // `/security/passkeys` — so while `PASSKEY_ENABLED` is off it must not fire.
+  // Falling through to the next check is the right behaviour: the findings
+  // below it are true independently of passkeys.
+  if (passkeyEnabled && passkeySupported && passkeyCount === 0) {
     return {
       tone: 'attention',
       headline: 'เพิ่ม Passkey ให้เข้าง่ายขึ้นได้',

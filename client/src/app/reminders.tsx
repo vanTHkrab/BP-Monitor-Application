@@ -2,21 +2,36 @@
  * Reminder schedule. Ported from the notification section and its modal
  * inside client-old/app/settings.tsx.
  *
- * A route rather than the original's `<Modal>`: the controls are six groups
- * of choices, which is more than fits above a keyboard-free sheet, and a
- * modal that scrolls is a screen wearing a costume. Making it a route also
+ * A route rather than the original's `<Modal>`: the controls are several
+ * groups of choices, which is more than fits above a keyboard-free sheet, and
+ * a modal that scrolls is a screen wearing a costume. Making it a route also
  * gives Android's Back gesture something to do, which the modal swallowed.
  *
- * The screen's one unusual behaviour is the thinning notice. If the requested
- * frequency would exceed what the OS will hold, `planReminders` widens the
- * interval and this screen says so out loud. client-old let the OS silently
- * drop the overflow instead, so a patient who asked to be reminded every two
- * hours simply stopped being reminded after a couple of days and had no way
- * to find out why.
+ * **Reminder times are a free-form, alarm-style list**, not an interval +
+ * hour-window formula. The earlier version asked for "every N hours between
+ * X and Y", which read as a scheduling puzzle rather than "when do you take
+ * your medicine" — this version is "add a time", the same interaction as
+ * setting an alarm, repeated as many times as wanted and each independently
+ * removable.
+ *
+ * The screen's one unusual behaviour is the over-budget notice. iOS holds at
+ * most `SCHEDULED_NOTIFICATION_BUDGET` pending notifications for this app
+ * (see `schedule-plan.ts`), so adding a time or a day that would push
+ * `reminderTimes.length × selectedDays.length` past that ceiling is refused
+ * up front, with an explanation, rather than silently accepted and thinned
+ * later. `plan.thinned` below is the second line of defence for a settings
+ * blob that reached this screen already over budget by some other path (an
+ * older build, storage edited by hand) — client-old let the OS silently drop
+ * the overflow instead, so a patient who asked for more reminders than the
+ * device could hold simply stopped being reminded after a couple of days and
+ * had no way to find out why.
  */
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, {
+  type DateTimePickerChangeEvent,
+} from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
@@ -24,11 +39,12 @@ import { GradientButton } from '@/components/ui/gradient-button';
 import { useTheme } from '@/hooks/use-theme';
 import {
   DAY_OPTIONS,
-  HOUR_OPTIONS,
-  INTERVAL_OPTIONS,
   REMINDER_SOUND_OPTIONS,
+  SCHEDULED_NOTIFICATION_BUDGET,
+  normalizeReminderTimes,
   useReminderSettings,
   type ReminderSettings,
+  type ReminderTime,
 } from '@/modules/notifications';
 import { SecurityHeader } from '@/modules/security';
 import { palette, status as statusColor } from '@/theme';
@@ -37,7 +53,13 @@ export default function RemindersScreen() {
   const colors = useTheme();
   const { settings, plan, diagnostics, isLoading, isSaving, update, sendTest } =
     useReminderSettings();
+  // Read per render, not hoisted to module scope: `Platform.OS` is a getter
+  // and a module-scope constant would freeze whatever it returned at import
+  // time, before a test (or a future platform switch) could change it.
+  const isWeb = Platform.OS === 'web';
   const [notice, setNotice] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [draftTime, setDraftTime] = useState(new Date());
 
   const patch = async (changes: Partial<ReminderSettings>) => {
     setNotice(null);
@@ -79,15 +101,110 @@ export default function RemindersScreen() {
       return;
     }
 
+    if (!has) {
+      // Adding a day, not removing one — the same budget a new time has to
+      // clear applies here too, since it is the same product either way.
+      const nextCount = settings.reminderTimes.length * next.length;
+      if (nextCount > SCHEDULED_NOTIFICATION_BUDGET) {
+        setNotice(
+          `เพิ่มวันนี้ไม่ได้ เครื่องรับการเตือนล่วงหน้าได้ไม่เกิน ${SCHEDULED_NOTIFICATION_BUDGET} ครั้งต่อสัปดาห์ ลดจำนวนเวลาที่ตั้งไว้ก่อนแล้วค่อยเพิ่มวัน`,
+        );
+        return;
+      }
+    }
+
     void patch({ selectedDays: next });
+  };
+
+  const openTimePicker = () => {
+    setDraftTime(new Date());
+    setPickerOpen(true);
+  };
+
+  const addTime = (selected: Date) => {
+    const hour = selected.getHours();
+    const minute = selected.getMinutes();
+
+    const alreadyExists = settings.reminderTimes.some(
+      (time) => time.hour === hour && time.minute === minute,
+    );
+    if (alreadyExists) {
+      setNotice('มีเวลานี้อยู่ในรายการเตือนแล้ว');
+      return;
+    }
+
+    const nextCount = (settings.reminderTimes.length + 1) * settings.selectedDays.length;
+    if (nextCount > SCHEDULED_NOTIFICATION_BUDGET) {
+      setNotice(
+        `เพิ่มเวลานี้ไม่ได้ เครื่องรับการเตือนล่วงหน้าได้ไม่เกิน ${SCHEDULED_NOTIFICATION_BUDGET} ครั้งต่อสัปดาห์ ลดจำนวนเวลาหรือวันที่เลือกไว้ก่อนแล้วค่อยเพิ่ม`,
+      );
+      return;
+    }
+
+    void patch({
+      reminderTimes: normalizeReminderTimes([...settings.reminderTimes, { hour, minute }]),
+    });
+  };
+
+  const removeTime = (time: ReminderTime) => {
+    // Zero reminder times is the same "on, but never" state the day guard
+    // above refuses, and for the same reason: the switch already says that
+    // better than an empty list would.
+    if (settings.reminderTimes.length <= 1) {
+      setNotice('ต้องมีเวลาที่ตั้งไว้อย่างน้อย 1 เวลา ถ้าไม่ต้องการให้เตือน ให้ปิดสวิตช์ด้านบน');
+      return;
+    }
+
+    void patch({
+      reminderTimes: settings.reminderTimes.filter(
+        (existing) => !(existing.hour === time.hour && existing.minute === time.minute),
+      ),
+    });
+  };
+
+  /*
+   * `onChange` is deprecated as of `@react-native-community/datetimepicker`
+   * 9.1.0 in favour of `onValueChange` + `onDismiss` — see the same note in
+   * `modules/profile/components/date-field.tsx`.
+   *
+   * Unlike that field, picking a time here has an immediate side effect
+   * (persisting a new reminder, which can be refused). Android's picker is a
+   * single-shot modal, so its one `onValueChange` call *is* the final choice
+   * and can commit directly. iOS keeps the spinner mounted and fires this
+   * repeatedly while the user scrolls, so committing on every tick there
+   * would try to add a reminder for every value scrolled past on the way to
+   * the one actually wanted — this only tracks the pending value on iOS, and
+   * commits when "เสร็จสิ้น" is pressed.
+   */
+  const handlePickerChange = (_event: DateTimePickerChangeEvent, selected: Date) => {
+    if (Platform.OS === 'android') {
+      setPickerOpen(false);
+      addTime(selected);
+      return;
+    }
+    setDraftTime(selected);
+  };
+
+  const handlePickerDismiss = () => {
+    if (Platform.OS === 'android') setPickerOpen(false);
+  };
+
+  const confirmIosPicker = () => {
+    setPickerOpen(false);
+    addTime(draftTime);
   };
 
   const handleTest = async () => {
     const ok = await sendTest();
-    setNotice(
+    // A popup rather than the `notice` banner: the test button sits at the
+    // bottom of the screen and the banner renders above the controls, far
+    // enough away that people read "nothing happened" instead of finding the
+    // confirmation. `Alert.alert` appears right where the tap was made.
+    Alert.alert(
+      ok ? 'ส่งการแจ้งเตือนทดสอบแล้ว' : 'ส่งไม่สำเร็จ',
       ok
-        ? 'ส่งการแจ้งเตือนทดสอบแล้ว จะเด้งขึ้นภายใน 10 วินาที'
-        : 'ส่งไม่สำเร็จ ตรวจสอบว่าอนุญาตให้แอปแจ้งเตือนแล้วหรือยัง',
+        ? 'จะเด้งขึ้นภายใน 10 วินาที'
+        : 'ตรวจสอบว่าอนุญาตให้แอปแจ้งเตือนแล้วหรือยัง',
     );
   };
 
@@ -101,7 +218,7 @@ export default function RemindersScreen() {
             <RowHeader
               icon="notifications-outline"
               title="เตือนให้วัดความดัน"
-              subtitle="แอปจะเตือนตามช่วงเวลาที่ตั้งไว้ด้านล่าง"
+              subtitle="แอปจะเตือนตามเวลาที่ตั้งไว้ด้านล่าง"
               accessory={
                 <Switch
                   value={settings.enabled}
@@ -146,63 +263,80 @@ export default function RemindersScreen() {
               >
                 <View style={{ height: 3, backgroundColor: statusColor.elevated }} />
                 <ThemedText type="small" weight="regular" className="p-4">
-                  เครื่องรับการเตือนล่วงหน้าได้จำกัด ระบบจึงปรับเป็นทุก{' '}
-                  {plan.effectiveIntervalHours} ชั่วโมง เพื่อให้ยังเตือนครบทุกวันที่เลือกไว้
+                  เครื่องรับการเตือนล่วงหน้าได้จำกัด ตั้งไว้ {plan.requestedCount} ครั้งต่อสัปดาห์
+                  แต่เตือนได้จริงเพียง {plan.slots.length} ครั้ง ลดจำนวนเวลาแจ้งเตือนหรือวันที่เลือกไว้
+                  เพื่อให้เตือนครบทุกช่วงที่ต้องการ
                 </ThemedText>
               </View>
             ) : null}
 
             <Card>
               <RowHeader
-                icon="repeat-outline"
-                title="ความถี่"
-                subtitle={`เตือนทุก ${settings.intervalHours} ชั่วโมง`}
+                icon="alarm-outline"
+                title="เวลาที่ตั้งเตือน"
+                subtitle={`เตือนวันละ ${settings.reminderTimes.length} ครั้ง`}
               />
-              <ChipRow
-                items={INTERVAL_OPTIONS.map((hours) => ({
-                  key: String(hours),
-                  label: `${hours} ชม.`,
-                  selected: settings.intervalHours === hours,
-                  onPress: () => void patch({ intervalHours: hours }),
-                }))}
-              />
-            </Card>
 
-            <Card>
-              <RowHeader
-                icon="time-outline"
-                title="ช่วงเวลา"
-                subtitle={`ตั้งแต่ ${pad(settings.startHour)}:00 ถึง ${pad(settings.endHour)}:00 น.`}
-              />
-              <Label text="เริ่มเตือน" />
-              <ChipRow
-                items={HOUR_OPTIONS.map((hour) => ({
-                  key: `start-${hour}`,
-                  label: `${pad(hour)}:00`,
-                  selected: settings.startHour === hour,
-                  // Keeping the window coherent here rather than repairing it
-                  // later: a start past the end would otherwise persist and be
-                  // silently reset on the next load.
-                  onPress: () =>
-                    void patch({
-                      startHour: hour,
-                      endHour: Math.max(hour, settings.endHour),
-                    }),
-                }))}
-              />
-              <Label text="เตือนครั้งสุดท้ายไม่เกิน" />
-              <ChipRow
-                items={HOUR_OPTIONS.map((hour) => ({
-                  key: `end-${hour}`,
-                  label: `${pad(hour)}:00`,
-                  selected: settings.endHour === hour,
-                  onPress: () =>
-                    void patch({
-                      endHour: hour,
-                      startHour: Math.min(hour, settings.startHour),
-                    }),
-                }))}
-              />
+              <View className="mt-3">
+                {settings.reminderTimes.map((time, index) => (
+                  <ReminderTimeRow
+                    key={`${time.hour}:${time.minute}`}
+                    time={time}
+                    onRemove={() => removeTime(time)}
+                    isLast={index === settings.reminderTimes.length - 1}
+                  />
+                ))}
+              </View>
+
+              <Pressable
+                testID="reminder-add-time"
+                onPress={openTimePicker}
+                disabled={isWeb}
+                accessibilityRole="button"
+                accessibilityLabel="เพิ่มเวลาเตือน"
+                className="mt-3 flex-row items-center justify-center rounded-xl border"
+                style={{
+                  minHeight: 48,
+                  borderColor: colors.primary,
+                  borderStyle: 'dashed',
+                  opacity: isWeb ? 0.5 : 1,
+                }}
+              >
+                <Ionicons name="add" size={18} color={colors.primary} />
+                <ThemedText type="body" weight="semibold" themeColor="primary" className="ml-1.5">
+                  เพิ่มเวลาเตือน
+                </ThemedText>
+              </Pressable>
+
+              {isWeb ? (
+                <ThemedText type="label" weight="regular" themeColor="text-secondary" className="ml-1 mt-1.5">
+                  ตั้งเวลาการแจ้งเตือนได้จากแอปบนมือถือ
+                </ThemedText>
+              ) : null}
+
+              {pickerOpen && !isWeb ? (
+                <DateTimePicker
+                  value={draftTime}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onValueChange={handlePickerChange}
+                  onDismiss={handlePickerDismiss}
+                />
+              ) : null}
+
+              {pickerOpen && Platform.OS === 'ios' ? (
+                <Pressable
+                  testID="reminder-time-done"
+                  onPress={confirmIosPicker}
+                  accessibilityRole="button"
+                  className="mt-2 items-center justify-center rounded-xl"
+                  style={{ minHeight: 44, backgroundColor: colors['surface-muted'] }}
+                >
+                  <ThemedText type="body" weight="semibold" themeColor="primary">
+                    เสร็จสิ้น
+                  </ThemedText>
+                </Pressable>
+              ) : null}
             </Card>
 
             <Card>
@@ -284,8 +418,8 @@ export default function RemindersScreen() {
             <View className="mb-2 mt-2">
               <GradientButton
                 testID="reminder-test"
-                title="ทดสอบการแจ้งเตือน"
-                variant="secondary"
+                title="ทดสอบเสียงการแจ้งเตือน"
+                variant="primary"
                 onPress={() => void handleTest()}
                 disabled={isSaving}
               />
@@ -302,7 +436,7 @@ export default function RemindersScreen() {
   );
 }
 
-const pad = (hour: number) => String(hour).padStart(2, '0');
+const pad = (value: number) => String(value).padStart(2, '0');
 
 function Card({ children }: { children: React.ReactNode }) {
   const colors = useTheme();
@@ -352,54 +486,64 @@ function RowHeader({
   );
 }
 
-function Label({ text }: { text: string }) {
-  return (
-    <ThemedText type="label" themeColor="text-secondary" className="mb-2 ml-0.5 mt-3.5">
-      {text}
-    </ThemedText>
-  );
-}
-
 /**
- * Horizontally scrollable so eighteen hour options do not wrap into a wall.
- * Chips are 44dp tall — the same floor every other tappable thing in this app
- * uses, and the reason this is not a compact segmented control.
+ * One configured reminder time — matches `LinkRow`'s remove-button shape
+ * (`modules/caregivers/components/link-row.tsx`) rather than inventing new
+ * iconography for "delete this row": a clock badge instead of an avatar, a
+ * bare label instead of a name/detail pair, and the same 48dp trash-icon hit
+ * target in `colors.danger`.
  */
-function ChipRow({
-  items,
+function ReminderTimeRow({
+  time,
+  onRemove,
+  isLast,
 }: {
-  items: { key: string; label: string; selected: boolean; onPress: () => void }[];
+  time: ReminderTime;
+  onRemove: () => void;
+  isLast: boolean;
 }) {
   const colors = useTheme();
+  const label = `${pad(time.hour)}:${pad(time.minute)} น.`;
+  const testSuffix = `${pad(time.hour)}${pad(time.minute)}`;
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      className="mt-3"
-      contentContainerStyle={{ gap: 8, paddingRight: 4 }}
-    >
-      {items.map((item) => (
-        <Pressable
-          key={item.key}
-          testID={`chip-${item.key}`}
-          onPress={item.onPress}
-          accessibilityRole="radio"
-          accessibilityState={{ selected: item.selected }}
-          accessibilityLabel={item.label}
-          className="items-center justify-center rounded-xl border px-4"
-          style={{
-            minHeight: 44,
-            borderWidth: item.selected ? 2 : 1,
-            borderColor: item.selected ? colors.primary : colors.border,
-            backgroundColor: item.selected ? colors.primary : colors['surface-muted'],
-          }}
+    <View>
+      <View testID={`reminder-time-${testSuffix}`} className="flex-row items-center" style={{ minHeight: 56 }}>
+        <View
+          className="mr-3 h-9 w-9 items-center justify-center rounded-full"
+          style={{ backgroundColor: colors['surface-muted'] }}
         >
-          <ThemedText type="small" weight="semibold" style={{ color: item.selected ? '#FFFFFF' : colors['text-primary'] }}>
-            {item.label}
-          </ThemedText>
+          <Ionicons name="alarm-outline" size={18} color={palette.blue} />
+        </View>
+        <ThemedText type="body" weight="semibold" className="flex-1">
+          {label}
+        </ThemedText>
+        <Pressable
+          testID={`reminder-time-remove-${testSuffix}`}
+          onPress={onRemove}
+          accessibilityRole="button"
+          accessibilityLabel={`ลบเวลาเตือน ${label}`}
+          // No `className` here on purpose — see C-009 in TASK.md.
+          // NativeWind's classes silently stop applying on a `Pressable`
+          // whose `style` is the function form (`({ pressed }) => ...`),
+          // which this button needs for its press-state opacity. The fix is
+          // the same one `person-card.tsx`'s permission chip already uses:
+          // carry every style — static and dynamic — through the one
+          // function, rather than splitting it across two mechanisms that
+          // don't reliably compose.
+          style={({ pressed }) => ({
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 12,
+            minWidth: 44,
+            minHeight: 44,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Ionicons name="trash-outline" size={20} color={colors.danger} />
         </Pressable>
-      ))}
-    </ScrollView>
+      </View>
+      {isLast ? null : <View className="h-px" style={{ backgroundColor: colors.border }} />}
+    </View>
   );
 }

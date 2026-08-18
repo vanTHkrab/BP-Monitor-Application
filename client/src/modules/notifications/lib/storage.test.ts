@@ -27,9 +27,7 @@ describe('normalizeReminderSettings', () => {
   it('keeps a complete, valid payload intact', () => {
     const stored = {
       enabled: true,
-      intervalHours: 6,
-      startHour: 8,
-      endHour: 20,
+      reminderTimes: [{ hour: 7, minute: 0 }, { hour: 19, minute: 30 }],
       selectedDays: [1, 3, 5],
       soundId: 'voice3',
     };
@@ -37,9 +35,44 @@ describe('normalizeReminderSettings', () => {
     expect(normalizeReminderSettings(stored)).toEqual(stored);
   });
 
-  it('defaults an interval the picker no longer offers', () => {
-    const result = normalizeReminderSettings({ ...DEFAULT_REMINDER_SETTINGS, intervalHours: 5 });
-    expect(result.intervalHours).toBe(DEFAULT_REMINDER_SETTINGS.intervalHours);
+  it('sorts and de-duplicates reminder times', () => {
+    const result = normalizeReminderSettings({
+      ...DEFAULT_REMINDER_SETTINGS,
+      reminderTimes: [{ hour: 19, minute: 0 }, { hour: 7, minute: 0 }, { hour: 19, minute: 0 }],
+    });
+
+    expect(result.reminderTimes).toEqual([{ hour: 7, minute: 0 }, { hour: 19, minute: 0 }]);
+  });
+
+  it('drops malformed reminder time entries but keeps the valid ones', () => {
+    const result = normalizeReminderSettings({
+      ...DEFAULT_REMINDER_SETTINGS,
+      reminderTimes: [
+        { hour: 7, minute: 0 },
+        { hour: 25, minute: 0 },
+        { hour: 8, minute: 61 },
+        'nope',
+        null,
+        { hour: 12, minute: 30 },
+      ],
+    });
+
+    expect(result.reminderTimes).toEqual([{ hour: 7, minute: 0 }, { hour: 12, minute: 30 }]);
+  });
+
+  it('falls back to the default time when nothing valid survives', () => {
+    const result = normalizeReminderSettings({ ...DEFAULT_REMINDER_SETTINGS, reminderTimes: [] });
+    expect(result.reminderTimes).toEqual(DEFAULT_REMINDER_SETTINGS.reminderTimes);
+  });
+
+  it('falls back to the default time when the field is missing or the wrong shape', () => {
+    expect(normalizeReminderSettings({ enabled: true }).reminderTimes).toEqual(
+      DEFAULT_REMINDER_SETTINGS.reminderTimes,
+    );
+    expect(
+      normalizeReminderSettings({ ...DEFAULT_REMINDER_SETTINGS, reminderTimes: 'soon' })
+        .reminderTimes,
+    ).toEqual(DEFAULT_REMINDER_SETTINGS.reminderTimes);
   });
 
   it('defaults a sound that is no longer bundled', () => {
@@ -48,18 +81,6 @@ describe('normalizeReminderSettings', () => {
       soundId: 'voice9',
     });
     expect(result.soundId).toBe(DEFAULT_REMINDER_SETTINGS.soundId);
-  });
-
-  it('repairs both ends when the window closes before it opens', () => {
-    // Clamping one end would invent a window the user never chose.
-    const result = normalizeReminderSettings({
-      ...DEFAULT_REMINDER_SETTINGS,
-      startHour: 20,
-      endHour: 6,
-    });
-
-    expect(result.startHour).toBe(DEFAULT_REMINDER_SETTINGS.startHour);
-    expect(result.endHour).toBe(DEFAULT_REMINDER_SETTINGS.endHour);
   });
 
   it('drops junk weekdays but keeps the valid ones', () => {
@@ -90,16 +111,12 @@ describe('normalizeReminderSettings', () => {
   it('does not let one bad field reset the others', () => {
     const result = normalizeReminderSettings({
       enabled: true,
-      intervalHours: 999,
-      startHour: 9,
-      endHour: 21,
+      reminderTimes: [{ hour: 999, minute: 0 }],
       selectedDays: [2, 4],
       soundId: 'voice2',
     });
 
-    expect(result.intervalHours).toBe(DEFAULT_REMINDER_SETTINGS.intervalHours);
-    expect(result.startHour).toBe(9);
-    expect(result.endHour).toBe(21);
+    expect(result.reminderTimes).toEqual(DEFAULT_REMINDER_SETTINGS.reminderTimes);
     expect(result.selectedDays).toEqual([2, 4]);
     expect(result.soundId).toBe('voice2');
   });
@@ -114,9 +131,7 @@ describe('normalizeReminderSettings', () => {
 describe('loadReminderSettings / saveReminderSettings', () => {
   const CUSTOM: ReminderSettings = {
     enabled: true,
-    intervalHours: 6,
-    startHour: 8,
-    endHour: 20,
+    reminderTimes: [{ hour: 8, minute: 0 }, { hour: 20, minute: 15 }],
     selectedDays: [1, 3, 5],
     soundId: 'voice3',
   };
@@ -192,12 +207,12 @@ describe('loadReminderSettings / saveReminderSettings', () => {
   it('normalises what it loads, so a blob from an older build cannot be scheduled', async () => {
     await AsyncStorage.setItem(
       'bp.reminder_settings.u-1',
-      JSON.stringify({ ...CUSTOM, intervalHours: 999, soundId: 'voice99' }),
+      JSON.stringify({ ...CUSTOM, reminderTimes: [{ hour: 999, minute: 0 }], soundId: 'voice99' }),
     );
 
     await expect(loadReminderSettings('u-1')).resolves.toEqual({
       ...CUSTOM,
-      intervalHours: DEFAULT_REMINDER_SETTINGS.intervalHours,
+      reminderTimes: DEFAULT_REMINDER_SETTINGS.reminderTimes,
       soundId: DEFAULT_REMINDER_SETTINGS.soundId,
     });
   });

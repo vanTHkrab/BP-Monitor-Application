@@ -78,7 +78,12 @@ class AnalysisStatus(StrEnum):
     """
 
     SUCCESS = "success"              # all 3 fields read + in range + high confidence
-    LOW_CONFIDENCE = "low_confidence"  # all 3 read but some out of range / low conf
+    # Three ways in, not two: some field out of range, confidence below a
+    # floor, OR the reading came from the detection-recovery crop — which
+    # is capped here however well it scores, because nothing in the
+    # confidence signals separates its right answers from its wrong ones.
+    # See AGENTS.md "A recovered reading is never `success`".
+    LOW_CONFIDENCE = "low_confidence"
     UNREADABLE = "unreadable"         # <3 fields detected — no trustworthy reading
 
 
@@ -101,6 +106,10 @@ class FieldReading:
     ocr_confidence: float
     in_range: bool
     value_range: tuple[int, int]
+    #: At least one digit in ``raw_text`` was not in the image — see
+    #: ``ocr.base.OCRResult.fabricated``. Defaulted because only the
+    #: SSOCR systolic rescue can currently set it.
+    fabricated: bool = False
 
     @property
     def combined_confidence(self) -> float:
@@ -123,11 +132,49 @@ class PipelineMetrics:
     the handler, so ``fetch_ms`` is added later by the caller. All
     durations are in milliseconds, measured with ``time.perf_counter()``.
 
-    ``rectify_ms`` covers the 4-point perspective-correction stage
-    (``analyzer.rectify`` — quad detection + warp + the second YOLO
-    pass on the rectified image). It is ``0.0`` when rectification was
-    skipped (no screen box detected) or failed silently and the
-    pipeline ran on the original image.
+    ``rectify_ms`` covers the LCD-straightening stage end-to-end.
+    By default that is field-layout rotation only — line fit +
+    ``cv2.warpAffine`` + the second YOLO pass on the rotated image —
+    because 4-point perspective rectification is opt-in and off (see
+    ``pipeline.DEFAULT_PERSPECTIVE_RECTIFY_ENABLED``). With
+    ``AI_PERSPECTIVE_RECTIFY_ENABLED=1`` it also covers the perspective
+    attempt that runs first.
+
+    It is **not** a "did straightening happen" signal: a rotation that
+    is estimated and rejected, or declined below the angle floor, is
+    measured like one that is applied. It no longer falls to ``0.0``
+    when nothing is applied either — the screen-box early return that
+    produced that sentinel went away with the perspective stage it
+    guarded.
+
+    The three ``recovery_*`` fields describe the detection-recovery
+    fallback (``pipeline._recover_from_device_crop``), which only runs
+    when the first pass found fewer than 3 field classes. They exist
+    because that fallback fires on frames the service currently loses
+    **silently** — the reply is ``unreadable`` either way, so without a
+    counter there is no way to tell whether the fallback is earning its
+    latency or never firing at all:
+
+    * ``recovery_attempted`` — a device ROI was found, cropped, and
+      re-detected. ``False`` covers both "the first pass was fine" and
+      "there was nothing to crop to", which are distinguished in the
+      logs, not here.
+    * ``recovery_committed`` — the recovered crop produced a plausible
+      reading and became the working image. ``committed / attempted``
+      is the recovery rate; ``attempted / rows`` is the fire rate.
+    * ``recovery_ms`` — the padded crop plus the second detection.
+      OCR on the recovered crop is **not** counted here; it lands in
+      ``ocr_ms`` like any other OCR so the stage stays comparable
+      across the normal and recovery paths.
+
+    **``ocr_ms`` changed meaning on ``unreadable`` rows** when the
+    fallback landed. It used to be ``0.0`` on every such row, because
+    reaching ``unreadable`` meant no OCR had run. A recovery that reads
+    the crop and then discards it as implausible now reports the real
+    time it spent — the read genuinely happened. So an ``unreadable``
+    row with ``ocr_ms > 0`` is a declined recovery, not a contradiction,
+    and rows either side of this change are not directly comparable on
+    that column.
 
     Fields are written once during a single ``analyze()`` call and
     treated as read-only afterwards; the frozen dataclass enforces that.
@@ -137,6 +184,12 @@ class PipelineMetrics:
     rectify_ms: float
     ocr_ms: float
     validate_ms: float
+    # Defaulted so constructions that predate the fallback keep meaning
+    # what they meant: no recovery was attempted, none was committed,
+    # and it cost nothing.
+    recovery_attempted: bool = False
+    recovery_committed: bool = False
+    recovery_ms: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -151,12 +204,31 @@ class AnalysisResult:
     Per PLAN.md, public ``systolic/diastolic/pulse`` are nulled when
     validation rejects them; the original numeric reads remain accessible
     through the matching ``FieldReading`` in ``fields``.
+
+    **Three confidence numbers, deliberately.** ``confidence`` is the
+    historical blend — ``min(yolo x ocr x in_range_penalty)`` — kept
+    unchanged because it is what the gateway stores and what the mobile
+    app renders to the patient as "ความมั่นใจ N%".
+
+    It is, however, a poor answer to "how much do we trust these
+    digits", and measurably so: across 135 real photos it correlates
+    0.878 with detection quality and only 0.688 with read quality. A
+    slightly blurry photo of a perfectly legible display scores low.
+    Multiplying the two signals also loses the ability to say *which*
+    one was weak.
+
+    ``detection_confidence`` and ``read_confidence`` therefore report
+    the two inputs separately: "could we find the fields" and "could we
+    read the digits". ``AnalysisStatus`` is decided from these, not from
+    the blend.
     """
 
     systolic: int | None
     diastolic: int | None
     pulse: int | None
     confidence: float                    # min of per-field combined_confidence
+    detection_confidence: float          # min per-field YOLO confidence
+    read_confidence: float               # min per-field OCR confidence
     raw_text: str                        # e.g. "sys=120 dia=80 pulse=72"
     status: AnalysisStatus
     fields: tuple[FieldReading, ...]    # tuple, not list — frozen dataclass invariant

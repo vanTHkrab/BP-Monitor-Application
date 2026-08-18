@@ -1,7 +1,7 @@
 /**
  * bp-vision — the app's local Expo module (Android only).
  *
- * Runs YOLOv11n detection and CRNN digit OCR on the device, against the same
+ * Runs YOLO26n detection and CRNN digit OCR on the device, against the same
  * ONNX files the backend uses: bundled verbatim in `client/assets/models/` and
  * SHA256-gated by `scripts/verify-models.mjs` on every `pnpm start`. The native
  * implementation lives in `android/src/main/java/expo/modules/bpvision/`.
@@ -24,7 +24,14 @@ import type { Detection } from '@/modules/capture/lib/detection';
 import type { OnDeviceOcrResult } from '@/modules/capture/lib/ocr/types';
 
 interface BPVisionNativeModule {
-  /** YOLO detection in source-image pixel coords. Shape matches `Detection`. */
+  /**
+   * YOLO detection in source-image pixel coords. Shape matches `Detection`.
+   *
+   * `sourceWidth` / `sourceHeight` are kept for contract parity but are *not*
+   * honoured: the native side decodes with EXIF orientation applied, so only
+   * the decoded bitmap's own dimensions can be trusted. See the note in
+   * `BPVisionModule.kt`'s `detect`.
+   */
   detect(
     imageUri: string,
     sourceWidth: number,
@@ -49,6 +56,11 @@ export const isBpVisionAvailable = (): boolean => BPVision != null;
 /**
  * Run on-device YOLO detection. Returns `[]` when the module is unavailable, so
  * a caller can treat "no module" exactly like "nothing in shot".
+ *
+ * `sourceWidth` / `sourceHeight` are accepted for contract parity and are
+ * **not** forwarded to the detector: the native side decodes the file itself
+ * (applying EXIF orientation, which can swap the axes) and letterboxes against
+ * the pixels it actually holds rather than a caller's claim about them.
  */
 export async function detectInImage(
   imageUri: string,
@@ -64,12 +76,22 @@ export async function detectInImage(
  * Run the on-device OCR pipeline. Reports `{ unavailable: true }` rather than
  * throwing when the module is missing, so `capture/lib/ocr/read.ts` stays a
  * pass-through.
+ *
+ * `platformUnsupported` is stamped here, not on the native side: Kotlin has
+ * no notion of "this platform lacks OCR" — by the time it can answer at all,
+ * it does. `true` only on the short-circuit below; every result that came
+ * back from an actual native call is `false`, because reaching that call is
+ * itself proof the engine exists here.
  */
 export async function readBpOnDevice(imageUri: string): Promise<OnDeviceOcrResult> {
   if (!BPVision || typeof BPVision.readBp !== 'function') {
-    return { unavailable: true, reason: 'module-unavailable' };
+    return { unavailable: true, reason: 'module-unavailable', platformUnsupported: true };
   }
-  return BPVision.readBp(imageUri);
+  const result = await BPVision.readBp(imageUri);
+  if ('unavailable' in result && result.unavailable) {
+    return { ...result, platformUnsupported: false };
+  }
+  return result;
 }
 
 /**

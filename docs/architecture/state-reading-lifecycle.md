@@ -6,7 +6,7 @@ description: >-
     the server confirmed. A sync promotes a row from one to the other inside a
     single transaction, which is the invariant the whole design rests on.
 status: current
-updated: 2026-08-06
+updated: 2026-08-16
 owner: client
 ---
 
@@ -19,18 +19,18 @@ in `readings`, and `promoteToMirror` moves it across in one transaction
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Queued: User taps save
+    [*] --> Queued: createReading() — clientId minted here
 
     state "pending_readings (outbox)" as Queued {
-        [*] --> awaiting_upload: Saved with a photo
-        [*] --> ready: Saved with no photo
-        awaiting_upload --> ready: S3 PUT done, imageKey recorded
-        awaiting_upload --> awaiting_upload: Network drop, retry next sync
-        ready --> ready: Network or 5xx, stays queued
+        [*] --> awaiting_upload: saved with a local photo
+        [*] --> ready: saved with no photo, or an already-remote URI
+        awaiting_upload --> ready: confirmUploadImage ok →<br/>markQueuedImageUploaded(imageId)
+        awaiting_upload --> awaiting_upload: upload failed, attempts < 3
+        awaiting_upload --> ready: local file missing, or budget spent —<br/>the numbers go up without the photo
+        ready --> ready: network / 5xx / 4xx →<br/>recordQueueFailure(attempts + 1, message)
     }
 
     Queued --> Mirrored: promoteToMirror() in ONE transaction<br/>server confirmed, row deleted from the queue
-    Queued --> Queued: recordQueueFailure() on a 4xx<br/>row keeps its place and its error
 
     state "readings (mirror)" as Mirrored {
         [*] --> confirmed
@@ -38,6 +38,7 @@ stateDiagram-v2
     }
 
     Mirrored --> [*]: pruneMissingMirrorRows()<br/>server no longer has it
+    Mirrored --> [*]: clearMirror() on subject change or logout
 ```
 
 ## Why two tables and not one
@@ -74,10 +75,14 @@ thing this design depends on.
   `useReadingsSync()`. Wiring `useFetchReadings` or `useSyncReadings` into a
   screen reintroduces duplicated listeners and a pull that only runs on
   pull-to-refresh.
-- **Local IDs are typed** — local rows carry a `local-` prefixed id, and
-  `isLocalReadingId` is the only canonical check. String-matching `local-`
-  elsewhere is a smell.
-- **`createClientId(prefix, userId)`** — timestamp plus 120 bits of randomness,
-  and the primary key of the queue, so a retried submit cannot enqueue the same
-  reading twice. Never hand-roll it from `Math.random()`: a collision is a
-  silent overwrite.
+- **`createClientId(prefix, userId)`**, wrapped as `createReadingClientId` —
+  timestamp plus randomness, and the primary key of the queue, so a retried
+  submit cannot enqueue the same reading twice. Never hand-roll it from
+  `Math.random()`: a collision is a silent overwrite.
+- **`attempts` and `lastError` live on the queued row** — the debug screen reads
+  them, patients never see them, and the upload budget
+  (`IMAGE_ATTEMPT_LIMIT = 3`) is counted against the same column.
+- **The mirror keeps the local `file://` URI** — `toMirrorRow` carries
+  `imageUri` over from the queued row rather than taking it from the server
+  response, so a photo that never reached S3 still shows on the device that
+  took it.

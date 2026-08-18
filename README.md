@@ -70,7 +70,7 @@ Full step-by-step for every app, including running them without Docker:
 | --- | --- | --- |
 | api-gateway | `http://localhost:3000/graphql` | GraphiQL at `/graphiql` |
 | web | `http://localhost:3001` | Dashboard |
-| ai-service | `http://localhost:8000/health` | Only HTTP route; work arrives over Redis |
+| ai-service | `http://localhost:8000/health` | Liveness. Use `/ready` for "is it consuming jobs"; work arrives over Redis |
 | postgres | `localhost:5432` | Published in dev only |
 | redis | `localhost:6379` | Published in dev only |
 

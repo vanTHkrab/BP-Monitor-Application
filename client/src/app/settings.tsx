@@ -70,12 +70,15 @@ export default function SettingsScreen() {
   const [formatSheetOpen, setFormatSheetOpen] = useState(false);
 
   // The row states the schedule rather than just naming the screen: "ปิดอยู่"
-  // vs "ทุก 4 ชั่วโมง" is the answer most visits to this row are looking for,
-  // and it saves opening the screen to find out.
+  // vs "วันละ 3 ครั้ง" is the answer most visits to this row are looking for,
+  // and it saves opening the screen to find out. Reads from the same
+  // `useReminderSettings()` cache `reminders.tsx` writes through, so this
+  // subtitle updates the moment a change is saved there — not only on the
+  // next cold mount of this screen.
   const reminderSubtitle = isLoadingReminders
     ? 'กำลังโหลด...'
     : reminders.enabled
-      ? `เตือนทุก ${reminders.intervalHours} ชั่วโมง · เลือกไว้ ${reminders.selectedDays.length} วัน`
+      ? `เตือนวันละ ${reminders.reminderTimes.length} ครั้ง · เลือกไว้ ${reminders.selectedDays.length} วัน`
       : 'ปิดอยู่';
 
   /**
@@ -179,7 +182,7 @@ export default function SettingsScreen() {
             testID="settings-security"
             icon="shield-checkmark-outline"
             title="ความปลอดภัย"
-            subtitle="รหัสผ่าน Passkey อุปกรณ์ที่เข้าสู่ระบบ และล็อกแอป"
+            subtitle="รหัสผ่าน อุปกรณ์ที่เข้าสู่ระบบ และล็อกแอป"
             onPress={() => router.push('/security')}
           />
 

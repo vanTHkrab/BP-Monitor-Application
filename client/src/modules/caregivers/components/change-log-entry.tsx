@@ -29,6 +29,7 @@ import { View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { palette } from '@/theme';
+import { useColorSchemePreference } from '@/theme/color-scheme';
 import { formatThaiDateTime } from '@/utils/thai-date';
 
 import { formatHealthValue, healthFieldLabel } from '../lib/health-fields';
@@ -41,6 +42,8 @@ export type ChangeLogEntryRowProps = {
 
 export function ChangeLogEntryRow({ entry, testID }: ChangeLogEntryRowProps) {
   const colors = useTheme();
+  const { scheme } = useColorSchemePreference();
+  const isDark = scheme === 'dark';
 
   const label = healthFieldLabel(entry.field);
   const before = formatHealthValue(entry.field, entry.oldValue);
@@ -58,7 +61,26 @@ export function ChangeLogEntryRow({ entry, testID }: ChangeLogEntryRowProps) {
     <View
       testID={testID}
       className="mb-3 rounded-2xl border p-4"
-      style={{ backgroundColor: colors.surface, borderColor: colors['border-strong'] }}
+      style={{
+        /*
+         * Translucent white, not the opaque theme surface — same request and
+         * same reasoning as `app/profile-changes.tsx`'s placeholder `Card`:
+         * "พื้นหลังขาวนิดนึง แต่โปร่งหน่อย". This row is the actual target —
+         * it is what renders every real entry in the log, where the
+         * placeholder `Card` only renders the empty/loading/error copy.
+         *
+         * The alpha differs by scheme for the same contrast reason as that
+         * `Card`: this row's text is `ThemedText`, near-white
+         * (`colors['text-primary']`, `#E8E4F5`) in dark mode, so a high white
+         * alpha there would wash the row toward white and take the text's
+         * contrast down with it. Dark mode gets the low 0.12 wash already
+         * established in `camera.tsx`'s control chips; light mode can take
+         * the higher 0.85 and still read as a white card with a little
+         * gradient bleeding through at the edges.
+         */
+        backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.85)',
+        borderColor: colors['border-strong'],
+      }}
       accessibilityRole="text"
       // One label for the whole row: a screen reader walking five separate
       // fragments ("น้ำหนัก", "60 กก.", "→", …) loses the relationship the

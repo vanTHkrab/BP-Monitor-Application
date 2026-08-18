@@ -14,7 +14,7 @@
 import { Platform } from 'react-native';
 
 import { DateField } from '@/modules/profile/components/date-field';
-import { renderScreen } from '../test-utils';
+import { fireEvent, renderScreen } from '../test-utils';
 
 const noop = () => {};
 
@@ -83,6 +83,46 @@ describe('DateField', () => {
       const view = await renderScreen(<DateField {...props} />);
 
       expect(view.queryByLabelText('ล้างวันเกิด')).toBeNull();
+    });
+
+    /*
+     * The button existing is not the feature; `onChange(null)` is. `dob` is an
+     * optional column, and this is the only control in the app that can put it
+     * back to unset — the register screen had no equivalent at all, which is
+     * the complaint that started this change.
+     */
+    it('reports the birthday as cleared rather than as some other date', async () => {
+      const onChange = jest.fn();
+      const view = await renderScreen(
+        <DateField
+          {...props}
+          value={new Date('1955-03-01')}
+          displayValue="1 มีนาคม 2498"
+          onChange={onChange}
+        />,
+      );
+
+      await fireEvent.press(view.getByLabelText('ล้างวันเกิด'));
+
+      expect(onChange).toHaveBeenCalledWith(null);
+    });
+
+    // The row itself opens the picker, so a clear that bubbled would reopen it
+    // on the value it just cleared.
+    it('does not open the picker on its way out', async () => {
+      const onChange = jest.fn();
+      const view = await renderScreen(
+        <DateField
+          {...props}
+          value={new Date('1955-03-01')}
+          displayValue="1 มีนาคม 2498"
+          onChange={onChange}
+        />,
+      );
+
+      await fireEvent.press(view.getByLabelText('ล้างวันเกิด'));
+
+      expect(onChange).toHaveBeenCalledTimes(1);
     });
   });
 

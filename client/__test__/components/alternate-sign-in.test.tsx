@@ -44,6 +44,17 @@ describe('AlternateSignIn', () => {
     expect(view.queryByTestId('login-passkey')).toBeNull();
   });
 
+  // The mirror image of the above. Both flags in `login.tsx`
+  // (`PASSKEY_ENABLED`, `GOOGLE_SIGN_IN_ENABLED`) reach this component the
+  // same way — as a missing handler — so the component has to be equally
+  // unbiased about which one is missing.
+  it('renders passkey alone just as readily as Google alone', async () => {
+    const view = await renderScreen(<AlternateSignIn lastUsed={null} onPasskey={noop} />);
+
+    expect(view.getByTestId('login-passkey')).toBeOnTheScreen();
+    expect(view.queryByTestId('login-google')).toBeNull();
+  });
+
   describe('ordering', () => {
     it('puts passkey first when it is declared first and nothing was used last', async () => {
       const view = await renderScreen(
@@ -88,6 +99,38 @@ describe('AlternateSignIn', () => {
       expect(view.getByTestId('login-google')).toHaveProp(
         'accessibilityLabel',
         'เข้าสู่ระบบด้วย Google',
+      );
+    });
+
+    /*
+     * `lastUsed` is device-local and survives a method being withdrawn — a
+     * phone that signed in with a passkey before the feature was hidden still
+     * has `'passkey'` stored. The badge is keyed by identity rather than by
+     * position, so the surviving row does not inherit it; asserting that is
+     * what keeps the component's own promise that a wrong hint never becomes a
+     * dead end, since a badge on Google here would be an outright false one.
+     */
+    it('marks nothing when the method used last is no longer offered', async () => {
+      const view = await renderScreen(<AlternateSignIn lastUsed="passkey" onGoogle={noop} />);
+
+      expect(view.queryByText('ใช้ครั้งล่าสุด')).toBeNull();
+      expect(view.getByTestId('login-google')).toHaveProp(
+        'accessibilityLabel',
+        'เข้าสู่ระบบด้วย Google',
+      );
+    });
+
+    // The reverse withdrawal: `GOOGLE_SIGN_IN_ENABLED` hides Google the same
+    // way `PASSKEY_ENABLED` hides passkey — a missing `onGoogle` handler — so
+    // a device that used Google last before this shipped must not badge
+    // whichever method survives.
+    it('marks nothing when Google specifically is the method no longer offered', async () => {
+      const view = await renderScreen(<AlternateSignIn lastUsed="google" onPasskey={noop} />);
+
+      expect(view.queryByText('ใช้ครั้งล่าสุด')).toBeNull();
+      expect(view.getByTestId('login-passkey')).toHaveProp(
+        'accessibilityLabel',
+        'เข้าสู่ระบบด้วย Passkey',
       );
     });
 

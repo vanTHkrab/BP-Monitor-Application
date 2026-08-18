@@ -475,6 +475,7 @@ describe('AuthService', () => {
         deviceLabel: 'Phone',
         userAgent: 'ua',
         isActive: true,
+        expiresAt: new Date(Date.now() + 60_000),
         revokedAt: null,
         lastActiveAt: new Date(),
         createdAt: new Date(),
@@ -489,6 +490,49 @@ describe('AuthService', () => {
         take: 20,
       });
       expect(result[0].id).toBe('s1');
+      expect(result[0].isActive).toBe(true);
+    });
+
+    it('reports a session as inactive once its expiresAt has passed, even though isActive is still true in the row', async () => {
+      // Nothing ever flips `isActive` to false on natural expiry — only an
+      // explicit logout does. Without this check, a session that expired
+      // (TTL elapsed, app force-closed for days, a 401 the client never
+      // turned into a logout call) stays "active" forever and every fresh
+      // sign-in on the same device inflates the devices-screen count.
+      const expiredSession = {
+        id: 'expired-1',
+        deviceLabel: 'Old Phone',
+        userAgent: 'ua',
+        isActive: true,
+        expiresAt: new Date(Date.now() - 60_000),
+        revokedAt: null,
+        lastActiveAt: new Date(Date.now() - 120_000),
+        createdAt: new Date(Date.now() - 200_000),
+      };
+      prisma.userSession.findMany.mockResolvedValueOnce([expiredSession]);
+
+      const result = await service.listSessions('user-1');
+
+      expect(result[0].id).toBe('expired-1');
+      expect(result[0].isActive).toBe(false);
+    });
+
+    it('still reports isActive: false for a row already revoked, regardless of expiresAt', async () => {
+      const revokedSession = {
+        id: 'revoked-1',
+        deviceLabel: 'Phone',
+        userAgent: 'ua',
+        isActive: false,
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: new Date(),
+        lastActiveAt: new Date(),
+        createdAt: new Date(),
+      };
+      prisma.userSession.findMany.mockResolvedValueOnce([revokedSession]);
+
+      const result = await service.listSessions('user-1');
+
+      expect(result[0].isActive).toBe(false);
     });
   });
 

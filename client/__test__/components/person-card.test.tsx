@@ -114,6 +114,58 @@ describe('PersonCard', () => {
       );
     });
 
+    /*
+     * Regression test for C-009 (see TASK.md): a `Pressable` whose `style` is
+     * the function form (`({ pressed }) => ...`) silently drops a sibling
+     * `className`, which is what turned this chip into a small, mis-shapen
+     * box — background colour present, but no padding, border width,
+     * rounding, or row layout. The fix carries every one of those through
+     * the same function-form `style` instead of `className`, so this asserts
+     * the resolved style directly rather than trusting a class name to have
+     * resolved.
+     */
+    it('lays itself out with its own style, not a className the Pressable might drop', async () => {
+      const view = await renderScreen(
+        <PersonCard
+          {...props}
+          chips={[
+            {
+              label: 'ดูและบันทึก',
+              tone: 'accent',
+              onPress: noop,
+              testID: 'person-1-permission',
+            },
+          ]}
+        />,
+      );
+
+      expect(view.getByTestId('person-1-permission')).toHaveStyle({
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 9999,
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+      });
+    });
+
+    /*
+     * White text on `colors.accent` (`#FF8A45`) measures ~2.3:1 contrast —
+     * under WCAG AA's 4.5:1 floor. Asserts the label is not white rather than
+     * pinning the exact replacement hex, so a future palette adjustment only
+     * fails this test if it regresses back to something illegible.
+     */
+    it('keeps the accent chip label readable against its own background', async () => {
+      const view = await renderScreen(
+        <PersonCard
+          {...props}
+          chips={[{ label: 'ดูและบันทึก', tone: 'accent', onPress: noop }]}
+        />,
+      );
+
+      expect(view.getByText('ดูและบันทึก')).not.toHaveStyle({ color: '#FFFFFF' });
+    });
+
     it('falls back to the chip text when no label is given', async () => {
       const view = await renderScreen(
         <PersonCard {...props} chips={[{ label: 'ดูอย่างเดียว', onPress: noop, testID: 'chip' }]} />,

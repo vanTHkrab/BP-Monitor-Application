@@ -13,6 +13,7 @@ import { Pressable, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { status } from '@/theme';
 
 export type OptionRowItem<T extends string> = { value: T; label: string };
 
@@ -27,6 +28,13 @@ export type OptionRowProps<T extends string> = {
    * always have a value (theme, font size) — those pass `false`.
    */
   clearable?: boolean;
+  /**
+   * Same tri-state contract as `TextField`'s `error`: `undefined` is normal,
+   * a non-empty string draws the red outline and renders the message below.
+   * Only meaningful once the field can be left unanswered *and* that is
+   * wrong — a purely optional row (theme, font size) never passes this.
+   */
+  error?: string;
 };
 
 export function OptionRow<T extends string>({
@@ -35,8 +43,11 @@ export function OptionRow<T extends string>({
   value,
   onChange,
   clearable = true,
+  error,
 }: OptionRowProps<T>) {
   const colors = useTheme();
+  const hasError = typeof error === 'string';
+  const showErrorText = hasError && error.length > 0;
 
   return (
     <View className="mb-4">
@@ -57,7 +68,11 @@ export function OptionRow<T extends string>({
               accessibilityState={{ selected: isSelected }}
               className="flex-1 items-center rounded-xl border-2 py-3"
               style={{
-                borderColor: isSelected ? colors.primary : colors['border-strong'],
+                borderColor: isSelected
+                  ? colors.primary
+                  : hasError
+                    ? status.high
+                    : colors['border-strong'],
                 backgroundColor: isSelected ? colors.primary : 'transparent',
               }}>
               <ThemedText
@@ -73,6 +88,12 @@ export function OptionRow<T extends string>({
           );
         })}
       </View>
+
+      {showErrorText ? (
+        <ThemedText type="label" className="ml-1 mt-1.5" style={{ color: status.high }}>
+          {error}
+        </ThemedText>
+      ) : null}
     </View>
   );
 }

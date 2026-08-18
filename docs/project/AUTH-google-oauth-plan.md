@@ -2,7 +2,7 @@
 title: "Google OAuth: what is left to make it work"
 description: The configuration, the one undocumented blocker in the users table, and the routing gap between a Google sign-in and a usable account.
 status: draft
-updated: 2026-08-12
+updated: 2026-08-17
 owner: cross
 ---
 
@@ -19,7 +19,7 @@ sign-in" is to write a sign-in hook and a button. **Both already exist.**
 | Piece | Where | State |
 | --- | --- | --- |
 | Sign-in hook | [`client/src/modules/auth/hooks/use-google-sign-in.ts`](../../client/src/modules/auth/hooks/use-google-sign-in.ts) | Complete. Credential Manager → ID token → gateway, cancellation handled, token/store written in the same order as `useLogin` |
-| The button | [`login.tsx`](../../client/src/app/%28auth%29/login.tsx) via `AlternateSignIn` | Wired, and hidden rather than disabled when `isGoogleSignInConfigured()` is false |
+| The button | [`login.tsx`](../../client/src/app/%28auth%29/login.tsx) via `AlternateSignIn` | Wired, and hidden rather than disabled when `isGoogleSignInConfigured()` is false — **and now also behind `GOOGLE_SIGN_IN_ENABLED`, see the note below the table** |
 | Native package | `@react-native-google-signin/google-signin@16.1.4` | Installed, plugin registered in `app.json` |
 | GraphQL operation | `GQL_LOGIN_WITH_GOOGLE` + `authApi.loginWithGoogle` | Built and unit-tested |
 | Gateway mutation | `loginWithGoogle` → `AuthService.loginWithGoogleIdToken` | Built, in `schema.gql` |
@@ -28,6 +28,16 @@ sign-in" is to write a sign-in hook and a button. **Both already exist.**
 | Phone-collection screen | [`onboarding-phone.tsx`](../../client/src/app/%28auth%29/onboarding-phone.tsx) | Built and unit-verified — but unreachable, see gap 3 |
 | Refusal copy | `googleSignInRefusalMessage()` in `lib/errors.ts` | Written and tested — but never rendered, see gap 4 |
 | Compose env forwarding | `docker-compose.yml` | All three `GOOGLE_*` variables already reach the container |
+
+> **A fifth gate exists now, and it is not on this list because it is not
+> technical.** `GOOGLE_SIGN_IN_ENABLED` in
+> `client/src/modules/auth/lib/feature-flags.ts` defaults `false` by product
+> decision — Google sign-in is being held back from shipping the same way
+> passkeys are, independently of whether the four gaps below are closed.
+> Closing all four gaps will **not** make the button appear; the flag has to
+> flip too, and that is not this document's call to make. Do not read closing
+> gap 1 as "ready to enable" — check the flag's own docblock for what turning
+> it on requires.
 
 ## The four gaps
 

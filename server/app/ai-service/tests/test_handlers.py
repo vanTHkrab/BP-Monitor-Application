@@ -27,7 +27,6 @@ from ai_service.handlers import (
     handle_message,
 )
 
-
 # ─── pipeline + registry mocks ─────────────────────────────────────────
 
 
@@ -84,6 +83,7 @@ def good_result() -> AnalysisResult:
     field = FieldReading(BPClass.SYSTOLIC, bbox, "120", 120, 0.9, 0.95, True, (40, 300))
     return AnalysisResult(
         systolic=120, diastolic=80, pulse=72, confidence=0.85,
+        detection_confidence=0.9, read_confidence=0.95,
         raw_text="sys=120 dia=80 pulse=72",
         status=AnalysisStatus.SUCCESS,
         fields=(field,),
@@ -96,6 +96,7 @@ def good_result() -> AnalysisResult:
 def unreadable_result() -> AnalysisResult:
     return AnalysisResult(
         systolic=None, diastolic=None, pulse=None, confidence=0.0,
+        detection_confidence=0.0, read_confidence=0.0,
         raw_text="", status=AnalysisStatus.UNREADABLE, fields=(),
         roi_image_url=None, model_version="2026-01-29",
     )
@@ -110,6 +111,7 @@ def metrics() -> AnalysisMetrics:
         total_ms=14.0,
         rss_before_mb=240.0, rss_after_mb=258.0, rss_delta_mb=18.0,
         image_size_bytes=12345,
+        recovery_attempted=False, recovery_committed=False, recovery_ms=0.0,
     )
 
 
@@ -120,10 +122,24 @@ class TestWireResponse:
     def test_includes_required_keys(self, good_result, metrics):
         wire = _to_wire_response(good_result, metrics)
         assert set(wire.keys()) == {
-            "confidence", "systolic", "diastolic", "pulse",
+            "confidence", "detection_confidence", "read_confidence",
+            "systolic", "diastolic", "pulse",
             "raw_text", "roi_image_url", "model_version", "status",
             "engine", "metrics", "image_quality_score",
         }
+
+    def test_confidence_keeps_its_historical_meaning(self, good_result, metrics):
+        """`confidence` is rendered to the patient as a percentage by the
+        mobile app and persisted by the gateway. Splitting the verdict
+        must not move it — the new numbers are additions beside it, not
+        a redefinition of it."""
+        wire = _to_wire_response(good_result, metrics)
+        assert wire["confidence"] == good_result.confidence
+
+    def test_split_confidences_are_reported_separately(self, good_result, metrics):
+        wire = _to_wire_response(good_result, metrics)
+        assert wire["detection_confidence"] == good_result.detection_confidence
+        assert wire["read_confidence"] == good_result.read_confidence
 
     def test_excludes_internal_fields(self, good_result, metrics):
         wire = _to_wire_response(good_result, metrics)

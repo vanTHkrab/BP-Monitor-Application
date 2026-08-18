@@ -7,8 +7,29 @@
  * reinstalled over its own data, a schedule written by an older build. Opening
  * the app is the one moment we can check cheaply and repair silently, so it is
  * done exactly once per mount and never on a timer.
+ *
+ * **The settings themselves live in TanStack Query, not a plain `useState`.**
+ * `app/settings.tsx` (a subtitle) and `app/reminders.tsx` (the edit screen)
+ * both call this hook, and a `useState` gives each call site its own private
+ * copy with no channel between them. Saving on the edit screen would then
+ * leave the settings row showing whatever it read on its own original mount
+ * — stale, and specifically wrong the moment Expo Router's stack keeps the
+ * settings screen mounted underneath while `reminders.tsx` is pushed on top.
+ * `modules/auth/hooks/use-login-sessions.ts` already solved this shape of
+ * problem for server data with `useQuery` + `invalidateQueries`; the same
+ * cache is reused here for local data because the actual defect — two
+ * independent in-memory copies of one value — is identical, and there is no
+ * other shared-state primitive in this app for something that is neither
+ * server state nor one of the two device-preference stores (`stores/auth`,
+ * `stores/preferences`) reserved for genuinely device-local state. This is
+ * still device-local data with no network origin, so `update()` writes the
+ * known-good value straight into the cache with `setQueryData` rather than
+ * `invalidateQueries` + refetch: the write to `AsyncStorage` just completed
+ * with this exact value, so re-reading it back off storage would be a round
+ * trip that could only tell us what we already know.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useSession } from '@/modules/auth';
 import { loadReminderSettings, saveReminderSettings } from '../lib/storage';
@@ -26,6 +47,11 @@ import {
   type ReminderPermissionState,
   type ReminderSettings,
 } from '../types';
+
+/** The cache key every consumer of this hook shares. Exported for tests. */
+export function reminderSettingsQueryKey(userId?: string): readonly [string, string] {
+  return ['reminder-settings', userId ?? 'guest'] as const;
+}
 
 /**
  * Which user's schedule has already been reconciled this app session.
@@ -47,26 +73,47 @@ export function resetReminderReconciliation(): void {
 export function useReminderSettings() {
   const { user } = useSession();
   const userId = user?.id;
+  const queryClient = useQueryClient();
 
-  const [settings, setSettings] = useState<ReminderSettings>(DEFAULT_REMINDER_SETTINGS);
+  // The reactive half: every call site subscribes to the same cache entry,
+  // so a write from any one of them is visible to all of them on their next
+  // render. `staleTime: Infinity` because this hook is the only writer of
+  // this entry — `update()` below pushes the saved value straight in with
+  // `setQueryData` — so there is nothing for react-query to refetch behind
+  // its own back.
+  const settingsQuery = useQuery<ReminderSettings>({
+    queryKey: reminderSettingsQueryKey(userId),
+    queryFn: () => loadReminderSettings(userId),
+    staleTime: Infinity,
+  });
+  const settings = settingsQuery.data ?? DEFAULT_REMINDER_SETTINGS;
+
   const [plan, setPlan] = useState<ReminderPlan | null>(null);
   const [diagnostics, setDiagnostics] = useState<ReminderDiagnostics | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   const refreshDiagnostics = useCallback(async () => {
     setDiagnostics(await getReminderDiagnostics());
   }, []);
 
+  // The imperative half: resolving *this* mount's settings for the
+  // reconcile check. Deliberately not driven by `settingsQuery.data` — that
+  // reference also changes every time `update()` below calls `setQueryData`,
+  // and this effect must NOT re-run on every save the way the mount-once
+  // hydrate never did before. `ensureQueryData` returns the same cached
+  // value `settingsQuery` above is subscribed to (a second screen mounting
+  // after the first has already loaded gets it with no extra I/O), so this
+  // and the rendered `settings` can never disagree about what was loaded.
   useEffect(() => {
     let cancelled = false;
 
     const hydrate = async () => {
-      const stored = await loadReminderSettings(userId);
+      const stored = await queryClient.ensureQueryData({
+        queryKey: reminderSettingsQueryKey(userId),
+        queryFn: () => loadReminderSettings(userId),
+        staleTime: Infinity,
+      });
       if (cancelled) return;
-
-      setSettings(stored);
-      setIsLoading(false);
 
       // Once per user per app session — see `reconciledUserId` above.
       if (stored.enabled && reconciledUserId !== (userId ?? 'guest')) {
@@ -91,12 +138,19 @@ export function useReminderSettings() {
     return () => {
       cancelled = true;
     };
-  }, [userId, refreshDiagnostics]);
+  }, [userId, queryClient, refreshDiagnostics]);
 
   /**
    * Persists, then re-registers. Permission is requested only on the
    * transition into "on" — asking at any other moment spends Android 13's one
    * chance at a time the user cannot connect it to something they did.
+   *
+   * Writes the cache with `setQueryData` rather than `invalidateQueries`:
+   * `next` (or its refused-permission variant) is already the exact value
+   * `saveReminderSettings` just wrote to disk, so every other mounted screen
+   * reading this hook should see it the instant this call resolves — not
+   * after a second round trip through AsyncStorage to confirm what is
+   * already known.
    */
   const update = useCallback(
     async (next: ReminderSettings): Promise<ReminderPermissionState> => {
@@ -111,15 +165,15 @@ export function useReminderSettings() {
             // will not honour makes every later launch retry a schedule that
             // cannot exist, and shows the user a switch that lies.
             const refused = { ...next, enabled: false };
-            setSettings(refused);
             await saveReminderSettings(refused, userId);
+            queryClient.setQueryData(reminderSettingsQueryKey(userId), refused);
             await refreshDiagnostics();
             return permission;
           }
         }
 
-        setSettings(next);
         await saveReminderSettings(next, userId);
+        queryClient.setQueryData(reminderSettingsQueryKey(userId), next);
         setPlan(await applyReminderSchedule(next));
         await refreshDiagnostics();
         return permission;
@@ -127,7 +181,7 @@ export function useReminderSettings() {
         setIsSaving(false);
       }
     },
-    [settings.enabled, userId, refreshDiagnostics],
+    [settings.enabled, userId, queryClient, refreshDiagnostics],
   );
 
   const sendTest = useCallback(async () => {
@@ -140,7 +194,7 @@ export function useReminderSettings() {
     settings,
     plan,
     diagnostics,
-    isLoading,
+    isLoading: settingsQuery.isLoading,
     isSaving,
     update,
     sendTest,

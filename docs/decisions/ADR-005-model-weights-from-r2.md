@@ -2,7 +2,7 @@
 title: "ADR-005: model weights ship from R2 against a sha256 manifest, and load fails fast"
 description: Why the ONNX artifacts left git and the Docker image, how integrity is enforced, and why a missing model refuses to boot.
 status: current
-updated: 2026-08-06
+updated: 2026-08-19
 owner: ai-service
 ---
 
@@ -30,6 +30,16 @@ artifact and was 10.7 MB.
 `git ls-files server/app/ai-service/models/` returns only `.gitkeep` and the
 manifest. The mobile copies of the two shared models *are* tracked, because the
 app must work with no network on first launch.
+
+The YOLO row above was `yolo11n.onnx` until 2026-08-19, when the client and
+server default moved to `yolo26n-adamw-color.onnx` (~9.6 MB) — see
+[ADR-006](./ADR-006-yolo26-detection-wire-contract.md) for the export-format
+change that came with it. The decision this ADR records — weights ship from
+R2 against a sha256 manifest, and a missing or mismatched model fails the
+boot / dev build — is unchanged; only which YOLO file plays that role moved.
+`yolo11n.onnx` stays in `EXPECTED_HASHES.json` as part of the server-only
+model-comparison set ADR-006 describes, so it is still fetched but no longer
+bundled on the phone.
 
 ## Why they left git and the image
 

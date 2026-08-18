@@ -118,3 +118,62 @@ class TestConfiguration:
                 np.zeros((64, 32), dtype=np.uint8),
                 label="sys",
             )
+
+
+class TestCacheWarming:
+    """`set_models_dir` clears every cache, so without an explicit warm-up
+    the ~58 MB KNN matrix and four ORT sessions were built by whichever
+    request first happened to pick an SSOCR engine."""
+
+    def test_warm_caches_populates_the_lazy_caches(self):
+        cfg = AnalyzerConfig()
+        cnn_classifiers.set_models_dir(cfg.models_dir)
+        assert cnn_classifiers._KNN_CACHE is None
+        assert cnn_classifiers._TEMPLATES_CACHE is None
+
+        cnn_classifiers.warm_caches()
+
+        assert cnn_classifiers._KNN_CACHE is not None
+        assert cnn_classifiers._TEMPLATES_CACHE is not None
+
+    def test_warm_caches_tolerates_missing_artifacts(self, tmp_path):
+        """The rule-only `ssocr` engine never needs these bundles, and
+        every classifier already abstains when one is absent — a warm-up
+        must not turn that into a boot failure."""
+        cnn_classifiers.set_models_dir(tmp_path)
+        cnn_classifiers.warm_caches()  # must not raise
+        assert cnn_classifiers._KNN_CACHE == {}
+        assert cnn_classifiers._TEMPLATES_CACHE == {}
+
+    def test_concurrent_first_use_builds_the_matrix_once(self):
+        """The pipeline OCRs three fields concurrently through
+        `asyncio.to_thread`, and the listener now runs several requests at
+        once, so first-use is genuinely re-entrant. Two threads each
+        building their own 58 MB exemplar matrix is a real memory spike."""
+        import threading
+
+        cfg = AnalyzerConfig()
+        cnn_classifiers.set_models_dir(cfg.models_dir)
+
+        results: list[object] = []
+        barrier = threading.Barrier(4)
+
+        def load():
+            barrier.wait()  # maximise the overlap on first use
+            results.append(cnn_classifiers._load_knn_data())
+
+        threads = [threading.Thread(target=load) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(results) == 4
+        first = results[0]
+        assert all(r is first for r in results), "each thread built its own cache"
+
+    def test_repeated_calls_return_the_cached_object(self):
+        cfg = AnalyzerConfig()
+        cnn_classifiers.set_models_dir(cfg.models_dir)
+        assert cnn_classifiers._load_templates() is cnn_classifiers._load_templates()
+        assert cnn_classifiers._load_knn_data() is cnn_classifiers._load_knn_data()

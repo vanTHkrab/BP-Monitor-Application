@@ -1,79 +1,120 @@
 ---
-title: On-device YOLO Pre-flight
+title: On-device Detection & Framing Gate
 description: >-
-    Same model, same crop, two runtimes. A 10.7 MB ONNX detector runs on the
-    phone before every upload. It classifies the frame as ok / no-monitor /
-    missing-fields and (on ok) auto-crops around the monitor. The same model
-    file runs in the FastAPI AI service — SHA256 equality is enforced by a
-    prestart hook so the two sides cannot silently disagree.
+    The shared YOLO26n detector on the phone: what runs where, how a frame
+    becomes a framing verdict, and why auto-capture is a nudge rather than a
+    gate. The model file is byte-identical to the one ai-service runs, so a
+    class on the phone means what it means on the server.
 status: current
-updated: 2026-08-06
+updated: 2026-08-19
 owner: cross
 ---
 
 ## Decision tree
 
-Green = happy path; yellow = override path; red = blocking verdicts (visually
-only — the override edge always exists).
+Detection is native. `client/modules/bp-vision/` is a local Expo module in
+Kotlin (Android only) wrapping ONNX Runtime; the JS side calls `detect()` per
+analysis frame and `readBp()` for the full offline OCR pipeline. Both are
+resolved with `requireOptionalNativeModule`, so on iOS, web, and Expo Go they
+return "nothing found" and "unavailable" instead of throwing.
+
+**Two detector export families decode, and the graph picks.** `yolo11n.onnx`
+(and the rest of the anchors-family comparison set) emits raw `[1, 4+C, anchors]`
+and owes per-class NMS to the decoder; `yolo26n-adamw-color.onnx` — the
+shipped default on both the phone and ai-service — and the other `yolo26n-*`
+exports emit `[1, 300, 6]` rows of `(x1, y1, x2, y2, conf, cls)` with the
+suppression already done inside the graph, which makes the IoU threshold
+inert for them. Kotlin's `YoloDetector.resolveOutputFormat` and ai-service's
+`resolve_output_format` both read the format off the loaded graph's declared
+output shape and both throw at load on anything else, because decoding one
+family as the other does not fail — it returns confident, wrong boxes. **The
+phone now loads `yolo26n-adamw-color.onnx`**, same as ai-service; the dual
+decode remains so either side can still be pointed at a comparison-set model
+(e.g. `yolo11n.onnx`) independently without the other's decoder breaking.
 
 ```mermaid
 flowchart TD
-    A["Shutter tap"] --> B["preflightCheckImage(uri)"]
-    B --> C["letterbox + JPEG decode<br/>→ [1,3,512,512] float32 RGB"]
-    C --> D["onnxruntime InferenceSession<br/>yolo11n.onnx (10.7 MB)"]
-    D --> E["Decode [1, 4+C, anchors]<br/>per-class NMS<br/>(conf 0.25 / IoU 0.45)"]
-    E --> F{"Classify verdict"}
+    A["Analysis frame (~4 fps)"] --> B["BPVision.detect(uri, w, h, 512)"]
+    B --> C["Kotlin: letterbox → [1,3,512,512] float32<br/>ONNX Runtime session (CPU / XNNPACK / NNAPI)"]
+    C --> D["Decode by the loaded graph's output shape<br/>[1,4+C,anchors] → per-class NMS here (yolo11n family)<br/>[1,300,6] → already suppressed (yolo26n family, loaded today)<br/>conf 0.25 / IoU 0.45 on the anchors path only"]
+    D --> E["Detection[] in source-image pixels"]
 
-    F -- "BP_Monitor or BP_Screen_Monitor<br/>+ sys + dia + pulse" --> OK["verdict = ok"]
-    F -- "no BP_Monitor / BP_Screen_Monitor" --> NM["verdict = no-monitor"]
-    F -- "missing sys / dia / pulse" --> MF["verdict = missing-fields"]
+    E --> F["evaluateFraming(frame)"]
+    F --> G{"Monitor box present?<br/>(class 0 or 1, highest confidence)"}
+    G -- "no" --> S["searching"]
+    G -- "yes" --> H{"area ratio"}
+    H -- "< 0.08" --> TF["too-far"]
+    H -- "> 0.85" --> TC["too-close"]
+    H -- "in range" --> I{"centre offset <= 0.22<br/>and >= 2 of sys/dia/pulse"}
+    I -- "no" --> OC["off-center"]
+    I -- "yes" --> T{"field-line tilt <= 10 deg?<br/>(estimateFieldTiltDeg — null = no opinion)"}
+    T -- "no" --> TI["tilted"]
+    T -- "yes" --> R["ready"]
 
-    OK --> CROP["Auto-crop around monitor bbox + padding"]
-    CROP --> UPLOAD["Use cropped image for upload"]
+    S --> HY["advanceHysteresis — a verdict must hold<br/>FRAMING_DWELL_MS (500 ms) before the UI moves"]
+    TF --> HY
+    TC --> HY
+    OC --> HY
+    TI --> HY
+    R --> HY
 
-    NM --> WARN["Show Thai warning banner"]
-    MF --> WARN
-    WARN --> CHOICE{"User choice"}
-    CHOICE -- "ถ่ายใหม่" --> A
-    CHOICE -- "ส่งต่อไป (override)" --> UPLOAD_RAW["Use original image for upload"]
+    HY --> J{"ready held 300 ms<br/>and auto-capture enabled?"}
+    J -- "no" --> COACH["Show the coaching line only.<br/>Manual shutter always available"]
+    J -- "yes" --> CD["Countdown ring<br/>1500 ms (2500 ms with a screen reader)"]
+    CD -- "tap to cancel / framing degrades" --> COACH
+    CD --> SHOT["Shutter fires"]
+    COACH --> SHOT
 
-    UPLOAD --> SAVE["Backend YOLO sees the same crop"]
-    UPLOAD_RAW --> SAVE
+    SHOT --> CROP["prepareCaptureForAnalysis — crop to the viewport,<br/>then resize, in one chain and one save"]
+    CROP --> OUT{"Online?"}
+    OUT -- "yes" --> UP["presign → PUT → confirm → analyzeBPImage"]
+    OUT -- "no" --> LOCAL["BPVision.readBp(uri)<br/>YOLO ROI → rectify → CRNN"]
 
     classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d
     classDef warn fill:#fef3c7,stroke:#d97706,color:#92400e
     classDef bad fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
-    class OK,CROP,UPLOAD,SAVE ok
-    class WARN,CHOICE,UPLOAD_RAW warn
-    class NM,MF bad
+    class R,CD,SHOT,CROP,UP ok
+    class COACH,OC,TI,LOCAL warn
+    class S,TF,TC bad
 ```
 
 ## Shared-model contract
 
-- **Byte-identical model file** — client/assets/models/yolo11n.onnx and
-  server/app/ai-service/models/yolo11n.onnx are the same bytes. pnpm
-  verify-models on every pnpm start asserts SHA256 equality against
-  server/app/ai-service/models/EXPECTED_HASHES.json.
-- **Class IDs are a wire contract** — 0 BP_Monitor / 1 BP_Screen_Monitor / 2
-  dia / 3 pulse / 4 sys — mirrored in
-  client/src/modules/capture/lib/detection.ts and
-  server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES. Change
+- **Byte-identical model file** — `client/assets/models/yolo26n-adamw-color.onnx`
+  and `server/app/ai-service/models/yolo26n-adamw-color.onnx` are the same
+  bytes. `pnpm verify-models` on every `pnpm start` asserts SHA256 equality
+  against `server/app/ai-service/models/EXPECTED_HASHES.json`.
+- **Class IDs are a wire contract** — 0 `BP_Monitor` / 1 `BP_Screen_Monitor` /
+  2 `dia` / 3 `pulse` / 4 `sys` — mirrored in
+  `client/src/modules/capture/lib/detection.ts` and
+  `server/app/ai-service/src/ai_service/analyzer/yolo.py::CLASS_NAMES`. Change
   one side, change the other.
-- **Thresholds in lock-step** — Confidence 0.25, IoU 0.45 — same on both sides.
-  If you tune the detector, tune both call sites; otherwise the phone and the
-  server make different calls.
-- **Retraining process** — Retrain in ai-service, regenerate
-  server/app/ai-service/models/EXPECTED_HASHES.json and upload the new bytes to
-  R2, then `cd client && pnpm sync-yolo-model`. Ship the manifest and the
-  refreshed bundled copies in one PR or the verify hook fails.
+- **Both monitor classes count** — keying "a monitor is in shot" on class 0
+  alone reports nothing over a plainly readable display: measured on device, the
+  outer box drops out first at harder framings while the screen and the digit
+  fields are still found.
+- **Thresholds in lock-step** — confidence 0.25, IoU 0.45, input edge 512 — the
+  same on both sides. Tune the detector, tune both call sites, or the phone and
+  the server disagree about what "detected" means.
+- **Retraining process** — retrain in ai-service, regenerate
+  `EXPECTED_HASHES.json` and upload the new bytes to R2, then `cd client &&
+  pnpm sync-yolo-model`. Ship the manifest and the refreshed bundled copies in
+  one PR or the verify hook fails.
 
-## Why warn-not-block
+## Why nudge, not gate
 
-- **Field reality** — Glare, partial frames, low light — false negatives exist.
-  Blocking would create a support ticket per missed shot.
-- **Override is a single tap** — ส่งต่อไป hands the original (uncropped) image
-  to the backend. Backend YOLO + OCR may still succeed on a frame the on-device
-  pass rejected.
-- **Cost of override is cheap** — S3 PUT + one Redis publish. The user pays
-  slightly more data; the backend pays slightly more compute. Both are
-  acceptable to avoid stranding a patient.
+- **A false negative must never block a measurement** — glare, partial frames,
+  and low light all produce them. The framing gate only drives auto-capture; the
+  shutter is always live, and a captured photo always reaches either the server
+  or the manual form.
+- **`minFields` is 2, not 3, on purpose** — requiring all three digit groups
+  makes "ready" hostage to whichever is hardest to detect. Capturing slightly
+  early only costs the full-resolution pass a little more work; it re-reads the
+  photo at full size regardless of what the live gate saw.
+- **The thresholds are the tuning surface** — `DEFAULT_FRAMING_THRESHOLDS` and
+  the two countdown constants are exported from the capture module precisely
+  because they are expected to move once this meets real hardware and real
+  users.
+- **The a11y countdown is longer, not absent** — the ring is a purely visual
+  cue, so a screen-reader user gets one spoken announcement and 2500 ms to act
+  on it rather than having the feature withheld.

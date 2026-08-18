@@ -1,5 +1,6 @@
 /**
- * WYSIWYG for the capture: crop the photo down to what the preview showed.
+ * WYSIWYG for the capture: the geometry that crops a photo down to what the
+ * preview showed.
  *
  * The preview fills the screen in **cover** fit — the sensor feed is scaled up
  * until it covers the viewport and the overflow is cut off-screen. But the
@@ -14,18 +15,17 @@
  *
  * Only the live-camera path should use it. A gallery pick was never bound to a
  * preview, so there is no mismatch to correct and cropping would throw away
- * image area for nothing.
+ * image area for nothing. That split is enforced by which function the caller
+ * reaches for in `image-prepare.ts` — `prepareCaptureForAnalysis` applies this
+ * box, `prepareImageForAnalysis` does not.
+ *
+ * **Pure geometry, no I/O.** The crop is executed as one link of the single
+ * manipulator chain in `image-prepare.ts`, because every extra `saveAsync` is
+ * another generation of JPEG loss on strokes that are already the worst case
+ * for it. Keeping the box computable without touching a file is what lets the
+ * rule be asserted: a wrong box is not a crash, it is a saved JPEG that no
+ * longer matches what the framing gate approved.
  */
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-
-/** Same quality budget as `image-prepare.ts` — one number, not two. */
-const COMPRESS_QUALITY = 0.7;
-
-export interface CroppedImage {
-  uri: string;
-  width: number;
-  height: number;
-}
 
 /** A centred crop box in source-photo pixels, shaped for `ImageManipulator`. */
 export interface CoverCropBox {
@@ -36,12 +36,13 @@ export interface CoverCropBox {
 }
 
 /**
- * The geometry, separated from the I/O so it can be asserted.
+ * The largest centred rectangle of the photo matching the viewport's aspect.
  *
  * Returns `null` when the input is degenerate or the photo already matches the
- * viewport — both mean "no crop", and the caller skips the re-encode. This is
- * also the assertion point if the two capture paths (`expo-camera` and the
- * native CameraX view) ever drift on the width/height convention they report.
+ * viewport — both mean "no crop", and the caller drops the link from the
+ * chain. This is also the assertion point if the two capture paths
+ * (`expo-camera` and the native CameraX view) ever drift on the width/height
+ * convention they report.
  */
 export const computeCoverCropBox = (
   photoWidth: number,
@@ -86,41 +87,4 @@ export const computeCoverCropBox = (
     width,
     height,
   };
-};
-
-/**
- * Crop, or return the original.
- *
- * Dimensions come from the caller because both capture paths already report
- * them; `Image.getSize` has been observed to hang on a freshly written camera
- * URI on some Android devices, which stuck the capture UI.
- *
- * A manipulator failure returns the uncropped image rather than propagating: a
- * slightly wider field of view than the preview showed is a much better outcome
- * than a capture that cannot complete.
- */
-export const cropToViewport = async (
-  uri: string,
-  photoWidth: number,
-  photoHeight: number,
-  viewportAspect: number,
-): Promise<CroppedImage> => {
-  const box = computeCoverCropBox(photoWidth, photoHeight, viewportAspect);
-  if (!box) return { uri, width: photoWidth, height: photoHeight };
-
-  try {
-    const rendered = await ImageManipulator.manipulate(uri).crop(box).renderAsync();
-    const result = await rendered.saveAsync({
-      compress: COMPRESS_QUALITY,
-      format: SaveFormat.JPEG,
-    });
-    return {
-      uri: result.uri,
-      width: result.width || box.width,
-      height: result.height || box.height,
-    };
-  } catch (error) {
-    if (__DEV__) console.warn('[crop-to-viewport] crop failed; keeping the original', error);
-    return { uri, width: photoWidth, height: photoHeight };
-  }
 };

@@ -71,8 +71,8 @@ Docker daemon — see *Docker access* below.
   - `pnpm install` in `client/`, `web/`, and `server/app/api-gateway/`.
   - `uv sync` in `server/app/ai-service/`.
   - `pnpm verify-models` to confirm the bundled `client/assets/models/`
-    binaries (`yolo11n.onnx`, `crnn.onnx`) match the SHA256 recorded in
-    `server/app/ai-service/models/EXPECTED_HASHES.json`.
+    binaries (`yolo26n-adamw-color.onnx`, `crnn.onnx`) match the SHA256
+    recorded in `server/app/ai-service/models/EXPECTED_HASHES.json`.
 
 ---
 

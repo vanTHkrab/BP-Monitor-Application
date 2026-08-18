@@ -83,8 +83,8 @@ the finishing check is `pnpm check`.
 | `test:screens` | `/__test__/` | whole-screen and component renders |
 | `test` | everything | both, and what any full audit should use |
 
-The two halves must **add up to `pnpm test`**: 111 + 76 = 187 suites and
-1746 + 670 = 2416 tests, which is what `pnpm test` reports. A test file
+The two halves must **add up to `pnpm test`**: 112 + 77 = 189 suites and
+1836 + 745 = 2581 tests, which is what `pnpm test` reports. A test file
 outside all four matched directories is orphaned from both scripts and from
 CI, and **nothing reports it** — the run it is missing from still passes.
 That happened on the first version of this split, which omitted `/scripts/`
@@ -160,7 +160,7 @@ and why it was not bundled with the first.
 | `src/database/` | SQLite. `pending_readings` (outbox) and `readings` (mirror) |
 | `modules/bp-vision/android/` | Native Kotlin: YOLO, CRNN OCR, CameraX `ImageAnalysis` |
 | `modules/bp-vision/plugin/withBpVisionModels.js` | Config plugin — copies models into the native project **at prebuild only** |
-| `assets/models/` | `yolo11n.onnx`, `crnn.onnx`. Tracked, hash-checked on every start |
+| `assets/models/` | `yolo26n-adamw-color.onnx`, `crnn.onnx`. Tracked, hash-checked on every start |
 | `scripts/verify-models.mjs` | sha256 vs the ai-service manifest |
 | `eslint-rules/` | Project-owned ESLint rules, wired under `bp/` in `eslint.config.js` |
 
@@ -185,6 +185,60 @@ and why it was not bundled with the first.
   `analyzer/yolo.py`. Change one side, change the other, or the phone approves
   a framing the server cannot read. See
   [ADR-002](../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md).
+- **The detector decode dispatches on the graph, never on config.**
+  `YoloDetector` decodes two export families — yolo11n's raw
+  `[1, 4+C, anchors]` (NMS owed here, which is the only thing
+  `DEFAULT_IOU_THRESHOLD` still feeds) and yolo26n's end-to-end `[1, 300, 6]`
+  (already suppressed). `resolveOutputFormat` reads the format off the loaded
+  session's declared output shape and throws
+  `UnsupportedDetectorOutputException` **at load**. Both halves of that are
+  load-bearing: the shapes have the same rank and dtype, so decoding one as the
+  other returns confident garbage rather than failing, and `detect()` runs
+  inside the CameraX analysis stream where a throw has no failure surface —
+  it would paint bad boxes over the preview. `runReadBp` already maps a load
+  throw to `unavailable("model-load-failed")`.
+  Keep the discriminators identical to `resolve_output_format` in
+  `analyzer/yolo.py`, ordering included; they are a pair.
+- **A `-gray` model still takes 3-channel input, and this side declares that
+  rather than inferring it.** `-gray` means "trained on grayscale renders";
+  feeding it colour costs accuracy with no symptom at all. ai-service reads the
+  marker off the model filename and calls that its own soft spot. Here the
+  rendering is stated next to the asset name (`YOLO_ASSET` / `YOLO_RENDERING`
+  in `BPVisionModule.kt`) and `fromModelBytes` takes it as a required argument,
+  so a swap cannot skip the question — but adjacency alone would not stop you
+  answering it wrong. `checkRenderingMatchesAsset` throws at load when the
+  filename marker and the declared rendering disagree. That is a veto, not
+  inference: the declaration decides, the filename only refuses to contradict
+  it, and it has no override because ai-service infers from that same filename
+  on the same file. The phone loads `yolo26n-adamw-color.onnx` /
+  `InputRendering.COLOR` today.
+- **What actually gates a bundled model is two `MODELS` arrays, not the
+  manifest.** `scripts/verify-models.mjs` and
+  `modules/bp-vision/plugin/withBpVisionModels.js` each hold their own
+  `['yolo26n-adamw-color.onnx', 'crnn.onnx']` list; `verify-models` iterates *that* and
+  looks up only those names, so an extra key in `EXPECTED_HASHES.json` is
+  structurally unreachable and harmless. A manifest entry ahead of bundling is
+  in fact the correct order — the hash has to exist before a file can be
+  verified against it. The failure modes are the reverse, and they are not
+  symmetric:
+  - a name in **`verify-models.mjs`'s** array with no file in
+    `assets/models/` → `pnpm start` dies at `prestart` with
+    `Bundled model missing`;
+  - a name in **the plugin's** array with no file → `expo prebuild` dies with
+    `[bp-vision] bundled model missing`. `pnpm start` stays green, because
+    nothing on that path reads the plugin's list;
+  - the file in `assets/models/` and **only** the plugin's array updated → the
+    bytes reach the APK and are **never SHA256-checked against the backend
+    manifest at all**. This is the one that ships, and it is the ADR-002 drift
+    the check exists to prevent;
+  - the file alone, neither array → it never enters the APK. The plugin is the
+    only writer of `android/app/src/main/assets/models/` (`client/android/` is
+    gitignored and regenerated), Metro is not a second path (no
+    `assetBundlePatterns`, and nothing `require()`s an `.onnx` despite
+    `metro.config.js` allowing the extension), and `readModelAsset` throws
+    `ModelAssetException` if `YOLO_ASSET` points at something uncopied.
+
+  Both arrays move together, in the same change as the asset.
 - **Typography is centralised, and the multiplication happens once.**
   `hooks/use-typography.ts` is the only place in `src/` that turns a base px
   into a rendered px — `Math.round(base × sizeScale × opticalScale)`. The data
@@ -322,6 +376,24 @@ for what the manifest cannot express: the non-obvious choices and their traps.
   must, instead of stubbing the whole module.
 - **`client-old/` is not a dependency of anything.** It is the legacy tree,
   kept for history. Its docs describe *its* layout, not this app's.
+- **`react-hook-form` + `zod` + `@hookform/resolvers` are on `register.tsx`
+  only, deliberately** — a scoped first migration off the hand-rolled
+  `useState` + `validate*()` pattern the other auth screens still use, not a
+  library swap. Before wiring a second screen onto it, read
+  `app/(auth)/register.tsx`'s `fieldError` docblock first: `Controller`
+  subscribes to its own field's state independently of the form it belongs
+  to, and its `fieldState` can commit on a **different render tick** than
+  the `formState` the screen destructures at the top — reproduced by hand
+  while building this screen, isolated over dozens of runs, and invisible to
+  every fix that touches only test code (`waitFor`, `userEvent`, explicit
+  microtask/macrotask flushes all failed to paper over it reliably). It
+  showed up as a validation error that `formState.errors` correctly held
+  while the field it belonged to kept rendering no error at all — sometimes
+  for several renders in a row, with no exception, no warning, and no
+  correlation to which interaction API fired the event. The fix is to read
+  every field's error from the *one* `formState` (`errors`, `touchedFields`)
+  the screen already destructures, never from a `Controller`'s own
+  `fieldState` — see `fieldError` for the working pattern.
 
 ## Where tests live
 

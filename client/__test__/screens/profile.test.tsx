@@ -14,6 +14,8 @@
  * lost. The hidden half needs an interaction to reach, so it is recorded here
  * rather than asserted.
  */
+import { Alert } from 'react-native';
+
 const mockSession = {
   current: { user: null as Record<string, unknown> | null },
 };
@@ -42,7 +44,14 @@ jest.mock('@/modules/security', () => ({
 }));
 
 import ProfileScreen from '@/app/profile';
-import { renderScreen } from '../test-utils';
+import { fireEvent, renderScreen } from '../test-utils';
+
+/** Runs the button at `index` of the last Alert — same helper shape as `settings.test.tsx`. */
+function pressAlertButton(index: number) {
+  const spy = Alert.alert as unknown as jest.Mock;
+  const buttons = spy.mock.calls.at(-1)?.[2] as { onPress?: () => void }[] | undefined;
+  return buttons?.[index]?.onPress?.();
+}
 
 const user = (over: Record<string, unknown> = {}) => ({
   id: 'u1',
@@ -57,6 +66,7 @@ const user = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   mockSession.current = { user: user() };
   mockAvatar.current = {
     localPreview: null,
@@ -156,5 +166,61 @@ describe('ProfileScreen — the avatar', () => {
     const view = await renderScreen(<ProfileScreen />);
 
     expect(view.queryByText('อัปโหลดรูปไม่สำเร็จ')).toBeNull();
+  });
+});
+
+/*
+ * `useProfileAvatar` has always supported both sources — `changeAvatar` takes
+ * an `AvatarSource` — but the screen used to call it with `'library'`
+ * hardcoded, so a camera capture was never reachable from here. These pin the
+ * fix: tapping the avatar has to offer a real choice, not silently pick one.
+ */
+describe('ProfileScreen — changing the avatar', () => {
+  it('offers both photo sources when the avatar is tapped', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    fireEvent.press(view.getByTestId('profile-avatar'));
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'เลือกรูปโปรไฟล์',
+      'กรุณาเลือกวิธีการ',
+      expect.arrayContaining([
+        expect.objectContaining({ text: 'ถ่ายภาพ' }),
+        expect.objectContaining({ text: 'เลือกรูปจากแกลเลอรี' }),
+      ]),
+    );
+  });
+
+  it('opens the camera when that option is chosen', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    fireEvent.press(view.getByTestId('profile-avatar'));
+    await pressAlertButton(0);
+
+    expect(mockAvatar.current.changeAvatar).toHaveBeenCalledWith('camera');
+  });
+
+  it('opens the library when that option is chosen', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    fireEvent.press(view.getByTestId('profile-avatar'));
+    await pressAlertButton(1);
+
+    expect(mockAvatar.current.changeAvatar).toHaveBeenCalledWith('library');
+  });
+});
+
+/*
+ * The scrollable form is wrapped so a field near the bottom (weight, height,
+ * โรคประจำตัว) is not left under the on-screen keyboard. `padding` on iOS;
+ * no `behavior` on Android, since `adjustResize` (set app-wide in
+ * AndroidManifest.xml) already resizes the window and `'height'` on top of
+ * that would double-compensate — see the comment beside the wrapper itself.
+ */
+describe('ProfileScreen — keyboard avoidance', () => {
+  it('wraps the form so the keyboard cannot cover the field being edited', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    expect(view.getByTestId('profile-keyboard-avoiding-view')).toBeOnTheScreen();
   });
 });

@@ -132,6 +132,25 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # The reply path is Redis pub/sub — fan-out, no ack, no persistence.
+    # It is correct only while exactly ONE subscriber exists: a second
+    # replica would analyse every image twice. Do not scale this service
+    # until the reply transport moves to a Redis Streams consumer group
+    # (see docs/research/ai-service-reply-transport.md).
+    deploy:
+      replicas: 1
+    restart: unless-stopped
+    # `/ready`, not `/health`. `/health` proves only that FastAPI is
+    # answering — it stays green when Redis is unreachable or the
+    # subscriber task has died, which is exactly the state this probe
+    # exists to catch. start_period covers the first-boot model download
+    # from R2 plus ONNX session construction.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
     networks:
       - bp-net
 

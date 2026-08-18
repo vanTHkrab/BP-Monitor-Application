@@ -8,6 +8,8 @@
  * Coordinates are *frame* pixels — the analysis stream's own resolution, which
  * has nothing to do with the screen size. Everything below works in ratios of
  * the frame so the thresholds hold whatever resolution CameraX negotiated.
+ * The one exception is the tilt estimate, which is an angle and therefore
+ * resolution-independent already.
  */
 import { MONITOR_CLASS_IDS, FIELD_CLASS_IDS } from './detection';
 
@@ -31,9 +33,16 @@ export interface FramingFrame {
  * What the UI should be saying right now.
  *
  * Ordered by how far along the user is, which is also how the coaching copy
- * escalates: find something, fix the distance, centre it, hold still.
+ * escalates: find something, fix the distance, centre it, straighten it, hold
+ * still.
  */
-export type FramingState = 'searching' | 'too-far' | 'too-close' | 'off-center' | 'ready';
+export type FramingState =
+  | 'searching'
+  | 'too-far'
+  | 'too-close'
+  | 'off-center'
+  | 'tilted'
+  | 'ready';
 
 export interface FramingThresholds {
   /** Below this share of frame area the monitor is too small to read. */
@@ -44,6 +53,17 @@ export interface FramingThresholds {
   maxCenterOffset: number;
   /** How many of sys / dia / pulse must be visible to call it ready. */
   minFields: number;
+  /**
+   * Largest field-line tilt, in degrees, still called straight enough to shoot.
+   *
+   * Deliberately **not** the backend's 2 degrees. That number answers a
+   * different question — "is this worth spending an interpolation pass on" —
+   * and it is answered by software that never has to say anything to anyone.
+   * A coaching banner is answering "is this worth interrupting a person
+   * over", and a 3 degree nag the user cannot even see is a worse outcome
+   * than letting the rotation stage handle it silently.
+   */
+  maxTiltDeg: number;
 }
 
 /**
@@ -55,12 +75,16 @@ export interface FramingThresholds {
  * hostage to whichever digit group is hardest to detect, and capturing a little
  * early costs only that the full-resolution pass has to work slightly harder —
  * it re-reads the photo at full size regardless of what the live gate saw.
+ *
+ * `maxTiltDeg` is 10 for the reason given on the field itself: it is a nag
+ * threshold, not a correction threshold.
  */
 export const DEFAULT_FRAMING_THRESHOLDS: FramingThresholds = {
   minAreaRatio: 0.08,
   maxAreaRatio: 0.85,
   maxCenterOffset: 0.22,
   minFields: 2,
+  maxTiltDeg: 10,
 };
 
 const isMonitorClass = (cls: number): boolean =>
@@ -90,6 +114,141 @@ function countFields(detections: FramingDetection[]): number {
     if (isFieldClass(detection.cls)) seen.add(detection.cls);
   }
   return seen.size;
+}
+
+/**
+ * Canonical top-to-bottom LCD order — sys (4) above dia (2) above pulse (3).
+ *
+ * Mirrors `Rectify.kt::CANONICAL_ORDER`, itself a port of the backend's
+ * `analyzer/rectify.py`. The order is what makes the fitted line's direction
+ * mean something: it is the vector the display *should* run along.
+ */
+const TILT_FIELD_ORDER = [4, 2, 3] as const;
+
+/** Two points is the fewest a line can be fitted through. */
+const MIN_FIELDS_FOR_TILT = 2;
+
+/**
+ * Frame pixels between the first and last point, below which the "line" is
+ * noise. Mirrors `rectify.py::MIN_FIELD_SPREAD`.
+ */
+const MIN_FIELD_SPREAD_PX = 8;
+
+/**
+ * Past this the estimate is not believed, and the gate says nothing.
+ *
+ * Mirrors `rectify.py::MAX_ROTATION_DEG`, where exceeding it means "do not
+ * rotate". The failure it guards is specific and not hypothetical: with only
+ * two fields visible and a display that puts them side by side rather than
+ * stacked, the fitted line is horizontal and the arithmetic reports a ~90
+ * degree tilt on a phone that is perfectly level. Believing that would pin the
+ * user on "hold it straight" forever and auto-capture would never arm.
+ *
+ * Treating an implausible estimate as *no opinion* rather than as a tilt is
+ * the same posture the whole gate takes: it is a nudge, and a nudge it cannot
+ * justify is worse than silence. Nothing is lost by staying quiet — the
+ * shutter was never blocked, and the full-resolution pass re-detects anyway.
+ */
+const MAX_TRUSTED_TILT_DEG = 60;
+
+/** Normalise to [-180, 180) — `((deg + 180) mod 360) - 180`, floor-mod. */
+function normalizeDeg(deg: number): number {
+  const shifted = deg + 180;
+  return shifted - Math.floor(shifted / 360) * 360 - 180;
+}
+
+/**
+ * How far the digit fields are rotated away from vertical, in degrees.
+ *
+ * A TypeScript port of `Rectify.kt::estimateRotationFromFields`, which is
+ * itself a port of `rectify.py::estimate_rotation_from_fields`. Same canonical
+ * field order, same right-edge midpoints, same total-least-squares fit, same
+ * sign convention: **positive means the correction is counter-clockwise**, so
+ * the sign matches what the on-device rotation stage would apply.
+ *
+ * Right-edge midpoints rather than centroids because BP LCDs are right-aligned
+ * — the right edges share a vertical line whatever the digit count, while the
+ * centroids scatter with it.
+ *
+ * The one deliberate divergence from both ports: the backend's 2 degree
+ * *minimum* is not applied here. Down there it decides whether a rotation is
+ * worth performing; up here the caller decides whether a tilt is worth
+ * mentioning, and that is a different number (`FramingThresholds.maxTiltDeg`).
+ * The 60 degree ceiling *is* applied — see `MAX_TRUSTED_TILT_DEG`.
+ *
+ * `null` means "no trustworthy answer": too few fields, points too close
+ * together to define a direction, or an estimate past the ceiling.
+ */
+export function estimateFieldTiltDeg(detections: FramingDetection[]): number | null {
+  // Highest-confidence box per class first, mirroring the backend's
+  // `_pick_best_per_class`. Per-class NMS usually leaves exactly one, but
+  // "usually" is not something to fit a line through.
+  const best = new Map<number, FramingDetection>();
+  for (const detection of detections) {
+    if (!isFieldClass(detection.cls)) continue;
+    const current = best.get(detection.cls);
+    if (!current || detection.confidence > current.confidence) best.set(detection.cls, detection);
+  }
+
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const cls of TILT_FIELD_ORDER) {
+    const field = best.get(cls);
+    if (!field) continue;
+    xs.push(field.x2);
+    ys.push((field.y1 + field.y2) / 2);
+  }
+  if (xs.length < MIN_FIELDS_FOR_TILT) return null;
+
+  const last = xs.length - 1;
+  const refX = xs[last] - xs[0];
+  const refY = ys[last] - ys[0];
+  if (Math.hypot(refX, refY) < MIN_FIELD_SPREAD_PX) return null;
+
+  // Total-least-squares direction, equivalent to cv2.fitLine(DIST_L2): the
+  // principal eigenvector of the point covariance. For a symmetric 2x2
+  // [[sxx, sxy], [sxy, syy]] the principal axis angle is
+  // 0.5 * atan2(2 * sxy, sxx - syy).
+  const n = xs.length;
+  let meanX = 0;
+  let meanY = 0;
+  for (let i = 0; i < n; i += 1) {
+    meanX += xs[i];
+    meanY += ys[i];
+  }
+  meanX /= n;
+  meanY /= n;
+
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  for (let i = 0; i < n; i += 1) {
+    const dx = xs[i] - meanX;
+    const dy = ys[i] - meanY;
+    sxx += dx * dx;
+    syy += dy * dy;
+    sxy += dx * dy;
+  }
+
+  const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  let vx = Math.cos(theta);
+  let vy = Math.sin(theta);
+  // An eigenvector has no inherent direction; orient it first -> last so the
+  // angle below is unambiguous.
+  if (vx * refX + vy * refY < 0) {
+    vx = -vx;
+    vy = -vy;
+  }
+
+  // The canonical sys -> pulse vector in image coords (y down) is (0, +1),
+  // i.e. 90 degrees. An observed angle above that means the image tilts
+  // clockwise and needs a positive (counter-clockwise) correction.
+  const measuredDeg = (Math.atan2(vy, vx) * 180) / Math.PI;
+  const correction = normalizeDeg(measuredDeg - 90);
+
+  if (!Number.isFinite(correction)) return null;
+  if (Math.abs(correction) > MAX_TRUSTED_TILT_DEG) return null;
+  return correction;
 }
 
 /**
@@ -126,6 +285,16 @@ export function evaluateFraming(
   if (Math.max(offsetX, offsetY) > thresholds.maxCenterOffset) return 'off-center';
 
   if (countFields(detections) < thresholds.minFields) return 'off-center';
+
+  // Tilt is checked last, and deliberately so. A monitor that is too far away
+  // or off to one side should hear about *that* first — telling someone to
+  // straighten a phone they have not yet aimed is noise. It also has to come
+  // after the field count, because the estimator needs two field boxes and
+  // that is exactly what the check above has just guaranteed.
+  //
+  // `null` is "no trustworthy answer", not "straight", and it stays silent.
+  const tilt = estimateFieldTiltDeg(detections);
+  if (tilt !== null && Math.abs(tilt) > thresholds.maxTiltDeg) return 'tilted';
 
   return 'ready';
 }

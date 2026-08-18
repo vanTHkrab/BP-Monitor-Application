@@ -212,6 +212,7 @@ __marimo__/
 prepare/
 
 debug_images/
+debug_old/
 
 # Model artifacts — fetched at runtime from R2 (see docker-entrypoint.sh
 # and src/ai_service/scripts/fetch_models.py). Only the hash manifest and

@@ -22,6 +22,19 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAppLockStore } from '../hooks/use-app-lock';
 import { biometricErrorMessage, promptDeviceUnlock } from '../lib/app-lock';
 
+/**
+ * How long the app can sit backgrounded before returning re-locks it.
+ *
+ * A product decision, not a technical one — chosen to match common
+ * banking-app conventions, where a brief interruption (switching to read a
+ * text, a notification shade pull that backgrounds the app rather than just
+ * covering it) does not cost a fingerprint, but a phone left in a bag for a
+ * while does. Do not tune this from a technical constraint; if it changes,
+ * it changes because the product answer to "how long is still 'with you'"
+ * changed.
+ */
+const BACKGROUND_GRACE_PERIOD_MS = 5 * 60 * 1000;
+
 export function AppLockGate({ children }: { children: ReactNode }) {
   const enabled = useAppLockStore((state) => state.enabled);
   const unlocked = useAppLockStore((state) => state.unlocked);
@@ -33,6 +46,12 @@ export function AppLockGate({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState<string | null>(null);
   const isPrompting = useRef(false);
   const appState = useRef(AppState.currentState);
+  // Set on the transition *into* background, read on the way back. `null`
+  // until the first backgrounding this session, which — combined with the
+  // `appState.current === 'background'` check below — is why a cold start
+  // still never prompts: there is no recorded background moment to measure
+  // the elapsed time against.
+  const backgroundedAt = useRef<number | null>(null);
 
   useEffect(() => {
     if (enabled === null) void hydrate();
@@ -62,19 +81,31 @@ export function AppLockGate({ children }: { children: ReactNode }) {
     if (!enabled) return;
 
     const subscription = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (appState.current === 'background' && next === 'active') {
-        // Coming back is when the lock goes up, not when leaving: putting it
-        // up on the way out would leave a locked screen in the app switcher
-        // preview, which tells a shoulder-surfer nothing but confuses the
-        // owner.
-        lock();
-        // Prompting straight from the event rather than from an effect
-        // watching `unlocked`: returning to the app should cost one
-        // fingerprint, not a tap and then a fingerprint. A cold start is
-        // deliberately *not* auto-prompted — a system sheet over a
-        // still-settling launch screen is startling, and the button is right
-        // there.
-        void attemptUnlock();
+      if (next === 'background') {
+        // Recorded on the way out, so the way back can measure how long the
+        // app was actually away — see `BACKGROUND_GRACE_PERIOD_MS`.
+        backgroundedAt.current = Date.now();
+      } else if (appState.current === 'background' && next === 'active') {
+        const awayMs =
+          backgroundedAt.current === null ? Infinity : Date.now() - backgroundedAt.current;
+
+        // Under the grace period: a brief interruption, not a real away —
+        // leave the app exactly as it was, no lock, no prompt, nothing
+        // visible changes.
+        if (awayMs >= BACKGROUND_GRACE_PERIOD_MS) {
+          // Coming back is when the lock goes up, not when leaving: putting
+          // it up on the way out would leave a locked screen in the app
+          // switcher preview, which tells a shoulder-surfer nothing but
+          // confuses the owner.
+          lock();
+          // Prompting straight from the event rather than from an effect
+          // watching `unlocked`: returning to the app should cost one
+          // fingerprint, not a tap and then a fingerprint. A cold start is
+          // deliberately *not* auto-prompted — a system sheet over a
+          // still-settling launch screen is startling, and the button is
+          // right there.
+          void attemptUnlock();
+        }
       }
       appState.current = next;
     });

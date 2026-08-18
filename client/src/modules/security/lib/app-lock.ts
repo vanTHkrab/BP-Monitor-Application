@@ -68,11 +68,13 @@ export async function getBiometricCapability(): Promise<BiometricCapability> {
 
   const { AuthenticationType } = LocalAuthentication;
 
-  if (types.includes(AuthenticationType.FACIAL_RECOGNITION)) {
-    return { available: true, kind: 'face', label: 'สแกนใบหน้า' };
-  }
+  // Fingerprint checked first: on a device with both enrolled, fingerprint
+  // is the preferred method.
   if (types.includes(AuthenticationType.FINGERPRINT)) {
     return { available: true, kind: 'fingerprint', label: 'ลายนิ้วมือ' };
+  }
+  if (types.includes(AuthenticationType.FACIAL_RECOGNITION)) {
+    return { available: true, kind: 'face', label: 'สแกนใบหน้า' };
   }
   if (types.includes(AuthenticationType.IRIS)) {
     return { available: true, kind: 'iris', label: 'สแกนม่านตา' };

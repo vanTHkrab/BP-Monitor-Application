@@ -98,28 +98,31 @@ export function PersonCard({
         {chips.length > 0 ? (
           <View className="mt-2 flex-row flex-wrap gap-1.5">
             {chips.map((chip) => {
+              // `colors.accent` is a saturated orange (`#FF8A45`); white text on
+              // it measures ~2.3:1 contrast, well under WCAG AA's 4.5:1 — this
+              // dark warm brown clears ~6.3:1. Derived from the same `chip.tone`
+              // check as `fill` below, in one place, rather than three separate
+              // hardcoded `'#FFFFFF'` literals that could drift out of sync with
+              // the background if either one changes later.
+              const onChip =
+                chip.tone === 'accent' ? '#402000' : colors['text-secondary'];
+              const fill = chip.tone === 'accent' ? colors.accent : colors['surface-muted'];
+
               const inner = (
                 <>
                   <ThemedText
                     type="caption"
                     weight="semibold"
                     themeColor="text-secondary"
-                    style={chip.tone === 'accent' ? { color: '#FFFFFF' } : undefined}
+                    style={chip.tone === 'accent' ? { color: onChip } : undefined}
                   >
                     {chip.label}
                   </ThemedText>
                   {chip.onPress ? (
-                    <Ionicons
-                      name="pencil"
-                      size={11}
-                      color={chip.tone === 'accent' ? '#FFFFFF' : colors['text-secondary']}
-                      style={{ marginLeft: 4 }}
-                    />
+                    <Ionicons name="pencil" size={11} color={onChip} style={{ marginLeft: 4 }} />
                   ) : null}
                 </>
               );
-
-              const fill = chip.tone === 'accent' ? colors.accent : colors['surface-muted'];
 
               return chip.onPress ? (
                 <Pressable
@@ -128,8 +131,22 @@ export function PersonCard({
                   onPress={chip.onPress}
                   accessibilityRole="button"
                   accessibilityLabel={chip.accessibilityLabel ?? chip.label}
-                  className="flex-row items-center rounded-full border px-2.5 py-1"
+                  // No `className` here on purpose — see C-009 in TASK.md.
+                  // NativeWind's classes silently stop applying on a
+                  // `Pressable` whose `style` is the function form
+                  // (`({ pressed }) => ...`), which this chip needs for its
+                  // press-state opacity. The fix is the same one `ProfileHero`
+                  // already uses for its avatar `Pressable`: carry every
+                  // style — static and dynamic — through the one function,
+                  // rather than splitting it across two mechanisms that don't
+                  // reliably compose.
                   style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    borderRadius: 9999,
+                    borderWidth: 1,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
                     backgroundColor: fill,
                     borderColor: colors['border-strong'],
                     opacity: pressed ? 0.6 : 1,

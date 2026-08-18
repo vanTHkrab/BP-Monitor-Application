@@ -118,7 +118,19 @@ export class SecurityService {
         this.passkeySupported
           ? this.prisma.passkey.count({ where: { userId } })
           : Promise.resolve(0),
-        this.prisma.userSession.count({ where: { userId, isActive: true } }),
+        // Nothing ever flips `isActive` to false on natural expiry — only an
+        // explicit logout does (see AuthService.logout /
+        // logoutAllDevices). Without the `expiresAt` gate, a session that
+        // simply expired stays counted here forever, and this number drives
+        // the security hub's headline warning
+        // ("มี N อุปกรณ์ที่เข้าสู่ระบบอยู่") before the user ever reaches the
+        // devices screen. Unlike `AuthService.listSessions`, nothing
+        // downstream needs to bucket expired vs. revoked here — it's a raw
+        // count — so filtering in the query is the right shape, not a
+        // computed field over mapped rows.
+        this.prisma.userSession.count({
+          where: { userId, isActive: true, expiresAt: { gt: new Date() } },
+        }),
         this.prisma.account.findMany({
           where: { userId },
           select: { providerId: true, password: true },
