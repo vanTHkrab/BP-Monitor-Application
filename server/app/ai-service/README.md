@@ -141,8 +141,10 @@ ai-service/
 ├── models/
 │   ├── EXPECTED_HASHES.json           # sha256 manifest (tracked) — single source of truth
 │   ├── yolo11n.onnx                   # YOLOv11n, 5 BP classes, 10.7 MB — fetched from R2
-│   ├── yolo26n-gray.onnx              # YOLO26n end-to-end, grayscale-trained, ~10 MB — fetched from R2
-│   ├── yolo26n-color.onnx             # YOLO26n end-to-end, colour, ~9.6 MB — fetched from R2
+│   ├── yolo26n-adamw-gray.onnx        # YOLO26n end-to-end, grayscale-trained, ~10 MB — fetched from R2
+│   ├── yolo26n-adamw-color.onnx       # YOLO26n end-to-end, colour, ~9.6 MB — fetched from R2
+│   ├── yolo26n-spg-gray.onnx          # YOLO26n end-to-end, grayscale-trained, SGD, ~9.9 MB — fetched from R2
+│   ├── yolo11n-adam-color.onnx        # YOLOv11n anchors export, colour, ~10.2 MB — fetched from R2
 │   ├── crnn.onnx                      # CRNN, ~4.5 MB — fetched from R2
 │   ├── cnn_2ch_distilled_*_int8.onnx  # 4 distilled CNN files, ~0.6 MB each — fetched from R2
 │   ├── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB) — fetched from R2

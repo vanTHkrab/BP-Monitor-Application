@@ -8,8 +8,8 @@ is read off the loaded graph, never configured**:
   xywh (center, input-pixel coords), rows 4.. are per-class scores.
   NMS runs here in Python (``cv2.dnn.NMSBoxes``), so ``iou_threshold``
   is load-bearing on this path.
-* ``nms_boxes`` — ``models/yolo26n-gray.onnx`` /
-  ``models/yolo26n-color.onnx``, YOLO26 exported end-to-end
+* ``nms_boxes`` — ``models/yolo26n-adamw-gray.onnx`` /
+  ``models/yolo26n-adamw-color.onnx``, YOLO26 exported end-to-end
   (``metadata_props['end2end'] == 'True'``). Output ``[1, 300, 6]``:
   each row is ``(x1, y1, x2, y2, conf, cls)`` in letterbox pixels,
   already suppressed and sorted by confidence descending, with rows
