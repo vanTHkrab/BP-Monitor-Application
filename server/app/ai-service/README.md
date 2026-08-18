@@ -76,6 +76,7 @@ signature of a flapping Redis connection.
 | `AI_ONNX_INTRA_OP_THREADS` | – | `2` | `SessionOptions.intra_op_num_threads` cap for every ORT session (YOLO + CRNN + per-bucket CNNs) |
 | `AI_ONNX_INTER_OP_THREADS` | – | `1` | `SessionOptions.inter_op_num_threads` cap (paired with `ORT_SEQUENTIAL`) |
 | `AI_SSOCR_SYS_PREFIX_REPAIR` | – | `1` | Enables the SSOCR rescue that completes a 2-digit systolic read below 70 into 3 digits by prefixing a `1`. **That digit is invented, not read** — readings produced this way are reported with confidence × `SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY` (0.7). Set to `0` to disable; such reads then surface as out-of-range instead. `ssocr` / `ssocr_cnn` only. |
+| `AI_PERSPECTIVE_RECTIFY_ENABLED` | – | `0` | Set to `1` to re-enable Stage 1 of LCD straightening (4-point perspective rectification of the screen bezel). Off because it never succeeded once on the measured corpus — 120 attempts, 0 rectified frames — while paying ~31 ms of Canny + contour search per request. Stage 2 (field-layout rotation) always runs and is unaffected. |
 | `AI_DEBUG_DUMP_ENABLED` | – | `0` | Set to `1` to write per-stage debug images (dev only) |
 | `AI_DEBUG_DUMP_DIR` | – | `<ai-service>/debug_images/` | Output directory for debug dumps |
 
@@ -128,7 +129,7 @@ ai-service/
 │           ├── engines.py             # EngineRegistry + build_registry() — all three engines loaded at lifespan
 │           ├── pipeline.py            # BPAnalysisPipeline.analyze() → (AnalysisResult, AnalysisMetrics)
 │           ├── yolo.py                # YoloDetector — onnxruntime session, letterbox, NMS
-│           ├── rectify.py             # LCD perspective rectification + field-layout rotation fallback
+│           ├── rectify.py             # LCD field-layout rotation (+ opt-in perspective rectification)
 │           ├── preprocessing.py       # letterbox() shared by detector and future ROI preprocess
 │           ├── validation.py          # range + sys>dia sanity checks
 │           ├── types.py               # AnalysisResult, FieldReading, BoundingBox, AnalysisMetrics, BPClass
@@ -140,8 +141,10 @@ ai-service/
 ├── models/
 │   ├── EXPECTED_HASHES.json           # sha256 manifest (tracked) — single source of truth
 │   ├── yolo11n.onnx                   # YOLOv11n, 5 BP classes, 10.7 MB — fetched from R2
-│   ├── yolo26n-gray.onnx              # YOLO26n end-to-end, grayscale-trained, ~10 MB — fetched from R2
-│   ├── yolo26n-color.onnx             # YOLO26n end-to-end, colour, ~9.6 MB — fetched from R2
+│   ├── yolo26n-adamw-gray.onnx        # YOLO26n end-to-end, grayscale-trained, ~10 MB — fetched from R2
+│   ├── yolo26n-adamw-color.onnx       # YOLO26n end-to-end, colour, ~9.6 MB — fetched from R2
+│   ├── yolo26n-spg-gray.onnx          # YOLO26n end-to-end, grayscale-trained, SGD, ~9.9 MB — fetched from R2
+│   ├── yolo11n-adam-color.onnx        # YOLOv11n anchors export, colour, ~10.2 MB — fetched from R2
 │   ├── crnn.onnx                      # CRNN, ~4.5 MB — fetched from R2
 │   ├── cnn_2ch_distilled_*_int8.onnx  # 4 distilled CNN files, ~0.6 MB each — fetched from R2
 │   ├── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB) — fetched from R2
@@ -150,7 +153,7 @@ ai-service/
 ├── src/ai_service/scripts/
 │   └── fetch_models.py                # local-dev equivalent (`python -m ai_service.scripts.fetch_models`)
 ├── tests/
-│   └── test_*.py                      # 214 tests across config / debug_dump / fetch / handlers / pipeline / rectify / validation / yolo / crnn / engines / cnn_classifiers
+│   └── test_*.py                      # 369 tests across config / debug_dump / fetch / handlers / pipeline / rectify / validation / yolo / crnn / engines / cnn_classifiers (+15 opt-in golden)
 ├── pyproject.toml                     # uv-managed deps
 ├── uv.lock
 ├── Dockerfile

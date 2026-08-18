@@ -1,17 +1,22 @@
 """Perspective rectification and field-layout rotation for the BP LCD.
 
-Two-stage straighten chain that runs after the first YOLO pass:
+Two straighten stages, of which the pipeline calls one by default:
 
 1. **Perspective rectification** (``detect_screen_quad`` →
    ``rectify_perspective``). Recovers the four physical corners of the
    ``BP_Screen_Monitor`` bezel via Canny + ``approxPolyDP`` and warps
-   them to an axis-aligned rectangle. Works well on square-bezel
-   monitors with a clean edge boundary.
+   them to an axis-aligned rectangle. Works on square-bezel monitors
+   with a clean edge boundary — of which the measured corpus contains
+   none: 120 attempts, 0 quads. **The pipeline no longer calls this
+   unless ``AI_PERSPECTIVE_RECTIFY_ENABLED`` is set**; see
+   ``pipeline.DEFAULT_PERSPECTIVE_RECTIFY_ENABLED``. Both functions
+   stay here, tested, because the failure belongs to the current
+   detector and bezel population rather than to the technique.
 
 2. **Field-layout rotation** (``estimate_rotation_from_fields`` →
-   ``rotate_image_keep_content``) — fallback for the rounded-bezel
-   case (Omron and similar) where ``approxPolyDP`` cannot reduce the
-   contour to 4 vertices. Fits a line through a per-field reference
+   ``rotate_image_keep_content``) — the stage that runs. Handles the
+   rounded-bezel case (Omron and similar) where ``approxPolyDP`` cannot
+   reduce the contour to 4 vertices. Fits a line through a per-field reference
    point of the ``sys`` / ``dia`` / ``pulse`` boxes the first YOLO pass
    already produced and rotates the whole image so that line stands
    vertical. The reference defaults to each box's right-edge midpoint

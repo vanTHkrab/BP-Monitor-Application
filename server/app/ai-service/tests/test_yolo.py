@@ -353,8 +353,8 @@ class TestGrayscaleInput:
     """
 
     def test_inferred_from_the_model_filename(self):
-        assert infer_grayscale_input("models/yolo26n-gray.onnx") is True
-        assert infer_grayscale_input("models/yolo26n-color.onnx") is False
+        assert infer_grayscale_input("models/yolo26n-adamw-gray.onnx") is True
+        assert infer_grayscale_input("models/yolo26n-adamw-color.onnx") is False
         assert infer_grayscale_input("models/yolo11n.onnx") is False
 
     def test_replicated_render_still_has_three_channels(self):
@@ -407,7 +407,7 @@ class TestRealYolo26Models:
 
     @pytest.mark.parametrize(
         ("filename", "grayscale"),
-        [("yolo26n-gray.onnx", True), ("yolo26n-color.onnx", False)],
+        [("yolo26n-adamw-gray.onnx", True), ("yolo26n-adamw-color.onnx", False)],
     )
     def test_loads_as_an_end_to_end_export(self, require_model, filename, grayscale):
         d = YoloDetector.load(require_model(filename))
@@ -415,7 +415,7 @@ class TestRealYolo26Models:
         assert d.grayscale_input is grayscale
 
     def test_uniform_gray_returns_empty_list(self, require_model, fake_image):
-        d = YoloDetector.load(require_model("yolo26n-gray.onnx"))
+        d = YoloDetector.load(require_model("yolo26n-adamw-gray.onnx"))
         assert d.detect(fake_image) == []
 
 

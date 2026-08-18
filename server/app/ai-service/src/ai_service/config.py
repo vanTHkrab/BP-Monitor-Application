@@ -79,7 +79,7 @@ class AnalyzerConfig(BaseSettings):
     )
     crnn_path: Path = Field(
         default_factory=lambda: AI_SERVICE_ROOT / "models" / "crnn.onnx",
-        description="Path to the CRNN ONNX int8 model. Loaded once at lifespan "
+        description="Path to the CRNN ONNX model. Loaded once at lifespan "
                     "and shared across labels.",
     )
     default_engine: OCREngine = Field(
@@ -248,6 +248,29 @@ class AnalyzerConfig(BaseSettings):
                     "surface as low-confidence instead of being "
                     "completed. Affects the ``ssocr`` and ``ssocr_cnn`` "
                     "engines only; ``crnn`` has no such rule.",
+    )
+
+    perspective_rectify_enabled: bool = Field(
+        default=False,
+        description="Enables Stage 1 of the straighten chain — 4-point "
+                    "perspective rectification of the LCD bezel "
+                    "(``rectify.detect_screen_quad`` + "
+                    "``rectify.rectify_perspective``). OFF by default: "
+                    "instrumented over the golden corpus at four "
+                    "orientations (120 analyses), the stage was entered "
+                    "120 times and succeeded 0 times — ``approxPolyDP`` "
+                    "never recovered a 4-vertex quad — while still paying "
+                    "for Canny + contour finding on every request. A "
+                    "three-variant ablation (stage on / stage off / stage "
+                    "and gate removed) produced byte-identical crnn "
+                    "accuracy, so the stage is a measured no-op on the "
+                    "corpus we have. It is gated rather than deleted "
+                    "because a detector retrain or a better bezel "
+                    "approach could revive it, and because a flag is "
+                    "measurable where a deletion is only reversible. "
+                    "Stage 2 (field-layout rotation) is unaffected and "
+                    "always runs. Set ``AI_PERSPECTIVE_RECTIFY_ENABLED=1`` "
+                    "to measure the stage again.",
     )
 
     debug_dump_enabled: bool = Field(
