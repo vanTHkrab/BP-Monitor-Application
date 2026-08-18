@@ -14,6 +14,18 @@ each photo, `tests/golden/baseline.json` holds the accuracy each engine
 achieved when that baseline was last recorded, and these tests assert
 the current run is **no worse**.
 
+Every image is scored at four orientations (`golden_report.Stratum`)
+against the *same* labels, because a patient who photographs their
+monitor sideways or upside down gets a reading rather than an error, and
+a correct pipeline owes them the same three numbers whichever way up the
+photo arrives. The strata are gated separately: averaging them would let
+a rotation regression hide behind upright accuracy, which is the
+majority of any real corpus.
+
+This makes the suite ~4x slower than it was (one pipeline run per image
+per engine per orientation). It is already an opt-in marked suite, so
+the cost lands where it was budgeted.
+
 Requires the real weights and the real images, so it skips on a fresh
 checkout — like the other model-dependent tests. Run it explicitly with:
 
@@ -35,6 +47,7 @@ import pytest
 from ai_service.scripts.golden_report import (
     BASELINE_PATH,
     FIELDS,
+    Stratum,
     available_labels,
     load_labels,
     score_engines,
@@ -59,15 +72,32 @@ def labels():
 def baseline():
     if not BASELINE_PATH.exists():
         pytest.skip("no baseline recorded yet — run golden_report --update")
-    return json.loads(BASELINE_PATH.read_text())
+    recorded = json.loads(BASELINE_PATH.read_text())
+    # A pre-strata baseline is stale, not absent. Skipping would quietly
+    # drop the gate on a machine that has everything it needs to run it.
+    assert "strata" in recorded, (
+        "baseline.json predates the per-orientation strata — rerun "
+        "`golden_report --update` to record one"
+    )
+    return recorded
 
 
 @pytest.fixture(scope="module")
 def scores(labels):
-    """One pipeline run per engine per image — module-scoped, it is slow."""
+    """One pipeline run per engine per image per orientation.
+
+    Module-scoped because it is by far the slowest fixture in the suite.
+    """
     import asyncio
 
     return asyncio.run(score_engines(labels))
+
+
+def iter_baseline(baseline):
+    """Yield ``(stratum, engine, recorded)`` for every baselined cell."""
+    for stratum, per_engine in baseline["strata"].items():
+        for engine, recorded in per_engine.items():
+            yield stratum, engine, recorded
 
 
 class TestLabelsFile:
@@ -104,7 +134,7 @@ class TestLabelsFile:
 
 
 class TestAccuracyHasNotRegressed:
-    """The gate itself."""
+    """The gate itself — asserted per orientation, never averaged."""
 
     def test_exact_match_rate_per_engine(self, scores, baseline):
         """Exact match on all three values.
@@ -113,14 +143,14 @@ class TestAccuracyHasNotRegressed:
         number into someone's medical history, so partial credit is not
         the metric to gate on.
         """
-        for name, recorded in baseline["engines"].items():
-            current = scores[name]
+        for stratum, name, recorded in iter_baseline(baseline):
+            current = scores[stratum][name]
             assert current.total == recorded["total"], (
-                f"{name}: corpus size changed ({current.total} vs "
+                f"{stratum}/{name}: corpus size changed ({current.total} vs "
                 f"{recorded['total']}) — rebaseline deliberately"
             )
             assert current.exact >= recorded["exact"], (
-                f"{name}: exact matches dropped "
+                f"{stratum}/{name}: exact matches dropped "
                 f"{recorded['exact']} -> {current.exact}. "
                 f"Misses: {current.mistakes}"
             )
@@ -128,11 +158,11 @@ class TestAccuracyHasNotRegressed:
     def test_per_field_accuracy_per_engine(self, scores, baseline):
         """Catches a change that trades one field's accuracy for another
         without moving the exact-match count."""
-        for name, recorded in baseline["engines"].items():
-            current = scores[name]
+        for stratum, name, recorded in iter_baseline(baseline):
+            current = scores[stratum][name]
             for f in FIELDS:
                 assert current.per_field_correct[f] >= recorded["per_field_correct"][f], (
-                    f"{name}: {f} correct dropped "
+                    f"{stratum}/{name}: {f} correct dropped "
                     f"{recorded['per_field_correct'][f]} -> "
                     f"{current.per_field_correct[f]}"
                 )
@@ -141,15 +171,23 @@ class TestAccuracyHasNotRegressed:
         """A wrong number is far more expensive than a refusal: the
         patient has no way to know it is wrong. Trading a `None` for a
         wrong value must fail even if exact-match is unchanged.
+
+        This is the gate that matters most on the rotated strata, where
+        almost every field is currently *answered* rather than declined.
         """
-        for name, recorded in baseline["engines"].items():
-            current = scores[name]
+        for stratum, name, recorded in iter_baseline(baseline):
+            current = scores[stratum][name]
             for f in FIELDS:
                 assert current.per_field_wrong[f] <= recorded["per_field_wrong"][f], (
-                    f"{name}: {f} wrong answers rose "
+                    f"{stratum}/{name}: {f} wrong answers rose "
                     f"{recorded['per_field_wrong'][f]} -> "
                     f"{current.per_field_wrong[f]}"
                 )
+
+    def test_every_orientation_is_baselined(self, baseline):
+        """A stratum that quietly stops being recorded is a gate that
+        quietly stops existing."""
+        assert set(baseline["strata"]) == {s.value for s in Stratum}
 
 
 class TestWhatTheCorpusShows:
@@ -164,9 +202,14 @@ class TestWhatTheCorpusShows:
         """The M2.2 comparison, answered with ground truth for the first
         time: on this corpus the CRNN is far ahead. `crnn` is already the
         configured default, so this confirms the default rather than
-        challenging it."""
-        assert scores["crnn"].exact > scores["ssocr_cnn"].exact
-        assert scores["crnn"].exact > scores["ssocr"].exact
+        challenging it.
+
+        Upright only — at every other orientation all three engines are
+        at zero, so there is nothing to compare.
+        """
+        upright = scores[Stratum.ROT0.value]
+        assert upright["crnn"].exact > upright["ssocr_cnn"].exact
+        assert upright["crnn"].exact > upright["ssocr"].exact
 
     def test_the_rule_engine_still_collapses_to_111_on_systolic(self, scores):
         """Ground truth for the `_classify_digit_soft` finding pinned in
@@ -182,10 +225,58 @@ class TestWhatTheCorpusShows:
         delete it then, and rebaseline.
         """
         got_111 = [
-            m for m in scores["ssocr_cnn"].mistakes
+            m for m in scores[Stratum.ROT0.value]["ssocr_cnn"].mistakes
             if m["got"]["systolic"] == 111 and m["truth"]["systolic"] != 111
         ]
         assert len(got_111) >= 2, (
             "the 111 collapse appears to be gone — if that was intentional, "
             "delete this test and rebaseline"
         )
+
+
+class TestRotationIsCurrentlyUnhandled:
+    """The reason the rotated strata exist, pinned as measurements.
+
+    None of this is a requirement — it is the bug, written down where a
+    fix will trip over it. When the orientation work lands, these tests
+    fail; that is the signal that the baseline is ready to be re-recorded
+    and these pins deleted.
+    """
+
+    @pytest.mark.parametrize(
+        "stratum", [s.value for s in Stratum if s is not Stratum.ROT0]
+    )
+    def test_no_engine_reads_a_rotated_photo_correctly(self, scores, stratum):
+        """Zero exact matches at every non-upright orientation, for every
+        engine. Not "degraded" — nothing survives the rotation."""
+        for name, score in scores[stratum].items():
+            assert score.exact == 0, (
+                f"{stratum}/{name} now reads {score.exact}/{score.total} "
+                f"rotated photos correctly — the orientation work has "
+                f"landed, so delete this pin and rebaseline"
+            )
+
+    @pytest.mark.parametrize(
+        "stratum", [s.value for s in Stratum if s is not Stratum.ROT0]
+    )
+    def test_a_rotated_photo_is_answered_wrongly_rather_than_refused(
+        self, scores, stratum
+    ):
+        """The expensive half, and the reason widening a rotation clamp
+        is not a fix.
+
+        A rotated frame does not fail loudly. Some fields are declined
+        (cheap — the patient sees an error), but many are *answered*,
+        and seven-segment digits are largely rotation-symmetric (0/1/2/
+        5/8 map to themselves, 6 and 9 swap), so a flipped read can land
+        in clinical range and pass `sys > dia`. It reaches the patient
+        looking exactly like a good reading.
+        """
+        for name, score in scores[stratum].items():
+            wrong = sum(score.per_field_wrong[f] for f in FIELDS)
+            assert wrong > 0, (
+                f"{stratum}/{name} no longer reports any wrong value — if "
+                f"the pipeline now refuses rotated photos instead of "
+                f"guessing at them, that is progress: delete this pin and "
+                f"rebaseline"
+            )
