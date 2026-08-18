@@ -176,40 +176,23 @@ class TestMetrics:
         assert metrics.ocr_ms >= 0
         assert metrics.validate_ms >= 0
 
-    async def test_no_screen_box_skips_rectify(
+    async def test_rectify_ms_measured_even_when_nothing_is_applied(
         self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers
     ):
-        # When the first pass surfaces no screen-class box, rectify is
-        # skipped entirely — rectify_ms stays at 0 instead of paying the
-        # cost of a doomed corner search.
+        # The conftest boxes are coincident, so the line fit is
+        # degenerate and rotation declines — but the stage was still
+        # entered and timed. rectify_ms is no longer a "did we
+        # straighten" flag: the 0.0 sentinel belonged to the screen-box
+        # early return, which went away with the perspective stage it
+        # guarded.
         pipe = BPAnalysisPipeline(
             detector=MockDetector([box_sys, box_dia, box_pul]),
             ocr_readers=make_ocr_readers(),
             field_timeout_s=1.0,
         )
-        _, metrics = await pipe.analyze(fake_image)
-        assert metrics.rectify_ms == 0.0
-
-    async def test_screen_present_but_no_quad_falls_back_silently(
-        self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers
-    ):
-        # Screen box exists → rectify is attempted, but the uniform
-        # gray fake_image has no edges to chew on, so detect_screen_quad
-        # returns None and the pipeline keeps running on the original.
-        # rectify_ms is non-zero (we measured the failed attempt) but the
-        # result is still SUCCESS, proving the fallback is silent.
-        screen = BoundingBox(
-            50, 50, 300, 250, cls=1, class_name="BP_Screen_Monitor",
-            confidence=0.9,
-        )
-        pipe = BPAnalysisPipeline(
-            detector=MockDetector([box_sys, box_dia, box_pul, screen]),
-            ocr_readers=make_ocr_readers(),
-            field_timeout_s=1.0,
-        )
         res, metrics = await pipe.analyze(fake_image)
         assert res.status == AnalysisStatus.SUCCESS
-        assert metrics.rectify_ms >= 0.0  # attempt timing recorded
+        assert metrics.rectify_ms >= 0.0
 
     async def test_unreadable_path_still_emits_metrics(
         self, fake_image, box_sys, make_ocr_readers
@@ -223,9 +206,10 @@ class TestMetrics:
         assert res.status == AnalysisStatus.UNREADABLE
         # Detect time recorded; ocr/validate stayed at zero because the
         # short-circuit fired before those stages ran. rectify_ms is
-        # 0.0 here because no screen box was emitted by the mock.
+        # measured either way — one field is too few for a line fit, so
+        # the stage declines immediately rather than being skipped.
         assert metrics.detect_ms >= 0
-        assert metrics.rectify_ms == 0.0
+        assert metrics.rectify_ms >= 0.0
         assert metrics.ocr_ms == 0.0
         assert metrics.validate_ms == 0.0
 
@@ -243,12 +227,14 @@ class TestConstructor:
 
 
 class TestRectifyFallbackChain:
-    """Exercise the perspective → rotation → original fallback chain.
+    """Exercise the rotation → original fallback chain.
 
-    The actual perspective warp can't fire on the uniform ``fake_image``
-    (no edges for Canny), so these tests cover the path the user's
-    failing Omron-bezel images traverse: perspective returns ``None``,
-    field-layout rotation either rescues or falls through.
+    Field-layout rotation is the straightening the pipeline applies by
+    default; 4-point perspective rectification sits behind
+    ``perspective_rectify_enabled`` and is off. These tests cover the
+    path the user's failing Omron-bezel images traverse — the bezel
+    contour never reduced to a quad, so rotation either rescues the
+    frame or falls through to the first-pass boxes.
     """
 
     @staticmethod
@@ -277,17 +263,16 @@ class TestRectifyFallbackChain:
         )
         return sys_box, dia_box, pul_box, screen_box
 
-    async def test_rotation_rescues_when_perspective_fails(
+    async def test_rotation_rescues_tilted_fields(
         self, fake_image, make_ocr_readers, monkeypatch,
     ):
         # Gate forced ON so this stays a real "tilted image clears the gate
         # and is rescued" scenario regardless of the shipped default.
-        # Uniform fake_image → Canny has nothing to bite → perspective
-        # quad detection fails. The first-pass field centroids form a
-        # ~25° tilted line, so the rotation fallback should trigger.
-        # The second pass detects the same fields with *higher*
-        # confidence (straightening genuinely helped), clearing the
-        # MIN_ROTATION_CONFIDENCE_GAIN gate so the rotation is committed.
+        # The first-pass field reference points form a ~25° tilted line,
+        # so rotation should trigger. The second pass detects the same
+        # fields with *higher* confidence (straightening genuinely
+        # helped), clearing the MIN_ROTATION_CONFIDENCE_GAIN gate so the
+        # rotation is committed.
         monkeypatch.setattr(
             "ai_service.analyzer.pipeline.USE_ROTATION_CONFIDENCE_GATE", True,
         )
@@ -317,8 +302,6 @@ class TestRectifyFallbackChain:
 
         assert res.status == AnalysisStatus.SUCCESS
         assert (res.systolic, res.diastolic, res.pulse) == (120, 80, 72)
-        # Both perspective + rotation contributed to rectify_ms; total
-        # must be non-zero (we measured the attempts).
         assert metrics.rectify_ms > 0.0
 
     async def test_rotation_falls_back_when_angle_below_floor(
@@ -353,8 +336,8 @@ class TestRectifyFallbackChain:
         res, metrics = await pipe.analyze(fake_image)
 
         assert res.status == AnalysisStatus.SUCCESS
-        # We tried perspective + checked rotation, both declined, so
-        # rectify_ms is non-zero but the public result is unchanged.
+        # Rotation was estimated and declined, so rectify_ms is non-zero
+        # but the public result is unchanged.
         assert metrics.rectify_ms > 0.0
 
     async def test_rotation_falls_back_when_second_pass_loses_fields(
@@ -457,6 +440,128 @@ class TestRectifyFallbackChain:
         # min(0.88*0.95) over second-pass fields → rotated fields were used.
         assert res.confidence == pytest.approx(0.88 * 0.95)
         assert metrics.rectify_ms > 0.0
+
+    async def test_rotation_runs_when_no_screen_box_detected(
+        self, fake_image, make_ocr_readers, monkeypatch,
+    ):
+        """The screen-box gate is gone, and this is what it cost.
+
+        First pass finds the three tilted field boxes but no
+        screen-class box — a frame where YOLO missed the bezel. The old
+        chain returned early here and straightened nothing, because the
+        gate existed for perspective rectification and perspective led
+        the chain. Rotation reads field boxes only, so it must run.
+
+        Observed through the confidences: committing the rotation means
+        the *second*-pass boxes (0.88) drive the result rather than the
+        first-pass ones (0.92+).
+        """
+        monkeypatch.setattr(
+            "ai_service.analyzer.pipeline.USE_ROTATION_CONFIDENCE_GATE", False,
+        )
+        sys_b, dia_b, pul_b, _screen_b = self._tilted_fields()
+        detector = SequentialMockDetector(
+            [sys_b, dia_b, pul_b],                  # first pass — no screen box
+            list(self._lower_conf_second_pass()),   # second pass on rotated frame
+        )
+        pipe = BPAnalysisPipeline(
+            detector=detector,
+            ocr_readers=make_ocr_readers("120", "80", "72", 0.95),
+            field_timeout_s=1.0,
+        )
+        res, metrics = await pipe.analyze(fake_image)
+
+        assert res.status == AnalysisStatus.SUCCESS
+        assert res.confidence == pytest.approx(0.88 * 0.95)
+        assert metrics.rectify_ms > 0.0
+
+
+class TestPerspectiveStageFlag:
+    """Stage 1 is opt-in and off by default.
+
+    It never once succeeded on the measured corpus (0/120), so the
+    default path must not pay for the quad search at all. The tests spy
+    on ``detect_screen_quad`` because "was the corner search run" is the
+    cost being removed — the stage returning ``None`` either way makes
+    the result alone unable to tell the two configurations apart.
+    """
+
+    @staticmethod
+    def _boxes_with_screen(box_sys, box_dia, box_pul):
+        screen = BoundingBox(
+            50, 50, 300, 250, cls=1, class_name="BP_Screen_Monitor",
+            confidence=0.9,
+        )
+        return [box_sys, box_dia, box_pul, screen]
+
+    @staticmethod
+    def _spy_quad(monkeypatch) -> list[tuple]:
+        """Record ``detect_screen_quad`` calls; always decline the quad."""
+        calls: list[tuple] = []
+
+        def _quad(image, screen_box, **kwargs):
+            calls.append(screen_box)
+            return None
+
+        monkeypatch.setattr(
+            "ai_service.analyzer.pipeline.detect_screen_quad", _quad,
+        )
+        return calls
+
+    async def test_not_attempted_by_default(
+        self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers,
+        monkeypatch,
+    ):
+        calls = self._spy_quad(monkeypatch)
+        pipe = BPAnalysisPipeline(
+            detector=MockDetector(
+                self._boxes_with_screen(box_sys, box_dia, box_pul)
+            ),
+            ocr_readers=make_ocr_readers(),
+            field_timeout_s=1.0,
+        )
+        res, _metrics = await pipe.analyze(fake_image)
+
+        assert calls == [], "quad search ran with the stage disabled"
+        assert res.status == AnalysisStatus.SUCCESS
+
+    async def test_attempted_when_enabled(
+        self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers,
+        monkeypatch,
+    ):
+        calls = self._spy_quad(monkeypatch)
+        pipe = BPAnalysisPipeline(
+            detector=MockDetector(
+                self._boxes_with_screen(box_sys, box_dia, box_pul)
+            ),
+            ocr_readers=make_ocr_readers(),
+            field_timeout_s=1.0,
+            perspective_rectify_enabled=True,
+        )
+        res, _metrics = await pipe.analyze(fake_image)
+
+        assert calls == [(50, 50, 300, 250)]
+        # Declining the quad is warn-not-block: the pipeline finishes on
+        # the original image.
+        assert res.status == AnalysisStatus.SUCCESS
+
+    async def test_enabled_but_no_screen_box_skips_quad_search(
+        self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers,
+        monkeypatch,
+    ):
+        # The screen box still gates Stage 1 — it is what Stage 1 aims
+        # at — but only Stage 1. Rotation is unaffected either way.
+        calls = self._spy_quad(monkeypatch)
+        pipe = BPAnalysisPipeline(
+            detector=MockDetector([box_sys, box_dia, box_pul]),
+            ocr_readers=make_ocr_readers(),
+            field_timeout_s=1.0,
+            perspective_rectify_enabled=True,
+        )
+        res, _metrics = await pipe.analyze(fake_image)
+
+        assert calls == []
+        assert res.status == AnalysisStatus.SUCCESS
 
 
 class TestMeanFieldConfidence:

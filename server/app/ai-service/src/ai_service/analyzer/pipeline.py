@@ -44,6 +44,10 @@ from .yolo import FIELD_CLASS_IDS, YoloDetector
 # the ideal target for corner detection. Class 0 (``BP_Monitor``,
 # whole device) is a fallback for shots where only the body is
 # visible; its rounded edges are noisier but better than nothing.
+#
+# Read only when perspective rectification is enabled
+# (``DEFAULT_PERSPECTIVE_RECTIFY_ENABLED`` / ``AI_PERSPECTIVE_RECTIFY_ENABLED``,
+# off by default). Stage 2 never looks at the screen box.
 _SCREEN_CLASS_ID = 1
 _MONITOR_CLASS_ID = 0
 
@@ -106,6 +110,28 @@ MIN_ROTATION_CONFIDENCE_GAIN: float = 0.02
 # rotations through, not fewer. Flip back to True to re-enable the safety net.
 USE_ROTATION_CONFIDENCE_GATE: bool = False
 
+
+# Whether Stage 1 (4-point perspective rectification) runs at all.
+#
+# OFF. Instrumented over the golden corpus at four orientations — 120
+# analyses — ``_try_perspective_rectify`` was entered 120 times and
+# returned a rectified frame 0 times: ``approxPolyDP`` never collapsed
+# the bezel contour to 4 vertices on this monitor population. Every one
+# of those calls still paid for the ROI crop, auto-Canny, contour
+# finding and polygon approximation before failing. A three-variant
+# ablation (stage on / stage off / stage and screen-box gate removed)
+# scored byte-identical crnn accuracy at every stratum, so switching it
+# off costs nothing measurable here.
+#
+# Kept as a flag rather than deleted because the failure is a property
+# of the current detector and bezel population, not of the technique:
+# a retrain, a monitor with a squarer bezel, or a better corner search
+# could make Stage 1 pay again — and a flag can be measured where a
+# deletion can only be reverted. ``detect_screen_quad`` /
+# ``rectify_perspective`` and their tests stay in ``analyzer.rectify``
+# for the same reason. Override per deployment via
+# ``AI_PERSPECTIVE_RECTIFY_ENABLED``.
+DEFAULT_PERSPECTIVE_RECTIFY_ENABLED: bool = False
 
 # Whether the detection-recovery fallback runs at all.
 #
@@ -187,6 +213,7 @@ class BPAnalysisPipeline:
         field_timeout_s: float,
         success_read_floor: float = DEFAULT_SUCCESS_READ_FLOOR,
         success_detection_floor: float = DEFAULT_SUCCESS_DETECTION_FLOOR,
+        perspective_rectify_enabled: bool = DEFAULT_PERSPECTIVE_RECTIFY_ENABLED,
         detection_recovery_enabled: bool = DEFAULT_DETECTION_RECOVERY_ENABLED,
     ) -> None:
         missing = set(BPClass) - ocr_readers.keys()
@@ -199,6 +226,7 @@ class BPAnalysisPipeline:
         self._field_timeout_s = field_timeout_s
         self._success_read_floor = success_read_floor
         self._success_detection_floor = success_detection_floor
+        self._perspective_rectify_enabled = perspective_rectify_enabled
         self._detection_recovery_enabled = detection_recovery_enabled
 
     async def analyze(
@@ -242,13 +270,15 @@ class BPAnalysisPipeline:
         if dumper is not None:
             dumper.dump_boxes("01_yolo_pass1", image, all_boxes)
 
-        # Try to straighten the LCD via 4-point perspective transform.
-        # On success, re-run YOLO on the warped image so field bboxes
-        # align with the rectified axes — OCR crops sit flush with the
-        # digit baseline instead of inheriting the camera's skew.
-        # On any failure (no screen, no quad, warp too small, second
-        # pass loses fields) the original detections drive the rest of
-        # the pipeline. Rectification is warn-not-block.
+        # Try to straighten the LCD. By default that means one stage:
+        # field-layout rotation, which fits a line through the
+        # first-pass sys/dia/pulse boxes and rotates the frame upright,
+        # then re-runs YOLO so the OCR crops sit flush with the digit
+        # baseline. Perspective rectification is a second, opt-in stage
+        # ahead of it (``AI_PERSPECTIVE_RECTIFY_ENABLED``). On any
+        # failure — no angle, angle below the noise floor, second pass
+        # loses fields — the original detections drive the rest of the
+        # pipeline. Straightening is warn-not-block.
         working_image, by_class, rectify_ms = await self._maybe_rectify(
             image, all_boxes,
         )
@@ -326,38 +356,45 @@ class BPAnalysisPipeline:
         """Try to straighten the LCD, returning the image + field
         boxes that should drive OCR plus the elapsed ``rectify_ms``.
 
-        Two-stage chain:
+        **Field-layout rotation** is the stage that runs: fit a line
+        through a reference point of the first-pass sys/dia/pulse boxes
+        and rotate the whole image so that line stands vertical. It is
+        attempted whenever the field boxes can carry a line fit —
+        ``estimate_rotation_from_fields`` owns that judgement (≥2 boxes,
+        enough spread, angle inside the trusted band) and returns
+        ``None`` when they cannot.
 
-        1. **Perspective rectification** — recover the screen quad and
-           ``warpPerspective`` to an axis-aligned rect. Works on
-           square-bezel monitors.
-        2. **Field-layout rotation** — fit a line through the first-pass
-           sys/dia/pulse centroids and rotate the whole image to
-           upright. Catches the rounded-bezel case (Omron) where
-           perspective's ``approxPolyDP`` cannot recover 4 vertices.
+        **Perspective rectification** runs ahead of it only when
+        ``perspective_rectify_enabled`` is set, and only when a
+        screen-class box exists to aim it at. It is off by default —
+        see ``DEFAULT_PERSPECTIVE_RECTIFY_ENABLED`` for the measurement.
 
-        Both stages re-run YOLO on their output and require ≥3 field
-        boxes back, else fall through. Falls back silently to the
-        original image + first-pass boxes when both stages fail — see
-        PLAN.md / CLAUDE.md "warn, don't block".
+        There is deliberately no screen-box precondition on the rotation
+        path. The old early return skipped *both* stages when
+        ``_pick_screen_box`` came back empty, which made sense only
+        while perspective led the chain: rotation reads field boxes and
+        has never touched the screen box. Keeping that gate with Stage 1
+        disabled would silently disable straightening on exactly the
+        frames where the screen class is missed.
+
+        Whichever stage runs re-runs YOLO on its output and requires ≥3
+        field boxes back, else falls through. Falls back silently to the
+        original image + first-pass boxes when it does — see PLAN.md /
+        CLAUDE.md "warn, don't block".
         """
-        screen_box = _pick_screen_box(all_boxes)
         first_pass_fields = _pick_best_per_class(all_boxes)
-
-        if screen_box is None:
-            # No screen bezel detected — both rectify paths need a
-            # starting frame (perspective needs the quad, rotation
-            # needs ≥2 field centroids inside a sensible bezel).
-            # Preserve the original "skip entirely" behavior so the
-            # rectify_ms == 0 fast-path stays observable in metrics.
-            return image, first_pass_fields, 0.0
 
         t_rectify_start = time.perf_counter()
         try:
-            perspective = await self._try_perspective_rectify(image, screen_box)
-            if perspective is not None:
-                rect_image, rect_fields = perspective
-                return rect_image, rect_fields, _elapsed_ms(t_rectify_start)
+            if self._perspective_rectify_enabled:
+                screen_box = _pick_screen_box(all_boxes)
+                if screen_box is not None:
+                    perspective = await self._try_perspective_rectify(
+                        image, screen_box,
+                    )
+                    if perspective is not None:
+                        rect_image, rect_fields = perspective
+                        return rect_image, rect_fields, _elapsed_ms(t_rectify_start)
 
             rotation = await self._try_field_layout_rotation(image, first_pass_fields)
             if rotation is not None:
@@ -374,12 +411,20 @@ class BPAnalysisPipeline:
         image: np.ndarray,
         screen_box: BoundingBox,
     ) -> tuple[np.ndarray, dict[BPClass, BoundingBox]] | None:
-        """Stage 1: 4-point perspective warp.
+        """Stage 1: 4-point perspective warp. **Opt-in, off by default.**
 
         Returns ``(rectified_image, field_boxes)`` on success, ``None``
         when any sub-step fails (no quad, degenerate warp, second YOLO
-        pass loses fields). The caller then tries the rotation
-        fallback or falls back to the original image.
+        pass loses fields). The caller then tries the rotation stage or
+        falls back to the original image.
+
+        Only reached when ``perspective_rectify_enabled`` is set: on the
+        measured corpus this returned ``None`` on 120 of 120 calls, so
+        the default path skips it rather than paying for a corner search
+        that has never once succeeded. See
+        ``DEFAULT_PERSPECTIVE_RECTIFY_ENABLED``. Kept — with its tests in
+        ``analyzer.rectify`` — because a retrain or a squarer-bezel
+        monitor population could make it pay again.
         """
         quad = await asyncio.to_thread(
             detect_screen_quad,
@@ -426,8 +471,13 @@ class BPAnalysisPipeline:
     ) -> tuple[np.ndarray, dict[BPClass, BoundingBox]] | None:
         """Stage 2: rotate by the angle of the sys→pulse field line.
 
-        Useful for rounded-bezel monitors (Omron and similar) whose
-        ``approxPolyDP`` contour cannot collapse to 4 vertices.
+        The default — and, with Stage 1 off, the only — straightening
+        the pipeline applies. Model-agnostic: it reads the field boxes
+        YOLO already produced, so it works on the rounded-bezel monitors
+        (Omron and similar) whose ``approxPolyDP`` contour cannot
+        collapse to 4 vertices, which on the measured corpus is all of
+        them. It corrects pure rotation only, not perspective
+        foreshortening.
         Returns ``(rotated_image, field_boxes)`` on success, ``None``
         when the rotation cannot be estimated, is below the noise
         floor, the second YOLO pass loses fields after the warp, or —

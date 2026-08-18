@@ -132,11 +132,20 @@ class PipelineMetrics:
     the handler, so ``fetch_ms`` is added later by the caller. All
     durations are in milliseconds, measured with ``time.perf_counter()``.
 
-    ``rectify_ms`` covers the 4-point perspective-correction stage
-    (``analyzer.rectify`` — quad detection + warp + the second YOLO
-    pass on the rectified image). It is ``0.0`` when rectification was
-    skipped (no screen box detected) or failed silently and the
-    pipeline ran on the original image.
+    ``rectify_ms`` covers the LCD-straightening stage end-to-end.
+    By default that is field-layout rotation only — line fit +
+    ``cv2.warpAffine`` + the second YOLO pass on the rotated image —
+    because 4-point perspective rectification is opt-in and off (see
+    ``pipeline.DEFAULT_PERSPECTIVE_RECTIFY_ENABLED``). With
+    ``AI_PERSPECTIVE_RECTIFY_ENABLED=1`` it also covers the perspective
+    attempt that runs first.
+
+    It is **not** a "did straightening happen" signal: a rotation that
+    is estimated and rejected, or declined below the angle floor, is
+    measured like one that is applied. It no longer falls to ``0.0``
+    when nothing is applied either — the screen-box early return that
+    produced that sentinel went away with the perspective stage it
+    guarded.
 
     The three ``recovery_*`` fields describe the detection-recovery
     fallback (``pipeline._recover_from_device_crop``), which only runs
