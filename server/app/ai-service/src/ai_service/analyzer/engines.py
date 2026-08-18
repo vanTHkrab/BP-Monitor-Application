@@ -105,8 +105,11 @@ class AnalysisMetrics:
         """Flat dict matching the M2.2 wire contract for ``metrics``.
 
         ``rectify_ms`` is additive — old gateway clients that ignore
-        unknown keys keep working. ``0.0`` indicates rectification
-        was skipped or failed silently.
+        unknown keys keep working. It times the LCD-straightening stage
+        (field-layout rotation by default; the opt-in perspective
+        attempt too when ``AI_PERSPECTIVE_RECTIFY_ENABLED`` is set) and
+        is measured whether or not the stage changed anything — see
+        ``PipelineMetrics``.
         """
         return {
             "engine": self.engine,
@@ -235,6 +238,7 @@ def build_registry(
             field_timeout_s=cfg.ocr_field_timeout_s,
             success_read_floor=cfg.success_read_floor,
             success_detection_floor=cfg.success_detection_floor,
+            perspective_rectify_enabled=cfg.perspective_rectify_enabled,
         ),
         OCREngine.SSOCR_CNN: BPAnalysisPipeline(
             detector=detector,
@@ -242,6 +246,7 @@ def build_registry(
             field_timeout_s=cfg.ocr_field_timeout_s,
             success_read_floor=cfg.success_read_floor,
             success_detection_floor=cfg.success_detection_floor,
+            perspective_rectify_enabled=cfg.perspective_rectify_enabled,
         ),
         OCREngine.SSOCR: BPAnalysisPipeline(
             detector=detector,
@@ -249,6 +254,7 @@ def build_registry(
             field_timeout_s=cfg.ocr_field_timeout_s,
             success_read_floor=cfg.success_read_floor,
             success_detection_floor=cfg.success_detection_floor,
+            perspective_rectify_enabled=cfg.perspective_rectify_enabled,
         ),
     }
     logger.info(

@@ -47,7 +47,7 @@ three are ONNX-only — torch / joblib / sklearn are never imported at
 request time. Each reply carries `engine` + per-stage `metrics`
 (fetch / detect / ocr / validate ms, RSS before/after/delta, image
 size) so the gateway can append a JSONL row to S3 for offline
-comparison. 364 tests cover config / debug_dump / fetch / handlers /
+comparison. 369 tests cover config / debug_dump / fetch / handlers /
 pipeline / ranges / rectify / validation / yolo / crnn / engines /
 cnn_classifiers / ssocr.
 
@@ -64,12 +64,12 @@ it the service replies with a structured error ("missing imageUrl").
 | `main.py` | entry shim — re-exports `app` from `ai_service.main` so `uv run fastapi dev main.py` works without exposing the package layout |
 | `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds the engine registry, wires the **supervised** Redis listener, and serves `/health` + `/ready`. Keep thin — only orchestration belongs here |
 | `src/ai_service/handlers.py` | Redis pub/sub handler — parses `ocrEngine`, dispatches via `EngineRegistry`, emits `engine` + `metrics` in the reply. Owns the wire contract. Also owns `listen()` (bounded-concurrency dispatch), `supervise_listener()` (resubscribe with backoff), and `ListenerState` (what `/ready` reports) |
-| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence / IoU thresholds, timeouts, listener concurrency + shutdown grace, ORT thread caps, debug-dump toggle + dir). `confidence_threshold` (0.25) + `iou_threshold` (0.45) **mirror `client/src/modules/capture/lib/detection.ts`** — cross-process wire contract see [ADR-002](../../../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md). `build_onnx_session_options()` produces the shared `SessionOptions` (intra=2 / inter=1 / sequential / ORT_ENABLE_ALL) every ORT session in the service uses. |
-| `src/ai_service/debug_dump.py` | Per-request `DebugDumper` + `@debug_stage` decorator + `ContextVar`. When `AI_DEBUG_DUMP_ENABLED=1` the handler installs one dumper per Redis request and pipeline / rectify code writes intermediates (raw input, YOLO overlays, ROI, Canny, quad overlay, rectified, per-field OCR crops) to `debug_images/<jobId>/NN_<stage>.jpg`. Disabled-state is a single-branch no-op — no directories created, no disk writes. Dev-only; never enable in production |
+| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence / IoU thresholds, timeouts, listener concurrency + shutdown grace, ORT thread caps, perspective-rectify toggle, debug-dump toggle + dir). `confidence_threshold` (0.25) + `iou_threshold` (0.45) **mirror `client/src/modules/capture/lib/detection.ts`** — cross-process wire contract see [ADR-002](../../../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md). `build_onnx_session_options()` produces the shared `SessionOptions` (intra=2 / inter=1 / sequential / ORT_ENABLE_ALL) every ORT session in the service uses. |
+| `src/ai_service/debug_dump.py` | Per-request `DebugDumper` + `@debug_stage` decorator + `ContextVar`. When `AI_DEBUG_DUMP_ENABLED=1` the handler installs one dumper per Redis request and pipeline / rectify code writes intermediates (raw input, YOLO overlays, rotated frame, per-field OCR crops — plus ROI / Canny / quad overlay / rectified only when `AI_PERSPECTIVE_RECTIFY_ENABLED=1`, since Stage 1 is off by default) to `debug_images/<jobId>/NN_<stage>.jpg`. Disabled-state is a single-branch no-op — no directories created, no disk writes. Dev-only; never enable in production |
 | `src/ai_service/analyzer/engines.py` | `EngineRegistry`, `AnalysisMetrics`, `build_registry()` — loads all three M2.2 engines side-by-side and resolves per-request selection |
-| `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector. Runs a first YOLO pass on the source image, calls `analyzer.rectify` to straighten the LCD, then a second YOLO pass on the rectified image before OCR — fallback to the original image is silent on any rectify failure |
+| `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector. Runs a first YOLO pass on the source image, calls `analyzer.rectify` to straighten the LCD, then a second YOLO pass on the straightened image before OCR — fallback to the original image is silent on any rectify failure. Straightening is field-layout rotation only unless `AI_PERSPECTIVE_RECTIFY_ENABLED=1`; `DEFAULT_PERSPECTIVE_RECTIFY_ENABLED` carries the measurement behind that default |
 | `src/ai_service/analyzer/yolo.py` | `YoloDetector` — onnxruntime session, letterbox preprocess, decode + post-process. Loaded once, shared across engines. Supports **two export families**, dispatched on the loaded graph's output shape and never on config: `[1, 4+C, anchors]` (yolo11n, `nms=False` — anchor decode then per-class NMS here) and `[1, N, 6]` rows of `(x1, y1, x2, y2, conf, cls)` (yolo26n end-to-end — already suppressed, `iou_threshold` inert). An unclassifiable shape raises `UnsupportedDetectorOutput` at load, because decoding one format as the other does not fail — it returns wrong boxes at high confidence. A model filename containing `gray` also switches the input to a grayscale render replicated across 3 channels: `-gray` means trained on grayscale, not 1-channel input |
-| `src/ai_service/analyzer/rectify.py` | Two-stage LCD straightening. Stage 1: 4-point perspective rectification of the BP_Screen_Monitor (class 1) bbox — `detect_screen_quad()` finds the LCD corners via auto-Canny + `approxPolyDP`; `rectify_perspective()` warps them to an axis-aligned rectangle. Stage 2 (fallback): field-layout rotation — `estimate_rotation_from_fields()` fits a line through the first-pass sys/dia/pulse boxes (right-edge midpoint by default — `USE_RIGHT_EDGE_ALIGNMENT`, since right-aligned LCD digits make centroids scatter by digit count; flip to `False` for the legacy centroid reference); `rotate_image_keep_content()` rotates the whole image by that angle and the second YOLO pass runs on the rotated frame. Stage 2 catches rounded-bezel monitors (Omron and similar) whose contour can't reduce to 4 vertices. Silent fallback (`None`) on every failure mode so the pipeline keeps running on the original image |
+| `src/ai_service/analyzer/rectify.py` | LCD straightening. **Stage 2 is the one the pipeline calls.** Stage 1 — 4-point perspective rectification of the BP_Screen_Monitor (class 1) bbox, `detect_screen_quad()` finding the LCD corners via auto-Canny + `approxPolyDP` and `rectify_perspective()` warping them to an axis-aligned rectangle — is **off by default** (`AI_PERSPECTIVE_RECTIFY_ENABLED`): measured over the golden corpus at four orientations it was entered 120 times and succeeded 0 times, and disabling it moved no accuracy number at any stratum. Both functions and their tests stay here because a retrain or a squarer-bezel population could revive them. Stage 2: field-layout rotation — `estimate_rotation_from_fields()` fits a line through the first-pass sys/dia/pulse boxes (right-edge midpoint by default — `USE_RIGHT_EDGE_ALIGNMENT`, since right-aligned LCD digits make centroids scatter by digit count; flip to `False` for the legacy centroid reference); `rotate_image_keep_content()` rotates the whole image by that angle and the second YOLO pass runs on the rotated frame. It reads field boxes only — never the screen box — which is why it handles the rounded-bezel monitors (Omron and similar) whose contour can't reduce to 4 vertices, i.e. every monitor measured so far. Silent fallback (`None`) on every failure mode so the pipeline keeps running on the original image |
 | `src/ai_service/analyzer/preprocessing.py` | `letterbox()` (shared by detector and any future ROI preprocess) |
 | `src/ai_service/analyzer/ranges.py` | **Single source of truth for BP value ranges and field labels.** Three tables that answer different questions and must not be collapsed: `CLINICAL_RANGES` ("plausible enough to report?" — wide, used by `validation.py`), `CANDIDATE_RANGES` ("which digit substring is the reading?" — narrower, used by the OCR engines, keyed by label), `HARD_CEILINGS` ("physically impossible?" — noise detection in the SSOCR scorer). Also owns the `BPClass` ↔ `"sys"`/`"dia"`/`"pul"` mapping. The relationships between the tables are enforced in `tests/test_ranges.py`, not just documented |
 | `src/ai_service/analyzer/validation.py` | range + sys>dia sanity (`is_value_in_range`, `is_reading_consistent`). `RANGES` is an alias for `ranges.CLINICAL_RANGES` |
@@ -158,14 +158,23 @@ which pipeline ran; `metrics` is a flat dict with per-stage timing
 `rss_delta_mb`), and `image_size_bytes`. The gateway-side worker
 uploads these to S3 as a JSONL row for offline comparison.
 
-`rectify_ms` covers the LCD-straightening stage end-to-end:
-perspective rectification (`analyzer.rectify` quad detect + warp)
-plus, when perspective fails, the field-layout rotation fallback
-(line fit + `cv2.warpAffine` + second YOLO pass on the rotated
-image). It is `0.0` only when both paths are skipped — i.e. no
-screen-class bbox in the first pass. When perspective succeeds the
-value reflects just the perspective cost; when perspective falls
-through and rotation succeeds it includes both attempts. Old
+`rectify_ms` covers the LCD-straightening stage end-to-end. By
+default that stage is **field-layout rotation only** — line fit +
+`cv2.warpAffine` + second YOLO pass on the rotated image — because
+4-point perspective rectification is off
+(`AI_PERSPECTIVE_RECTIFY_ENABLED`, see `rectify.py` above). With
+the flag set, the value also includes the perspective attempt that
+runs first, and roughly triples on frames where rotation declines:
+measured over the golden corpus at four orientations, median
+`rectify_ms` went 0.08 ms → 31.1 ms (mean 13.3 → 29.7) for zero
+change in any accuracy number.
+
+It is **not** a "did straightening happen" signal, and no longer
+falls to `0.0` when nothing is applied: a rotation that is
+estimated and declined is measured like one that is committed. The
+old `0.0` meant "no screen-class bbox in the first pass", and that
+early return went away with the perspective stage it guarded —
+rotation reads field boxes and never needed a screen box. Old
 gateway clients ignore the field either way.
 
 `image_quality_score` is the Image-as-base-model addition (gateway

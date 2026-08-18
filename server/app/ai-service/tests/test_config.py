@@ -81,6 +81,14 @@ class TestDefaults:
     def test_cpu_providers(self):
         assert AnalyzerConfig().onnx_providers == ["CPUExecutionProvider"]
 
+    def test_perspective_rectify_is_off(self):
+        # Stage 1 of LCD straightening never succeeded once on the
+        # measured corpus (120 attempts, 0 rectified frames) while
+        # paying for Canny + contour search on every request. Off is
+        # the shipped default; the flag exists so it can be measured
+        # again, not so it can drift back on.
+        assert AnalyzerConfig().perspective_rectify_enabled is False
+
 
 class TestEnvOverride:
     def test_cuda_emits_gpu_provider_with_cpu_fallback(self, monkeypatch):
@@ -88,6 +96,10 @@ class TestEnvOverride:
         cfg = AnalyzerConfig()
         assert cfg.device_mode == DeviceMode.CUDA
         assert cfg.onnx_providers == ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+    def test_perspective_rectify_can_be_re_enabled(self, monkeypatch):
+        monkeypatch.setenv("AI_PERSPECTIVE_RECTIFY_ENABLED", "1")
+        assert AnalyzerConfig().perspective_rectify_enabled is True
 
     def test_threshold_override(self, monkeypatch):
         monkeypatch.setenv("AI_CONFIDENCE_THRESHOLD", "0.7")
