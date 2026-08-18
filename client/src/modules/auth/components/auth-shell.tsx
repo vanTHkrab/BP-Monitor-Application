@@ -68,7 +68,7 @@ export function AuthShell({ children, showHero = true, scrollRef }: AuthShellPro
                   * actually missing.
                   */}
                 <ThemedText size={28} weight="bold" className="mb-1" style={{ color: isDark ? '#FFFFFF' : colors['text-primary'] }}>
-                  BP Monitor
+                  BP Mobile
                 </ThemedText>
                 <ThemedText type="body" weight="regular" themeColor="text-secondary">
                   ติดตามความดันโลหิตอย่างง่ายดาย
@@ -88,7 +88,7 @@ export function AuthShell({ children, showHero = true, scrollRef }: AuthShellPro
 
           <View className="py-6">
             <ThemedText type="caption" className="text-center" style={{ color: '#FFFFFF' }}>
-              Copyright©2025 BP Monitor App
+              Copyright©2026 BP Mobile App
             </ThemedText>
           </View>
         </ScrollView>

@@ -418,8 +418,8 @@ export default function RemindersScreen() {
             <View className="mb-2 mt-2">
               <GradientButton
                 testID="reminder-test"
-                title="ทดสอบการแจ้งเตือน"
-                variant="secondary"
+                title="ทดสอบเสียงการแจ้งเตือน"
+                variant="primary"
                 onPress={() => void handleTest()}
                 disabled={isSaving}
               />

@@ -46,7 +46,7 @@ const LINKS: {
   {
     icon: 'logo-github',
     label: 'GitHub Repository',
-    url: 'https://github.com',
+    url: 'https://github.com/vanTHkrab/BP-Monitor-Application',
   },
 ];
 
@@ -98,7 +98,7 @@ export default function AboutScreen() {
             />
           </View>
           <ThemedText size={19} weight="bold">
-            BP Monitor
+            BP Mobile
           </ThemedText>
           <ThemedText type="body" weight="regular" themeColor="text-secondary">
             เวอร์ชัน 1.0.0
@@ -186,10 +186,10 @@ export default function AboutScreen() {
             }}
           >
             <ThemedText type="body" className="text-center" style={{ color: isDark ? '#E0E7FF' : '#6D28D9' }}>
-              พัฒนาโดย ทีมพัฒนา BP Monitor
+              พัฒนาโดย ทีมพัฒนา BP Mobile
             </ThemedText>
             <ThemedText type="body" weight="regular" className="mt-1 text-center" style={{ color: isDark ? '#C7D2FE' : '#7C3AED' }}>
-              © 2025 All Rights Reserved
+              © 2026 All Rights Reserved
             </ThemedText>
           </View>
         </View>
