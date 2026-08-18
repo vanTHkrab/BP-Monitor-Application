@@ -74,6 +74,9 @@ class AnalysisMetrics:
     rss_after_mb: float
     rss_delta_mb: float
     image_size_bytes: int
+    recovery_attempted: bool
+    recovery_committed: bool
+    recovery_ms: float
 
     @classmethod
     def build(
@@ -99,6 +102,9 @@ class AnalysisMetrics:
             rss_after_mb=rss_after_mb,
             rss_delta_mb=rss_after_mb - rss_before_mb,
             image_size_bytes=image_size_bytes,
+            recovery_attempted=pipeline_metrics.recovery_attempted,
+            recovery_committed=pipeline_metrics.recovery_committed,
+            recovery_ms=pipeline_metrics.recovery_ms,
         )
 
     def to_wire(self) -> dict[str, float | int | str]:
@@ -110,6 +116,34 @@ class AnalysisMetrics:
         attempt too when ``AI_PERSPECTIVE_RECTIFY_ENABLED`` is set) and
         is measured whether or not the stage changed anything — see
         ``PipelineMetrics``.
+
+        The three ``recovery_*`` keys are additive on the same terms.
+        They exist because the detection-recovery fallback fires on
+        frames the service otherwise loses **silently** — the reply is
+        ``unreadable`` whether or not the fallback ran, so nothing else
+        in the payload distinguishes "never fired" from "fired and
+        recovered nothing". ``recovery_attempted`` over all rows is the
+        fire rate; ``recovery_committed`` over ``recovery_attempted`` is
+        the recovery rate. Without both, nobody can tell whether the
+        stage earns its latency.
+
+        The *reason* a recovery declined (no device box, ROI below the
+        size floor, second pass short of 3 fields, reading implausible)
+        stays in the logs rather than on the wire: it is a debugging
+        aid, and every wire key is a key a consumer can come to depend
+        on.
+
+        The two flags go out as ``0`` / ``1`` rather than ``false`` /
+        ``true``. Every metric on this wire is numeric today, and the
+        gateway parses the payload by walking a list of keys it asserts
+        are finite numbers (``ai.process.ts::parseMetrics``). Emitting
+        ints keeps the gateway-side half of this change to three added
+        strings in that list instead of a new branch for a new type —
+        and a 0/1 column averages directly into the rate you actually
+        want. **Until that gateway change lands these keys reach the
+        gateway and are dropped**: ``parseMetrics`` copies an explicit
+        allowlist into the JSONL row, so unknown keys are ignored, not
+        rejected. Nothing breaks; the counters simply are not in S3 yet.
         """
         return {
             "engine": self.engine,
@@ -123,6 +157,9 @@ class AnalysisMetrics:
             "rss_after_mb": self.rss_after_mb,
             "rss_delta_mb": self.rss_delta_mb,
             "image_size_bytes": self.image_size_bytes,
+            "recovery_attempted": int(self.recovery_attempted),
+            "recovery_committed": int(self.recovery_committed),
+            "recovery_ms": self.recovery_ms,
         }
 
 
@@ -239,6 +276,7 @@ def build_registry(
             success_read_floor=cfg.success_read_floor,
             success_detection_floor=cfg.success_detection_floor,
             perspective_rectify_enabled=cfg.perspective_rectify_enabled,
+            detection_recovery_enabled=cfg.detection_recovery_enabled,
         ),
         OCREngine.SSOCR_CNN: BPAnalysisPipeline(
             detector=detector,
@@ -247,6 +285,7 @@ def build_registry(
             success_read_floor=cfg.success_read_floor,
             success_detection_floor=cfg.success_detection_floor,
             perspective_rectify_enabled=cfg.perspective_rectify_enabled,
+            detection_recovery_enabled=cfg.detection_recovery_enabled,
         ),
         OCREngine.SSOCR: BPAnalysisPipeline(
             detector=detector,
@@ -255,6 +294,7 @@ def build_registry(
             success_read_floor=cfg.success_read_floor,
             success_detection_floor=cfg.success_detection_floor,
             perspective_rectify_enabled=cfg.perspective_rectify_enabled,
+            detection_recovery_enabled=cfg.detection_recovery_enabled,
         ),
     }
     logger.info(

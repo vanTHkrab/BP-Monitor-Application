@@ -64,10 +64,10 @@ it the service replies with a structured error ("missing imageUrl").
 | `main.py` | entry shim — re-exports `app` from `ai_service.main` so `uv run fastapi dev main.py` works without exposing the package layout |
 | `src/ai_service/main.py` | FastAPI app + `lifespan()` that loads YOLO, builds the engine registry, wires the **supervised** Redis listener, and serves `/health` + `/ready`. Keep thin — only orchestration belongs here |
 | `src/ai_service/handlers.py` | Redis pub/sub handler — parses `ocrEngine`, dispatches via `EngineRegistry`, emits `engine` + `metrics` in the reply. Owns the wire contract. Also owns `listen()` (bounded-concurrency dispatch), `supervise_listener()` (resubscribe with backoff), and `ListenerState` (what `/ready` reports) |
-| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence / IoU thresholds, timeouts, listener concurrency + shutdown grace, ORT thread caps, perspective-rectify toggle, debug-dump toggle + dir). `confidence_threshold` (0.25) + `iou_threshold` (0.45) **mirror `client/src/modules/capture/lib/detection.ts`** — cross-process wire contract see [ADR-002](../../../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md). `build_onnx_session_options()` produces the shared `SessionOptions` (intra=2 / inter=1 / sequential / ORT_ENABLE_ALL) every ORT session in the service uses. |
-| `src/ai_service/debug_dump.py` | Per-request `DebugDumper` + `@debug_stage` decorator + `ContextVar`. When `AI_DEBUG_DUMP_ENABLED=1` the handler installs one dumper per Redis request and pipeline / rectify code writes intermediates (raw input, YOLO overlays, rotated frame, per-field OCR crops — plus ROI / Canny / quad overlay / rectified only when `AI_PERSPECTIVE_RECTIFY_ENABLED=1`, since Stage 1 is off by default) to `debug_images/<jobId>/NN_<stage>.jpg`. Disabled-state is a single-branch no-op — no directories created, no disk writes. Dev-only; never enable in production |
+| `src/ai_service/config.py` | `AnalyzerConfig(BaseSettings)` — single source of truth for `AI_*` env vars (models dir, detector path, CRNN path, default engine, device, confidence / IoU thresholds, timeouts, listener concurrency + shutdown grace, ORT thread caps, perspective-rectify toggle, detection-recovery toggle, debug-dump toggle + dir). `confidence_threshold` (0.25) + `iou_threshold` (0.45) **mirror `client/src/modules/capture/lib/detection.ts`** — cross-process wire contract see [ADR-002](../../../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md). `build_onnx_session_options()` produces the shared `SessionOptions` (intra=2 / inter=1 / sequential / ORT_ENABLE_ALL) every ORT session in the service uses. |
+| `src/ai_service/debug_dump.py` | Per-request `DebugDumper` + `@debug_stage` decorator + `ContextVar`. When `AI_DEBUG_DUMP_ENABLED=1` the handler installs one dumper per Redis request and pipeline / rectify / recovery code writes intermediates (raw input, YOLO overlays, rotated frame, the detection-recovery crop + its YOLO overlay, per-field OCR crops — plus ROI / Canny / quad overlay / rectified only when `AI_PERSPECTIVE_RECTIFY_ENABLED=1`, since Stage 1 is off by default) to `debug_images/<jobId>/NN_<stage>.jpg`. **Two frames can appear in one directory:** after a committed detection recovery the crop becomes the working image, so `06_recovery_crop`, `06_yolo_recovery` and every `07_ocr_input_*` are in the *crop's* coordinate frame while `01_yolo_pass1` is in the *source* frame — box coordinates from those two files are not comparable, and the images differ in size (e.g. 1200x1600 vs 467x567). The `NN_` counter prefix is what orders the files; the number embedded in a stage name is only a label, and `06_` is deliberately reused for mutually-exclusive branches at the same pipeline position (rectify vs recovery). Disabled-state is a single-branch no-op — no directories created, no disk writes. Dev-only; never enable in production |
 | `src/ai_service/analyzer/engines.py` | `EngineRegistry`, `AnalysisMetrics`, `build_registry()` — loads all three M2.2 engines side-by-side and resolves per-request selection |
-| `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector. Runs a first YOLO pass on the source image, calls `analyzer.rectify` to straighten the LCD, then a second YOLO pass on the straightened image before OCR — fallback to the original image is silent on any rectify failure. Straightening is field-layout rotation only unless `AI_PERSPECTIVE_RECTIFY_ENABLED=1`; `DEFAULT_PERSPECTIVE_RECTIFY_ENABLED` carries the measurement behind that default |
+| `src/ai_service/analyzer/pipeline.py` | `BPAnalysisPipeline.analyze()` → `(AnalysisResult, PipelineMetrics)`. One instance per engine; all share the same YOLO detector. Runs a first YOLO pass on the source image, calls `analyzer.rectify` to straighten the LCD, then a second YOLO pass on the straightened image before OCR — fallback to the original image is silent on any rectify failure. Straightening is field-layout rotation only unless `AI_PERSPECTIVE_RECTIFY_ENABLED=1`; `DEFAULT_PERSPECTIVE_RECTIFY_ENABLED` carries the measurement behind that default. Also owns the **detection-recovery fallback** (`_recover_from_device_crop`, `AI_DETECTION_RECOVERY_ENABLED`): when the first pass yields fewer than 3 field classes, crop to the screen/monitor box with 12% padding, detect once more inside it, OCR the result, and keep the crop only if the reading is plausible. One retry, never recursive; entered from the failure path only |
 | `src/ai_service/analyzer/yolo.py` | `YoloDetector` — onnxruntime session, letterbox preprocess, decode + post-process. Loaded once, shared across engines. Supports **two export families**, dispatched on the loaded graph's output shape and never on config: `[1, 4+C, anchors]` (yolo11n, `nms=False` — anchor decode then per-class NMS here) and `[1, N, 6]` rows of `(x1, y1, x2, y2, conf, cls)` (yolo26n end-to-end — already suppressed, `iou_threshold` inert). An unclassifiable shape raises `UnsupportedDetectorOutput` at load, because decoding one format as the other does not fail — it returns wrong boxes at high confidence. A model filename containing `gray` also switches the input to a grayscale render replicated across 3 channels: `-gray` means trained on grayscale, not 1-channel input |
 | `src/ai_service/analyzer/rectify.py` | LCD straightening. **Stage 2 is the one the pipeline calls.** Stage 1 — 4-point perspective rectification of the BP_Screen_Monitor (class 1) bbox, `detect_screen_quad()` finding the LCD corners via auto-Canny + `approxPolyDP` and `rectify_perspective()` warping them to an axis-aligned rectangle — is **off by default** (`AI_PERSPECTIVE_RECTIFY_ENABLED`): measured over the golden corpus at four orientations it was entered 120 times and succeeded 0 times, and disabling it moved no accuracy number at any stratum. Both functions and their tests stay here because a retrain or a squarer-bezel population could revive them. Stage 2: field-layout rotation — `estimate_rotation_from_fields()` fits a line through the first-pass sys/dia/pulse boxes (right-edge midpoint by default — `USE_RIGHT_EDGE_ALIGNMENT`, since right-aligned LCD digits make centroids scatter by digit count; flip to `False` for the legacy centroid reference); `rotate_image_keep_content()` rotates the whole image by that angle and the second YOLO pass runs on the rotated frame. It reads field boxes only — never the screen box — which is why it handles the rounded-bezel monitors (Omron and similar) whose contour can't reduce to 4 vertices, i.e. every monitor measured so far. Silent fallback (`None`) on every failure mode so the pipeline keeps running on the original image |
 | `src/ai_service/analyzer/preprocessing.py` | `letterbox()` (shared by detector and any future ROI preprocess) |
@@ -155,8 +155,30 @@ one of `crnn` / `ssocr_cnn` / `ssocr`. Unknown names return
 which pipeline ran; `metrics` is a flat dict with per-stage timing
 (`fetch_ms`, `detect_ms`, `rectify_ms`, `ocr_ms`, `validate_ms`,
 `total_ms`), RSS deltas (`rss_before_mb`, `rss_after_mb`,
-`rss_delta_mb`), and `image_size_bytes`. The gateway-side worker
-uploads these to S3 as a JSONL row for offline comparison.
+`rss_delta_mb`), `image_size_bytes`, and the detection-recovery
+counters (`recovery_attempted`, `recovery_committed`, `recovery_ms`).
+The gateway-side worker uploads these to S3 as a JSONL row for
+offline comparison.
+
+`ocr_ms` changed meaning on `unreadable` rows when the fallback lands.
+It used to be `0.0` on every such row, because reaching `unreadable`
+meant no OCR had run. A recovery that reads the crop and then discards
+it as implausible now reports the time it really spent. An `unreadable`
+row with `ocr_ms > 0` is therefore a declined recovery, not a
+contradiction — and rows from before and after this change are not
+directly comparable on that column.
+
+The recovery counters are emitted as `0` / `1` ints, not booleans,
+because every other key on this wire is numeric and the gateway
+validates the payload by asserting each key in its allowlist is a
+finite number. **They do not reach the JSONL yet**:
+`api-gateway/src/ai/ai.process.ts::parseMetrics` copies an explicit
+allowlist into the row, so unknown keys are ignored (not rejected —
+nothing breaks) and simply dropped. Surfacing the fire rate and
+recovery rate in S3 needs the paired gateway change: three strings
+added to `numericKeys` and three fields to
+`AiServiceAnalysisMetrics` in `src/ai/types/ai.types.ts`. Until then
+the counters are observable in the ai-service logs only.
 
 `rectify_ms` covers the LCD-straightening stage end-to-end. By
 default that stage is **field-layout rotation only** — line fit +
@@ -256,6 +278,20 @@ without the other will silently break the AI flow.
   percentage, so redefining it changes what a patient reads without
   anyone deciding to. Both floors are provisional until a labelled set
   exists; they are config, not constants.
+- **A recovered reading is never `success`.** A reading produced by the
+  detection-recovery fallback is capped at `low_confidence` however well
+  it scores, because its provenance is doubtful by construction: the
+  detector already failed on that frame once, and the device box it was
+  rescued from lands off the monitor on 22–91% of distant frames.
+  Measured over the labelled corpus with distance simulated by shrinking
+  the frame, the fallback committed 5 readings — 3 exactly right, 2
+  wrong — and **confidence did not separate them**: a wrong read scored
+  det 0.79 / read 0.86 / blend 0.68 against a correct read at det 0.69 /
+  read 0.95 / blend 0.68. No floor on any existing signal can tell those
+  apart, so the doubt is carried structurally instead of as another
+  threshold. The same gate also refuses any recovered reading containing
+  a fabricated digit (`OCRResult.fabricated`) — a value nobody read
+  cannot be the thing that overturns a refusal.
 - **Accuracy is only measurable against `tests/golden/labels.json`.**
   Everything else the service reports — confidence, scores, status — is
   its opinion of itself, and the mocked suite stays green through an

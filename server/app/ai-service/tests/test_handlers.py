@@ -111,6 +111,7 @@ def metrics() -> AnalysisMetrics:
         total_ms=14.0,
         rss_before_mb=240.0, rss_after_mb=258.0, rss_delta_mb=18.0,
         image_size_bytes=12345,
+        recovery_attempted=False, recovery_committed=False, recovery_ms=0.0,
     )
 
 

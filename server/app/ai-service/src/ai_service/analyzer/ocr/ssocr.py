@@ -2374,6 +2374,7 @@ class SSOCREngine:
                 "(confidence ×%.2f)",
                 text, SYS_PREFIX_REPAIR_CONFIDENCE_PENALTY,
             )
+            return OCRResult(text=text, confidence=confidence, fabricated=True)
         return OCRResult(text=text, confidence=confidence)
 
 

@@ -179,8 +179,13 @@ class AnalyzerConfig(BaseSettings):
                     "``asyncio.wait_for`` around ``pipeline.analyze``. "
                     "Must stay below the BullMQ job timeout on the gateway "
                     "(currently 55s) and above the worst-case sum of "
-                    "``ocr_field_timeout_s × 3`` plus detect + rectify "
-                    "headroom — 30s leaves ~10s of slack on both sides.",
+                    "``ocr_field_timeout_s × 3`` plus headroom for the "
+                    "detect passes — first pass, the rectify pass, and "
+                    "the detection-recovery pass when it fires. The OCR "
+                    "term does not double: a recovered frame reads its "
+                    "fields exactly once, on the crop, because the first "
+                    "pass never got as far as reading. 30s leaves ~10s of "
+                    "slack on both sides.",
     )
 
     max_concurrent_requests: int = Field(
@@ -271,6 +276,31 @@ class AnalyzerConfig(BaseSettings):
                     "Stage 2 (field-layout rotation) is unaffected and "
                     "always runs. Set ``AI_PERSPECTIVE_RECTIFY_ENABLED=1`` "
                     "to measure the stage again.",
+    )
+
+    detection_recovery_enabled: bool = Field(
+        default=True,
+        description="Enables the detection-recovery fallback: when the "
+                    "first YOLO pass finds fewer than 3 field classes, "
+                    "crop to the detected screen (class 1, else monitor "
+                    "class 0) box with 12%% padding and detect again. ON "
+                    "by default. It addresses a measured distance "
+                    "failure — simulating distance by shrinking cached "
+                    "frames, the monitor box lands off the actual "
+                    "monitor on 22%% of frames at 0.70 scale and 91%% at "
+                    "0.25, at median confidence 0.515-0.649, so raising "
+                    "``confidence_threshold`` cannot separate the false "
+                    "boxes from the true ones. Cropping recovers part of "
+                    "it: frames yielding 3 fields went 3/120 -> 21/120 "
+                    "at 0.35 scale. The crop is committed only when the "
+                    "OCR result is plausible (all three fields parsed, "
+                    "in range, sys > dia) — committing on the detection "
+                    "count alone was measured to add wrong answers at "
+                    "every rotated stratum. Costs nothing on the happy "
+                    "path: it is entered only after the first pass has "
+                    "already failed. Set "
+                    "``AI_DETECTION_RECOVERY_ENABLED=0`` to return to "
+                    "declining those frames outright.",
     )
 
     debug_dump_enabled: bool = Field(
