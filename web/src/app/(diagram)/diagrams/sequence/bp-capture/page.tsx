@@ -16,7 +16,7 @@ sequenceDiagram
     loop every analysis frame
         App->>NV: detect(frame)
         NV-->>App: Detection[] (5 classes, source-image px)
-        App->>App: evaluateFraming + advanceHysteresis<br/>searching / too-far / too-close / off-center / ready
+        App->>App: evaluateFraming + advanceHysteresis<br/>searching / too-far / too-close / off-center / tilted / ready
     end
 
     alt framing holds "ready" and auto-capture is on
@@ -26,7 +26,7 @@ sequenceDiagram
         App->>App: Manual capture — the gate never blocks it
     end
 
-    App->>App: cropToViewport + prepareImageForAnalysis
+    App->>App: prepareCaptureForAnalysis — crop + resize, one save
 
     alt online
         App->>GW: mutation requestImageUpload { kind, mimeType, size }

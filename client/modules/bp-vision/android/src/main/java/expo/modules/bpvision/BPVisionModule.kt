@@ -1,7 +1,6 @@
 package expo.modules.bpvision
 
 import ai.onnxruntime.OrtEnvironment
-import android.graphics.BitmapFactory
 import android.util.Log
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
@@ -92,16 +91,23 @@ class BPVisionModule : Module() {
     AsyncFunction("detect") { imageUri: String, sourceWidth: Int, sourceHeight: Int, inputSize: Int? ->
       val activeDetector = ensureDetector()
       val path = stripFileScheme(imageUri)
-      val bitmap = BitmapFactory.decodeFile(path) ?: throw ImageDecodeException(path)
+      // ImageDecode, not BitmapFactory: it owns the "upright" invariant for
+      // everything entering this module. See ImageDecode.kt.
+      val bitmap = ImageDecode.decodeUpright(path) ?: throw ImageDecodeException(path)
       try {
+        // [sourceWidth]/[sourceHeight] are accepted for JS-side contract parity
+        // and deliberately not forwarded. They describe the *file*; the
+        // detector letterboxes the *bitmap*, and once ImageDecode can apply an
+        // EXIF orientation the two can differ by a transposition. Letterboxing
+        // against the wrong aspect would place every box wrong, so the decoded
+        // bitmap is the only defensible source — which is exactly what
+        // YoloDetector.detect defaults to when the dimensions are omitted.
         activeDetector
           .detect(
-            bitmap,
-            sourceWidth,
-            sourceHeight,
-            YoloDetector.DEFAULT_CONF_THRESHOLD,
-            YoloDetector.DEFAULT_IOU_THRESHOLD,
-            inputSize ?: YoloDetector.INPUT_SIZE,
+            bitmap = bitmap,
+            confThreshold = YoloDetector.DEFAULT_CONF_THRESHOLD,
+            iouThreshold = YoloDetector.DEFAULT_IOU_THRESHOLD,
+            inputSize = inputSize ?: YoloDetector.INPUT_SIZE,
           )
           .map { it.toRecord() }
       } finally {
@@ -214,7 +220,9 @@ class BPVisionModule : Module() {
     }
 
     val path = stripFileScheme(imageUri)
-    val bitmap = BitmapFactory.decodeFile(path) ?: return unavailable("decode-failed")
+    // ImageDecode, not BitmapFactory: it owns the "upright" invariant for
+    // everything entering this module. See ImageDecode.kt.
+    val bitmap = ImageDecode.decodeUpright(path) ?: return unavailable("decode-failed")
     return try {
       when (val outcome = BpOcrPipeline.run(bitmap, yolo, recognizer)) {
         is BpOcrPipeline.Outcome.Reading -> mapOf(

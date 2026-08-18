@@ -55,8 +55,8 @@ import { useActivePatient } from '@/modules/caregivers';
 import {
   BpCameraView,
   PHASE_LABEL,
-  cropToViewport,
   isLiveDetectionSupported,
+  prepareCaptureForAnalysis,
   prepareImageForAnalysis,
   useCameraAnalysis,
   useLiveFraming,
@@ -94,6 +94,13 @@ const FRAMING_PRESENTATION: Record<
     color: statusColor.elevated,
     icon: 'move-outline',
     label: 'จัดหน้าจอให้อยู่กลางกรอบ',
+  },
+  // Same gentle "อีกนิด" register as 'too-far', for the same reason: by the
+  // time tilt is what is left, the shot is nearly right and the ask is small.
+  tilted: {
+    color: statusColor.elevated,
+    icon: 'phone-portrait-outline',
+    label: 'ถือมือถือให้ตรงขึ้นอีกนิด',
   },
   ready: { color: statusColor.normal, icon: 'checkmark-circle-outline', label: 'พร้อมถ่ายแล้ว' },
 };
@@ -334,15 +341,21 @@ export default function CameraScreen() {
   };
 
   /**
-   * Everything a new photo triggers, whether it came from the camera or the
-   * gallery.
+   * Everything an **already-prepared** photo triggers, whether it came from
+   * the camera or the gallery.
+   *
+   * Preparation happens in the caller, not here, because the two paths need
+   * different chains — the camera's capture is cropped back to the viewport it
+   * was framed in, a gallery pick is not — and `prepareCaptureForAnalysis` /
+   * `prepareImageForAnalysis` are how that choice is spelled. What arrives
+   * here is a single URI that has been through exactly one re-encode.
    *
    * The fields are cleared first: the auto-fill effect above refuses to
    * clobber what the user typed, and without this that guard would also refuse
    * to replace values left over from the previous shot. Clearing here scopes
    * the overwrite to a genuinely new capture.
    */
-  const startCaptureFlow = async (uri: string, width: number, height: number) => {
+  const startCaptureFlow = async (preparedUri: string) => {
     setSystolic('');
     setDiastolic('');
     setPulse('');
@@ -350,9 +363,8 @@ export default function CameraScreen() {
     setSaveError(null);
     setOfflineCapture(false);
 
-    const prepared = await prepareImageForAnalysis(uri, width, height);
     capturedAtRef.current = new Date();
-    setCapturedImage(prepared.uri);
+    setCapturedImage(preparedUri);
 
     // Offline: the backend call is doomed, so it is not made. Burning it would
     // cost a timeout and end in a red "วิเคราะห์ไม่สำเร็จ" the user cannot act
@@ -361,7 +373,7 @@ export default function CameraScreen() {
     // queues.
     const { isConnected } = await NetInfo.fetch();
     if (isConnected === false) {
-      const outcome = await readOnDevice(prepared.uri);
+      const outcome = await readOnDevice(preparedUri);
       if (outcome?.confident) applyReading(outcome.readings);
       setOfflineCapture(true);
       setShowEntryModal(true);
@@ -389,7 +401,7 @@ export default function CameraScreen() {
     // update — not a `.then()`, which is always a separate microtask — lands
     // in the same React batch as `phase: 'done'`. See the comment on
     // `onSettled` in `use-camera-analysis.ts`.
-    void analyze(prepared.uri, {
+    void analyze(preparedUri, {
       onSettled: (outcome) => {
         if (outcome?.confident) applyReading(outcome.readings);
         if (outcome && isMountedRef.current) setShowEntryModal(true);
@@ -413,13 +425,17 @@ export default function CameraScreen() {
       // overflow off-screen; the capture is the full frame. Cropping back to
       // the measured viewport aspect is what makes "captured" equal "framed".
       // Only this path — a gallery pick was never bound to a preview.
-      const cropped = await cropToViewport(
+      //
+      // Crop and downscale are one call, and one JPEG encode. Splitting them
+      // put a whole extra generation of ringing on the digit strokes the
+      // recogniser reads.
+      const prepared = await prepareCaptureForAnalysis(
         photo.uri,
         photo.width,
         photo.height,
         viewportAspect.current ?? 0,
       );
-      await startCaptureFlow(cropped.uri, cropped.width, cropped.height);
+      await startCaptureFlow(prepared.uri);
     } catch {
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถถ่ายภาพได้');
     } finally {
@@ -444,6 +460,12 @@ export default function CameraScreen() {
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
+      // Load-bearing beyond file size: any value below 1 makes
+      // expo-image-picker re-encode through `CompressionImageExporter`, which
+      // applies EXIF orientation and then drops the tag. At exactly 1 it
+      // switches to `RawImageExporter` and copies the chosen file verbatim,
+      // EXIF and all — which is the case `ImageDecode.decodeUpright` exists to
+      // absorb. Changing this is safe, but read that file's header first.
       quality: 0.8,
     });
     const asset = picked.assets?.[0];
@@ -468,7 +490,10 @@ export default function CameraScreen() {
       retryCamera();
       return;
     }
-    await startCaptureFlow(asset.uri, asset.width, asset.height);
+    // No crop: this image was never bound to a preview, so there is no
+    // cover-fit mismatch to undo and cropping would only throw away area.
+    const prepared = await prepareImageForAnalysis(asset.uri, asset.width, asset.height);
+    await startCaptureFlow(prepared.uri);
   };
 
   /**

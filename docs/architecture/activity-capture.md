@@ -6,7 +6,7 @@ description: >-
     and manual paths. Useful for spotting which lane a delay actually belongs
     to.
 status: current
-updated: 2026-08-16
+updated: 2026-08-18
 owner: cross
 ---
 
@@ -33,7 +33,7 @@ flowchart TB
         direction TB
         B1["Start the analysis stream"]
         B2["detect() per frame →<br/>evaluateFraming + hysteresis"]
-        B3["cropToViewport +<br/>prepareImageForAnalysis"]
+        B3["prepareCaptureForAnalysis —<br/>crop + resize, one save"]
         B4{"Network available?"}
         B5["presign → PUT → confirm"]
         B6["analyzeBPImage → jobId"]

@@ -6,7 +6,7 @@ description: >-
     gate. The model file is byte-identical to the one ai-service runs, so a
     class on the phone means what it means on the server.
 status: current
-updated: 2026-08-16
+updated: 2026-08-18
 owner: cross
 ---
 
@@ -33,12 +33,15 @@ flowchart TD
     H -- "> 0.85" --> TC["too-close"]
     H -- "in range" --> I{"centre offset <= 0.22<br/>and >= 2 of sys/dia/pulse"}
     I -- "no" --> OC["off-center"]
-    I -- "yes" --> R["ready"]
+    I -- "yes" --> T{"field-line tilt <= 10 deg?<br/>(estimateFieldTiltDeg — null = no opinion)"}
+    T -- "no" --> TI["tilted"]
+    T -- "yes" --> R["ready"]
 
     S --> HY["advanceHysteresis — a verdict must hold<br/>FRAMING_DWELL_MS (500 ms) before the UI moves"]
     TF --> HY
     TC --> HY
     OC --> HY
+    TI --> HY
     R --> HY
 
     HY --> J{"ready held 300 ms<br/>and auto-capture enabled?"}
@@ -48,7 +51,7 @@ flowchart TD
     CD --> SHOT["Shutter fires"]
     COACH --> SHOT
 
-    SHOT --> CROP["cropToViewport — what the user framed<br/>is what the server receives"]
+    SHOT --> CROP["prepareCaptureForAnalysis — crop to the viewport,<br/>then resize, in one chain and one save"]
     CROP --> OUT{"Online?"}
     OUT -- "yes" --> UP["presign → PUT → confirm → analyzeBPImage"]
     OUT -- "no" --> LOCAL["BPVision.readBp(uri)<br/>YOLO ROI → rectify → CRNN"]
@@ -57,7 +60,7 @@ flowchart TD
     classDef warn fill:#fef3c7,stroke:#d97706,color:#92400e
     classDef bad fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
     class R,CD,SHOT,CROP,UP ok
-    class COACH,OC,LOCAL warn
+    class COACH,OC,TI,LOCAL warn
     class S,TF,TC bad
 ```
 
