@@ -4,10 +4,15 @@ import {
   hasErrors,
   isValidEmail,
   isValidPhone,
+  registerSchema,
   validateLogin,
   validateRegister,
 } from './validation';
 
+// Every field but the avatar is required on the register form — this is the
+// fully-valid baseline every test below starts from and overrides one field
+// of, the same pattern the pre-existing tests already used for the six
+// always-required fields.
 const validRegister = {
   firstname: 'สมชาย',
   lastname: 'ใจดี',
@@ -15,6 +20,11 @@ const validRegister = {
   email: 'somchai@example.com',
   password: 'hunter2hunter2',
   confirmPassword: 'hunter2hunter2',
+  dob: new Date('1960-05-20'),
+  gender: 'male' as const,
+  weight: '70',
+  height: '170',
+  congenitalDisease: 'ไม่มี',
 };
 
 describe('validateLogin', () => {
@@ -100,7 +110,8 @@ describe('validateRegister', () => {
 
   it('reports every problem at once rather than one at a time', () => {
     // Revealing errors one per submit is the pattern that makes a long form
-    // feel like it is fighting the user.
+    // feel like it is fighting the user. Every field but the avatar is
+    // required, so a fully empty submission reports all eleven.
     const errors = validateRegister({
       firstname: '',
       lastname: '',
@@ -108,25 +119,35 @@ describe('validateRegister', () => {
       email: '',
       password: '',
       confirmPassword: '',
+      dob: null,
+      gender: null,
+      weight: '',
+      height: '',
+      congenitalDisease: '',
     });
-    expect(Object.keys(errors)).toHaveLength(6);
+    expect(Object.keys(errors)).toHaveLength(11);
   });
 });
 
 /*
- * The register form's optional health block had no validation at all: a weight
- * of 9999 went out, the gateway refused it with an English class-validator
- * message, and the whole registration failed with nothing pointing at the
- * field that caused it.
+ * The register form's health block had no validation at all before this file
+ * existed: a weight of 9999 went out, the gateway refused it with an English
+ * class-validator message, and the whole registration failed with nothing
+ * pointing at the field that caused it. It has since become *required* on
+ * this form specifically (`dob`, `gender`, `weight`, `height`,
+ * `congenitalDisease` — the avatar is the only field left optional), which is
+ * a client-only UX policy layered on top of the same shared plausibility
+ * rules, not a replacement for them — see the docblock at the top of
+ * `validation.ts`.
  *
- * The bounds are `@/lib/health-validation`'s, shared with the profile and
- * caregiver forms. The failure being guarded against is not "an out-of-range
- * value reaches the server" — it is a value the sign-up form accepts and the
- * user's own profile screen then refuses to re-save, leaving them stuck with a
- * number they cannot correct.
+ * The bounds below are `@/lib/health-validation`'s, shared with the profile
+ * and caregiver forms, where these columns remain optional. The failure being
+ * guarded against is not "an out-of-range value reaches the server" — it is a
+ * value the sign-up form accepts and the user's own profile screen then
+ * refuses to re-save, leaving them stuck with a number they cannot correct.
  */
-describe('validateRegister — the optional health block', () => {
-  it('accepts the whole block left empty, because all of it is optional', () => {
+describe('validateRegister — the required health block', () => {
+  it('rejects the whole block left empty, because every field is now required', () => {
     const errors = validateRegister({
       ...validRegister,
       dob: null,
@@ -136,20 +157,23 @@ describe('validateRegister — the optional health block', () => {
       congenitalDisease: '',
     });
 
-    expect(errors).toEqual({});
+    expect(errors.dob).toBe('กรุณาเลือกวันเกิด');
+    expect(errors.gender).toBe('กรุณาเลือกเพศ');
+    expect(errors.weight).toBe('กรุณากรอกน้ำหนัก');
+    expect(errors.height).toBe('กรุณากรอกส่วนสูง');
+    expect(errors.congenitalDisease).toBe('กรุณากรอกโรคประจำตัว');
   });
 
   it('accepts a plausible set of values', () => {
-    const errors = validateRegister({
-      ...validRegister,
-      dob: new Date('1960-05-20'),
-      gender: 'male',
-      weight: '70',
-      height: '170',
-      congenitalDisease: 'เบาหวาน',
-    });
+    expect(validateRegister(validRegister)).toEqual({});
+  });
 
-    expect(errors).toEqual({});
+  // `OptionRow` only offers three values, so "invalid" is unreachable — the
+  // only failure mode `gender` has is "never chosen".
+  it('rejects a missing gender independently of the other fields', () => {
+    const errors = validateRegister({ ...validRegister, gender: null });
+    expect(errors.gender).toBe('กรุณาเลือกเพศ');
+    expect(Object.keys(errors)).toEqual(['gender']);
   });
 
   // The slipped decimal point the bounds exist for.
@@ -274,6 +298,64 @@ describe('validateRegister — the bounds the gateway enforces', () => {
     const errors = validateRegister({ ...validRegister, lastname: 'ก'.repeat(NAME_MAX) });
 
     expect(errors.lastname).toBeUndefined();
+  });
+});
+
+/*
+ * `registerSchema` is a thin Zod adapter around `validateRegister` — see its
+ * docblock — so this suite only has to prove the wiring, not re-run every
+ * case above a second time in Zod's shape.
+ */
+describe('registerSchema', () => {
+  it('accepts a complete valid form', () => {
+    const result = registerSchema().safeParse(validRegister);
+    expect(result.success).toBe(true);
+  });
+
+  it('carries the same Thai message validateRegister produces, on the right field', () => {
+    const result = registerSchema().safeParse({ ...validRegister, gender: null });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    expect(result.error.issues).toHaveLength(1);
+    expect(result.error.issues[0]).toMatchObject({
+      path: ['gender'],
+      message: 'กรุณาเลือกเพศ',
+    });
+  });
+
+  it('reports one issue per broken field, matching validateRegister', () => {
+    const empty = {
+      firstname: '',
+      lastname: '',
+      phone: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      dob: null,
+      gender: null,
+      weight: '',
+      height: '',
+      congenitalDisease: '',
+    };
+
+    const schemaIssueFields = registerSchema()
+      .safeParse(empty)
+      .error?.issues.map((issue) => issue.path[0])
+      .sort();
+    const functionErrorFields = Object.keys(validateRegister(empty)).sort();
+
+    expect(schemaIssueFields).toEqual(functionErrorFields);
+  });
+
+  // `now` has to thread through the same way `validateRegister`'s does, since
+  // the schema is only ever built by calling that function.
+  it('accepts the same fixed `now` validateRegister does for the date boundary', () => {
+    const now = new Date('2026-08-01T00:00:00.000Z');
+    const tomorrow = new Date(now.getTime() + 86_400_000);
+
+    const result = registerSchema(now).safeParse({ ...validRegister, dob: tomorrow });
+    expect(result.success).toBe(false);
   });
 });
 
