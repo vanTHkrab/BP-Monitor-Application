@@ -16,9 +16,42 @@
  * walking five fragments ("น้ำหนัก", "60 กก.", "→", …) loses the relationship
  * the layout carries, which on an oversight screen is the whole content.
  */
+import type { ColorSchemePreference } from '@/theme/color-scheme';
+
+/*
+ * The scheme is provider state with no setter reachable from a render-only
+ * test, so the hook is replaced the way `reminder-timeline-card.test.tsx`
+ * replaces it. `requireActual` keeps `ColorSchemeProvider` real because
+ * `test-utils` mounts it, and the stub returns the whole context shape
+ * because `useTheme()` reads `scheme` off this same hook.
+ */
+const mockScheme = {
+  current: {
+    preference: 'system' as ColorSchemePreference,
+    scheme: 'light' as 'light' | 'dark',
+    setPreference: jest.fn(),
+    hydrated: true,
+  },
+};
+
+jest.mock('@/theme/color-scheme', () => ({
+  ...jest.requireActual('@/theme/color-scheme'),
+  useColorSchemePreference: () => mockScheme.current,
+}));
+
+function setScheme(scheme: 'light' | 'dark') {
+  mockScheme.current = { ...mockScheme.current, scheme };
+}
+
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+
 import { ChangeLogEntryRow } from '@/modules/caregivers/components/change-log-entry';
 import type { ProfileChangeLogEntry } from '@/modules/caregivers/types';
 import { renderScreen } from '../test-utils';
+
+/** `props.style` is an array here — NativeWind's class plus the inline object. */
+const flat = (node: { props: Record<string, unknown> }): ViewStyle =>
+  StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>) ?? {};
 
 const entry = (overrides: Partial<ProfileChangeLogEntry> = {}): ProfileChangeLogEntry => ({
   id: 'e1',
@@ -30,6 +63,10 @@ const entry = (overrides: Partial<ProfileChangeLogEntry> = {}): ProfileChangeLog
   newValue: '58',
   changedAt: new Date('2026-08-07T09:00:00+07:00'),
   ...overrides,
+});
+
+beforeEach(() => {
+  setScheme('light');
 });
 
 describe('ChangeLogEntryRow', () => {
@@ -124,5 +161,29 @@ describe('ChangeLogEntryRow', () => {
     expect(view.getByTestId('e1').props.accessibilityLabel).toMatch(
       /^น้ำหนัก เปลี่ยนจาก 60 กก\. เป็น 58 กก\. ผู้ดูแล คุณสมหญิง แก้ไขให้ เมื่อ /,
     );
+  });
+
+  /*
+   * A translucent white row rather than the opaque theme surface, per direct
+   * user request — this row, not `app/profile-changes.tsx`'s placeholder
+   * `Card`, is what renders every real logged entry. The alpha differs by
+   * scheme on purpose: this row's text is themed near-white in dark mode
+   * (`colors['text-primary']`), so a strongly white fill there would wash the
+   * row toward white and take that text's contrast down with it.
+   */
+  describe('background', () => {
+    it('is a mostly-white translucent fill in light mode', async () => {
+      setScheme('light');
+      const view = await renderScreen(<ChangeLogEntryRow entry={entry()} testID="e1" />);
+
+      expect(flat(view.getByTestId('e1')).backgroundColor).toBe('rgba(255,255,255,0.85)');
+    });
+
+    it('is a low-alpha white wash in dark mode, not the same fill as light mode', async () => {
+      setScheme('dark');
+      const view = await renderScreen(<ChangeLogEntryRow entry={entry()} testID="e1" />);
+
+      expect(flat(view.getByTestId('e1')).backgroundColor).toBe('rgba(255,255,255,0.12)');
+    });
   });
 });

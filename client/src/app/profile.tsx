@@ -37,7 +37,8 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, TextInput, View } from 'react-native';
+import { Alert, TextInput, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
@@ -72,6 +73,16 @@ import {
 import { SecurityHeader } from '@/modules/security';
 import { status as statusColor } from '@/theme';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
+
+/**
+ * Space left between a focused field and the top of the keyboard.
+ *
+ * Declared here rather than shared with `auth-shell.tsx`'s constant of the
+ * same name: they are two different forms whose spacing has no reason to move
+ * together, and one exported number would make the next tweak to either screen
+ * a change to both.
+ */
+const KEYBOARD_BOTTOM_OFFSET = 16;
 
 export default function ProfileScreen() {
   const colors = useTheme();
@@ -141,13 +152,54 @@ export default function ProfileScreen() {
   const phoneChanged =
     stripPhoneDigits(form?.phone ?? '') !== stripPhoneDigits(user?.phone ?? '');
 
+  /**
+   * Same action sheet as `auth/components/avatar-picker.tsx`'s register-form
+   * picker, copy included — `useProfileAvatar` already implements both
+   * sources (`change-avatar.ts`'s `AvatarSource`), so this screen only needed
+   * to offer the choice `ProfileHero`'s single `onChangeAvatar` callback was
+   * hiding behind a hardcoded `'library'`.
+   */
+  const openAvatarPicker = () => {
+    Alert.alert('เลือกรูปโปรไฟล์', 'กรุณาเลือกวิธีการ', [
+      { text: 'ถ่ายภาพ', onPress: () => void avatar.changeAvatar('camera') },
+      { text: 'เลือกรูปจากแกลเลอรี', onPress: () => void avatar.changeAvatar('library') },
+      { text: 'ยกเลิก', style: 'cancel' },
+    ]);
+  };
+
   return (
     <GradientBackground>
       <View className="flex-1">
         <SecurityHeader title="โปรไฟล์ของฉัน" subject="self" />
 
-        <ScrollView
-          className="flex-1 px-4"
+        {/*
+          One `KeyboardAwareScrollView` where a `KeyboardAvoidingView` used to
+          wrap a `ScrollView`. It reads the IME insets natively and scrolls the
+          focused input clear of the keyboard, which is what this form actually
+          needed — the pair it replaces only ever moved the *container*, so a
+          field low in a long form still landed under the keyboard with nothing
+          to reveal it.
+
+          It also retires a platform split that had already gone wrong once:
+          `behavior` had to be `undefined` on Android to avoid
+          double-compensating against the manifest's own
+          `windowSoftInputMode="adjustResize"`, and `'height'` there is exactly
+          what broke the register form. There is no `behavior` to get wrong any
+          more. `auth-shell.tsx` made this move first; see
+          `app/(auth)/register.tsx`'s header for what it cost to find out.
+
+          Still wraps only the form and not the header above it — the header has
+          nothing to avoid and shouldn't shift when the keyboard opens.
+
+          Plain `style` / `contentContainerStyle` rather than NativeWind's
+          `className`: this is a third-party component, which NativeWind will not
+          map without an explicit `cssInterop` registration, and a className that
+          silently does nothing is worse than a style object that plainly does.
+        */}
+        <KeyboardAwareScrollView
+          testID="profile-keyboard-avoiding-view"
+          style={{ flex: 1, paddingHorizontal: 16 }}
+          bottomOffset={KEYBOARD_BOTTOM_OFFSET}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -157,7 +209,7 @@ export default function ProfileScreen() {
             avatarUri={avatar.localPreview ?? user?.avatar}
             role={user?.role}
             isUploading={avatar.isUploading}
-            onChangeAvatar={() => void avatar.changeAvatar('library')}
+            onChangeAvatar={openAvatarPicker}
           />
 
           {avatar.error ? (
@@ -368,7 +420,7 @@ export default function ProfileScreen() {
           </View>
 
           <View className="h-10" />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     </GradientBackground>
   );

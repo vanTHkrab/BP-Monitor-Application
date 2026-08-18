@@ -2,7 +2,7 @@
 title: "Client: the history tab"
 description: The shipped history screens, the readings layer they sit on, and the export work that closed with them.
 status: current
-updated: 2026-08-07
+updated: 2026-08-17
 owner: client
 ---
 
@@ -124,18 +124,29 @@ Two details that were easy to lose in the port, both now covered by tests:
 ### The reminder timeline reads the plan, not the settings
 
 `buildReminderTimeline` derives today's rounds from `planReminders(settings)`
-rather than from `settings.intervalHours` — the one substantive change from
-client-old's version, and the reason it is not a copy.
+rather than from `settings.reminderTimes` directly — the one substantive
+change from client-old's version, and the reason it is not a copy.
 
 client-old had no notification budget. This tree does: `schedule-plan.ts`
-widens the interval when a week of reminders would not fit the OS's
-64-notification ceiling, so the interval the user *requested* and the interval
-that *fires* are not always the same number. A timeline built from the request
-would put 09:00 on screen against a schedule firing 07:00 / 11:00, then mark
-it "ค้างวัด" — telling a patient they missed a reminder that was never sent.
-Deriving from the plan means the screen and the OS queue cannot disagree,
-because they are the same function. There is a test for exactly the thinned
-case.
+caps the schedule when a week of reminders would not fit the OS's
+64-notification ceiling, so the times the user *requested* and the times that
+*fire* are not always the same set. A timeline built from the request would
+put a capped-away time on screen against a schedule that never fires it, then
+mark it "ค้างวัด" — telling a patient they missed a reminder that was never
+sent. Deriving from the plan means the screen and the OS queue cannot
+disagree, because they are the same function. There is a test for exactly the
+capped case.
+
+Reminder scheduling itself moved from an interval + hour-window formula to a
+free-form, alarm-style list of specific times (`ReminderSettings.reminderTimes`
+in `modules/notifications/types.ts`) — set individually on `app/reminders.tsx`,
+the same interaction as adding an alarm. The budget defence moved with it: the
+settings screen refuses to add a time or a day that would push
+`reminderTimes.length × selectedDays.length` past the OS ceiling, with an
+explanation, rather than accepting it and letting `planReminders` cap it
+silently later. The cap in `planReminders` is now a second line of defence for
+a settings blob that reached this screen already over budget by some other
+path, not the primary mechanism.
 
 Two other things worth not undoing:
 

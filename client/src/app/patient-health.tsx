@@ -54,7 +54,7 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { GradientBackground } from '@/components/gradient-background';
 import { ThemedText } from '@/components/themed-text';
@@ -223,6 +223,26 @@ export default function PatientHealthScreen() {
       <View className="flex-1">
         <SecurityHeader title="ข้อมูลสุขภาพ" subject="patient" />
 
+        {/*
+          `padding` on iOS, no `behavior` on Android — `adjustResize` already
+          resizes the window there, and `'height'` on top of it
+          double-compensates. Wraps only the scrollable form so the header
+          above it never shifts.
+
+          This no longer matches `app/profile.tsx`, which it was copied from:
+          that screen has moved to `react-native-keyboard-controller`'s
+          `KeyboardAwareScrollView`, along with `auth-shell.tsx`,
+          `post/[id].tsx`, and the community composer. This form is the same
+          shape as profile's and wants the same treatment — it was simply
+          outside the scope of the change that converted those. Convert it
+          when it is next touched; `security/password.tsx` and `camera.tsx`
+          are in the same position.
+        */}
+        <KeyboardAvoidingView
+          testID="patient-health-keyboard-avoiding-view"
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="flex-1"
+        >
         <ScrollView
           className="flex-1 px-4"
           showsVerticalScrollIndicator={false}
@@ -416,6 +436,7 @@ export default function PatientHealthScreen() {
 
           <View className="h-10" />
         </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     </GradientBackground>
   );

@@ -10,6 +10,7 @@ import { DEFAULT_REMINDER_SETTINGS, type ReminderSettings } from '../types';
 const DAY = new Date(2026, 7, 6);
 
 const at = (hour: number, minute = 0) => new Date(2026, 7, 6, hour, minute, 0, 0);
+const time = (hour: number, minute = 0) => ({ hour, minute });
 
 const enabled = (overrides: Partial<ReminderSettings> = {}): ReminderSettings => ({
   ...DEFAULT_REMINDER_SETTINGS,
@@ -53,48 +54,68 @@ describe('buildReminderTimeline — when there are no rounds', () => {
   it('returns nothing when no weekday is selected at all', () => {
     expect(build({ settings: enabled({ selectedDays: [] }) })).toEqual([]);
   });
+
+  it('returns nothing when no reminder time is set', () => {
+    expect(build({ settings: enabled({ reminderTimes: [] }) })).toEqual([]);
+  });
 });
 
 describe('buildReminderTimeline — the rounds themselves', () => {
-  it('walks the window at the configured interval', () => {
+  it('turns each configured time into a round, in order', () => {
     const rounds = build({
-      settings: enabled({ startHour: 7, endHour: 19, intervalHours: 4 }),
+      settings: enabled({ reminderTimes: [time(7), time(11), time(15), time(19, 30)] }),
     });
-    expect(labels(rounds)).toEqual(['07:00', '11:00', '15:00', '19:00']);
+    expect(labels(rounds)).toEqual(['07:00', '11:00', '15:00', '19:30']);
   });
 
-  it('derives rounds from the plan, so a thinned schedule is what is shown', () => {
-    // 05:00–22:00 every 2 hours over 7 days is 63 slots against a budget of
-    // 56, so `planReminders` widens it to 3. Showing the *requested* 2-hour
-    // rounds here would put 07:00 on screen and then mark it missed, for a
-    // reminder the OS was never asked to send.
-    const rounds = build({
-      settings: enabled({ startHour: 5, endHour: 22, intervalHours: 2 }),
-    });
-    expect(labels(rounds)).toEqual(['05:00', '08:00', '11:00', '14:00', '17:00', '20:00']);
+  it('derives rounds from the plan, so a capped schedule is what is shown', () => {
+    // 12 times over 7 days is 84 slots against a budget of 56, so
+    // `planReminders` caps it to the earliest 8 per day. Showing the full
+    // requested list here would put a dropped time on screen and then mark
+    // it missed, for a reminder the OS was never asked to send.
+    const denseTimes = Array.from({ length: 12 }, (_, index) => time(5 + index));
+    const rounds = build({ settings: enabled({ reminderTimes: denseTimes }) });
+    expect(labels(rounds)).toEqual([
+      '05:00',
+      '06:00',
+      '07:00',
+      '08:00',
+      '09:00',
+      '10:00',
+      '11:00',
+      '12:00',
+    ]);
   });
 
-  it('pads the hour and pins the round to the top of it', () => {
-    const rounds = build({ settings: enabled({ startHour: 7, endHour: 7 }) });
-    expect(rounds[0].label).toBe('07:00');
-    expect(rounds[0].scheduledAt).toEqual(at(7));
+  it('pads the hour and minute, and pins the round exactly to the chosen time', () => {
+    const rounds = build({ settings: enabled({ reminderTimes: [time(7, 5)] }) });
+    expect(rounds[0].label).toBe('07:05');
+    expect(rounds[0].scheduledAt).toEqual(at(7, 5));
   });
 
   it('gives every round a distinct, date-qualified key', () => {
     const rounds = build({
-      settings: enabled({ startHour: 7, endHour: 19, intervalHours: 4 }),
+      settings: enabled({ reminderTimes: [time(7), time(11), time(15), time(19)] }),
     });
     expect(rounds.map((round) => round.key)).toEqual([
-      '2026-08-06:07',
-      '2026-08-06:11',
-      '2026-08-06:15',
-      '2026-08-06:19',
+      '2026-08-06:07:00',
+      '2026-08-06:11:00',
+      '2026-08-06:15:00',
+      '2026-08-06:19:00',
+    ]);
+  });
+
+  it('keys two rounds on the same hour but different minutes distinctly', () => {
+    const rounds = build({ settings: enabled({ reminderTimes: [time(7, 0), time(7, 30)] }) });
+    expect(rounds.map((round) => round.key)).toEqual([
+      '2026-08-06:07:00',
+      '2026-08-06:07:30',
     ]);
   });
 });
 
 describe('buildReminderTimeline — matching readings to rounds', () => {
-  const settings = enabled({ startHour: 7, endHour: 19, intervalHours: 4 });
+  const settings = enabled({ reminderTimes: [time(7), time(11), time(15), time(19)] });
 
   it('completes a round with a reading taken inside its window', () => {
     const rounds = build({ settings, readings: [reading('a', at(11, 20))] });
@@ -155,14 +176,14 @@ describe('buildReminderTimeline — matching readings to rounds', () => {
 });
 
 describe('buildReminderTimeline — the clock', () => {
-  const settings = enabled({ startHour: 7, endHour: 19, intervalHours: 4 });
+  const settings = enabled({ reminderTimes: [time(7), time(11), time(15), time(19)] });
 
   it('calls an unanswered future round upcoming, not missed', () => {
     const rounds = build({ settings, now: at(12) });
     expect(statuses(rounds)).toEqual(['missed', 'missed', 'upcoming', 'upcoming']);
   });
 
-  it('treats a round as due the moment its hour arrives', () => {
+  it('treats a round as due the moment its time arrives', () => {
     const rounds = build({ settings, now: at(11) });
     expect(rounds[1].status).toBe('missed');
   });
@@ -183,7 +204,7 @@ describe('buildReminderTimeline — the clock', () => {
 describe('summariseTimeline', () => {
   it('counts each status and the total', () => {
     const rounds = build({
-      settings: enabled({ startHour: 7, endHour: 19, intervalHours: 4 }),
+      settings: enabled({ reminderTimes: [time(7), time(11), time(15), time(19)] }),
       readings: [reading('a', at(7, 10))],
       now: at(12),
     });

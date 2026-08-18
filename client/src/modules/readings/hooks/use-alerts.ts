@@ -61,7 +61,14 @@ export function useAlerts() {
      * that does nothing.
      *
      * A caregiver getting alerts *of their own* about a patient is the real
-     * answer here, and needs the fan-out in docs/project/CLIENT-caregiver.md §3.
+     * answer, and it **exists** — `ReadingService.createAlertForReading` fans
+     * every abnormal reading out to each linked caregiver as a row they own,
+     * worded to name the patient. Those rows are what this hook returns when
+     * `isSelf`, and they are markable.
+     *
+     * So `false` here does not mean "the caregiver was told nothing". It
+     * means "you are looking at somebody else's copy" — a deliberate,
+     * read-only view of what the patient themselves has been shown.
      */
     canMarkRead: isSelf,
   };

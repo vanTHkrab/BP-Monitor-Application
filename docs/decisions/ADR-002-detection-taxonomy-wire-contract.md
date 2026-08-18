@@ -1,9 +1,10 @@
 ---
 title: "ADR-002: the detection taxonomy is a phone/server wire contract"
 description: Why the five YOLO classes and the confidence and IoU thresholds are duplicated in Kotlin and Python on purpose, and what breaks when they drift.
-status: current
-updated: 2026-08-06
+status: superseded
+updated: 2026-08-19
 owner: ai-service
+superseded_by: docs/decisions/ADR-006-yolo26-detection-wire-contract.md
 ---
 
 # ADR-002 — the detection taxonomy is a phone/server wire contract

@@ -434,11 +434,39 @@ export class AuthService {
       take: 20,
     });
 
+    // A session past its own `expiresAt` is functionally logged out, but
+    // nothing ever flips the `isActive` column for that case — only an
+    // explicit `logout`/`logoutAllDevices` call does (see below). Left
+    // alone, every natural expiry (TTL elapsed, the app force-closed for
+    // days, a 401 the client absorbs without round-tripping a logout
+    // mutation) stays `isActive: true` in the row forever, and each fresh
+    // sign-in on the same physical device adds another row the devices
+    // screen counts as active.
+    //
+    // Correcting it here, at read time, rather than filtering the query is
+    // deliberate: the devices screen still wants the row to show up in its
+    // "ออกจากระบบแล้ว" (revoked/history) group, exactly like an explicit
+    // logout would, not to vanish from the list entirely.
+    //
+    // This is a read-side fix only — the underlying `isActive` column and
+    // row are left untouched. A lazy write-back was considered (flip
+    // `isActive`/`revokedAt` for any expired row this query happens to
+    // touch) and deliberately not added: this method only ever sees the 20
+    // newest sessions, so it would still leave older, never-viewed rows
+    // stale forever, and it would turn a display query into one with a
+    // write side effect, which is the opposite of the throttled-write
+    // posture this service already takes for `lastActiveAt` (see
+    // `GqlAuthGuard.touchLastActive`). A full sweep belongs in a dedicated
+    // job that can see every row, mirroring `PushService`'s `@Cron` receipt
+    // sweep or `StorageCleanupService`'s daily orphan sweep — tracked as a
+    // follow-up, not built here.
+    const now = Date.now();
+
     return sessions.map((session) => ({
       id: session.id,
       deviceLabel: session.deviceLabel ?? undefined,
       userAgent: session.userAgent ?? undefined,
-      isActive: session.isActive,
+      isActive: session.isActive && session.expiresAt.getTime() > now,
       revokedAt: session.revokedAt ?? undefined,
       lastActiveAt: session.lastActiveAt,
       createdAt: session.createdAt,

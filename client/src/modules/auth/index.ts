@@ -31,6 +31,11 @@ export { useSetPhone } from './hooks/use-set-phone';
 export { useUpdateProfile, type UpdateProfileInput } from './hooks/use-update-profile';
 export { useVerifyEmail } from './hooks/use-verify-email';
 
+/**
+ * Off, and deliberately not deleted — the file says why and what turning it
+ * back on requires. Read by `app/(auth)/login.tsx` to close the one way in.
+ */
+export { GOOGLE_SIGN_IN_ENABLED } from './lib/feature-flags';
 export {
   formatAuthError,
   googleSignInRefusalMessage,

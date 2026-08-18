@@ -95,7 +95,7 @@ export async function initReminderNotifications(): Promise<void> {
       // reason the invite branch is here — a second response listener would
       // double-handle every reminder tap.
       if (parseCriticalAlert(data)) {
-        void handleCriticalAlertResponse(data);
+        handleCriticalAlertResponse(data);
         return;
       }
 

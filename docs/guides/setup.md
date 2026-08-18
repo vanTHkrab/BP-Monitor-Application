@@ -114,6 +114,11 @@ it blocks all Android native work. Obtaining the file is step 2 of
 curl -s http://localhost:8000/health
 # {"status":"ok","service":"ai-service"}
 
+# `/health` is liveness only — it stays green with Redis down. To confirm
+# the service is actually consuming analysis jobs (503 when it is not):
+curl -s http://localhost:8000/ready
+# {"status":"ok","listener_alive":true,"subscribed":true,"redis":true,...}
+
 # The gateway has no REST health route — use the public `hello` query.
 curl -s http://localhost:3000/graphql \
   -H 'content-type: application/json' \

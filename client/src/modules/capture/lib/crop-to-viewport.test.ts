@@ -1,34 +1,13 @@
 /**
- * WYSIWYG crop for the camera path.
+ * WYSIWYG crop geometry for the camera path.
  *
- * `computeCoverCropBox` is separated from the I/O precisely so it can be
- * asserted, and it is the half that matters: a wrong box is not a crash, it is
- * a saved JPEG that no longer matches what the framing gate approved, which
- * then reads as a detector regression on the server.
+ * `computeCoverCropBox` is pure — the crop it describes is executed as one
+ * link of the single manipulator chain in `image-prepare.ts` — and it is the
+ * half that matters: a wrong box is not a crash, it is a saved JPEG that no
+ * longer matches what the framing gate approved, which then reads as a
+ * detector regression on the server.
  */
-const mockSaveAsync = jest.fn();
-const mockRenderAsync = jest.fn();
-const mockCrop = jest.fn();
-const mockManipulate = jest.fn();
-
-jest.mock('expo-image-manipulator', () => ({
-  ImageManipulator: {
-    manipulate: (...args: unknown[]) => mockManipulate(...args),
-  },
-  SaveFormat: { JPEG: 'jpeg', PNG: 'png' },
-}));
-
-import { computeCoverCropBox, cropToViewport } from './crop-to-viewport';
-
-const SOURCE = 'file:///tmp/capture.jpg';
-
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockSaveAsync.mockResolvedValue({ uri: 'file:///tmp/cropped.jpg', width: 900, height: 1600 });
-  mockRenderAsync.mockResolvedValue({ saveAsync: mockSaveAsync });
-  mockCrop.mockReturnValue({ renderAsync: mockRenderAsync });
-  mockManipulate.mockReturnValue({ crop: mockCrop });
-});
+import { computeCoverCropBox } from './crop-to-viewport';
 
 describe('computeCoverCropBox', () => {
   it('crops the sides of a photo wider than the viewport', () => {
@@ -88,85 +67,5 @@ describe('computeCoverCropBox', () => {
     ['infinite aspect', 100, 100, Number.POSITIVE_INFINITY],
   ])('returns null for %s', (_label, width, height, aspect) => {
     expect(computeCoverCropBox(width, height, aspect)).toBeNull();
-  });
-});
-
-describe('cropToViewport', () => {
-  it('returns the original untouched when there is no crop to make', async () => {
-    await expect(cropToViewport(SOURCE, 1080, 1920, 1080 / 1920)).resolves.toEqual({
-      uri: SOURCE,
-      width: 1080,
-      height: 1920,
-    });
-
-    // Skipping the re-encode is the point: a needless JPEG round-trip costs
-    // quality and time on the capture path.
-    expect(mockManipulate).not.toHaveBeenCalled();
-  });
-
-  it('passes the computed box straight to the manipulator', async () => {
-    await cropToViewport(SOURCE, 4032, 3024, 9 / 16);
-
-    expect(mockManipulate).toHaveBeenCalledWith(SOURCE);
-    expect(mockCrop).toHaveBeenCalledWith({
-      originX: 1165,
-      originY: 0,
-      width: 1701,
-      height: 3024,
-    });
-  });
-
-  it('saves as JPEG at the shared quality budget', async () => {
-    await cropToViewport(SOURCE, 4032, 3024, 9 / 16);
-
-    expect(mockSaveAsync).toHaveBeenCalledWith({ compress: 0.7, format: 'jpeg' });
-  });
-
-  it('reports the dimensions the manipulator actually produced', async () => {
-    // Downstream crops handed pre-resize numbers produce out-of-bounds boxes,
-    // so the returned width/height must come from the result, not the request.
-    await expect(cropToViewport(SOURCE, 4032, 3024, 9 / 16)).resolves.toEqual({
-      uri: 'file:///tmp/cropped.jpg',
-      width: 900,
-      height: 1600,
-    });
-  });
-
-  it('falls back to the box dimensions when the result reports zeros', async () => {
-    mockSaveAsync.mockResolvedValue({ uri: 'file:///tmp/cropped.jpg', width: 0, height: 0 });
-
-    await expect(cropToViewport(SOURCE, 4032, 3024, 9 / 16)).resolves.toEqual({
-      uri: 'file:///tmp/cropped.jpg',
-      width: 1701,
-      height: 3024,
-    });
-  });
-
-  it('keeps the original when the manipulator throws', async () => {
-    // A wider field of view than the preview showed is a much better outcome
-    // than a capture that cannot complete.
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    mockRenderAsync.mockRejectedValue(new Error('decode failed'));
-
-    await expect(cropToViewport(SOURCE, 4032, 3024, 9 / 16)).resolves.toEqual({
-      uri: SOURCE,
-      width: 4032,
-      height: 3024,
-    });
-
-    warn.mockRestore();
-  });
-
-  it('keeps the original when saving throws', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    mockSaveAsync.mockRejectedValue(new Error('out of disk'));
-
-    await expect(cropToViewport(SOURCE, 4032, 3024, 9 / 16)).resolves.toEqual({
-      uri: SOURCE,
-      width: 4032,
-      height: 3024,
-    });
-
-    warn.mockRestore();
   });
 });

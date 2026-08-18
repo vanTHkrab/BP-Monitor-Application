@@ -9,6 +9,12 @@
  * `lib/framing-state.ts` is exported for its types and its thresholds, because
  * tuning them is expected work and they are the module's most likely reason to
  * be touched from outside.
+ *
+ * The two `prepare*ForAnalysis` entry points are separate on purpose rather
+ * than one function with an optional viewport: the live-camera path crops back
+ * to what the preview showed and a gallery pick must not, and which one a
+ * caller means should be visible at the call site, not inferred from whether
+ * an argument was passed.
  */
 export { BpCameraView, isLiveDetectionSupported } from './components/bp-camera-view';
 export type {
@@ -24,8 +30,8 @@ export {
   useLiveFraming,
 } from './hooks/use-live-framing';
 
-export { cropToViewport, computeCoverCropBox } from './lib/crop-to-viewport';
-export { prepareImageForAnalysis } from './lib/image-prepare';
+export { computeCoverCropBox } from './lib/crop-to-viewport';
+export { prepareCaptureForAnalysis, prepareImageForAnalysis } from './lib/image-prepare';
 export {
   DEFAULT_FRAMING_THRESHOLDS,
   FRAMING_DWELL_MS,

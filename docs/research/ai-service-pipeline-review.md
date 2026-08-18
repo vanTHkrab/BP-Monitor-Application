@@ -2,13 +2,13 @@
 title: "ai-service pipeline review: detect, rectify, and OCR findings"
 description: Code-verified review of the analysis pipeline, with each finding's verification status and source location.
 status: current
-updated: 2026-06-22
+updated: 2026-08-18
 owner: ai-service
 ---
 
 # Plan — AI-service pipeline review backlog (OCR / detect / rectify)
 
-Status: **BACKLOG (dev mode — measure before optimizing)** · Last updated: 2026-06-22
+Status: **BACKLOG (dev mode — measure before optimizing)** · Last updated: 2026-08-18
 
 Derived from a steel-man review of the ai-service analysis pipeline, then
 **verified line-by-line against the actual code** (not memory). Each finding
@@ -31,6 +31,17 @@ transform matrices. Two findings needed correction/sharpening (6a, 4) — see be
 ## Findings
 
 ### 🔴 F1 — YOLO runs 2–3× per image; transform matrices computed then discarded
+
+> **Update 2026-08-18 — the perspective half of this finding is now inert by
+> default.** Stage 1 (perspective rectification) sits behind
+> `AI_PERSPECTIVE_RECTIFY_ENABLED` and is **off**: instrumented over the golden
+> corpus at four orientations it was entered 120 times and returned a rectified
+> frame 0 times. The default path is therefore **2 passes, never 3**, and the
+> discarded `_homography` is unreachable unless the flag is set. The rotation
+> half — re-detect instead of `cv2.transform` on the discarded `_affine` — is
+> untouched and is now the *whole* of F1's remaining cost. Line references
+> below predate several refactors; trust the function names, not the numbers.
+
 **Verified.** First full pass `detect(image, class_filter=None)`
 ([pipeline.py:99-103](../../server/app/ai-service/src/ai_service/analyzer/pipeline.py#L99-L103)).
 Perspective path re-detects on the warped image

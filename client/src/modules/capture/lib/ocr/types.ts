@@ -9,11 +9,22 @@
  * Field names (`sys` / `dia` / `pulse`) mirror the YOLO class names the model
  * is trained against — see `../detection.ts`.
  *
- * **The union has no error arm on purpose.** Every ordinary failure — no
- * module on this platform, model load, undecodable photo, no monitor found,
- * unreadable digits, out-of-range, sys ≤ dia — is `unavailable`, which means
- * "fall through to manual entry", not "show the user an error". The camera
- * flow is never blocked by OCR that did not work.
+ * **The union still has no error arm, and the save path is still never
+ * blocked by this** — both of those survive untouched. What changed:
+ * `unavailable` used to mean one thing regardless of *why*, and every reason
+ * degraded identically to silent manual entry. It no longer does.
+ * `platformUnsupported` splits it in two:
+ *
+ *   - `true` — there is no engine on this device at all (iOS, web, Expo Go).
+ *     A structural, every-single-time fact rather than a failure, so the
+ *     caller (`use-camera-analysis`'s `readOnDevice`) still stays silent:
+ *     phase resets, nothing is shown, plain manual entry.
+ *   - `false` — the engine ran **on this photo** and could not produce a
+ *     reading: model load, an undecodable file, no monitor found, unreadable
+ *     digits, out-of-range values, sys ≤ dia, or an unexpected native error.
+ *     This is a real (if usually rare) per-photo outcome, and the caller now
+ *     tells the user about it instead of staying silent — see the
+ *     `unreadable` banner it drives.
  */
 
 export interface OnDeviceOcrInput {
@@ -33,11 +44,18 @@ export interface OnDeviceOcrReading {
   confidence: number;
 }
 
-/** No reading. Never surfaced as an error — see the note above. */
+/** No reading. Surfaced to the user unless `platformUnsupported` — see above. */
 export interface OnDeviceOcrUnavailable {
   unavailable: true;
   /** Machine-readable cause, for logs only (e.g. `'model-load-failed'`). */
   reason: string;
+  /**
+   * True only when this platform has no on-device engine at all. Set at the
+   * one place that can actually know that — `readBpOnDevice` in
+   * `@/native/bp-vision`, before any native call is attempted — never
+   * derived from `reason`, which stays a free-form log string.
+   */
+  platformUnsupported: boolean;
 }
 
 export type OnDeviceOcrResult = OnDeviceOcrReading | OnDeviceOcrUnavailable;

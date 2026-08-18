@@ -12,7 +12,7 @@
  * phones, and a half-working web path is worse than an honest one.
  */
 import DateTimePicker, {
-  type DateTimePickerEvent,
+  type DateTimePickerChangeEvent,
 } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
@@ -49,12 +49,23 @@ export function DateField({
 
   const isWeb = Platform.OS === 'web';
 
-  const handleChange = (event: DateTimePickerEvent, selected?: Date) => {
-    // Android fires once and closes itself; iOS keeps the spinner mounted, so
-    // it is dismissed by the caller re-rendering with `isPickerOpen: false`.
+  /*
+   * `onChange` is deprecated as of `@react-native-community/datetimepicker`
+   * 9.1.0 in favour of `onValueChange` + `onDismiss`. It multiplexed both
+   * outcomes through one callback discriminated on `event.type`, which is why
+   * the old body had to filter `'dismissed'` out before trusting `selected`.
+   *
+   * The dismissal semantics are unchanged: Android's picker is a modal the OS
+   * tears down on any action, so both paths close it here; iOS keeps the
+   * spinner mounted until the "เสร็จสิ้น" button below unmounts it.
+   */
+  const handleValueChange = (_event: DateTimePickerChangeEvent, selected: Date) => {
     if (Platform.OS === 'android') setPickerOpen(false);
-    if (event.type === 'dismissed') return;
-    if (selected) onChange(selected);
+    onChange(selected);
+  };
+
+  const handleDismiss = () => {
+    if (Platform.OS === 'android') setPickerOpen(false);
   };
 
   return (
@@ -112,7 +123,8 @@ export function DateField({
           value={value ?? defaultPickerDate(maximumDate)}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleChange}
+          onValueChange={handleValueChange}
+          onDismiss={handleDismiss}
           maximumDate={maximumDate}
           minimumDate={minimumDate}
         />

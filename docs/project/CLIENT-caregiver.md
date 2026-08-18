@@ -2,7 +2,7 @@
 title: "Client: the caregiver role"
 description: How the caregiver role works end to end, the permission model, and what is still open.
 status: current
-updated: 2026-08-07
+updated: 2026-08-17
 owner: client
 ---
 
@@ -363,6 +363,34 @@ Two shapes, and the choice matters more than it looks:
 **Take the first.** Per-person read state is a correctness requirement; row
 duplication is a storage cost, and much the cheaper of the two.
 
+#### Follow-up: the push tap had to stop switching the subject
+
+The fan-out fixed *what is written* and left *what is shown* pointing the
+wrong way for a while. `critical-alert-handler.ts` resolved the patient and
+called `setActivePatient` before navigating to `/alerts`, which was right
+before this section landed — a caregiver owned no rows, so aiming the screen
+at the patient was the only way to show anything.
+
+Afterwards it inverted. `/alerts` renders whoever `useSubject()` resolves to,
+so a caregiver tapping their own push was switched to the patient and read the
+patient's copy — "ค่าความดันสูงมาก … ควรพบแพทย์", a sentence addressed to
+somebody else — on their own phone. Exactly the outcome the two message
+builders in `getCaregiverAlertMessage` exist to prevent, arriving through the
+screen rather than through the notification. `canMarkRead` went false at the
+same time, so the row they *did* own became unmarkable from the one path they
+were most likely to arrive by.
+
+The handler now navigates and touches the subject in neither direction. It
+also stopped needing `useActivePatientStore` and `fetchMyPatients`, which
+removes the deep imports that were there to dodge a `modules/caregivers` ↔
+`modules/notifications` cycle — the file imports `expo-router` and one parser
+now.
+
+Deliberately not done in the same change: deep-linking to the triggering
+reading. The payload carries `bpReadingId` and that is a plausible
+destination, but it is a different feature with a different answer, not a fix
+to this defect.
+
 ### 4. A permission column on `CaregiverPatient` — **done**
 
 `CaregiverPermission { view, full }`, defaulting to `full` so every existing
@@ -680,10 +708,19 @@ object, and `app/patient-health.tsx`, which is a separate screen rather than
 `app/profile.tsx` with inputs hidden. Sharing that form would leave
 `firstname`, `lastname`, `phone` and the avatar one render condition away from
 the wire. What *is* shared is the vocabulary — `GENDER_OPTIONS`,
-`formatBirthday`, `ProfileField`, `DateField`, `validateMeasurement`,
-`validateDob`, now in `modules/profile/lib/display.ts` and
-`.../validation.ts` — because two screens writing the same column must not
-name or validate it differently.
+`formatBirthday`, `ProfileField` and `DateField` in
+`modules/profile/lib/display.ts` and `modules/profile/components/`, and the
+bounds plus `validateMeasurement` / `validateDob` /
+`validateCongenitalDisease` in **`src/lib/health-validation.ts`** — because
+two screens writing the same column must not name or validate it differently.
+
+The validators moved out of `modules/profile/lib/validation.ts` (which
+re-exports them, so nothing that already imported them from there changed)
+once the **sign-up** form became a third writer of the same columns. It could
+not import them from profile: `modules/profile/lib/validation.ts` imports
+`isValidPhone` from `modules/auth/lib/validation.ts`, so a back-reference
+would have closed a cycle between the two modules. The neutral module imports
+nothing, so nothing can cycle through it.
 
 #### Two of the five cannot be read back, and that shapes the form
 

@@ -17,7 +17,8 @@
  */
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, RefreshControl, View } from 'react-native';
+import { Alert, FlatList, RefreshControl, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -123,9 +124,22 @@ export default function PostDetailScreen() {
       <View className="flex-1" style={{ paddingTop: insets.top }}>
         <SecurityHeader title="โพสต์" subject="self" />
 
+        {/*
+          `KeyboardAvoidingView` from `react-native-keyboard-controller`, not
+          React Native's. Still the avoiding view rather than
+          `KeyboardAwareScrollView`: the scroller here is a `FlatList` of
+          comments with the composer pinned *below* it, so what has to move is
+          the container, not a focused field inside a scroll view.
+
+          `behavior="padding"` now applies on Android too. RN's version needed
+          `undefined` there to avoid double-compensating against the manifest's
+          `windowSoftInputMode="adjustResize"`; this one reads the IME insets
+          directly and does not fight the OS, so one behavior covers both
+          platforms.
+        */}
         <KeyboardAvoidingView
           className="flex-1"
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
           keyboardVerticalOffset={insets.top + 56}
         >
           <FlatList

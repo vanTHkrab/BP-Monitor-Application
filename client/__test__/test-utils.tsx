@@ -15,6 +15,18 @@
  * a provider a screen can observe, add it here in the same change, or screen
  * tests start failing in ways that look like bugs in the screen.
  *
+ * **`KeyboardProvider` is the one deliberate omission.** It is mounted in
+ * `_layout.tsx`, but `react-native-keyboard-controller`'s own jest mock —
+ * which `jest.setup.js` installs — exports it as the *string*
+ * `"KeyboardProvider"`, i.e. a host component, and mocks
+ * `KeyboardAwareScrollView` as a plain RN `ScrollView` that reads no context
+ * from it. Mirroring it therefore buys a test exactly nothing and costs it a
+ * phantom host node at the root, which is enough to break the honest
+ * `expect(toJSON().children).toHaveLength(0)` assertion that
+ * `alternate-sign-in` and `bp-trend-chart` use to prove they render nothing.
+ * If a future version of the mock makes the provider load-bearing, add it
+ * back and fix those two assertions to look past it.
+ *
  * **`renderScreen` is async and must be awaited.** React Native Testing
  * Library v14 (the React 19 line) made `render` return a Promise so it can
  * flush concurrent rendering. Forgetting the `await` does not throw where the

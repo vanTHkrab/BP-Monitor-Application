@@ -4,12 +4,14 @@
  *
  * One deliberate change: client-old's logo was a placeholder Tux (Linux
  * mascot) SVG fetched from Wikipedia — never real branding, just an unset
- * asset. Swapped for the same heart-circle mark `AuthShell` already uses as
- * this app's actual identity, rather than porting a placeholder as if it
- * were real. Everything else — version string, links, copyright year — is
- * client-old's own content, carried over verbatim rather than invented.
+ * asset. Swapped for the same `splash-icon.png` mark `AuthShell` already
+ * uses as this app's actual identity, rather than porting a placeholder as
+ * if it were real. Everything else — version string, links, copyright year —
+ * is client-old's own content, carried over verbatim rather than invented.
  */
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Linking, Pressable, ScrollView, View } from 'react-native';
 
@@ -45,7 +47,7 @@ const LINKS: {
   {
     icon: 'logo-github',
     label: 'GitHub Repository',
-    url: 'https://github.com',
+    url: 'https://github.com/vanTHkrab/BP-Monitor-Application',
   },
 ];
 
@@ -90,13 +92,24 @@ export default function AboutScreen() {
               elevation: isDark ? 0 : 4,
             }}
           >
-            <Ionicons name="heart-circle" size={56} color="#E91E63" />
+            <Image
+              source={require('@/assets/images/splash-icon.png')}
+              style={{ width: 56, height: 56 }}
+              contentFit="contain"
+            />
           </View>
           <ThemedText size={19} weight="bold">
-            BP Monitor
+            BP Mobile
           </ThemedText>
+          {/*
+            Read from the manifest, never typed in. This line said 1.0.0
+            through the whole 1.1.0 release because a hardcoded string has
+            nothing tying it to `app.json`, and the screen test asserted the
+            hardcode back, so the suite certified the drift instead of
+            catching it.
+          */}
           <ThemedText type="body" weight="regular" themeColor="text-secondary">
-            เวอร์ชัน 1.0.0
+            {`เวอร์ชัน ${Constants.expoConfig?.version ?? '—'}`}
           </ThemedText>
         </View>
 
@@ -181,10 +194,10 @@ export default function AboutScreen() {
             }}
           >
             <ThemedText type="body" className="text-center" style={{ color: isDark ? '#E0E7FF' : '#6D28D9' }}>
-              พัฒนาโดย ทีมพัฒนา BP Monitor
+              พัฒนาโดย ทีมพัฒนา BP Mobile
             </ThemedText>
             <ThemedText type="body" weight="regular" className="mt-1 text-center" style={{ color: isDark ? '#C7D2FE' : '#7C3AED' }}>
-              © 2025 All Rights Reserved
+              © 2026 All Rights Reserved
             </ThemedText>
           </View>
         </View>

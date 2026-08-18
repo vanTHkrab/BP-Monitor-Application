@@ -30,7 +30,7 @@ a classifier before configuration raises (fail-loud).
 from __future__ import annotations
 
 import logging
-import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +55,15 @@ KNOWN_BRANDS: tuple[str, ...] = ("allwell", "omron", "sinocare", "yuwell", "life
 
 _MODELS_DIR: Path | None = None
 _SESSION_OPTIONS: Any | None = None
+
+# Guards every lazy loader below. The pipeline dispatches OCR for the
+# three fields concurrently through ``asyncio.to_thread``, and with the
+# listener now processing several requests at once, first-use can be
+# entered by multiple threads simultaneously. Without this, each would
+# build its own copy of the ~58 MB KNN exemplar matrix — a real memory
+# spike on a container sized for one. Contended only on the first call;
+# afterwards every loader returns from cache before taking it.
+_CACHE_LOCK = threading.Lock()
 
 
 def set_models_dir(
@@ -108,30 +117,38 @@ def _cnn_session(bucket: str) -> Any | None:
     if bucket in _CNN_SESSIONS:
         return _CNN_SESSIONS[bucket]
 
-    try:
-        import onnxruntime as ort
-    except ImportError:                                    # pragma: no cover
-        _CNN_SESSIONS[bucket] = None
-        return None
+    with _CACHE_LOCK:
+        # Re-check inside the lock: another thread may have loaded this
+        # bucket while we waited.
+        if bucket in _CNN_SESSIONS:
+            return _CNN_SESSIONS[bucket]
 
-    path = _models_dir() / f"cnn_2ch_distilled_{bucket}_int8.onnx"
-    if not path.exists():
-        _CNN_SESSIONS[bucket] = None
-        return None
+        try:
+            import onnxruntime as ort
+        except ImportError:                                # pragma: no cover
+            _CNN_SESSIONS[bucket] = None
+            return None
 
-    # Prefer the shared SessionOptions configured via set_models_dir so
-    # every distilled-CNN session inherits the same intra/inter-op
-    # thread caps as YOLO + CRNN. Fall back to a locally-built one when
-    # the module was initialised without it (legacy test path).
-    sess_opts = _SESSION_OPTIONS
-    if sess_opts is None:
-        sess_opts = ort.SessionOptions()
-        sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess = ort.InferenceSession(
-        str(path), sess_opts, providers=["CPUExecutionProvider"]
-    )
-    _CNN_SESSIONS[bucket] = sess
-    return sess
+        path = _models_dir() / f"cnn_2ch_distilled_{bucket}_int8.onnx"
+        if not path.exists():
+            _CNN_SESSIONS[bucket] = None
+            return None
+
+        # Prefer the shared SessionOptions configured via set_models_dir so
+        # every distilled-CNN session inherits the same intra/inter-op
+        # thread caps as YOLO + CRNN. Fall back to a locally-built one when
+        # the module was initialised without it (legacy test path).
+        sess_opts = _SESSION_OPTIONS
+        if sess_opts is None:
+            sess_opts = ort.SessionOptions()
+            sess_opts.graph_optimization_level = (
+                ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            )
+        sess = ort.InferenceSession(
+            str(path), sess_opts, providers=["CPUExecutionProvider"]
+        )
+        _CNN_SESSIONS[bucket] = sess
+        return sess
 
 
 def classify_by_cnn_2ch(
@@ -212,6 +229,15 @@ def _load_templates() -> dict[str, dict[int, np.ndarray]]:
     global _TEMPLATES_CACHE
     if _TEMPLATES_CACHE is not None:
         return _TEMPLATES_CACHE
+    with _CACHE_LOCK:
+        if _TEMPLATES_CACHE is not None:
+            return _TEMPLATES_CACHE
+        return _build_templates()
+
+
+def _build_templates() -> dict[str, dict[int, np.ndarray]]:
+    """Actual template load — call only while holding ``_CACHE_LOCK``."""
+    global _TEMPLATES_CACHE
     data = _load_templates_npz()
     if data is None:
         _TEMPLATES_CACHE = {}
@@ -248,6 +274,19 @@ def _load_knn_data() -> dict[str, tuple[np.ndarray, np.ndarray]]:
     global _KNN_CACHE
     if _KNN_CACHE is not None:
         return _KNN_CACHE
+    with _CACHE_LOCK:
+        if _KNN_CACHE is not None:
+            return _KNN_CACHE
+        return _build_knn_data()
+
+
+def _build_knn_data() -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Actual KNN load — call only while holding ``_CACHE_LOCK``.
+
+    Builds the ~58 MB exemplar matrix. Split out from ``_load_knn_data``
+    so the double-checked locking above stays readable.
+    """
+    global _KNN_CACHE
     data = _load_templates_npz()
     if data is None:
         _KNN_CACHE = {}
@@ -386,6 +425,30 @@ def classify_by_template(
     if best_score < min_score:
         return "*", best_score
     return best_digit, best_score
+
+
+def warm_caches() -> None:
+    """Load every lazy cache now, so no request pays the cold-start cost.
+
+    ``set_models_dir`` *clears* these caches, so despite the module
+    docstring's "configured once at lifespan", the ~58 MB KNN matrix and
+    the four ORT sessions were in fact being built on the first request
+    that happened to use an SSOCR engine — adding seconds to one
+    unlucky analysis and contradicting what `AGENTS.md` claimed about
+    engines loading at lifespan. ``build_registry`` calls this so the
+    claim becomes true.
+
+    Missing artifacts are not an error: every classifier already
+    abstains gracefully when its bundle is absent, and the ``ssocr``
+    (rule-only) engine never needs them at all.
+    """
+    templates = _load_templates()
+    knn = _load_knn_data()
+    buckets = [b for b in ("global", "sys", "dia", "pul") if _cnn_session(b) is not None]
+    logger.info(
+        "cnn_classifiers warmed: cnn_buckets=%s knn_buckets=%d template_buckets=%d",
+        buckets or "none", len(knn), sum(1 for v in templates.values() if v),
+    )
 
 
 # ─── Brand detection ────────────────────────────────────────────────────

@@ -164,3 +164,18 @@ jest.mock('expo', () => {
       name === 'ExpoObserve' ? null : actual.requireOptionalNativeModule(name),
   };
 });
+
+/**
+ * `react-native-keyboard-controller` ships its own jest mock, and the app now
+ * mounts `KeyboardProvider` at the root — so every screen test renders through
+ * it whether or not the screen cares about the keyboard.
+ *
+ * Pointed at the package's own `jest` entry rather than hand-stubbed: the
+ * surface is wide (a provider, `KeyboardAwareScrollView`, `useKeyboardHandler`
+ * and friends, plus reanimated-shaped shared values with `.get()`/`.set()`),
+ * and a hand-written subset would go stale the first time a screen reaches for
+ * a hook nobody stubbed — silently, since the module resolves either way.
+ */
+jest.mock('react-native-keyboard-controller', () =>
+  require('react-native-keyboard-controller/jest'),
+);

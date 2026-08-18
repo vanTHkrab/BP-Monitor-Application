@@ -17,8 +17,9 @@ import { RefreshControl, ScrollView, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
 import { useTheme } from '@/hooks/use-theme';
-import { useLoginSessions, useSession } from '@/modules/auth';
+import { GOOGLE_SIGN_IN_ENABLED, useLoginSessions, useSession } from '@/modules/auth';
 import {
+  PASSKEY_ENABLED,
   useAppLock,
   useSecurityOverview,
   SecurityGroup,
@@ -39,6 +40,13 @@ export default function SecurityScreen() {
   const posture = overview ? assessSecurity(overview, appLockEnabled) : null;
 
   const activeSessions = overview?.activeSessionCount ?? sessions.filter((s) => s.isActive).length;
+
+  // Both the passkey and Google rows are conditionally rendered, so whichever
+  // row actually ends up last has to say so — otherwise the row before an
+  // absent one is left with a dangling divider against the group's rounded
+  // bottom edge.
+  const showPasskeyRow = PASSKEY_ENABLED && overview?.passkeySupported;
+  const showGoogleRow = GOOGLE_SIGN_IN_ENABLED;
 
   return (
     <GradientBackground>
@@ -75,8 +83,12 @@ export default function SecurityScreen() {
               value={overview?.hasPassword ? 'ตั้งไว้แล้ว' : 'ยังไม่ได้ตั้ง'}
               tone={overview?.hasPassword ? 'neutral' : 'attention'}
               onPress={() => router.push('/security/password')}
+              isLast={!showPasskeyRow && !showGoogleRow}
             />
-            {overview?.passkeySupported ? (
+            {/* Two independent gates. The server's `passkeySupported` was
+                always here; `PASSKEY_ENABLED` is the client-side hide, off
+                until the passkey configuration lands. */}
+            {showPasskeyRow ? (
               <SecurityRow
                 testID="security-passkeys"
                 icon="finger-print-outline"
@@ -88,16 +100,24 @@ export default function SecurityScreen() {
                 }
                 tone={overview.passkeyCount > 0 ? 'good' : 'neutral'}
                 onPress={() => router.push('/security/passkeys')}
+                isLast={!showGoogleRow}
               />
             ) : null}
-            <SecurityRow
-              testID="security-google"
-              icon="logo-google"
-              title="บัญชี Google"
-              value={overview?.hasGoogleAccount ? 'เชื่อมแล้ว' : 'ยังไม่ได้เชื่อม'}
-              tone={overview?.hasGoogleAccount ? 'good' : 'neutral'}
-              isLast
-            />
+            {/* Google sign-in itself is hidden behind `GOOGLE_SIGN_IN_ENABLED`
+                (`login.tsx`'s Google button), so a row reporting the link
+                status of a feature nobody can reach makes no sense to show
+                either — gated on the same flag rather than left as
+                account-linking info, per explicit product decision. */}
+            {showGoogleRow ? (
+              <SecurityRow
+                testID="security-google"
+                icon="logo-google"
+                title="บัญชี Google"
+                value={overview?.hasGoogleAccount ? 'เชื่อมแล้ว' : 'ยังไม่ได้เชื่อม'}
+                tone={overview?.hasGoogleAccount ? 'good' : 'neutral'}
+                isLast
+              />
+            ) : null}
           </SecurityGroup>
 
           <SecurityGroup title="อุปกรณ์และการเข้าถึง">

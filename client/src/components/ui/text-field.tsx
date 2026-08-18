@@ -38,6 +38,19 @@ export type TextFieldProps = {
    */
   error?: string;
   testID?: string;
+  /**
+   * Fires in addition to the field's own focus-ring handling. The register
+   * screen uses it to scroll a field above the keyboard the moment it gains
+   * focus — see `app/(auth)/register.tsx`.
+   */
+  onFocus?: () => void;
+  /**
+   * Fires in addition to the field's own focus-ring handling. Needed so a
+   * caller driving validation on blur (React Hook Form's `mode: 'onBlur'`)
+   * can hook into the same event the field already listens for, rather than
+   * wrapping the field in a second, competing `onBlur`.
+   */
+  onBlur?: () => void;
 };
 
 export function TextField({
@@ -53,6 +66,8 @@ export function TextField({
   editable = true,
   error,
   testID,
+  onFocus,
+  onBlur,
 }: TextFieldProps) {
   const { scheme } = useColorSchemePreference();
   const colors = useTheme();
@@ -137,8 +152,14 @@ export function TextField({
           autoComplete={autoComplete}
           autoCorrect={autoCorrect}
           editable={editable}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={() => {
+            setFocused(true);
+            onFocus?.();
+          }}
+          onBlur={() => {
+            setFocused(false);
+            onBlur?.();
+          }}
         />
 
         {secureTextEntry ? (

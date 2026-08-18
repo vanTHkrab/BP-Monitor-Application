@@ -44,6 +44,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { formatErrorMessage } from '@/lib/error-message';
 import { ChangeLogEntryRow, useProfileChangeLog } from '@/modules/caregivers';
 import { SecurityHeader } from '@/modules/security';
+import { useColorSchemePreference } from '@/theme/color-scheme';
 
 export default function ProfileChangesScreen() {
   const { entries, isLoading, isRefetching, error, refetch } = useProfileChangeLog();
@@ -134,12 +135,31 @@ export default function ProfileChangesScreen() {
 
 function Card({ children, testID }: { children: ReactNode; testID?: string }) {
   const colors = useTheme();
+  const { scheme } = useColorSchemePreference();
+  const isDark = scheme === 'dark';
 
   return (
     <View
       testID={testID}
       className="mb-3 rounded-2xl border p-5"
-      style={{ backgroundColor: colors.surface, borderColor: colors['border-strong'] }}
+      style={{
+        /*
+         * Translucent white rather than the opaque theme surface, per a
+         * direct user request ("พื้นหลังขาวนิดนึง แต่โปร่งหน่อย" — a bit of
+         * white, but somewhat see-through). The alpha differs by scheme on
+         * purpose, not by accident: the text this card holds is themed
+         * (`ThemedText`, defaulting to `colors['text-primary']`), which is
+         * near-white in dark mode (`#E8E4F5`). A high white alpha there would
+         * wash the card toward white and take the text's contrast with it —
+         * so dark mode gets a low, 0.12 wash (the same value already used for
+         * "subtle white over a dark background" in camera.tsx's control
+         * chips) that keeps the card close to the dark gradient underneath.
+         * Light mode's text is dark, so it can take a much higher alpha and
+         * still read as "mostly white, a little transparent at the edges".
+         */
+        backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.85)',
+        borderColor: colors['border-strong'],
+      }}
     >
       {children}
     </View>

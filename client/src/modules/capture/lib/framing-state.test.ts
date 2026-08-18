@@ -2,6 +2,7 @@ import {
   DEFAULT_FRAMING_THRESHOLDS,
   FRAMING_DWELL_MS,
   advanceHysteresis,
+  estimateFieldTiltDeg,
   evaluateFraming,
   initialHysteresis,
   type FramingDetection,
@@ -50,13 +51,66 @@ function box(
   };
 }
 
-function frame(detections: FramingDetection[]) {
-  return { frameWidth: FRAME_W, frameHeight: FRAME_H, detections };
+/**
+ * `FRAME_W / FRAME_H` is 0.5625, near enough the real analysis stream's 0.562
+ * that the viewport arithmetic below describes an actual device rather than a
+ * convenient one. Omitting `viewportAspect` means "the whole frame is on
+ * screen", which is what every test written before the crop existed assumes.
+ */
+function frame(detections: FramingDetection[], viewportAspect?: number) {
+  return { frameWidth: FRAME_W, frameHeight: FRAME_H, detections, viewportAspect };
 }
 
 /** A well-framed monitor with two readable fields — the canonical "ready". */
 function readyDetections(): FramingDetection[] {
   return [box(0, 0.4), box(4, 0.02), box(2, 0.02)];
+}
+
+/**
+ * A field box placed by its right-edge midpoint, which is the only part of it
+ * the tilt estimator looks at (BP LCDs are right-aligned, so right edges share
+ * a vertical line whatever the digit count).
+ */
+function fieldAt(cls: number, rightX: number, midY: number, confidence = 0.9): FramingDetection {
+  const w = 60;
+  const h = 30;
+  return {
+    x1: rightX - w,
+    y1: midY - h / 2,
+    x2: rightX,
+    y2: midY + h / 2,
+    cls,
+    className: ["BP_Monitor", "BP_Screen_Monitor", "dia", "pulse", "sys"][cls],
+    confidence,
+  };
+}
+
+/**
+ * sys / dia / pulse stacked down the display and rotated by `deg` about the
+ * frame centre, plus a monitor box that is centred and well sized.
+ *
+ * Positive `deg` rotates the stack clockwise in image coordinates (y down),
+ * which the estimator must report back as a positive (counter-clockwise)
+ * correction.
+ */
+function tiltedDetections(deg: number): FramingDetection[] {
+  const cx = FRAME_W / 2;
+  const cy = FRAME_H / 2;
+  const rad = (deg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  // sys above dia above pulse, 60 px apart down the (untilted) display.
+  const stack: [number, number][] = [
+    [4, -60],
+    [2, 0],
+    [3, 60],
+  ];
+  return [
+    box(0, 0.4),
+    ...stack.map(([cls, dy]) =>
+      fieldAt(cls, cx - dy * sin, cy + dy * cos),
+    ),
+  ];
 }
 
 describe("evaluateFraming", () => {
@@ -113,8 +167,163 @@ describe("evaluateFraming", () => {
 
   it("honours caller-supplied thresholds", () => {
     // Same frame, stricter minimum area → no longer close enough.
-    const strict = { ...DEFAULT_FRAMING_THRESHOLDS, minAreaRatio: 0.5 };
+    const strict = {
+      ...DEFAULT_FRAMING_THRESHOLDS,
+      area: { ...DEFAULT_FRAMING_THRESHOLDS.area, 0: { min: 0.5, max: 1 } },
+    };
     expect(evaluateFraming(frame(readyDetections()), strict)).toBe("too-far");
+  });
+
+  it("judges the screen box against its own area window, not the device's", () => {
+    // The user-visible bug: a BP display is much wider than tall, so filling
+    // the guide frame with the LCD covers only a few percent of the view. One
+    // window shared with the whole-device class called that "too far" while
+    // the monitor sat squarely inside the brackets.
+    const fields = [box(4, 0.02), box(2, 0.02)];
+    expect(evaluateFraming(frame([box(1, 0.06), ...fields]))).toBe("ready");
+    expect(evaluateFraming(frame([box(0, 0.06), ...fields]))).toBe("too-far");
+  });
+
+  it("picks the screen box over the device box even when the device scores higher", () => {
+    // Confidence alone used to decide this across classes, so the winner could
+    // change class between two frames of a motionless phone — and with it the
+    // area ratio, by roughly 3x. The verdict flipped for a reason nobody
+    // holding the phone could act on.
+    const detections = [
+      box(0, 0.4, FRAME_W / 2, FRAME_H / 2, 0.99),
+      box(1, 0.01, FRAME_W / 2, FRAME_H / 2, 0.5),
+      box(4, 0.02),
+      box(2, 0.02),
+    ];
+    // 0.4 is comfortably `ready` on the device window; 0.01 is under the
+    // screen floor. Getting `too-far` is what proves the screen box won.
+    expect(evaluateFraming(frame(detections))).toBe("too-far");
+  });
+
+  it("measures area against the visible slice of the frame, not the whole frame", () => {
+    // A 0.45 viewport cover-fits a 0.5625 frame by cropping the sides, leaving
+    // 80% of it on screen — so every box covers a correspondingly larger share
+    // of what the user can actually see. Against the whole frame the ceiling
+    // was unreachable: the monitor had to spill well past the screen edges to
+    // trip it, long after it had started clipping the display.
+    const big = [box(0, 0.75), box(4, 0.02), box(2, 0.02)];
+    expect(evaluateFraming(frame(big))).toBe("ready");
+    expect(evaluateFraming(frame(big, 0.45))).toBe("too-close");
+  });
+
+  it("measures centring against the visible width, not the frame width", () => {
+    // Same displacement, two answers: 20% of the frame's width is only 20% of
+    // a tolerance measured against the frame, but 25% of the narrower strip
+    // the user is looking at. The horizontal axis was quietly the more
+    // forgiving of the two for exactly this reason.
+    const offset = FRAME_W / 2 + 0.2 * FRAME_W;
+    const detections = [
+      box(0, 0.4, offset, FRAME_H / 2),
+      box(4, 0.02),
+      box(2, 0.02),
+    ];
+    expect(evaluateFraming(frame(detections))).toBe("ready");
+    expect(evaluateFraming(frame(detections, 0.45))).toBe("off-center");
+  });
+
+  it("leaves an upright three-field frame alone", () => {
+    // The regression guard for adding tilt at all: a straight shot must not
+    // start being coached because a new check was inserted before "ready".
+    expect(evaluateFraming(frame(tiltedDetections(0)))).toBe("ready");
+  });
+
+  it("reports tilted when the display is clearly rotated", () => {
+    expect(evaluateFraming(frame(tiltedDetections(25)))).toBe("tilted");
+  });
+
+  it("reports tilted the same way in both directions", () => {
+    expect(evaluateFraming(frame(tiltedDetections(-25)))).toBe("tilted");
+  });
+
+  it("stays ready for a tilt below the threshold", () => {
+    // 6 degrees is past the backend's 2 degree rotation floor and still under
+    // the UI's 10, which is the whole reason the two numbers are separate:
+    // this frame gets silently straightened, not complained about.
+    expect(evaluateFraming(frame(tiltedDetections(6)))).toBe("ready");
+  });
+
+  it("coaches the distance before the tilt", () => {
+    // A tilted monitor that is also too far away hears about the distance
+    // first — telling someone to straighten a phone they have not yet aimed
+    // is noise.
+    const far = [box(0, 0.02), ...tiltedDetections(30).slice(1)];
+    expect(evaluateFraming(frame(far))).toBe("too-far");
+  });
+
+  it("honours a caller-supplied tilt threshold", () => {
+    const strict = { ...DEFAULT_FRAMING_THRESHOLDS, maxTiltDeg: 3 };
+    expect(evaluateFraming(frame(tiltedDetections(6)), strict)).toBe("tilted");
+  });
+
+  it("says nothing about tilt when only two side-by-side fields are visible", () => {
+    // Two fields laid out horizontally fit a horizontal line, and the
+    // arithmetic reports ~90 degrees on a perfectly level phone. Believing it
+    // would pin the user on "hold it straight" forever, so an implausible
+    // estimate is treated as no opinion.
+    const sideBySide = [box(0, 0.4), fieldAt(4, 200, 250), fieldAt(2, 100, 250)];
+    expect(evaluateFraming(frame(sideBySide))).toBe("ready");
+  });
+});
+
+describe("estimateFieldTiltDeg", () => {
+  const fields = (deg: number) => tiltedDetections(deg).filter((d) => d.cls > 1);
+
+  it("reports ~0 for an upright stack", () => {
+    expect(estimateFieldTiltDeg(fields(0))).toBeCloseTo(0, 6);
+  });
+
+  it("reports the rotation, counter-clockwise-positive", () => {
+    // Positive input tilts the stack clockwise in image coords, so the
+    // correction that undoes it is counter-clockwise — positive. This is the
+    // sign convention Rectify.kt and rectify.py already use; getting it
+    // backwards here would coach the user to tilt further.
+    expect(estimateFieldTiltDeg(fields(15))).toBeCloseTo(15, 4);
+    expect(estimateFieldTiltDeg(fields(-15))).toBeCloseTo(-15, 4);
+  });
+
+  it("fits a line through only two of the three fields", () => {
+    // minFields is 2, so two is the case the gate actually runs on most.
+    const two = fields(20).filter((d) => d.cls !== 3);
+    expect(estimateFieldTiltDeg(two)).toBeCloseTo(20, 4);
+  });
+
+  it("returns null with fewer than two fields", () => {
+    expect(estimateFieldTiltDeg([fieldAt(4, 200, 100)])).toBeNull();
+    expect(estimateFieldTiltDeg([])).toBeNull();
+  });
+
+  it("ignores the monitor and screen boxes", () => {
+    // Only sys / dia / pulse carry the display's direction; the outer boxes
+    // are axis-aligned by construction and would flatten the fit.
+    expect(estimateFieldTiltDeg([box(0, 0.4), box(1, 0.3), fieldAt(4, 200, 100)])).toBeNull();
+  });
+
+  it("returns null when the points are too close together to define a line", () => {
+    // 5 px apart — under the 8 px spread floor. Two nearly-coincident boxes
+    // produce an angle driven entirely by detector jitter.
+    const cramped = [fieldAt(4, 200, 100), fieldAt(2, 200, 105)];
+    expect(estimateFieldTiltDeg(cramped)).toBeNull();
+  });
+
+  it("returns null for an implausible estimate rather than reporting it", () => {
+    const sideBySide = [fieldAt(4, 200, 250), fieldAt(2, 100, 250)];
+    expect(estimateFieldTiltDeg(sideBySide)).toBeNull();
+  });
+
+  it("uses the highest-confidence box when a class is detected twice", () => {
+    const detections = [
+      fieldAt(4, 200, 100, 0.9),
+      fieldAt(4, 400, 100, 0.3),
+      fieldAt(2, 200, 200, 0.9),
+    ];
+    // The 0.9 pair is a vertical line: no tilt. Letting the 0.3 duplicate win
+    // would swing it far off.
+    expect(estimateFieldTiltDeg(detections)).toBeCloseTo(0, 6);
   });
 });
 
@@ -171,6 +380,22 @@ describe("advanceHysteresis", () => {
     expect(h.committed).toBe("ready");
     h = advanceHysteresis(h, "searching", t0 + 1000 + FRAMING_DWELL_MS);
     expect(h.committed).toBe("searching");
+  });
+
+  it("smooths 'tilted' like any other state", () => {
+    // 'tilted' is a framing verdict, not a separate mechanism — it must earn
+    // its place on screen through the same dwell, and lose it the same way.
+    let h = initialHysteresis(t0);
+    h = advanceHysteresis(h, "tilted", t0);
+    h = advanceHysteresis(h, "tilted", t0 + FRAMING_DWELL_MS - 1);
+    expect(h.committed).toBe("searching");
+    h = advanceHysteresis(h, "tilted", t0 + FRAMING_DWELL_MS);
+    expect(h.committed).toBe("tilted");
+
+    h = advanceHysteresis(h, "ready", t0 + FRAMING_DWELL_MS + 1);
+    expect(h.committed).toBe("tilted");
+    h = advanceHysteresis(h, "ready", t0 + 2 * FRAMING_DWELL_MS + 1);
+    expect(h.committed).toBe("ready");
   });
 
   it("walks a realistic approach sequence to ready exactly once", () => {

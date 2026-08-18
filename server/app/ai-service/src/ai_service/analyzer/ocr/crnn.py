@@ -46,8 +46,8 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 
+from ..ranges import CANDIDATE_RANGES
 from .base import OCRReader, OCRResult
-
 
 logger = logging.getLogger(__name__)
 
@@ -77,16 +77,16 @@ CRNN_PREPROCESS_VERSION_METADATA_KEY: str = "preprocess_version"
 # CTC blank token index in the 11-class output (10 digits + blank).
 CTC_BLANK_INDEX: int = 10
 
-# Per-label clinical ranges used for digit extraction. Wider than the
-# `analyzer/validation.py` ranges because here we're picking between
-# CRNN's candidate digit substrings — a value just outside the strict
-# clinical range is still a useful hint, only obviously-wrong reads
-# (negatives, 4-digit groups) are filtered. Keep loose by design.
-LABEL_VALUE_RULES: dict[str, tuple[int, int]] = {
-    "sys": (70, 300),
-    "dia": (40, 140),
-    "pul": (40, 200),
-}
+# Per-label ranges used for digit extraction — narrower than the
+# clinical ranges in ``analyzer/validation.py`` because here we're
+# picking between CRNN's candidate digit substrings rather than deciding
+# whether to report a value. A candidate outside this range is still
+# surfaced; it only loses the tie-break.
+#
+# Single source: ``analyzer/ranges.CANDIDATE_RANGES``. This alias exists
+# because the name is part of this module's surface — the
+# ``expected_label`` check below and the tests read it.
+LABEL_VALUE_RULES: dict[str, tuple[int, int]] = CANDIDATE_RANGES
 
 
 @dataclass(frozen=True)
@@ -317,3 +317,11 @@ def _extract_digit_string(text: str, label: str) -> str | None:
     # garbled rather than a different valid number.
     matches.sort(key=lambda s: (-len(s), text.find(s)))
     return matches[0]
+
+
+# Static type assertion: CRNNEngine satisfies the OCRReader Protocol.
+# Mirrors the identical line at the bottom of ``ssocr.py`` — the pipeline
+# depends on the Protocol, not on either class, so a signature drift
+# should fail here rather than at the first request.
+def _assert_protocol(engine: CRNNEngine) -> OCRReader:
+    return engine

@@ -154,7 +154,7 @@ export async function applyReminderSchedule(
           body: 'ถ้ายังไม่พร้อม กดเตือนอีก 5 นาทีได้',
           sound: sound.fileName,
           categoryIdentifier: CATEGORY_ID,
-          data: { kind: REMINDER_KIND, hour: slot.hour, weekday: slot.weekday },
+          data: { kind: REMINDER_KIND, hour: slot.hour, minute: slot.minute, weekday: slot.weekday },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
@@ -164,7 +164,7 @@ export async function applyReminderSchedule(
           // rather than as a bug in one line.
           weekday: slot.weekday + 1,
           hour: slot.hour,
-          minute: 0,
+          minute: slot.minute,
           channelId,
         },
       }),

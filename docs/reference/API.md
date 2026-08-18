@@ -2,7 +2,7 @@
 title: BP Monitor GraphQL API contract
 description: Endpoint, auth, error codes, and the operation catalogue client developers build against.
 status: current
-updated: 2026-08-11
+updated: 2026-08-12
 owner: api-gateway
 ---
 
@@ -479,10 +479,29 @@ mutation CreateReading($input: CreateReadingInput!) {
 }
 ```
 
-- `status` is the BP category (`normal` / `elevated` / `high-stage-1` /
-  …). The client computes it before submitting; see
+- `status` is the BP category, and the enum has exactly five members:
+  `low` / `normal` / `elevated` / `high` / `critical`.
+
+  **It is derived server-side and the value you send is a hint.** The gateway
+  re-classifies from `systolic` / `diastolic` in
+  [`bp-status.ts`](../../server/app/api-gateway/src/reading/bp-status.ts) and
+  stores its own answer, because `@IsEnum` only checks that the word is known
+  — not that it matches the numbers — and the stored value drives the alert
+  level, whether caregivers are pushed, the colour on every screen, the
+  history filters and the export.
+
+  A disagreement is **corrected, never rejected**: this app is offline-first,
+  so a reading queued by an older build with different thresholds has to be
+  able to sync. The correction is logged at `warn`. The response carries the
+  derived value, so a client that stores what came back — as the mobile
+  mirror does — self-corrects.
+
+  Clients still classify locally for the offline case, before there is any
+  network to ask; see
   [`client/src/modules/readings/lib/status.ts`](../../client/src/modules/readings/lib/status.ts)
-  (the colours for each category live in `client/src/theme/tokens.js`).
+  (the colours for each category live in `client/src/theme/tokens.js`). Keep
+  the two ladders in step: the window they can disagree in is between
+  measuring and syncing, which is exactly when a critical reading matters.
 - `s3Key` is optional and only set when the reading came from the image
   flow (after `analyzeBPImage` returns). The gateway enforces that the
   key is owned by the calling user.
@@ -655,6 +674,24 @@ is a `token` Expo's own validator rejects.
   mattered.
 - **Only caregivers are pushed, never the patient.** The patient is holding
   the phone that just took the measurement.
+- **A critical reading does not guarantee a push.** Two gates sit in front of
+  the send, and neither affects the alert rows — those are always written, so
+  nothing is hidden from either bell. Only the interruption is withheld.
+  1. **Staleness.** A reading whose `measuredAt` is more than 6 hours old does
+     not push. Readings are captured offline-first and drained one mutation at
+     a time, so a patient who was offline for days arrives as a burst of
+     `createReading` calls; a push saying "ค่าความดันวิกฤต" has to mean *now*,
+     because that is how the recipient reads it. A future `measuredAt` (a
+     skewed device clock) counts as fresh.
+  2. **Burst.** At most one critical push per patient per 15 minutes, across
+     all their caregivers, via the same `RateLimitService` the credential
+     routes use. The staleness gate does not cover a twenty-minute outage with
+     three readings in it, and three pushes in five minutes tell a caregiver
+     nothing the first did not.
+
+  The order matters: staleness is evaluated first so a backlog cannot spend
+  the burst budget and silence a genuinely live reading that syncs a moment
+  later. Both fail **open** — if the limiter cannot answer, the push goes.
 - **No token registered is not an error.** Expo Go on Android cannot obtain a
   push token at all (remote push was dropped in SDK 53), so this feature needs
   a dev build. The gateway treats "no device to notify" as an ordinary

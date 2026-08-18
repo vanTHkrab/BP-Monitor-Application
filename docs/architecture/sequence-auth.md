@@ -1,87 +1,121 @@
 ---
 title: Auth & 401 Fan-out
 description: >-
-    Token-based auth with global session-expired handling. There is no session
-    cookie. Login mints a JWT bound to a UserSession row; every authenticated
-    request validates the row is still active. Any 401 from any GraphQL
-    transport fans out to a single auth-slice handler that wipes local state
-    and surfaces a Thai banner — no per-slice 401 handling.
+    Better Auth behind a GraphQL façade, with global session-expired handling.
+    There is no session cookie on mobile — the client sends a Better Auth
+    session token as a bearer, the gateway resolves it through the bearer
+    plugin, and any 401 fans out to a single client-side handler that wipes
+    local state and surfaces a Thai banner.
 status: current
-updated: 2026-08-06
+updated: 2026-08-16
 owner: cross
 ---
 
 ## Login + throttle
 
-The login throttle is Redis-backed (5 attempts / 15 min / phone) with an
-in-memory fallback if Redis is down.
+The mobile app never calls Better Auth's REST routes directly. It calls the
+GraphQL `login` mutation, and `AuthService` calls `auth.api.signInPhoneNumber`
+in-process. That keeps one transport on the client while the identity logic —
+credential storage, account linking, rate limiting — stays inside Better Auth.
+
+Throttling is Better Auth's, configured at 5 attempts per 15 minutes and backed
+by Redis through a custom storage adapter (`RateLimitService.consume`, an
+`INCR` + `PEXPIRE` in one Lua call). The old `login-throttle.guard.ts` is gone;
+the replacement also covers the email route the guard never knew about.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant U as User
-    participant App as Mobile App
-    participant GW as API Gateway
-    participant Throttle as Redis Throttle
+    participant App as Mobile app
+    participant GW as GraphQL resolver
+    participant BA as Better Auth
+    participant RL as Redis rate limit
     participant PG as Postgres
-    participant Store as Auth Slice
+    participant Store as Auth store
 
     U->>App: Enter phone + password
-    App->>GW: mutation login { phone, password }
-    GW->>Throttle: INCR loginCount(phone)
-    alt within window > 5 attempts
-        Throttle-->>GW: blocked
-        GW-->>App: 429 + extensions.retryAfterSec + Retry-After header
+    App->>GW: mutation login { phone, password, deviceLabel }
+    GW->>BA: api.signInPhoneNumber({ phoneNumber, password })
+    BA->>RL: consume(key) — fixed window, 5 / 15 min
+
+    alt over budget
+        RL-->>BA: denied + retryAfter (seconds)
+        BA-->>GW: rate-limit error
+        GW-->>App: HttpException 429<br/>extensions.retryAfterSec + Retry-After header
         App->>U: Inline error + countdown
-    else under threshold
-        Throttle-->>GW: allowed
-        GW->>PG: SELECT user by phone
-        GW->>GW: bcrypt.compare(password, hash)
-        GW->>PG: INSERT user_session
-        GW-->>App: { token, user, session }
-        App->>Store: setAuthToken (SecureStore on native, AsyncStorage on web)
-        App->>U: Navigate to home
+    else within budget
+        RL-->>BA: allowed
+        BA->>PG: SELECT user by phone, verify accounts.password
+        BA->>PG: INSERT user_sessions (token, expiresAt)
+        BA-->>GW: { token, user }
+        GW->>PG: label the session row with deviceLabel
+        GW-->>App: AuthPayload { token, user }
+        App->>Store: setAuthToken — SecureStore on native, AsyncStorage on web
+        App->>U: Navigate home
     end
 ```
 
+Same shape, different door: `register`, `loginWithGoogleIdToken` (Credential
+Manager hands the app a Google ID token, exchanged through `signInSocial`), and
+passkey sign-in all end at the same "session row + bearer token" state. Only the
+first two steps differ. The full identity model is in
+[AUTH-better-auth-identity.md](./AUTH-better-auth-identity.md).
+
 ## 401 fan-out
 
-One handler, many transports. New transports must call fireUnauthenticated()
-too — or session revocation from another device won't propagate.
+One handler, every transport. A new transport that skips
+`fireUnauthenticated()` means a session revoked from another device never
+propagates — the user sits on a screen that silently fails every query.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant App as Mobile App
-    participant T as GraphQL Transport
-    participant GW as API Gateway
-    participant Slice as Auth Slice
-    participant LoginUI as Login Screen
+    participant App as Mobile app
+    participant T as graphqlRequest
+    participant GW as GqlAuthGuard
+    participant BA as Better Auth
+    participant Slice as Auth store
+    participant LoginUI as Login screen
 
-    Note over GW: Session revoked elsewhere<br/>(logout on web, admin action)
+    Note over GW: Session revoked elsewhere<br/>(another device, admin action)
 
-    App->>T: query me (with token)
+    App->>T: query me (Authorization: Bearer …)
     T->>GW: POST /graphql
-    GW->>GW: GqlAuthGuard sees isActive=false
-    GW-->>T: 401 + extensions.code=UNAUTHENTICATED
-    T->>T: fireUnauthenticated() (idempotent)
-    T->>Slice: handleSessionExpired()
-    Slice->>Slice: clearAuthToken + reset slices
-    Slice->>LoginUI: Show Thai banner: session expired
-    Slice-->>T: subsequent 401s become no-ops
+    GW->>BA: api.getSession(headers) — bearer plugin reads the header
+    BA-->>GW: session found, but is_active = false
+    GW-->>T: UnauthorizedException →<br/>errorFormatter stamps extensions.code = UNAUTHENTICATED
+
+    alt a token was actually sent
+        T->>T: fireUnauthenticated()
+        T->>Slice: the one registered handler runs
+        Slice->>Slice: clearAuthToken + reset stores
+        Slice->>LoginUI: Thai banner — session expired
+        Slice-->>T: later 401s are no-ops
+    else anonymous request (login, register)
+        T-->>App: throw ApiError only — 401 here means "wrong credentials"
+    end
 ```
 
 ## Why this shape
 
-- **JWT + revocable session row** — Stateless token convenience, but with a
-  server-side kill switch. Logout flips isActive=false rather than deleting the
-  row, so the sessions screen can show history.
-- **Single handler for all 401s** — Both graphqlRequest and graphqlUpload
-  (client/src/services/api.ts) call the same fireUnauthenticated(). The auth
-  slice registers the handler at composition time; the call is idempotent.
-- **Retry-After is dual-channel** — Throttle returns retryAfterSec inside
-  extensions and also sets a real Retry-After header so proxies and naive
-  clients still cooperate.
+- **Token, not cookie** — the mobile client cannot carry cookies usefully, so
+  the `bearer` plugin translates `Authorization: Bearer …` into the session
+  cookie Better Auth expects. Everything downstream of the guard is ordinary
+  Better Auth.
+- **A revocable row behind the token** — sign-out flips `is_active` rather than
+  deleting `user_sessions`, so the login-sessions screen can still show device
+  history, and the guard has a kill switch Better Auth itself does not know
+  about.
+- **`extensions.code = 'UNAUTHENTICATED'` is a client-visible API** — the
+  global logout keys on exactly that string. Renaming or widening it either
+  logs everyone out or stops logging them out when it should.
+- **The 401 fan-out is guarded by "was a token sent"** — logging out a user who
+  is not logged in would race the login mutation's own error handling and
+  produce a session-expired banner on a failed first login.
+- **Retry-After is dual-channel** — the throttle answer travels both in
+  `extensions.retryAfterSec` and as a real `Retry-After` header, so the mobile
+  countdown and any proxy in the path both see it.
 - **Token storage straddles platforms** — SecureStore on native, AsyncStorage
-  on web. Always go through setAuthToken / getAuthToken / clearAuthToken —
+  on web. Always go through `setAuthToken` / `getAuthToken` / `clearAuthToken`;
   never touch storage directly.

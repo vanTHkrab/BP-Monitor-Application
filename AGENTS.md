@@ -23,11 +23,11 @@ web app is an internal tool that is **not deployed at all**:
 | [`client/`](./client/) | Expo + React Native | Patients and caregivers. **This is the product.** |
 | [`server/app/api-gateway/`](./server/app/api-gateway/) | NestJS + Fastify + Mercurius, Prisma → Postgres | Serves the mobile app. Owns all durable state. |
 | [`server/app/ai-service/`](./server/app/ai-service/) | FastAPI, Python, `uv` | Nothing user-facing. Reads BP digits off images. |
-| [`web/`](./web/) | Next.js App Router | **The development team only, and run locally only.** Service-status dashboard and the docs site. Not part of any deploy — see below. |
+| [`web/`](./web/) | Next.js App Router | **The development team only, and run locally only.** Service-status dashboard, the docs site, and the `/diagrams` browser. Not part of any deploy — see below. |
 
 > ⚠️ There is no clinician-facing UI anywhere in this repo. `web/` is a
-> service-status dashboard plus the docs site, with no auth library installed,
-> and it is **not deployed** — it is defined only in
+> service-status dashboard plus the docs and diagram site, with no auth
+> library installed, and it is **not deployed** — it is defined only in
 > `infra/docker-compose/docker-compose.dev.yml` and runs locally. Do not
 > describe it, design for it, or build against it as a clinical product, and
 > do not add it back to a deploy without adding real authentication first.
@@ -307,8 +307,9 @@ High-leverage surfaces that look ordinary and misbehave subtly. Each app's
   listeners and a pull that only fires on pull-to-refresh.
 - **Gateway ↔ AI Redis wire.** Typed only by convention. A field rename plus a
   stale deploy fails silently.
-- **The shared YOLO detector.** Same `yolo11n.onnx` on the phone and the
-  server. Drift means the phone approves a framing the server cannot read. See
+- **The shared YOLO detector.** Same `yolo26n-adamw-color.onnx` on the phone
+  and the server. Drift means the phone approves a framing the server cannot
+  read. See
   [docs/decisions/ADR-001-onnx-runtime-over-ultralytics.md](./docs/decisions/ADR-001-onnx-runtime-over-ultralytics.md)
   and [client/AGENTS.md](./client/AGENTS.md).
 - **Image upload.** One path, not two: `requestImageUpload` → client PUTs the

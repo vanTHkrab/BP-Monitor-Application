@@ -11,14 +11,32 @@
  * entry, or a `ScrollView` that stops mounting its children shows up here.
  */
 import AboutScreen from '@/app/about';
+import appJson from '../../app.json';
+
+/*
+ * `expo-constants` resolves `expoConfig` to null under jest-expo, so the screen
+ * would render the `—` fallback and the assertion below would prove nothing.
+ * Feeding it the real manifest keeps the test on the wiring — "the screen shows
+ * whatever `app.json` says" — rather than on a literal, which is the coupling
+ * that let this line sit on 1.0.0 for a whole 1.1.0 release.
+ * `notifications-module.test.ts` mocks this module per-file for its own reasons.
+ */
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: { expoConfig: jest.requireActual('../../app.json').expo },
+}));
 import { renderScreen } from '../test-utils';
 
 describe('AboutScreen', () => {
   it('renders the app identity and version', async () => {
     const view = await renderScreen(<AboutScreen />);
 
-    expect(view.getByText('BP Monitor')).toBeOnTheScreen();
-    expect(view.getByText('เวอร์ชัน 1.0.0')).toBeOnTheScreen();
+    expect(view.getByText('BP Mobile')).toBeOnTheScreen();
+    // Against the manifest, not a literal. A literal here is what let the
+    // screen sit on 1.0.0 through the whole 1.1.0 release with a green suite.
+    expect(
+      view.getByText(`เวอร์ชัน ${appJson.expo.version}`),
+    ).toBeOnTheScreen();
   });
 
   it('renders every feature in the list', async () => {

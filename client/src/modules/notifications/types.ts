@@ -54,14 +54,69 @@ export const REMINDER_SOUND_OPTIONS: ReminderSoundOption[] = [
   },
 ];
 
+/**
+ * One alarm-style reminder time, local wall-clock. Not a `Date` — this has to
+ * survive `JSON.stringify` round-trips through AsyncStorage and repeat every
+ * week, so it is deliberately just the two numbers a weekly trigger needs.
+ */
+export type ReminderTime = {
+  /** 0–23. */
+  hour: number;
+  /** 0–59. */
+  minute: number;
+};
+
+/** Minutes since midnight — the sort/dedupe key for a `ReminderTime`. */
+function reminderTimeOrdinal(time: ReminderTime): number {
+  return time.hour * 60 + time.minute;
+}
+
+/**
+ * Validates, de-duplicates, and sorts a list of reminder times.
+ *
+ * One function doing all three because they are the same invariant: nothing
+ * downstream (the schedule planner, the OS trigger, the settings screen's own
+ * list) can tell a malformed entry from a real one, so admitting one here
+ * means it resurfaces as a silent double-booking or a crash three layers
+ * away. Takes `unknown` because its two callers need that — `storage.ts`
+ * feeds it a JSON blob written by a build that may have shipped a different
+ * shape, and `reminders.tsx` feeds it the in-memory list plus one new entry
+ * from the time picker, which needs the same duplicate check.
+ */
+export function normalizeReminderTimes(times: unknown): ReminderTime[] {
+  if (!Array.isArray(times)) return [];
+
+  const seen = new Map<number, ReminderTime>();
+  for (const raw of times) {
+    if (!raw || typeof raw !== 'object') continue;
+    const { hour, minute } = raw as Record<string, unknown>;
+    if (
+      typeof hour === 'number' &&
+      Number.isInteger(hour) &&
+      hour >= 0 &&
+      hour <= 23 &&
+      typeof minute === 'number' &&
+      Number.isInteger(minute) &&
+      minute >= 0 &&
+      minute <= 59
+    ) {
+      const time = { hour, minute };
+      seen.set(reminderTimeOrdinal(time), time);
+    }
+  }
+
+  return [...seen.values()].sort((a, b) => reminderTimeOrdinal(a) - reminderTimeOrdinal(b));
+}
+
 export type ReminderSettings = {
   enabled: boolean;
-  /** Hours between reminders within the active window. */
-  intervalHours: number;
-  /** Local wall-clock hour the window opens, inclusive. */
-  startHour: number;
-  /** Local wall-clock hour the window closes, inclusive. */
-  endHour: number;
+  /**
+   * Specific times of day to remind at, set individually like alarms —
+   * replaces the old interval + hour-window formula. Always sorted and
+   * de-duplicated; `normalizeReminderTimes` is what enforces that, both on
+   * load and whenever the settings screen adds one.
+   */
+  reminderTimes: ReminderTime[];
   /** Weekdays to remind on, `0` = Sunday, matching `Date.getDay()`. */
   selectedDays: number[];
   soundId: ReminderSoundId;
@@ -72,17 +127,10 @@ export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
   // notifications at a patient who never requested them gets muted at the
   // OS level, and a muted app cannot remind anyone of anything.
   enabled: false,
-  intervalHours: 4,
-  startHour: 7,
-  endHour: 19,
+  reminderTimes: [{ hour: 8, minute: 0 }],
   selectedDays: [0, 1, 2, 3, 4, 5, 6],
   soundId: 'voice1',
 };
-
-export const INTERVAL_OPTIONS = [2, 3, 4, 6, 8, 12] as const;
-
-/** 05:00–22:00. Outside that a reminder is more likely to wake someone than help. */
-export const HOUR_OPTIONS = Array.from({ length: 18 }, (_, index) => index + 5);
 
 export const DAY_OPTIONS = [
   { label: 'อา', value: 0 },

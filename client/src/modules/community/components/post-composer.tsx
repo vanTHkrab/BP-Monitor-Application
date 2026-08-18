@@ -14,7 +14,8 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View } from 'react-native';
+import { Modal, Pressable, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -87,8 +88,19 @@ export function PostComposer({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
+      {/*
+        `react-native-keyboard-controller`'s `KeyboardAvoidingView`, and the
+        avoiding view rather than `KeyboardAwareScrollView` because the sheet
+        is a fixed header / body / action-bar column, not a scroller — the
+        whole column moves, nothing scrolls into view.
+
+        `behavior="padding"` on both platforms: this implementation reads the
+        IME insets instead of racing the OS, so Android no longer needs the
+        `undefined` that RN's version did to avoid double-compensating against
+        `windowSoftInputMode="adjustResize"`.
+      */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         className="flex-1"
         style={{ backgroundColor: colors.background }}
       >

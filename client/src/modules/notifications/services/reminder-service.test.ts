@@ -69,9 +69,7 @@ const use = (stub: NotificationsStub | null): NotificationsStub | null => {
 const settings: ReminderSettings = {
   ...DEFAULT_REMINDER_SETTINGS,
   enabled: true,
-  intervalHours: 12,
-  startHour: 8,
-  endHour: 8,
+  reminderTimes: [{ hour: 8, minute: 15 }],
   selectedDays: [0, 6],
   soundId: 'voice3',
 };
@@ -199,7 +197,7 @@ describe('applyReminderSchedule', () => {
     expect(weekdays.sort()).toEqual([1, 7]);
   });
 
-  it('books the hour the user chose, on the hour', async () => {
+  it('books the exact hour and minute the user chose', async () => {
     const stub = use(notificationsModule())!;
 
     await applyReminderSchedule(settings);
@@ -207,7 +205,7 @@ describe('applyReminderSchedule', () => {
     const trigger = (stub.scheduleNotificationAsync.mock.calls[0][0] as {
       trigger: Record<string, unknown>;
     }).trigger;
-    expect(trigger).toMatchObject({ type: 'weekly', hour: 8, minute: 0 });
+    expect(trigger).toMatchObject({ type: 'weekly', hour: 8, minute: 15 });
   });
 
   it('stamps our own kind on every reminder so a later cancel can find it', async () => {

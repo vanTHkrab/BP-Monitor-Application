@@ -21,9 +21,15 @@ describe('HelpScreen', () => {
   it('renders the contact channels', async () => {
     const view = await renderScreen(<HelpScreen />);
 
-    expect(view.getByText('support@bpapp.com')).toBeOnTheScreen();
-    expect(view.getByText('02-123-4567')).toBeOnTheScreen();
-    expect(view.getByText('@bpapp')).toBeOnTheScreen();
+    expect(view.getByText('projectbpmobile@gmail.com')).toBeOnTheScreen();
+    expect(view.getByText('083-177-5513')).toBeOnTheScreen();
+    // The label, not the handle. `34af9289` replaced the placeholder email and
+    // phone with real ones and left the LINE tile rendering a bare `@`, so
+    // there is no handle to assert. Asserting `@` instead would make the suite
+    // certify an empty contact channel as correct; asserting the label keeps
+    // the tile covered and leaves the gap visible. Restore the handle
+    // assertion when a real one exists.
+    expect(view.getByText('Line Official')).toBeOnTheScreen();
   });
 
   it('renders every FAQ question', async () => {

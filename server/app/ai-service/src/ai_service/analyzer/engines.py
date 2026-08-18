@@ -29,6 +29,7 @@ from .ocr import cnn_classifiers
 from .ocr.crnn import CRNNEngine, CRNNSession
 from .ocr.ssocr import SSOCREngine
 from .pipeline import BPAnalysisPipeline
+from .ranges import label_for
 from .types import BPClass, PipelineMetrics
 from .yolo import YoloDetector
 
@@ -73,6 +74,9 @@ class AnalysisMetrics:
     rss_after_mb: float
     rss_delta_mb: float
     image_size_bytes: int
+    recovery_attempted: bool
+    recovery_committed: bool
+    recovery_ms: float
 
     @classmethod
     def build(
@@ -98,14 +102,48 @@ class AnalysisMetrics:
             rss_after_mb=rss_after_mb,
             rss_delta_mb=rss_after_mb - rss_before_mb,
             image_size_bytes=image_size_bytes,
+            recovery_attempted=pipeline_metrics.recovery_attempted,
+            recovery_committed=pipeline_metrics.recovery_committed,
+            recovery_ms=pipeline_metrics.recovery_ms,
         )
 
     def to_wire(self) -> dict[str, float | int | str]:
         """Flat dict matching the M2.2 wire contract for ``metrics``.
 
         ``rectify_ms`` is additive — old gateway clients that ignore
-        unknown keys keep working. ``0.0`` indicates rectification
-        was skipped or failed silently.
+        unknown keys keep working. It times the LCD-straightening stage
+        (field-layout rotation by default; the opt-in perspective
+        attempt too when ``AI_PERSPECTIVE_RECTIFY_ENABLED`` is set) and
+        is measured whether or not the stage changed anything — see
+        ``PipelineMetrics``.
+
+        The three ``recovery_*`` keys are additive on the same terms.
+        They exist because the detection-recovery fallback fires on
+        frames the service otherwise loses **silently** — the reply is
+        ``unreadable`` whether or not the fallback ran, so nothing else
+        in the payload distinguishes "never fired" from "fired and
+        recovered nothing". ``recovery_attempted`` over all rows is the
+        fire rate; ``recovery_committed`` over ``recovery_attempted`` is
+        the recovery rate. Without both, nobody can tell whether the
+        stage earns its latency.
+
+        The *reason* a recovery declined (no device box, ROI below the
+        size floor, second pass short of 3 fields, reading implausible)
+        stays in the logs rather than on the wire: it is a debugging
+        aid, and every wire key is a key a consumer can come to depend
+        on.
+
+        The two flags go out as ``0`` / ``1`` rather than ``false`` /
+        ``true``. Every metric on this wire is numeric today, and the
+        gateway parses the payload by walking a list of keys it asserts
+        are finite numbers (``ai.process.ts::parseMetrics``). Emitting
+        ints keeps the gateway-side half of this change to three added
+        strings in that list instead of a new branch for a new type —
+        and a 0/1 column averages directly into the rate you actually
+        want. **Until that gateway change lands these keys reach the
+        gateway and are dropped**: ``parseMetrics`` copies an explicit
+        allowlist into the JSONL row, so unknown keys are ignored, not
+        rejected. Nothing breaks; the counters simply are not in S3 yet.
         """
         return {
             "engine": self.engine,
@@ -119,6 +157,9 @@ class AnalysisMetrics:
             "rss_after_mb": self.rss_after_mb,
             "rss_delta_mb": self.rss_delta_mb,
             "image_size_bytes": self.image_size_bytes,
+            "recovery_attempted": int(self.recovery_attempted),
+            "recovery_committed": int(self.recovery_committed),
+            "recovery_ms": self.recovery_ms,
         }
 
 
@@ -177,11 +218,21 @@ def build_registry(
     inherit the same models directory AND the shared ORT
     ``SessionOptions`` (thread caps + execution mode) because both
     caches are module-level.
+
+    ``sys_prefix_repair`` is passed to the systolic readers only: the
+    2-digit rescue it gates is a sys-specific rule (dia and pulse are
+    legitimately 2-digit, so there is nothing to complete). Leaving it
+    off the dia/pul constructors is deliberate, not an omission.
     """
     session_options = cfg.build_onnx_session_options()
     cnn_classifiers.set_models_dir(
         cfg.models_dir, session_options=session_options,
     )
+    # set_models_dir clears the caches, so warm them here — otherwise the
+    # first request to pick an SSOCR engine pays for the ~58 MB KNN
+    # matrix and four ORT sessions, and (with concurrent dispatch) two
+    # requests can pay for it at the same time.
+    cnn_classifiers.warm_caches()
 
     crnn_session = CRNNSession.load(
         cfg.crnn_path,
@@ -189,33 +240,61 @@ def build_registry(
         session_options=session_options,
     )
 
+    def _ssocr_readers(*, use_classifiers: bool) -> dict[BPClass, SSOCREngine]:
+        """One SSOCR reader per field, labelled from ``ranges.label_for``.
+
+        The label strings were previously typed out at each call site —
+        nine literals whose only contract was matching the per-label
+        model buckets and tuning tables. They now come from the same
+        mapping the rest of the service uses.
+
+        ``sys_prefix_repair`` reaches the systolic reader only: the
+        2-digit rescue it gates is a sys-specific rule (dia and pulse
+        are legitimately 2-digit, so there is nothing to complete).
+        """
+        return {
+            bp_class: SSOCREngine(
+                expected_label=label_for(bp_class),
+                use_classifiers=use_classifiers,
+                **(
+                    {"sys_prefix_repair": cfg.ssocr_sys_prefix_repair}
+                    if bp_class is BPClass.SYSTOLIC
+                    else {}
+                ),
+            )
+            for bp_class in BPClass
+        }
+
     pipelines: dict[OCREngine, BPAnalysisPipeline] = {
         OCREngine.CRNN: BPAnalysisPipeline(
             detector=detector,
             ocr_readers={
-                BPClass.SYSTOLIC: CRNNEngine(crnn_session, expected_label="sys"),
-                BPClass.DIASTOLIC: CRNNEngine(crnn_session, expected_label="dia"),
-                BPClass.PULSE: CRNNEngine(crnn_session, expected_label="pul"),
+                bp_class: CRNNEngine(crnn_session, expected_label=label_for(bp_class))
+                for bp_class in BPClass
             },
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
+            perspective_rectify_enabled=cfg.perspective_rectify_enabled,
+            detection_recovery_enabled=cfg.detection_recovery_enabled,
         ),
         OCREngine.SSOCR_CNN: BPAnalysisPipeline(
             detector=detector,
-            ocr_readers={
-                BPClass.SYSTOLIC: SSOCREngine(expected_label="sys", use_classifiers=True),
-                BPClass.DIASTOLIC: SSOCREngine(expected_label="dia", use_classifiers=True),
-                BPClass.PULSE: SSOCREngine(expected_label="pul", use_classifiers=True),
-            },
+            ocr_readers=_ssocr_readers(use_classifiers=True),
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
+            perspective_rectify_enabled=cfg.perspective_rectify_enabled,
+            detection_recovery_enabled=cfg.detection_recovery_enabled,
         ),
         OCREngine.SSOCR: BPAnalysisPipeline(
             detector=detector,
-            ocr_readers={
-                BPClass.SYSTOLIC: SSOCREngine(expected_label="sys", use_classifiers=False),
-                BPClass.DIASTOLIC: SSOCREngine(expected_label="dia", use_classifiers=False),
-                BPClass.PULSE: SSOCREngine(expected_label="pul", use_classifiers=False),
-            },
+            ocr_readers=_ssocr_readers(use_classifiers=False),
             field_timeout_s=cfg.ocr_field_timeout_s,
+            success_read_floor=cfg.success_read_floor,
+            success_detection_floor=cfg.success_detection_floor,
+            perspective_rectify_enabled=cfg.perspective_rectify_enabled,
+            detection_recovery_enabled=cfg.detection_recovery_enabled,
         ),
     }
     logger.info(

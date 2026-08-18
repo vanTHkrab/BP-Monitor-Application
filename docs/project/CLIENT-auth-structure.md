@@ -2,7 +2,7 @@
 title: "Client: auth file structure and migration order"
 description: Where the mobile auth code lives and in what order to move it, companion to the integration plan.
 status: current
-updated: 2026-08-11
+updated: 2026-08-17
 owner: client
 ---
 
@@ -313,9 +313,49 @@ groups exist, `app/index.tsx` is the gate.
 
 **P3 — login and register. Done.** Both screens port cleanly onto the hooks.
 Validation lives in `lib/validation.ts` as pure functions, deliberately looser
-than the gateway's rules — a client-side check stricter than the server locks
-a legitimate account out of the app, so this only catches mistakes the user
-can already see. The login throttle countdown runs off a wall-clock deadline
+than the gateway's rules **on anything that identifies an account** — a
+client-side check stricter than the server locks a legitimate account out of
+the app, so this only catches mistakes the user can already see. That rule is
+why `isValidPhone` is `{9,15}`, matching the gateway's `PHONE_REGEX` exactly;
+it was `{9,10}` and an 11-digit number could not be registered, signed in
+with, or re-saved from the profile screen.
+
+The register form's health block (`dob`, `gender`, `weight`, `height`,
+`congenitalDisease`) is **required on this form**, though `RegisterInput`
+itself still leaves every one of those fields optional — the requirement is a
+client-only UX policy, not a wire-contract change, and it does not violate
+the never-stricter-than-the-gateway rule for the reason spelled out at the
+top of `modules/auth/lib/validation.ts`: refusing to submit an empty field is
+not refusing a value the server would have accepted, because the server was
+never offered a value at all. The avatar is the only field that stays
+optional.
+
+Once a value is present, though, the *plausibility* bounds still follow the
+never-stricter-than-the-gateway rule: they come from `src/lib/health-validation.ts`
+and are `RegisterInput`'s own `@Min` / `@Max` **exactly** (weight 1–500,
+height 30–280) — not a narrower client-side guess. An earlier draft used a
+tighter range there on the theory that those columns identify nobody so a
+stricter client was affordable; that was reversed once it was recognised as
+the same failure mode as the `{9,10}` phone regex, just on a different pair
+of fields — a value the server would store that the app refused to save. The
+one thing that trade gives up is named in `health-validation.ts`'s own
+docblock: a wider range is a smaller target for catching a slipped-decimal
+typo, and a narrow band of true weights (roughly 31–50 kg with a stray
+trailing zero) no longer gets caught the way it did at the tighter bound. The
+same module backs `modules/profile` and `modules/caregivers` — both leave
+these columns optional — so all three writers of those columns agree on what
+a *present* value must look like, even though only the register form insists
+one be present at all.
+
+The form itself is React Hook Form + Zod (`registerSchema` in
+`lib/validation.ts`, wired through `@hookform/resolvers/zod`), not the
+hand-rolled `useState` + `validate*()` pattern the other auth screens still
+use — `registerSchema` is a thin Zod adapter around the same
+`validateRegister` pure function, so the messages are defined once. The other
+auth screens are a deliberately scoped-out migration; see the register
+screen's own docblock before porting a second one.
+
+The login throttle countdown runs off a wall-clock deadline
 (`hooks/use-retry-countdown.ts`), not a per-tick decrement, because JS is
 suspended while the app is backgrounded and a decrementing counter leaves the
 button disabled long after the server would accept a retry.
