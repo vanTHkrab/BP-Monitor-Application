@@ -4,12 +4,13 @@
  *
  * One deliberate change: client-old's logo was a placeholder Tux (Linux
  * mascot) SVG fetched from Wikipedia — never real branding, just an unset
- * asset. Swapped for the same heart-circle mark `AuthShell` already uses as
- * this app's actual identity, rather than porting a placeholder as if it
- * were real. Everything else — version string, links, copyright year — is
- * client-old's own content, carried over verbatim rather than invented.
+ * asset. Swapped for the same `splash-icon.png` mark `AuthShell` already
+ * uses as this app's actual identity, rather than porting a placeholder as
+ * if it were real. Everything else — version string, links, copyright year —
+ * is client-old's own content, carried over verbatim rather than invented.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Linking, Pressable, ScrollView, View } from 'react-native';
 
@@ -90,7 +91,11 @@ export default function AboutScreen() {
               elevation: isDark ? 0 : 4,
             }}
           >
-            <Ionicons name="heart-circle" size={56} color="#E91E63" />
+            <Image
+              source={require('@/assets/images/splash-icon.png')}
+              style={{ width: 56, height: 56 }}
+              contentFit="contain"
+            />
           </View>
           <ThemedText size={19} weight="bold">
             BP Monitor

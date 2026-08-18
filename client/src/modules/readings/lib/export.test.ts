@@ -215,7 +215,7 @@ describe('buildReadingsPdfHtml', () => {
   it('embeds the logo instead of linking it, so the PDF renders offline', () => {
     const html = buildReadingsPdfHtml([makeReading()], { now });
 
-    expect(html).toContain('src="data:image/svg+xml;utf8,');
+    expect(html).toContain('src="data:image/png;base64,');
     expect(html).not.toMatch(/src="https?:/);
   });
 

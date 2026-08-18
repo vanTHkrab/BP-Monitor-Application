@@ -6,7 +6,7 @@
  * fields, and the old client's copies had already drifted — the card radius
  * and the header spacing differed between them.
  */
-import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 
@@ -42,12 +42,11 @@ export function AuthShell({ children, showHero = true }: AuthShellProps) {
                 <View
                   className="mb-4 h-[120px] w-[120px] items-center justify-center rounded-full"
                   style={{ backgroundColor: colors.surface }}>
-                  <View className="relative items-center justify-center">
-                    <Ionicons name="heart-circle" size={64} color="#E91E63" />
-                    <View className="absolute -bottom-2 -right-4">
-                      <Ionicons name="pulse" size={32} color={colors.secondary} />
-                    </View>
-                  </View>
+                  <Image
+                    source={require('@/assets/images/splash-icon.png')}
+                    style={{ width: 84, height: 84 }}
+                    contentFit="contain"
+                  />
                 </View>
                 {/*
                   * Sizes stay literal rather than moving to `ThemedText`
