@@ -307,8 +307,9 @@ High-leverage surfaces that look ordinary and misbehave subtly. Each app's
   listeners and a pull that only fires on pull-to-refresh.
 - **Gateway ↔ AI Redis wire.** Typed only by convention. A field rename plus a
   stale deploy fails silently.
-- **The shared YOLO detector.** Same `yolo11n.onnx` on the phone and the
-  server. Drift means the phone approves a framing the server cannot read. See
+- **The shared YOLO detector.** Same `yolo26n-adamw-color.onnx` on the phone
+  and the server. Drift means the phone approves a framing the server cannot
+  read. See
   [docs/decisions/ADR-001-onnx-runtime-over-ultralytics.md](./docs/decisions/ADR-001-onnx-runtime-over-ultralytics.md)
   and [client/AGENTS.md](./client/AGENTS.md).
 - **Image upload.** One path, not two: `requestImageUpload` → client PUTs the

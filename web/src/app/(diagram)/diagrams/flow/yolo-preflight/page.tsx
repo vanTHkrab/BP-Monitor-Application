@@ -4,7 +4,7 @@ const CHART = `
 flowchart TD
     A["Analysis frame (~4 fps)"] --> B["BPVision.detect(uri, w, h, 512)"]
     B --> C["Kotlin: letterbox → [1,3,512,512] float32<br/>ONNX Runtime session (CPU / XNNPACK / NNAPI)"]
-    C --> D["Decode [1, 4+C, anchors]<br/>per-class NMS — conf 0.25 / IoU 0.45"]
+    C --> D["Decode by the loaded graph's output shape<br/>[1,4+C,anchors] → per-class NMS here (yolo11n family)<br/>[1,300,6] → already suppressed (yolo26n family, loaded today)<br/>conf 0.25 / IoU 0.45 on the anchors path only"]
     D --> E["Detection[] in source-image pixels"]
 
     E --> F["evaluateFraming(frame)"]

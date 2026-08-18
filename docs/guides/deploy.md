@@ -2,7 +2,7 @@
 title: Deploying the backend stack
 description: The two runtimes — Podman Quadlet on EC2 behind a Cloudflare Tunnel for production, Docker Compose for development — plus the tunnel setup, the access model, and the Supabase database split.
 status: current
-updated: 2026-08-09
+updated: 2026-08-19
 owner: cross
 ---
 
@@ -560,7 +560,7 @@ Rationale: [ADR-005](../decisions/ADR-005-model-weights-from-r2.md).
 The manifest is baked into the image and re-checked on **every** start, not only
 when a file is missing, so a cache volume cannot drift the server's detector away
 from the phone's — `client/scripts/verify-models.mjs` hashes the bundled
-`yolo11n.onnx` and `crnn.onnx` against that same manifest. The real drift risk is
+`yolo26n-adamw-color.onnx` and `crnn.onnx` against that same manifest. The real drift risk is
 building the server image from a different commit than the mobile build came
 from, which is why the Podman images are tagged with the git SHA.
 

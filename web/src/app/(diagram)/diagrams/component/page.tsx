@@ -32,7 +32,7 @@ flowchart LR
     IF_S3{{"«interface» S3 key layout<br/>users/{userId}/bp/readings/{YYYY-MM}/{uuid}"}}
     IF_JOB{{"«interface» BullMQ job<br/>queue ai-analysis · AnalysisJobPayload"}}
     IF_MSG{{"«interface» Redis channels<br/>analyze_bp_image (+ .reply)"}}
-    IF_MODEL{{"«interface» Shared model<br/>yolo11n.onnx + class IDs 0–4"}}
+    IF_MODEL{{"«interface» Shared model<br/>yolo26n-adamw-color.onnx + class IDs 0–4"}}
     IF_SQL{{"«interface» Postgres schema<br/>Prisma migrations"}}
 
     CL_UI --> CL_TX

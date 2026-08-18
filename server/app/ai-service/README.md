@@ -60,7 +60,7 @@ signature of a flapping Redis connection.
 | `AI_MODELS_R2_BASE_URL` | yes | – | Public R2 base URL hosting the model artifacts. Consumed by both `docker-entrypoint.sh` and `python -m ai_service.scripts.fetch_models`. The placeholder `https://REPLACE_ME.r2.dev/...` is rejected at start time. |
 | `REDIS_URL` | – | `redis://localhost:6379` | Redis connection string |
 | `LOG_LEVEL` | – | `INFO` | Python logging level |
-| `AI_DETECTOR_PATH` | – | `models/yolo11n.onnx` | Path to YOLO ONNX weights (resolved from ai-service root). The decoder is chosen by inspecting the loaded graph's output shape — `[1, 4+C, anchors]` (yolo11-style, NMS here) or `[1, N, 6]` (end-to-end export, NMS in the graph). An unrecognised shape fails the boot rather than decoding wrong. |
+| `AI_DETECTOR_PATH` | – | `models/yolo26n-adamw-color.onnx` | Path to YOLO ONNX weights (resolved from ai-service root). The decoder is chosen by inspecting the loaded graph's output shape — `[1, 4+C, anchors]` (yolo11-style, NMS here) or `[1, N, 6]` (end-to-end export, NMS in the graph — the default's family). An unrecognised shape fails the boot rather than decoding wrong. |
 | `AI_CRNN_PATH` | – | `models/crnn.onnx` | Path to CRNN ONNX weights |
 | `AI_DEFAULT_ENGINE` | – | `crnn` | Default OCR engine: `crnn` / `ssocr_cnn` / `ssocr` |
 | `AI_CONFIDENCE_THRESHOLD` | – | `0.25` | YOLO detection confidence floor. **Mirrors `client/src/modules/capture/lib/detection.ts` `DEFAULT_CONF_THRESHOLD`** — cross-process wire contract; change both sides together. |
@@ -141,11 +141,11 @@ ai-service/
 │               └── cnn_classifiers.py # ONNX CNN + numpy KNN + template match + brand detection
 ├── models/
 │   ├── EXPECTED_HASHES.json           # sha256 manifest (tracked) — single source of truth
-│   ├── yolo11n.onnx                   # YOLOv11n, 5 BP classes, 10.7 MB — fetched from R2
-│   ├── yolo26n-adamw-gray.onnx        # YOLO26n end-to-end, grayscale-trained, ~10 MB — fetched from R2
-│   ├── yolo26n-adamw-color.onnx       # YOLO26n end-to-end, colour, ~9.6 MB — fetched from R2
-│   ├── yolo26n-spg-gray.onnx          # YOLO26n end-to-end, grayscale-trained, SGD, ~9.9 MB — fetched from R2
-│   ├── yolo11n-adam-color.onnx        # YOLOv11n anchors export, colour, ~10.2 MB — fetched from R2
+│   ├── yolo26n-adamw-color.onnx       # AI_DETECTOR_PATH default — YOLO26n end-to-end, colour, ~9.6 MB — fetched from R2
+│   ├── yolo11n.onnx                   # comparison set — YOLOv11n anchors export, 10.7 MB — fetched from R2
+│   ├── yolo26n-adamw-gray.onnx        # comparison set — YOLO26n end-to-end, grayscale-trained, ~10 MB — fetched from R2
+│   ├── yolo26n-spg-gray.onnx          # comparison set — YOLO26n end-to-end, grayscale-trained, SGD, ~9.9 MB — fetched from R2
+│   ├── yolo11n-adam-color.onnx        # comparison set — YOLOv11n anchors export, colour, ~10.2 MB — fetched from R2
 │   ├── crnn.onnx                      # CRNN, ~4.5 MB — fetched from R2
 │   ├── cnn_2ch_distilled_*_int8.onnx  # 4 distilled CNN files, ~0.6 MB each — fetched from R2
 │   ├── templates.npz                  # KNN exemplars for ssocr_cnn (~58 MB) — fetched from R2

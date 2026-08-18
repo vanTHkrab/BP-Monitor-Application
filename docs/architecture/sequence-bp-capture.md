@@ -7,7 +7,7 @@ description: >-
     over Redis, and the reading is written through the offline outbox once the
     user confirms.
 status: current
-updated: 2026-08-18
+updated: 2026-08-19
 owner: cross
 ---
 
@@ -96,8 +96,8 @@ sequenceDiagram
   the live analysis stream, so the user is told "too far" while they can still
   move, rather than after a round trip. The same pass is what fires
   auto-capture. See [flow-yolo-preflight.md](./flow-yolo-preflight.md).
-- **Same model file on both sides** — `client/assets/models/yolo11n.onnx` and
-  the ai-service copy are byte-identical, SHA256-gated by
+- **Same model file on both sides** — `client/assets/models/yolo26n-adamw-color.onnx`
+  and the ai-service copy are byte-identical, SHA256-gated by
   `scripts/verify-models.mjs` on every `pnpm start`. The phone's classes mean
   what the server's classes mean.
 - **Nudge, never gate** — nothing in the framing logic can stop a manual

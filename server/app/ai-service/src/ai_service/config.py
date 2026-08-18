@@ -73,7 +73,7 @@ class AnalyzerConfig(BaseSettings):
                     "cnn_classifiers reads everything relative to this path.",
     )
     detector_path: Path = Field(
-        default_factory=lambda: AI_SERVICE_ROOT / "models" / "yolo11n.onnx",
+        default_factory=lambda: AI_SERVICE_ROOT / "models" / "yolo26n-adamw-color.onnx",
         description="Path to the ONNX detector model. Relative paths anchor to "
                     "the ai-service root, not cwd.",
     )
@@ -112,7 +112,11 @@ class AnalyzerConfig(BaseSettings):
         le=1.0,
         description="NMS IoU threshold for per-class suppression. MIRRORS "
                     "client/lib/yolo/types.ts DEFAULT_IOU_THRESHOLD — same "
-                    "wire-contract rule as ``confidence_threshold``.",
+                    "wire-contract rule as ``confidence_threshold``. Inert "
+                    "for end-to-end/NMS-embedded exports (the shipped "
+                    "default, ``yolo26n-adamw-color.onnx``, among them) — "
+                    "it only takes effect for anchors-format exports like "
+                    "``yolo11n.onnx``.",
     )
 
     allowed_image_hosts: list[str] = Field(
