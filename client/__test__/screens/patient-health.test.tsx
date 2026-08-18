@@ -226,6 +226,22 @@ describe('PatientHealthScreen — when the gateway refuses', () => {
   });
 });
 
+/*
+ * Same reasoning as `app/profile.tsx`'s equivalent test: the scrollable form
+ * is wrapped so a field near the bottom is not left under the on-screen
+ * keyboard, with no `behavior` on Android since `adjustResize` already
+ * resizes the window there.
+ */
+describe('PatientHealthScreen — keyboard avoidance', () => {
+  it('wraps the form so the keyboard cannot cover the field being edited', async () => {
+    enter();
+
+    const view = await renderScreen(<PatientHealthScreen />);
+
+    expect(view.getByTestId('patient-health-keyboard-avoiding-view')).toBeOnTheScreen();
+  });
+});
+
 describe('PatientHealthScreen — with nobody selected', () => {
   // Reachable by a deep link or by backing into the route after leaving a
   // patient. An empty form here would invite someone to fill it in for nobody.

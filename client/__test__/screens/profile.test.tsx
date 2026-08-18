@@ -209,3 +209,18 @@ describe('ProfileScreen — changing the avatar', () => {
     expect(mockAvatar.current.changeAvatar).toHaveBeenCalledWith('library');
   });
 });
+
+/*
+ * The scrollable form is wrapped so a field near the bottom (weight, height,
+ * โรคประจำตัว) is not left under the on-screen keyboard. `padding` on iOS;
+ * no `behavior` on Android, since `adjustResize` (set app-wide in
+ * AndroidManifest.xml) already resizes the window and `'height'` on top of
+ * that would double-compensate — see the comment beside the wrapper itself.
+ */
+describe('ProfileScreen — keyboard avoidance', () => {
+  it('wraps the form so the keyboard cannot cover the field being edited', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    expect(view.getByTestId('profile-keyboard-avoiding-view')).toBeOnTheScreen();
+  });
+});
