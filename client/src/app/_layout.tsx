@@ -7,6 +7,7 @@ import { SplashScreen, ThemeProvider } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TamaguiProvider, ToastProvider, ToastViewport } from 'tamagui';
 
@@ -396,11 +397,21 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <QueryClientProvider client={queryClient}>
-          <ColorSchemeProvider storage={AsyncStorage}>
-            <ThemedApp />
-          </ColorSchemeProvider>
-        </QueryClientProvider>
+        {/*
+          Above the app but below the gesture root, because it installs a
+          single native IME-insets listener that every `KeyboardAware*`
+          component subscribes to. Without it those components mount and
+          render normally and simply never move — the failure is silent, so
+          a screen that "still doesn't avoid the keyboard" is the symptom to
+          trace back here. Mirrored in `__test__/test-utils.tsx`.
+        */}
+        <KeyboardProvider>
+          <QueryClientProvider client={queryClient}>
+            <ColorSchemeProvider storage={AsyncStorage}>
+              <ThemedApp />
+            </ColorSchemeProvider>
+          </QueryClientProvider>
+        </KeyboardProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

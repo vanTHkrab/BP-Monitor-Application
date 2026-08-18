@@ -37,7 +37,8 @@
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import { Alert, TextInput, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientBackground } from '@/components/gradient-background';
@@ -72,6 +73,16 @@ import {
 import { SecurityHeader } from '@/modules/security';
 import { status as statusColor } from '@/theme';
 import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
+
+/**
+ * Space left between a focused field and the top of the keyboard.
+ *
+ * Declared here rather than shared with `auth-shell.tsx`'s constant of the
+ * same name: they are two different forms whose spacing has no reason to move
+ * together, and one exported number would make the next tweak to either screen
+ * a change to both.
+ */
+const KEYBOARD_BOTTOM_OFFSET = 16;
 
 export default function ProfileScreen() {
   const colors = useTheme();
@@ -162,23 +173,33 @@ export default function ProfileScreen() {
         <SecurityHeader title="โปรไฟล์ของฉัน" subject="self" />
 
         {/*
-          Wraps only the scrollable form, not the header above it — the
-          header has nothing to avoid and shouldn't shift when the keyboard
-          opens. No `behavior` on Android: `AndroidManifest.xml` sets
-          `windowSoftInputMode="adjustResize"` app-wide, so the OS already
-          resizes the window for a focused input — `'height'` on top of that
-          double-compensates. Matches `security/password.tsx` and
-          `camera.tsx`, both of which already made this choice; only
-          `auth-shell.tsx` uses `'height'`, and nothing records why, so it is
-          not treated as the pattern to copy here.
+          One `KeyboardAwareScrollView` where a `KeyboardAvoidingView` used to
+          wrap a `ScrollView`. It reads the IME insets natively and scrolls the
+          focused input clear of the keyboard, which is what this form actually
+          needed — the pair it replaces only ever moved the *container*, so a
+          field low in a long form still landed under the keyboard with nothing
+          to reveal it.
+
+          It also retires a platform split that had already gone wrong once:
+          `behavior` had to be `undefined` on Android to avoid
+          double-compensating against the manifest's own
+          `windowSoftInputMode="adjustResize"`, and `'height'` there is exactly
+          what broke the register form. There is no `behavior` to get wrong any
+          more. `auth-shell.tsx` made this move first; see
+          `app/(auth)/register.tsx`'s header for what it cost to find out.
+
+          Still wraps only the form and not the header above it — the header has
+          nothing to avoid and shouldn't shift when the keyboard opens.
+
+          Plain `style` / `contentContainerStyle` rather than NativeWind's
+          `className`: this is a third-party component, which NativeWind will not
+          map without an explicit `cssInterop` registration, and a className that
+          silently does nothing is worse than a style object that plainly does.
         */}
-        <KeyboardAvoidingView
+        <KeyboardAwareScrollView
           testID="profile-keyboard-avoiding-view"
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          className="flex-1"
-        >
-        <ScrollView
-          className="flex-1 px-4"
+          style={{ flex: 1, paddingHorizontal: 16 }}
+          bottomOffset={KEYBOARD_BOTTOM_OFFSET}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -399,8 +420,7 @@ export default function ProfileScreen() {
           </View>
 
           <View className="h-10" />
-        </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </GradientBackground>
   );

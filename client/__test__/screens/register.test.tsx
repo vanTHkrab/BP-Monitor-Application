@@ -63,7 +63,6 @@ jest.mock('@react-native-community/datetimepicker', () => {
 });
 
 import { router } from 'expo-router';
-import { ScrollView, View } from 'react-native';
 
 import RegisterScreen from '@/app/(auth)/register';
 import { act, fireEvent, renderScreen } from '../test-utils';
@@ -403,95 +402,25 @@ describe('RegisterScreen — where a successful registration goes', () => {
  * sit on a shared prototype that outlives any one test's render tree, and
  * every other test in this file renders a `View`/`ScrollView` too.
  */
-describe('RegisterScreen — scrolling a focused field above the keyboard', () => {
-  // The exact value `register.tsx`'s own `SCROLL_TOP_PADDING` uses. Not
-  // imported — it is a module-private constant on purpose, and re-deriving
-  // it here pins that the two are meant to agree without coupling to it.
-  const SCROLL_TOP_PADDING = 16;
-  const INNER_VIEW_NODE = { sentinel: 'scroll-content-node' };
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  /**
-   * `Object.getPrototypeOf` returns `any`, so `jest.spyOn` cannot infer
-   * `measureLayout`'s real signature from it — these casts restore it so
-   * `mockImplementation` below type-checks against the shape the real
-   * method has, not against `(...args: unknown[]) => any`.
-   */
-  type MeasureLayoutFn = (
-    ancestor: unknown,
-    onSuccess: (x: number, y: number, width: number, height: number) => void,
-    onFail: () => void,
-  ) => void;
-  type ScrollToFn = (options: { y: number; animated: boolean }) => void;
-
-  /** Every field's `measureLayout`/`scrollTo` call is intercepted the same way. */
-  async function installScrollSpies() {
-    let probeField: View | null = null;
-    let probeScroll: ScrollView | null = null;
-    await renderScreen(
-      <ScrollView ref={(node) => { probeScroll = node; }}>
-        <View ref={(node) => { probeField = node; }} />
-      </ScrollView>,
-    );
-
-    const measureLayoutSpy = jest.spyOn(
-      Object.getPrototypeOf(probeField),
-      'measureLayout',
-    ) as unknown as jest.MockedFunction<MeasureLayoutFn>;
-    const scrollToSpy = (
-      jest.spyOn(
-        Object.getPrototypeOf(probeScroll),
-        'scrollTo',
-      ) as unknown as jest.MockedFunction<ScrollToFn>
-    ).mockImplementation(() => {});
-    jest
-      .spyOn(Object.getPrototypeOf(probeScroll), 'getInnerViewNode')
-      .mockReturnValue(INNER_VIEW_NODE);
-
-    return { measureLayoutSpy, scrollToSpy };
-  }
-
-  it.each([
-    ['register-firstname', 'a direct child of the card'],
-    ['register-weight', 'nested inside the two-column flex-row wrapper'],
-    ['register-height', 'nested inside the two-column flex-row wrapper'],
-  ])('scrolls %s (%s) to its own measured position', async (testID) => {
-    const { measureLayoutSpy, scrollToSpy } = await installScrollSpies();
-    measureLayoutSpy.mockImplementation((_ancestor, onSuccess) => {
-      onSuccess(0, 777, 0, 0);
-    });
-
-    const view = await renderScreen(<RegisterScreen />);
-    await fireEvent(view.getByTestId(testID), 'focus');
-
-    // Straight from `measureLayout`, offset only by the fixed padding — no
-    // further arithmetic that could depend on nesting depth, which is
-    // exactly what the old mechanism got wrong for `weight` and `height`.
-    expect(scrollToSpy).toHaveBeenCalledWith({
-      y: 777 - SCROLL_TOP_PADDING,
-      animated: true,
-    });
-    // And every field measures against the same ancestor — the ScrollView's
-    // inner content node — regardless of how deeply it is nested.
-    expect(measureLayoutSpy).toHaveBeenCalledWith(
-      INNER_VIEW_NODE,
-      expect.any(Function),
-      expect.any(Function),
-    );
-  });
-
-  it('does not scroll when measureLayout fails, rather than scrolling to a stale position', async () => {
-    const { measureLayoutSpy, scrollToSpy } = await installScrollSpies();
-    measureLayoutSpy.mockImplementation((_ancestor, _onSuccess, onFail) => {
-      onFail();
-    });
-
-    const view = await renderScreen(<RegisterScreen />);
-    await fireEvent(view.getByTestId('register-weight'), 'focus');
-
-    expect(scrollToSpy).not.toHaveBeenCalled();
-  });
-});
+/*
+ * Removed: `describe('RegisterScreen — scrolling a focused field above the
+ * keyboard')`, four tests over the `useScrollFieldIntoView` hook that
+ * `AuthShell`'s move to `KeyboardAwareScrollView` deleted.
+ *
+ * Worth recording *why they were green while the feature was broken on
+ * device*, because the shape recurs. They spied on
+ * `Object.getPrototypeOf(probeField).measureLayout` and replaced its
+ * implementation with one that simply called `onSuccess(0, 777, 0, 0)`. So
+ * the assertions — that every field measured against the same ancestor, and
+ * that the resulting `scrollTo` was the measured `y` minus the padding with
+ * no nesting-dependent arithmetic — were all true of the code under test,
+ * and all four passed. What never ran was the *real* `measureLayout`, which
+ * under Fabric rejects the ancestor the hook handed it and returns before
+ * either callback. The mock stood exactly where the defect was.
+ *
+ * The lesson is not "don't mock". It is that mocking a platform primitive
+ * moves the contract with that primitive out of the suite's reach, so
+ * whatever the mock asserts, the thing it can no longer tell you is whether
+ * the platform would have accepted the call at all. Keyboard avoidance is
+ * now the library's problem and is verified on a device, not here.
+ */

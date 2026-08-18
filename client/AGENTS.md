@@ -363,6 +363,15 @@ for what the manifest cannot express: the non-obvious choices and their traps.
   find it with zero references and be wrong. It also means **the suite proves
   nothing about it** — it is invisible to lint, typecheck, and jest alike, and
   only a real build reports whether it works.
+- **`react-native-keyboard-controller` is a native module, so a JS-only
+  reload will not pick it up.** It needs `expo prebuild -p android` and a
+  fresh dev-client build; until then `KeyboardProvider` mounts against a
+  missing native module. It replaced two hand-rolled attempts at the same
+  problem on the register form, both of which failed *silently* — read
+  `app/(auth)/register.tsx`'s header before writing a third. `KeyboardProvider`
+  is mounted in `app/_layout.tsx` and mirrored into
+  `__test__/test-utils.tsx`; the package's own mock is wired in
+  `jest.setup.js`.
 - **`onnxruntime-react-native` is deliberately NOT a dependency.** Inference
   runs only in the Kotlin `bp-vision` module. The JS detector `client-old`
   once had was deleted rather than left broken. If you find yourself adding

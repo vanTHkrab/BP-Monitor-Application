@@ -24,12 +24,31 @@
  * `TextField`, `DateField`, and `OptionRow` are all controlled components
  * taking `value`/`onChange` rather than native inputs, so each one is wired
  * through `Controller` rather than RHF's `register()`.
+ *
+ * **Nothing here scrolls a focused field above the keyboard any more, and
+ * that is the fix rather than a regression.** `AuthShell` now renders a
+ * `KeyboardAwareScrollView` from `react-native-keyboard-controller`, which
+ * does it natively from the IME insets. What that replaced was a
+ * `useScrollFieldIntoView` hook in this file: a `ref` on a wrapper `View`
+ * around all nine text fields, a `measureLayout` against the `ScrollView`'s
+ * inner content node, and an `onFocus` on every field to drive it. It never
+ * ran once on this app. Under Fabric — the only renderer on RN 0.86 —
+ * `measureLayout` guards its ancestor argument with `relativeToNativeNode
+ * instanceof ReactNativeElement` and returns early when it fails, without
+ * calling `onFail`; the handle the hook passed it, `getInnerViewNode()`, is
+ * typed `?number` and returns a legacy numeric node that can never satisfy
+ * that check. The only evidence was a dev-mode `console.error`. Its
+ * predecessor, a sum of `onLayout` offsets, was a separate bug that at least
+ * scrolled — in the wrong direction, for the two fields nested one wrapper
+ * deeper than the rest. Two hand-rolled attempts, two silent failures: if a
+ * future change needs finer control than `bottomOffset` gives, reach for the
+ * library's own API before writing a third.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Controller, useForm, type FieldErrors } from 'react-hook-form';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { GradientButton } from '@/components/ui/gradient-button';
@@ -116,80 +135,10 @@ function fieldError(
   return errors[field]?.message;
 }
 
-// Space kept above a field once it is scrolled into view, so its own border
-// does not sit flush against the top of the visible area.
-const SCROLL_TOP_PADDING = 16;
-
-/**
- * Brings a focused field back above the keyboard on a form long enough that
- * the last few inputs sit under it with nothing to reveal them. Deliberately
- * dependency-free: each text field reports its own native node via a `ref`,
- * and `measureLayout` asks the platform for that node's position relative to
- * the `ScrollView`'s own content — the same primitive React Native's own
- * `scrollResponderScrollNativeHandleToKeyboard` uses internally for this
- * exact problem.
- *
- * This is deliberately **not** built by summing `onLayout` positions up
- * through each field's ancestors — an earlier version did that, and it
- * silently scrolled the wrong direction for two of the nine fields. It
- * assumed every field was a **direct child of the card** `AuthShell`
- * renders, true for 7 of 9 but false for `weight` and `height`, which sit
- * inside an extra `flex-row` > `flex-1` wrapper for the two-column layout.
- * `onLayout`'s `y` is only ever relative to the *immediate* parent, so the
- * sum measured the field's offset within that wrapper — basically just the
- * height of the unit label above it — not its offset from the card, and
- * `scrollTo`-ing to that number moved the view *away* from the field.
- * `measureLayout` makes no such assumption: it walks the entire native
- * layout tree between the field and whatever ancestor node it is given, no
- * matter how many wrappers sit in between, so this cannot regress the same
- * way the next time a field's container changes shape.
- *
- * The ancestor passed to `measureLayout` is the `ScrollView`'s **inner
- * content node** (`getInnerViewNode()`), not the scrollable viewport
- * (`getNativeScrollRef()`). The content's own coordinate space does not
- * move as the user scrolls — only the viewport's window onto it does — so
- * the `y` this yields is already the absolute value `scrollTo` expects.
- * Measuring against the viewport instead would give the field's position
- * relative to whatever is *currently visible*, which changes on every
- * scroll and would need the live content offset added back in to mean
- * anything.
- */
-function useScrollFieldIntoView() {
-  const scrollRef = useRef<ScrollView>(null);
-  const fieldRefs = useRef(new Map<RegisterField, View | null>());
-
-  const registerFieldRef = useCallback(
-    (field: RegisterField) => (node: View | null) => {
-      fieldRefs.current.set(field, node);
-    },
-    [],
-  );
-
-  const scrollFieldIntoView = useCallback((field: RegisterField) => {
-    const fieldNode = fieldRefs.current.get(field);
-    const scrollNode = scrollRef.current;
-    if (!fieldNode || !scrollNode) return;
-
-    fieldNode.measureLayout(
-      scrollNode.getInnerViewNode(),
-      (_x, y) => {
-        scrollNode.scrollTo({ y: Math.max(y - SCROLL_TOP_PADDING, 0), animated: true });
-      },
-      () => {
-        // No handler needed: failing to measure just means the field does
-        // not get scrolled into view, not that anything else breaks.
-      },
-    );
-  }, []);
-
-  return { scrollRef, registerFieldRef, scrollFieldIntoView };
-}
-
 export default function RegisterScreen() {
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   const { register, isPending, error, clearError } = useRegister();
-  const { scrollRef, registerFieldRef, scrollFieldIntoView } = useScrollFieldIntoView();
 
   // Built once per mount rather than as a module-level constant: it closes
   // over `now`, and a fresh `Date()` per screen visit is what `validateDob`
@@ -243,7 +192,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthShell scrollRef={scrollRef}>
+    <AuthShell showHero={false}>
       <AuthTabs active="register" />
 
       {error && error.field === null ? <AuthErrorBanner message={error.message} /> : null}
@@ -254,23 +203,20 @@ export default function RegisterScreen() {
         control={control}
         name="firstname"
         render={({ field }) => (
-          <View ref={registerFieldRef('firstname')}>
-            <TextField
-              testID="register-firstname"
-              placeholder="ชื่อ"
-              value={field.value}
-              onChangeText={(text) => {
-                field.onChange(text);
-                clearError();
-              }}
-              onBlur={field.onBlur}
-              onFocus={() => scrollFieldIntoView('firstname')}
-              icon="person-outline"
-              autoCapitalize="words"
-              autoComplete="name"
-              error={fieldError('firstname', errors, touchedFields, serverErrorFor('firstname'), isSubmitted)}
-            />
-          </View>
+          <TextField
+            testID="register-firstname"
+            placeholder="ชื่อ"
+            value={field.value}
+            onChangeText={(text) => {
+              field.onChange(text);
+              clearError();
+            }}
+            onBlur={field.onBlur}
+            icon="person-outline"
+            autoCapitalize="words"
+            autoComplete="name"
+            error={fieldError('firstname', errors, touchedFields, serverErrorFor('firstname'), isSubmitted)}
+          />
         )}
       />
 
@@ -278,22 +224,19 @@ export default function RegisterScreen() {
         control={control}
         name="lastname"
         render={({ field }) => (
-          <View ref={registerFieldRef('lastname')}>
-            <TextField
-              testID="register-lastname"
-              placeholder="นามสกุล"
-              value={field.value}
-              onChangeText={(text) => {
-                field.onChange(text);
-                clearError();
-              }}
-              onBlur={field.onBlur}
-              onFocus={() => scrollFieldIntoView('lastname')}
-              icon="person-outline"
-              autoCapitalize="words"
-              error={fieldError('lastname', errors, touchedFields, serverErrorFor('lastname'), isSubmitted)}
-            />
-          </View>
+          <TextField
+            testID="register-lastname"
+            placeholder="นามสกุล"
+            value={field.value}
+            onChangeText={(text) => {
+              field.onChange(text);
+              clearError();
+            }}
+            onBlur={field.onBlur}
+            icon="person-outline"
+            autoCapitalize="words"
+            error={fieldError('lastname', errors, touchedFields, serverErrorFor('lastname'), isSubmitted)}
+          />
         )}
       />
 
@@ -301,23 +244,20 @@ export default function RegisterScreen() {
         control={control}
         name="phone"
         render={({ field }) => (
-          <View ref={registerFieldRef('phone')}>
-            <TextField
-              testID="register-phone"
-              placeholder="เบอร์โทรศัพท์"
-              value={field.value}
-              onChangeText={(text) => {
-                field.onChange(formatThaiPhone(text));
-                clearError();
-              }}
-              onBlur={field.onBlur}
-              onFocus={() => scrollFieldIntoView('phone')}
-              icon="call-outline"
-              keyboardType="phone-pad"
-              autoComplete="tel"
-              error={fieldError('phone', errors, touchedFields, serverErrorFor('phone'), isSubmitted)}
-            />
-          </View>
+          <TextField
+            testID="register-phone"
+            placeholder="เบอร์โทรศัพท์"
+            value={field.value}
+            onChangeText={(text) => {
+              field.onChange(formatThaiPhone(text));
+              clearError();
+            }}
+            onBlur={field.onBlur}
+            icon="call-outline"
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            error={fieldError('phone', errors, touchedFields, serverErrorFor('phone'), isSubmitted)}
+          />
         )}
       />
 
@@ -325,23 +265,20 @@ export default function RegisterScreen() {
         control={control}
         name="email"
         render={({ field }) => (
-          <View ref={registerFieldRef('email')}>
-            <TextField
-              testID="register-email"
-              placeholder="อีเมล"
-              value={field.value}
-              onChangeText={(text) => {
-                field.onChange(text);
-                clearError();
-              }}
-              onBlur={field.onBlur}
-              onFocus={() => scrollFieldIntoView('email')}
-              icon="mail-outline"
-              keyboardType="email-address"
-              autoComplete="email"
-              error={fieldError('email', errors, touchedFields, serverErrorFor('email'), isSubmitted)}
-            />
-          </View>
+          <TextField
+            testID="register-email"
+            placeholder="อีเมล"
+            value={field.value}
+            onChangeText={(text) => {
+              field.onChange(text);
+              clearError();
+            }}
+            onBlur={field.onBlur}
+            icon="mail-outline"
+            keyboardType="email-address"
+            autoComplete="email"
+            error={fieldError('email', errors, touchedFields, serverErrorFor('email'), isSubmitted)}
+          />
         )}
       />
 
@@ -400,21 +337,18 @@ export default function RegisterScreen() {
             control={control}
             name="weight"
             render={({ field }) => (
-              <View ref={registerFieldRef('weight')}>
-                <TextField
-                  testID="register-weight"
-                  placeholder="น้ำหนัก"
-                  value={field.value}
-                  onChangeText={(text) => {
-                    field.onChange(text);
-                    clearError();
-                  }}
-                  onBlur={field.onBlur}
-                  onFocus={() => scrollFieldIntoView('weight')}
-                  keyboardType="numeric"
-                  error={fieldError('weight', errors, touchedFields, serverErrorFor('weight'), isSubmitted)}
-                />
-              </View>
+              <TextField
+                testID="register-weight"
+                placeholder="น้ำหนัก"
+                value={field.value}
+                onChangeText={(text) => {
+                  field.onChange(text);
+                  clearError();
+                }}
+                onBlur={field.onBlur}
+                keyboardType="numeric"
+                error={fieldError('weight', errors, touchedFields, serverErrorFor('weight'), isSubmitted)}
+              />
             )}
           />
         </View>
@@ -426,21 +360,18 @@ export default function RegisterScreen() {
             control={control}
             name="height"
             render={({ field }) => (
-              <View ref={registerFieldRef('height')}>
-                <TextField
-                  testID="register-height"
-                  placeholder="ส่วนสูง"
-                  value={field.value}
-                  onChangeText={(text) => {
-                    field.onChange(text);
-                    clearError();
-                  }}
-                  onBlur={field.onBlur}
-                  onFocus={() => scrollFieldIntoView('height')}
-                  keyboardType="numeric"
-                  error={fieldError('height', errors, touchedFields, serverErrorFor('height'), isSubmitted)}
-                />
-              </View>
+              <TextField
+                testID="register-height"
+                placeholder="ส่วนสูง"
+                value={field.value}
+                onChangeText={(text) => {
+                  field.onChange(text);
+                  clearError();
+                }}
+                onBlur={field.onBlur}
+                keyboardType="numeric"
+                error={fieldError('height', errors, touchedFields, serverErrorFor('height'), isSubmitted)}
+              />
             )}
           />
         </View>
@@ -450,22 +381,19 @@ export default function RegisterScreen() {
         control={control}
         name="congenitalDisease"
         render={({ field }) => (
-          <View ref={registerFieldRef('congenitalDisease')}>
-            <TextField
-              testID="register-congenital-disease"
-              placeholder="โรคประจำตัว"
-              value={field.value}
-              onChangeText={(text) => {
-                field.onChange(text);
-                clearError();
-              }}
-              onBlur={field.onBlur}
-              onFocus={() => scrollFieldIntoView('congenitalDisease')}
-              icon="medkit-outline"
-              autoCapitalize="sentences"
-              error={fieldError('congenitalDisease', errors, touchedFields, serverErrorFor('congenitalDisease'), isSubmitted)}
-            />
-          </View>
+          <TextField
+            testID="register-congenital-disease"
+            placeholder="โรคประจำตัว"
+            value={field.value}
+            onChangeText={(text) => {
+              field.onChange(text);
+              clearError();
+            }}
+            onBlur={field.onBlur}
+            icon="medkit-outline"
+            autoCapitalize="sentences"
+            error={fieldError('congenitalDisease', errors, touchedFields, serverErrorFor('congenitalDisease'), isSubmitted)}
+          />
         )}
       />
 
@@ -477,23 +405,20 @@ export default function RegisterScreen() {
         control={control}
         name="password"
         render={({ field }) => (
-          <View ref={registerFieldRef('password')}>
-            <TextField
-              testID="register-password"
-              placeholder="รหัสผ่าน"
-              value={field.value}
-              onChangeText={(text) => {
-                field.onChange(text);
-                clearError();
-              }}
-              onBlur={field.onBlur}
-              onFocus={() => scrollFieldIntoView('password')}
-              icon="lock-closed-outline"
-              secureTextEntry
-              autoComplete="new-password"
-              error={fieldError('password', errors, touchedFields, serverErrorFor('password'), isSubmitted)}
-            />
-          </View>
+          <TextField
+            testID="register-password"
+            placeholder="รหัสผ่าน"
+            value={field.value}
+            onChangeText={(text) => {
+              field.onChange(text);
+              clearError();
+            }}
+            onBlur={field.onBlur}
+            icon="lock-closed-outline"
+            secureTextEntry
+            autoComplete="new-password"
+            error={fieldError('password', errors, touchedFields, serverErrorFor('password'), isSubmitted)}
+          />
         )}
       />
 
@@ -501,23 +426,20 @@ export default function RegisterScreen() {
         control={control}
         name="confirmPassword"
         render={({ field }) => (
-          <View ref={registerFieldRef('confirmPassword')}>
-            <TextField
-              testID="register-confirm-password"
-              placeholder="ยืนยันรหัสผ่าน"
-              value={field.value}
-              onChangeText={(text) => {
-                field.onChange(text);
-                clearError();
-              }}
-              onBlur={field.onBlur}
-              onFocus={() => scrollFieldIntoView('confirmPassword')}
-              icon="lock-closed-outline"
-              secureTextEntry
-              autoComplete="new-password"
-              error={fieldError('confirmPassword', errors, touchedFields, serverErrorFor('confirmPassword'), isSubmitted)}
-            />
-          </View>
+          <TextField
+            testID="register-confirm-password"
+            placeholder="ยืนยันรหัสผ่าน"
+            value={field.value}
+            onChangeText={(text) => {
+              field.onChange(text);
+              clearError();
+            }}
+            onBlur={field.onBlur}
+            icon="lock-closed-outline"
+            secureTextEntry
+            autoComplete="new-password"
+            error={fieldError('confirmPassword', errors, touchedFields, serverErrorFor('confirmPassword'), isSubmitted)}
+          />
         )}
       />
 

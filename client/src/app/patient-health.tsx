@@ -224,10 +224,19 @@ export default function PatientHealthScreen() {
         <SecurityHeader title="ข้อมูลสุขภาพ" subject="patient" />
 
         {/*
-          Same split as `app/profile.tsx`: `padding` on iOS, no `behavior` on
-          Android — `adjustResize` already resizes the window there, and
-          `'height'` on top of it double-compensates. Wraps only the
-          scrollable form so the header above it never shifts.
+          `padding` on iOS, no `behavior` on Android — `adjustResize` already
+          resizes the window there, and `'height'` on top of it
+          double-compensates. Wraps only the scrollable form so the header
+          above it never shifts.
+
+          This no longer matches `app/profile.tsx`, which it was copied from:
+          that screen has moved to `react-native-keyboard-controller`'s
+          `KeyboardAwareScrollView`, along with `auth-shell.tsx`,
+          `post/[id].tsx`, and the community composer. This form is the same
+          shape as profile's and wants the same treatment — it was simply
+          outside the scope of the change that converted those. Convert it
+          when it is next touched; `security/password.tsx` and `camera.tsx`
+          are in the same position.
         */}
         <KeyboardAvoidingView
           testID="patient-health-keyboard-avoiding-view"
