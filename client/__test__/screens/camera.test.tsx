@@ -3,10 +3,12 @@
  *
  * The capture surface itself is out of reach here: it is a native Kotlin view
  * (`modules/bp-vision`) behind `expo-camera`, with a CameraX analysis stream
- * feeding live framing. There is no test seam for it and this batch does not
- * open one. What is reachable is everything the screen decides *before* it
- * mounts that surface, and those four early returns are where the screen's
- * real judgement lives:
+ * feeding live framing. The stub below forwards a ref whose `capture()` is a
+ * test double, which is enough to prove *which chain the screen runs on a
+ * shot* — nothing more. Framing, focus, and the analysis stream stay device
+ * questions. What is otherwise reachable is everything the screen decides
+ * *before* it mounts that surface, and those four early returns are where the
+ * screen's real judgement lives:
  *
  *  1. A caregiver with no patient selected.
  *  2. A caregiver whose grant is `view` only.
@@ -66,30 +68,39 @@ jest.mock('@react-native-community/netinfo', () => ({
  * detection reports, which the screen supports as a degraded mode rather than
  * an error.
  */
-jest.mock('@/modules/capture', () => ({
-  // A plain function, not `() => null`: it records its live props so a test
-  // can fire `onMountError` / `onCameraReady` itself, the way the real
-  // native view would. Ignores `ref` (the real component forwards one) —
-  // nothing here needs `capture()`, and React only warns about that, it
-  // does not fail the render.
-  BpCameraView: (props: Record<string, unknown>) => {
-    mockBpCameraViewProps.current = props;
-    return null;
-  },
-  PHASE_LABEL: {},
-  cropToViewport: jest.fn(),
-  isLiveDetectionSupported: () => false,
-  prepareImageForAnalysis: jest.fn(),
-  useCameraAnalysis: () => mockCameraAnalysis.current,
-  useLiveFraming: () => ({
-    state: 'searching',
-    isCountingDown: false,
-    countdownProgress: 0,
-    onFrame: jest.fn(),
-    cancelAutoCapture: jest.fn(),
-    reset: jest.fn(),
-  }),
-}));
+jest.mock('@/modules/capture', () => {
+  const { forwardRef, useImperativeHandle } = require('react');
+  return {
+    // Records its live props so a test can fire `onMountError` /
+    // `onCameraReady` itself, the way the real native view would, and
+    // forwards a ref whose `capture()` is swappable per test. Without the
+    // ref, `takePicture()` returns on its first line and the entire
+    // live-camera branch is unreachable — which is how a stale mock of it
+    // once stayed green.
+    BpCameraView: forwardRef(
+      (props: Record<string, unknown>, ref: React.Ref<{ capture: () => unknown }>) => {
+        mockBpCameraViewProps.current = props;
+        useImperativeHandle(ref, () => ({ capture: () => mockCapture.current() }), []);
+        return null;
+      },
+    ),
+    PHASE_LABEL: {},
+    isLiveDetectionSupported: () => false,
+    // The two prepare chains are separate exports because the screen picks
+    // between them, and asserting which one ran is the point of that split.
+    prepareCaptureForAnalysis: jest.fn(),
+    prepareImageForAnalysis: jest.fn(),
+    useCameraAnalysis: () => mockCameraAnalysis.current,
+    useLiveFraming: () => ({
+      state: 'searching',
+      isCountingDown: false,
+      countdownProgress: 0,
+      onFrame: jest.fn(),
+      cancelAutoCapture: jest.fn(),
+      reset: jest.fn(),
+    }),
+  };
+});
 
 const mockPermission = {
   current: null as { granted: boolean; canAskAgain: boolean } | null,
@@ -110,6 +121,9 @@ const mockActivePatient = {
 
 /** What `BpCameraView` was last rendered with — lets a test fire its events. */
 const mockBpCameraViewProps: { current: Record<string, unknown> } = { current: {} };
+
+/** What the forwarded ref's `capture()` resolves with, per test. */
+const mockCapture: { current: () => unknown } = { current: jest.fn() };
 
 type MockCameraAnalysis = {
   phase: 'idle' | 'reading' | 'uploading' | 'queued' | 'processing' | 'done' | 'failed';
@@ -159,7 +173,7 @@ import NetInfo from '@react-native-community/netinfo';
 import * as ImagePicker from 'expo-image-picker';
 
 import CameraScreen from '@/app/(tabs)/camera';
-import { prepareImageForAnalysis } from '@/modules/capture';
+import { prepareCaptureForAnalysis, prepareImageForAnalysis } from '@/modules/capture';
 import { act, fireEvent, renderScreen, waitFor } from '../test-utils';
 
 const PICK_A_PATIENT = 'เลือกผู้ป่วยก่อนถ่ายภาพ';
@@ -178,6 +192,16 @@ beforeEach(() => {
     width: 800,
     height: 600,
   });
+  // A distinct URI from the gallery chain's, so a test asserting on what was
+  // analysed also proves which chain produced it.
+  (prepareCaptureForAnalysis as jest.Mock).mockResolvedValue({
+    uri: 'file://camera-prepared.jpg',
+    width: 900,
+    height: 1600,
+  });
+  mockCapture.current = jest
+    .fn()
+    .mockResolvedValue({ uri: 'file://shot.jpg', width: 4032, height: 3024 });
 });
 
 describe('CameraScreen — the caregiver gates', () => {
@@ -345,11 +369,11 @@ describe('CameraScreen — the permission gates', () => {
  * Past all four gates — everything above proved the screen decides *before*
  * mounting the camera surface; this covers what happens once it has.
  *
- * The gallery pick (`เลือกรูปจากอัลบั้ม`) is the entry point for every test
- * here, not the shutter: `takePicture()` bails immediately on a null
- * `cameraRef.current`, and the mocked `BpCameraView` never attaches one.
- * `pickImage()` reaches `startCaptureFlow` without going through the camera
- * ref at all, which is what makes it reachable from a screen test.
+ * The gallery pick (`เลือกรูปจากอัลบั้ม`) is the entry point for most tests
+ * here because `pickImage()` reaches `startCaptureFlow` without touching the
+ * camera ref. The shutter is reachable too, via the `capture()` the stubbed
+ * `BpCameraView` forwards, and one test uses it — the two paths prepare the
+ * photo differently and that difference is worth pinning.
  *
  * `useCameraAnalysis` is a live, per-test-controllable double
  * (`mockCameraAnalysis.current`) rather than the fixed stub the gates above
@@ -367,6 +391,68 @@ describe('CameraScreen — the capture flow, once past the gates', () => {
       assets: [{ uri, width: 1200, height: 900 }],
     });
   };
+
+  const SHUTTER = 'ถ่ายภาพเครื่องวัดความดัน';
+
+  /*
+   * The two intake paths must not converge on one chain. A live capture is
+   * cropped back to the viewport it was framed in — that is what makes
+   * "captured" equal "framed" — and a gallery pick must not be, because it was
+   * never bound to a preview and cropping would only throw away image area.
+   * Both assertions are one `await` apart in the screen and nothing else
+   * would notice them swapping.
+   */
+  it('runs the live capture through the cropping chain', async () => {
+    const view = await renderScreen(<CameraScreen />);
+
+    await fireEvent.press(view.getByLabelText(SHUTTER));
+
+    await waitFor(() => expect(prepareCaptureForAnalysis).toHaveBeenCalled());
+    // The photo's own dimensions are forwarded, not re-measured: `Image.getSize`
+    // has been seen to hang on a fresh camera URI.
+    expect(prepareCaptureForAnalysis).toHaveBeenCalledWith(
+      'file://shot.jpg',
+      4032,
+      3024,
+      expect.any(Number),
+    );
+    expect(prepareImageForAnalysis).not.toHaveBeenCalled();
+
+    // And what reaches the analyser is that chain's output, not the raw shot.
+    await waitFor(() =>
+      expect(mockCameraAnalysis.current.analyze).toHaveBeenCalledWith(
+        'file://camera-prepared.jpg',
+        expect.anything(),
+      ),
+    );
+  });
+
+  it('runs a gallery pick through the chain that does not crop', async () => {
+    pickFromGallery();
+
+    const view = await renderScreen(<CameraScreen />);
+    await fireEvent.press(view.getByLabelText(GALLERY_BUTTON));
+
+    await waitFor(() => expect(prepareImageForAnalysis).toHaveBeenCalled());
+    expect(prepareImageForAnalysis).toHaveBeenCalledWith('file://gallery.jpg', 1200, 900);
+    expect(prepareCaptureForAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('still records the reading when the shutter itself fails', async () => {
+    // Nothing on this screen may prevent a reading being recorded, so a failed
+    // capture has to leave the screen usable and stop short of the analysis
+    // chain — not throw through `startCaptureFlow`.
+    mockCapture.current = jest.fn().mockRejectedValue(new Error('camera busy'));
+
+    const view = await renderScreen(<CameraScreen />);
+    await fireEvent.press(view.getByLabelText(SHUTTER));
+
+    await waitFor(() => expect(mockCapture.current).toHaveBeenCalled());
+    expect(prepareCaptureForAnalysis).not.toHaveBeenCalled();
+    expect(mockCameraAnalysis.current.analyze).not.toHaveBeenCalled();
+    // The shutter is still there to try again.
+    expect(view.getByLabelText(SHUTTER)).toBeOnTheScreen();
+  });
 
   // Task 1 (camera-lifecycle bug): only the JS-level wiring is provable here
   // — that a cancelled gallery pick reuses `retryCamera()`. Whether the

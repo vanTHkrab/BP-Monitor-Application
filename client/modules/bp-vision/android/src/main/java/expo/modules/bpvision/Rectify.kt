@@ -27,6 +27,15 @@ import kotlin.math.sin
  *
  * Every failure path returns `null` (no rotation), mirroring the backend's
  * silent fallback to the original image.
+ *
+ * **There is a third copy of the angle math.**
+ * `client/src/modules/capture/lib/framing-state.ts::estimateFieldTiltDeg` ports
+ * [estimateRotationFromFields] again in TypeScript, to coach the user to
+ * straighten the phone *before* auto-capture fires. It shares the canonical
+ * field order, the right-edge midpoints, the total-least-squares fit, and this
+ * file's sign convention; it deliberately drops [MIN_ROTATION_DEG] (a nag
+ * threshold is not a correction threshold) and keeps [MAX_ROTATION_DEG].
+ * Retuning either constant here means retuning it there.
  */
 internal object Rectify {
 

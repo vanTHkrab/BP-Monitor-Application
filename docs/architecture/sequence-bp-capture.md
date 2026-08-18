@@ -7,7 +7,7 @@ description: >-
     over Redis, and the reading is written through the offline outbox once the
     user confirms.
 status: current
-updated: 2026-08-16
+updated: 2026-08-18
 owner: cross
 ---
 
@@ -34,7 +34,7 @@ sequenceDiagram
     loop every analysis frame
         App->>NV: detect(frame)
         NV-->>App: Detection[] (5 classes, source-image px)
-        App->>App: evaluateFraming + advanceHysteresis<br/>searching / too-far / too-close / off-center / ready
+        App->>App: evaluateFraming + advanceHysteresis<br/>searching / too-far / too-close / off-center / tilted / ready
     end
 
     alt framing holds "ready" and auto-capture is on
@@ -44,7 +44,7 @@ sequenceDiagram
         App->>App: Manual capture — the gate never blocks it
     end
 
-    App->>App: cropToViewport + prepareImageForAnalysis
+    App->>App: prepareCaptureForAnalysis — crop + resize, one save
 
     alt online
         App->>GW: mutation requestImageUpload { kind, mimeType, size }
@@ -113,8 +113,8 @@ sequenceDiagram
 - **Frame → framing verdict: one analysis frame** — roughly 4 fps, and the
   verdict is smoothed by hysteresis before the UI shows it, so a flickering
   detection does not produce flickering coaching copy.
-- **Capture → upload starts: under 1 s** — crop + `prepareImageForAnalysis` on
-  a mid-range Android phone.
+- **Capture → upload starts: under 1 s** — `prepareCaptureForAnalysis` (crop
+  and resize in a single manipulator chain) on a mid-range Android phone.
 - **Upload → result: seconds, and allowed to be** — presign + PUT + confirm,
   then a BullMQ job, then the Redis round trip. The client polls every 1.5 s and
   gives up at 60 s; the gateway's own call to ai-service times out at 55 s.

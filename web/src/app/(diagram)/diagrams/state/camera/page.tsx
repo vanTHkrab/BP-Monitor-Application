@@ -10,7 +10,8 @@ stateDiagram-v2
         searching --> too_close: area > 85%
         too_far --> off_center: distance ok
         too_close --> off_center: distance ok
-        off_center --> ready: centre within 22%, 2 of 3 fields visible
+        off_center --> tilted: centre within 22%, 2 of 3 fields visible
+        tilted --> ready: field line within 10 deg of upright
         ready --> searching: shot drifts (hysteresis, then re-classify)
         ready --> armed: held ready for 300 ms, auto-capture on
         armed --> counting: ring appears
@@ -19,7 +20,7 @@ stateDiagram-v2
     }
 
     framing --> captured: shutter fires — auto or manual tap
-    captured --> prepared: cropToViewport + prepareImageForAnalysis
+    captured --> prepared: prepareCaptureForAnalysis (crop + resize, one save)
 
     state analysis {
         [*] --> online_or_not

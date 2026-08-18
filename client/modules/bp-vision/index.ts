@@ -24,7 +24,14 @@ import type { Detection } from '@/modules/capture/lib/detection';
 import type { OnDeviceOcrResult } from '@/modules/capture/lib/ocr/types';
 
 interface BPVisionNativeModule {
-  /** YOLO detection in source-image pixel coords. Shape matches `Detection`. */
+  /**
+   * YOLO detection in source-image pixel coords. Shape matches `Detection`.
+   *
+   * `sourceWidth` / `sourceHeight` are kept for contract parity but are *not*
+   * honoured: the native side decodes with EXIF orientation applied, so only
+   * the decoded bitmap's own dimensions can be trusted. See the note in
+   * `BPVisionModule.kt`'s `detect`.
+   */
   detect(
     imageUri: string,
     sourceWidth: number,
@@ -49,6 +56,11 @@ export const isBpVisionAvailable = (): boolean => BPVision != null;
 /**
  * Run on-device YOLO detection. Returns `[]` when the module is unavailable, so
  * a caller can treat "no module" exactly like "nothing in shot".
+ *
+ * `sourceWidth` / `sourceHeight` are accepted for contract parity and are
+ * **not** forwarded to the detector: the native side decodes the file itself
+ * (applying EXIF orientation, which can swap the axes) and letterboxes against
+ * the pixels it actually holds rather than a caller's claim about them.
  */
 export async function detectInImage(
   imageUri: string,

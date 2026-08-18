@@ -7,7 +7,7 @@ description: >-
     use-camera-analysis.ts carry one photo to numbers. Every failure path ends
     at a typeable form — the user is never stranded.
 status: current
-updated: 2026-08-16
+updated: 2026-08-18
 owner: client
 ---
 
@@ -38,7 +38,7 @@ stateDiagram-v2
     }
 
     framing --> captured: shutter fires — auto or manual tap
-    captured --> prepared: cropToViewport + prepareImageForAnalysis
+    captured --> prepared: prepareCaptureForAnalysis (crop + resize, one save)
 
     state analysis {
         [*] --> online_or_not
