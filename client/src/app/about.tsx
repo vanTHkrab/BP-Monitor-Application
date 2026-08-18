@@ -10,6 +10,7 @@
  * is client-old's own content, carried over verbatim rather than invented.
  */
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Linking, Pressable, ScrollView, View } from 'react-native';
@@ -100,8 +101,15 @@ export default function AboutScreen() {
           <ThemedText size={19} weight="bold">
             BP Mobile
           </ThemedText>
+          {/*
+            Read from the manifest, never typed in. This line said 1.0.0
+            through the whole 1.1.0 release because a hardcoded string has
+            nothing tying it to `app.json`, and the screen test asserted the
+            hardcode back, so the suite certified the drift instead of
+            catching it.
+          */}
           <ThemedText type="body" weight="regular" themeColor="text-secondary">
-            เวอร์ชัน 1.0.0
+            {`เวอร์ชัน ${Constants.expoConfig?.version ?? '—'}`}
           </ThemedText>
         </View>
 
