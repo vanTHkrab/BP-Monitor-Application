@@ -1038,7 +1038,19 @@ export default function CameraScreen() {
                   ref={cameraRef}
                   className="absolute inset-0"
                   liveDetection={!capturedImage && !cameraMountError}
-                  onDetections={onFramingFrame}
+                  // The measured preview aspect rides along with every frame
+                  // so the gate can judge distance and centring against what
+                  // the user can see rather than against the whole 16:9
+                  // analysis frame, ~a fifth of which is cropped off-screen.
+                  // Read from the ref at call time, not captured at render:
+                  // `onLayout` writes it without re-rendering, so a value
+                  // closed over here would stay null for the session.
+                  onDetections={(frame) =>
+                    onFramingFrame({
+                      ...frame,
+                      viewportAspect: viewportAspect.current ?? undefined,
+                    })
+                  }
                   onMountError={(event) =>
                     setCameraMountError(event.message || 'ไม่สามารถเปิดกล้องได้')
                   }

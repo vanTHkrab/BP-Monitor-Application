@@ -51,8 +51,14 @@ function box(
   };
 }
 
-function frame(detections: FramingDetection[]) {
-  return { frameWidth: FRAME_W, frameHeight: FRAME_H, detections };
+/**
+ * `FRAME_W / FRAME_H` is 0.5625, near enough the real analysis stream's 0.562
+ * that the viewport arithmetic below describes an actual device rather than a
+ * convenient one. Omitting `viewportAspect` means "the whole frame is on
+ * screen", which is what every test written before the crop existed assumes.
+ */
+function frame(detections: FramingDetection[], viewportAspect?: number) {
+  return { frameWidth: FRAME_W, frameHeight: FRAME_H, detections, viewportAspect };
 }
 
 /** A well-framed monitor with two readable fields — the canonical "ready". */
@@ -161,8 +167,63 @@ describe("evaluateFraming", () => {
 
   it("honours caller-supplied thresholds", () => {
     // Same frame, stricter minimum area → no longer close enough.
-    const strict = { ...DEFAULT_FRAMING_THRESHOLDS, minAreaRatio: 0.5 };
+    const strict = {
+      ...DEFAULT_FRAMING_THRESHOLDS,
+      area: { ...DEFAULT_FRAMING_THRESHOLDS.area, 0: { min: 0.5, max: 1 } },
+    };
     expect(evaluateFraming(frame(readyDetections()), strict)).toBe("too-far");
+  });
+
+  it("judges the screen box against its own area window, not the device's", () => {
+    // The user-visible bug: a BP display is much wider than tall, so filling
+    // the guide frame with the LCD covers only a few percent of the view. One
+    // window shared with the whole-device class called that "too far" while
+    // the monitor sat squarely inside the brackets.
+    const fields = [box(4, 0.02), box(2, 0.02)];
+    expect(evaluateFraming(frame([box(1, 0.06), ...fields]))).toBe("ready");
+    expect(evaluateFraming(frame([box(0, 0.06), ...fields]))).toBe("too-far");
+  });
+
+  it("picks the screen box over the device box even when the device scores higher", () => {
+    // Confidence alone used to decide this across classes, so the winner could
+    // change class between two frames of a motionless phone — and with it the
+    // area ratio, by roughly 3x. The verdict flipped for a reason nobody
+    // holding the phone could act on.
+    const detections = [
+      box(0, 0.4, FRAME_W / 2, FRAME_H / 2, 0.99),
+      box(1, 0.01, FRAME_W / 2, FRAME_H / 2, 0.5),
+      box(4, 0.02),
+      box(2, 0.02),
+    ];
+    // 0.4 is comfortably `ready` on the device window; 0.01 is under the
+    // screen floor. Getting `too-far` is what proves the screen box won.
+    expect(evaluateFraming(frame(detections))).toBe("too-far");
+  });
+
+  it("measures area against the visible slice of the frame, not the whole frame", () => {
+    // A 0.45 viewport cover-fits a 0.5625 frame by cropping the sides, leaving
+    // 80% of it on screen — so every box covers a correspondingly larger share
+    // of what the user can actually see. Against the whole frame the ceiling
+    // was unreachable: the monitor had to spill well past the screen edges to
+    // trip it, long after it had started clipping the display.
+    const big = [box(0, 0.75), box(4, 0.02), box(2, 0.02)];
+    expect(evaluateFraming(frame(big))).toBe("ready");
+    expect(evaluateFraming(frame(big, 0.45))).toBe("too-close");
+  });
+
+  it("measures centring against the visible width, not the frame width", () => {
+    // Same displacement, two answers: 20% of the frame's width is only 20% of
+    // a tolerance measured against the frame, but 25% of the narrower strip
+    // the user is looking at. The horizontal axis was quietly the more
+    // forgiving of the two for exactly this reason.
+    const offset = FRAME_W / 2 + 0.2 * FRAME_W;
+    const detections = [
+      box(0, 0.4, offset, FRAME_H / 2),
+      box(4, 0.02),
+      box(2, 0.02),
+    ];
+    expect(evaluateFraming(frame(detections))).toBe("ready");
+    expect(evaluateFraming(frame(detections, 0.45))).toBe("off-center");
   });
 
   it("leaves an upright three-field frame alone", () => {

@@ -83,8 +83,8 @@ the finishing check is `pnpm check`.
 | `test:screens` | `/__test__/` | whole-screen and component renders |
 | `test` | everything | both, and what any full audit should use |
 
-The two halves must **add up to `pnpm test`**: 112 + 77 = 189 suites and
-1836 + 745 = 2581 tests, which is what `pnpm test` reports. A test file
+The two halves must **add up to `pnpm test`**: 113 + 77 = 190 suites and
+1846 + 745 = 2591 tests, which is what `pnpm test` reports. A test file
 outside all four matched directories is orphaned from both scripts and from
 CI, and **nothing reports it** — the run it is missing from still passes.
 That happened on the first version of this split, which omitted `/scripts/`

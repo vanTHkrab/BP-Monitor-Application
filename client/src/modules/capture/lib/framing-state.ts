@@ -6,11 +6,28 @@
  * only observable by pointing a phone at a monitor and hoping.
  *
  * Coordinates are *frame* pixels — the analysis stream's own resolution, which
- * has nothing to do with the screen size. Everything below works in ratios of
- * the frame so the thresholds hold whatever resolution CameraX negotiated.
- * The one exception is the tilt estimate, which is an angle and therefore
- * resolution-independent already.
+ * has nothing to do with the screen size.
+ *
+ * **Ratios are taken against the part of the frame the user can actually see,
+ * not the whole frame**, and that distinction is the whole reason the distance
+ * verdicts used to be wrong. The analysis stream is 16:9 (`ANALYSIS_RESOLUTION
+ * = Size(854, 480)`, reported upright as 480x854, aspect 0.562) while the
+ * preview fills a modern handset at roughly 0.45, and `PreviewView`'s
+ * `FILL_CENTER` cover-fits the first into the second by cropping the sides.
+ * About a fifth of every frame is therefore off-screen. Judging "how much of
+ * the view does this fill" against the full frame answered a question nobody
+ * asked, and answered it differently on every phone aspect.
+ *
+ * The visible rectangle comes from `computeCoverCropBox`, the same function
+ * that crops the captured photo back to the preview. Sharing it is deliberate:
+ * it makes "the region the gate judged" and "the region the capture keeps"
+ * provably the same rectangle rather than two implementations of one rule.
+ *
+ * The tilt estimate is exempt and needs no such correction — it is an angle,
+ * and a cover-fit crop is a uniform scale plus a translation, neither of which
+ * rotates anything.
  */
+import { computeCoverCropBox } from './crop-to-viewport';
 import { MONITOR_CLASS_IDS, FIELD_CLASS_IDS } from './detection';
 
 export interface FramingDetection {
@@ -27,6 +44,17 @@ export interface FramingFrame {
   frameWidth: number;
   frameHeight: number;
   detections: FramingDetection[];
+  /**
+   * Aspect of the on-screen preview (width / height), so the gate can tell
+   * which part of the frame the user is looking at.
+   *
+   * Optional, and omitting it means "assume the whole frame is visible" —
+   * which is the right answer for a test constructing a frame directly, and
+   * the only answer available before the preview has laid out. The camera
+   * screen already measures this for the capture crop and passes the same
+   * ref through.
+   */
+  viewportAspect?: number;
 }
 
 /**
@@ -44,12 +72,32 @@ export type FramingState =
   | 'tilted'
   | 'ready';
 
-export interface FramingThresholds {
-  /** Below this share of frame area the monitor is too small to read. */
-  minAreaRatio: number;
+/** The classes `pickMonitorBox` may return — see `MONITOR_CLASS_IDS`. */
+export type MonitorClassId = (typeof MONITOR_CLASS_IDS)[number];
+
+/** How much of the visible view one class should cover to be worth reading. */
+export interface AreaWindow {
+  /** Below this share of the visible area the monitor is too small to read. */
+  min: number;
   /** Above it, close enough to be clipping the display. */
-  maxAreaRatio: number;
-  /** Max distance of the box centre from the frame centre, per axis. */
+  max: number;
+}
+
+export interface FramingThresholds {
+  /**
+   * Area window **per monitor class**, because the two do not subtend
+   * remotely the same area from the same spot.
+   *
+   * One shared window was the second half of the "fill the guide frame and be
+   * told to come closer" bug. `BP_Monitor` (0) is the whole device and
+   * `BP_Screen_Monitor` (1) is the LCD alone, which is both smaller and much
+   * wider; at one distance their areas differ by roughly 3x. A single number
+   * cannot be right for both, so it was right for at most one — and which one
+   * it got applied to changed frame by frame, because the old picker chose by
+   * confidence across classes.
+   */
+  area: Record<MonitorClassId, AreaWindow>;
+  /** Max distance of the box centre from the visible centre, per axis. */
   maxCenterOffset: number;
   /** How many of sys / dia / pulse must be visible to call it ready. */
   minFields: number;
@@ -80,32 +128,75 @@ export interface FramingThresholds {
  * threshold, not a correction threshold.
  */
 export const DEFAULT_FRAMING_THRESHOLDS: FramingThresholds = {
-  minAreaRatio: 0.08,
-  maxAreaRatio: 0.85,
+  /*
+   * Derived, not measured — and the derivation is written down so the next
+   * person can argue with it instead of guessing what it meant.
+   *
+   * The old single window was `0.08 .. 0.85` of the *whole* frame. Only ~80%
+   * of the frame is on screen, so as a share of the visible area that was
+   * `0.10 .. 1.06` — which is why `too-close` effectively never fired: the box
+   * had to spill well past the screen edges to reach the top of the window,
+   * long after it had started clipping the display.
+   *
+   * `0.10` is kept as the device floor, since that is the calibration the old
+   * number effectively carried. The screen floor is that divided by an assumed
+   * 3x area ratio between a BP monitor's front face and its LCD. The ceilings
+   * are set where "the thing is bigger than the view" starts being true for
+   * each class rather than inherited from the old, unreachable one.
+   *
+   * **All four want measuring against real devices**, exactly as the previous
+   * pair did. What is no longer provisional is the *shape*: per class, and
+   * against the visible area.
+   */
+  area: {
+    0: { min: 0.1, max: 0.9 },
+    1: { min: 0.04, max: 0.55 },
+  },
   maxCenterOffset: 0.22,
   minFields: 2,
   maxTiltDeg: 10,
 };
 
-const isMonitorClass = (cls: number): boolean =>
-  (MONITOR_CLASS_IDS as readonly number[]).includes(cls);
-
 const isFieldClass = (cls: number): boolean =>
   (FIELD_CLASS_IDS as readonly number[]).includes(cls);
 
+/** A monitor box, with its class narrowed to one the area windows are keyed by. */
+type MonitorBox = FramingDetection & { cls: MonitorClassId };
+
 /**
- * Pick the box that stands for "the monitor".
+ * Pick the box that stands for "the monitor": the screen if seen, else the body.
  *
- * Either the whole device or just its screen counts — see `MONITOR_CLASS_IDS`.
- * Highest confidence wins when both are present.
+ * **The preference is between classes, and only then by confidence.** It used
+ * to be confidence alone across both, which let the winner change class from
+ * one frame to the next — and since the LCD subtends roughly a third of the
+ * device's area, the area ratio would jump by that factor with the phone
+ * perfectly still. The verdict flipped between `ready` and `too-far` because
+ * the detector had changed its mind about which label it was more sure of,
+ * which is not something the person holding the phone can act on. Hysteresis
+ * hides a flicker; it cannot rescue a verdict that is confidently wrong for a
+ * second at a time.
+ *
+ * Screen-before-body is not a new opinion either. `Rectify.kt::pickScreenBox`
+ * and the backend's `pipeline.py::_pick_screen_box` both already resolve this
+ * exact tie the same way, and `MONITOR_CLASS_IDS`'s own note records why the
+ * screen is the more dependable of the two: measured on device, the outer box
+ * is the first to drop out at harder framings while the screen survives.
  */
-function pickMonitorBox(detections: FramingDetection[]): FramingDetection | null {
-  let best: FramingDetection | null = null;
+function pickMonitorBox(detections: FramingDetection[]): MonitorBox | null {
+  let bestScreen: MonitorBox | null = null;
+  let bestBody: MonitorBox | null = null;
   for (const detection of detections) {
-    if (!isMonitorClass(detection.cls)) continue;
-    if (!best || detection.confidence > best.confidence) best = detection;
+    if (detection.cls === 1) {
+      if (!bestScreen || detection.confidence > bestScreen.confidence) {
+        bestScreen = detection as MonitorBox;
+      }
+    } else if (detection.cls === 0) {
+      if (!bestBody || detection.confidence > bestBody.confidence) {
+        bestBody = detection as MonitorBox;
+      }
+    }
   }
-  return best;
+  return bestScreen ?? bestBody;
 }
 
 function countFields(detections: FramingDetection[]): number {
@@ -262,7 +353,7 @@ export function evaluateFraming(
   frame: FramingFrame,
   thresholds: FramingThresholds = DEFAULT_FRAMING_THRESHOLDS,
 ): FramingState {
-  const { frameWidth, frameHeight, detections } = frame;
+  const { frameWidth, frameHeight, detections, viewportAspect } = frame;
 
   // A degenerate frame cannot be reasoned about. "Nothing found" beats
   // dividing by zero and producing a confident wrong answer.
@@ -271,17 +362,43 @@ export function evaluateFraming(
   const monitor = pickMonitorBox(detections);
   if (!monitor) return 'searching';
 
+  /*
+   * The slice of the frame the preview actually shows. `computeCoverCropBox`
+   * returns null both for a degenerate input and for a frame that already
+   * matches the viewport, and "the whole frame is visible" is the correct
+   * reading of both — which is also what a test that omits `viewportAspect`
+   * gets, and what the very first frames get before the preview has laid out.
+   */
+  const visible = computeCoverCropBox(frameWidth, frameHeight, viewportAspect ?? 0) ?? {
+    originX: 0,
+    originY: 0,
+    width: frameWidth,
+    height: frameHeight,
+  };
+
   const boxWidth = Math.max(0, monitor.x2 - monitor.x1);
   const boxHeight = Math.max(0, monitor.y2 - monitor.y1);
-  const areaRatio = (boxWidth * boxHeight) / (frameWidth * frameHeight);
+  // Deliberately **not** clipped to the visible rectangle first. Clipping
+  // would make a monitor hanging half off the side read as small, i.e. as
+  // `too-far`, and the distance checks run before the centring one — so the
+  // user would be told to step closer to something they only need to move
+  // across. Unclipped, the ratio passes straight through 1.0 as the monitor
+  // grows past the edges of the view, and `off-center` gets to speak.
+  const areaRatio = (boxWidth * boxHeight) / (visible.width * visible.height);
 
-  if (areaRatio < thresholds.minAreaRatio) return 'too-far';
-  if (areaRatio > thresholds.maxAreaRatio) return 'too-close';
+  const area = thresholds.area[monitor.cls];
+  if (areaRatio < area.min) return 'too-far';
+  if (areaRatio > area.max) return 'too-close';
 
-  // Each axis is measured against its own extent, so the test means the same
-  // thing on a tall frame as on a wide one.
-  const offsetX = Math.abs((monitor.x1 + monitor.x2) / 2 - frameWidth / 2) / frameWidth;
-  const offsetY = Math.abs((monitor.y1 + monitor.y2) / 2 - frameHeight / 2) / frameHeight;
+  // Each axis against its own *visible* extent. Against the raw frame the two
+  // did not mean the same thing: cover-fit crops one axis and leaves the other
+  // whole, so on a 0.562 frame in a 0.45 viewport the same 0.22 bought 27.5%
+  // of the width the user could see but 22% of the height — a horizontal
+  // tolerance a quarter looser than the vertical one, for no stated reason.
+  const visibleCenterX = visible.originX + visible.width / 2;
+  const visibleCenterY = visible.originY + visible.height / 2;
+  const offsetX = Math.abs((monitor.x1 + monitor.x2) / 2 - visibleCenterX) / visible.width;
+  const offsetY = Math.abs((monitor.y1 + monitor.y2) / 2 - visibleCenterY) / visible.height;
   if (Math.max(offsetX, offsetY) > thresholds.maxCenterOffset) return 'off-center';
 
   if (countFields(detections) < thresholds.minFields) return 'off-center';
