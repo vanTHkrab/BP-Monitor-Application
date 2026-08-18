@@ -27,7 +27,7 @@ describe('AuthShell', () => {
       </AuthShell>,
     );
 
-    expect(view.getByText('BP Monitor')).toBeOnTheScreen();
+    expect(view.getByText('BP Mobile')).toBeOnTheScreen();
     expect(view.getByText('ติดตามความดันโลหิตอย่างง่ายดาย')).toBeOnTheScreen();
   });
 
@@ -38,7 +38,7 @@ describe('AuthShell', () => {
       </AuthShell>,
     );
 
-    expect(view.queryByText('BP Monitor')).toBeNull();
+    expect(view.queryByText('BP Mobile')).toBeNull();
     expect(view.queryByText('ติดตามความดันโลหิตอย่างง่ายดาย')).toBeNull();
     // The form still renders — hiding the hero must not take the card with it.
     expect(view.getByText('แบบฟอร์ม')).toBeOnTheScreen();
@@ -52,7 +52,7 @@ describe('AuthShell', () => {
         </AuthShell>,
       );
 
-      expect(view.getByText('Copyright©2025 BP Monitor App')).toBeOnTheScreen();
+      expect(view.getByText('Copyright©2026 BP Mobile App')).toBeOnTheScreen();
     }
   });
 });

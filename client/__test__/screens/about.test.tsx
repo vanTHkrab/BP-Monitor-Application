@@ -17,7 +17,7 @@ describe('AboutScreen', () => {
   it('renders the app identity and version', async () => {
     const view = await renderScreen(<AboutScreen />);
 
-    expect(view.getByText('BP Monitor')).toBeOnTheScreen();
+    expect(view.getByText('BP Mobile')).toBeOnTheScreen();
     expect(view.getByText('เวอร์ชัน 1.0.0')).toBeOnTheScreen();
   });
 
