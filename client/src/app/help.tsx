@@ -45,12 +45,12 @@ export default function HelpScreen() {
 
   const contactDeveloper = () =>
     Linking.openURL(
-      'mailto:support@bpapp.com?subject=BP%20Mobile%20-%20ติดต่อผู้พัฒนา',
+      'mailto:projectbpmobile@gmail.com?subject=BP%20Mobile%20-%20ติดต่อผู้พัฒนา',
     );
 
   const reportProblem = () =>
     Linking.openURL(
-      'mailto:support@bpapp.com?subject=BP%20Mobile%20-%20รายงานปัญหา&body=อธิบายปัญหา:%0A%0Aรุ่นแอป:%0Aรุ่นเครื่อง/OS:%0Aแนบรูปหรือขั้นตอนที่ทำให้เกิดปัญหา:%0A',
+      'mailto:projectbpmobile@gmail.com?subject=BP%20Mobile%20-%20รายงานปัญหา&body=อธิบายปัญหา:%0A%0Aรุ่นแอป:%0Aรุ่นเครื่อง/OS:%0Aแนบรูปหรือขั้นตอนที่ทำให้เกิดปัญหา:%0A',
     );
 
   return (
@@ -100,13 +100,13 @@ export default function HelpScreen() {
                 อีเมล
               </ThemedText>
               <ThemedText type="body" weight="regular" themeColor="text-secondary">
-                support@bpapp.com
+                projectbpmobile@gmail.com
               </ThemedText>
             </View>
           </Pressable>
 
           <Pressable
-            onPress={() => Linking.openURL('tel:02-123-4567')}
+            onPress={() => Linking.openURL('tel:083-177-5513')}
             className="mb-3 flex-row items-center rounded-xl border p-4"
             style={{
               backgroundColor: colors.surface,
@@ -124,7 +124,7 @@ export default function HelpScreen() {
                 โทรศัพท์
               </ThemedText>
               <ThemedText type="body" weight="regular" themeColor="text-secondary">
-                02-123-4567
+                083-177-5513
               </ThemedText>
             </View>
           </Pressable>
@@ -144,7 +144,7 @@ export default function HelpScreen() {
                 Line Official
               </ThemedText>
               <ThemedText type="body" weight="regular" themeColor="text-secondary">
-                @bpapp
+                @
               </ThemedText>
             </View>
           </View>
