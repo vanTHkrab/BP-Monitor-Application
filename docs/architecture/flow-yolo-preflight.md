@@ -18,11 +18,24 @@ analysis frame and `readBp()` for the full offline OCR pipeline. Both are
 resolved with `requireOptionalNativeModule`, so on iOS, web, and Expo Go they
 return "nothing found" and "unavailable" instead of throwing.
 
+**Two detector export families decode, and the graph picks.** `yolo11n.onnx`
+emits raw `[1, 4+C, anchors]` and owes per-class NMS to the decoder;
+`yolo26n-gray.onnx` / `yolo26n-color.onnx` emit `[1, 300, 6]` rows of
+`(x1, y1, x2, y2, conf, cls)` with the suppression already done inside the
+graph, which makes the IoU threshold inert for them. Kotlin's
+`YoloDetector.resolveOutputFormat` and ai-service's `resolve_output_format`
+both read the format off the loaded graph's declared output shape and both
+throw at load on anything else, because decoding one family as the other does
+not fail — it returns confident, wrong boxes. **The phone still loads
+`yolo11n.onnx`**; the yolo26n files are not bundled in `assets/models/` and are
+not in `verify-models.mjs`'s list yet. The dual decode exists so the two
+processes can be switched over one at a time.
+
 ```mermaid
 flowchart TD
     A["Analysis frame (~4 fps)"] --> B["BPVision.detect(uri, w, h, 512)"]
     B --> C["Kotlin: letterbox → [1,3,512,512] float32<br/>ONNX Runtime session (CPU / XNNPACK / NNAPI)"]
-    C --> D["Decode [1, 4+C, anchors]<br/>per-class NMS — conf 0.25 / IoU 0.45"]
+    C --> D["Decode by the loaded graph's output shape<br/>[1,4+C,anchors] → per-class NMS here (yolo11n, loaded today)<br/>[1,300,6] → already suppressed (yolo26n)<br/>conf 0.25 / IoU 0.45 on the anchors path only"]
     D --> E["Detection[] in source-image pixels"]
 
     E --> F["evaluateFraming(frame)"]

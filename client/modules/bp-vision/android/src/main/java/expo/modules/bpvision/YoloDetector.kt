@@ -3,6 +3,7 @@ package expo.modules.bpvision
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import ai.onnxruntime.TensorInfo
 import android.graphics.Bitmap
 import android.util.Log
 import java.io.Closeable
@@ -11,9 +12,17 @@ import kotlin.math.min
 import kotlin.math.round
 
 /**
- * On-device YOLOv11n detector for BP-monitor photos.
+ * The loaded graph's output shape matches no decoder this class implements.
  *
- * Same letterbox math, channel-major decode, and per-class NMS as
+ * Deliberately thrown from construction, never from [YoloDetector.detect] —
+ * see the "why the graph is inspected" note on [YoloDetector].
+ */
+class UnsupportedDetectorOutputException(message: String) : IllegalArgumentException(message)
+
+/**
+ * On-device BP-monitor detector.
+ *
+ * Same letterbox math and decode as
  * `server/app/ai-service/src/ai_service/analyzer/yolo.py`, which is the point:
  * the two run the same model file, so a detection here has to mean what a
  * detection there means. (An earlier JS implementation of this, driven by
@@ -22,6 +31,50 @@ import kotlin.math.round
  * Per root CLAUDE.md rule 5, the class layout and thresholds below are a
  * wire contract with the backend even though this is on-device inference,
  * not the Redis wire — change one side, change the other.
+ *
+ * **Two ONNX export families decode here, and which one a session belongs to
+ * is read off the loaded graph, never configured:**
+ *
+ *  - [OutputFormat.ANCHORS] — `yolo11n.onnx`, Ultralytics exported with
+ *    `nms=False`. Output `[batch, 4+C, anchors]`: rows 0-3 are bbox xywh
+ *    (center, letterbox pixels), rows 4.. are per-class scores. NMS runs here,
+ *    so [DEFAULT_IOU_THRESHOLD] is load-bearing on this path.
+ *  - [OutputFormat.NMS_BOXES] — `yolo26n-gray.onnx` / `yolo26n-color.onnx`,
+ *    exported end-to-end. Output `[batch, 300, 6]`: each row is
+ *    `(x1, y1, x2, y2, conf, cls)` in letterbox pixels, already suppressed and
+ *    sorted by descending confidence, with everything the model did not detect
+ *    left below the threshold as padding. The IoU threshold has nothing to act
+ *    on, because the suppression happened inside the graph.
+ *
+ * Both families carry the same ADR-002 class taxonomy and the same 512 input,
+ * so a second format existing does not move the cross-process contract.
+ *
+ * **Why the graph is inspected rather than a flag being set.** The two outputs
+ * have the same rank and dtype, so decoding one as the other does not throw —
+ * it reinterprets the numbers and returns plausible boxes at plausible
+ * confidences. Run `[1, 300, 6]` through the anchors decoder and you get 6
+ * "anchors" of 300 "channels" and an argmax over 296 classes that do not
+ * exist; every stage downstream keeps working, on garbage, and the preview
+ * happily draws it. A build flag or a filename check inside the decode
+ * reproduces exactly that failure whenever it is wrong, and reproduces it
+ * silently.
+ *
+ * So [resolveOutputFormat] runs once at construction and an unclassifiable
+ * shape throws [UnsupportedDetectorOutputException] **there**. That placement
+ * is the whole point: `BPVisionModule.runReadBp` already maps a load throw to
+ * `unavailable("model-load-failed")`, whereas the live framing gate calls
+ * [detect] from the CameraX analysis stream several times a second, where
+ * there is no failure surface — a per-frame decision that went wrong would
+ * paint boxes over the preview instead of failing visibly.
+ *
+ * Read that second half in `CameraController.analyzeFrame`, not in
+ * `BPVisionCameraView.onAnalysisFrame`: the view has `finally` and no `catch`,
+ * so on its own it would look like a frame-time throw *does* surface. What
+ * actually swallows it is the `catch (Throwable)` in `analyzeFrame`, which
+ * logs at warn and keeps the analyzer thread alive — deliberately, because one
+ * bad frame must not end detection for the rest of the session.
+ *
+ * Grayscale is the one thing the graph cannot tell us — see [InputRendering].
  *
  * Model loading is intentionally decoupled from *how* the bytes got onto
  * the device: callers hand over a [ByteArray] (read from wherever — a
@@ -33,7 +86,28 @@ import kotlin.math.round
 class YoloDetector private constructor(
   private val env: OrtEnvironment,
   private val session: OrtSession,
+  private val rendering: InputRendering,
 ) : Closeable {
+
+  /**
+   * Which decode path this session takes, derived from the loaded graph.
+   *
+   * A property initializer rather than a lazy: this is the load-time gate, and
+   * a gate that fires on first use is a gate that fires per frame.
+   */
+  val outputFormat: OutputFormat = resolveOutputFormat(declaredOutputShape(session))
+
+  init {
+    // Which decoder ran is not reconstructable from a detection count or a
+    // latency number, and both of those get read off logcat during device
+    // benchmarking — same argument the execution-provider log below makes.
+    val iouNote = if (outputFormat == OutputFormat.ANCHORS) {
+      "$DEFAULT_IOU_THRESHOLD"
+    } else {
+      "ignored (NMS embedded in graph)"
+    }
+    Log.i(TAG, "detector loaded: outputFormat=$outputFormat rendering=$rendering iou=$iouNote")
+  }
 
   /**
    * ONNX Runtime backend for the detector session.
@@ -66,6 +140,62 @@ class YoloDetector private constructor(
     }
   }
 
+  /**
+   * How source pixels are rendered into the model's three input channels.
+   *
+   * Nothing in the graph answers this. Both YOLO26 exports declare
+   * `[batch, 3, height, width]` and carry identical metadata apart from the
+   * export timestamp; `-gray` means "trained on grayscale renders", not
+   * "single-channel input". Hand a grayscale-trained model real colour and
+   * nothing fails — accuracy drops, with no symptom anywhere to notice it by.
+   *
+   * ai-service infers this from the model filename and names that its own soft
+   * spot: a rename gives the wrong preprocessing silently. **This side does not
+   * infer.** There is exactly one load site and the asset name is a source
+   * constant sitting next to it (`BPVisionModule.YOLO_ASSET` /
+   * `YOLO_RENDERING`), so the two are stated together.
+   *
+   * Stated together is only a convention, though, and `BPVisionModule`'s
+   * `checkRenderingMatchesAsset` is what makes it hold: it throws at load when
+   * the filename marker and the declared rendering disagree. That is a veto,
+   * not an inference — the declaration still decides, the filename only refuses
+   * to contradict it. Which matters beyond this process, because the same file
+   * ships to ai-service under the same name and `infer_grayscale_input` reads
+   * it: a name this side would accept while disagreeing with is a name that
+   * silently mis-preprocesses on the server.
+   *
+   * The cost, stated plainly: the two implementations differ in mechanism, so a
+   * reader of one does not learn the other's rule, and a second loader added
+   * here has to state its rendering because there is no fallback guess. That is
+   * the intended trade — an omitted required argument is a compile error, an
+   * omitted filename marker is a quiet accuracy loss.
+   */
+  enum class InputRendering {
+    /** RGB as decoded. What `yolo11n.onnx` and `yolo26n-color.onnx` want. */
+    COLOR,
+
+    /**
+     * BT.601 luma replicated across all three channels. What a `-gray` export
+     * wants — three channels still, just three copies of one.
+     */
+    GRAYSCALE_REPLICATED,
+  }
+
+  /**
+   * Which decode path a loaded graph needs.
+   *
+   * Mirrors `DetectorOutputFormat` in ai-service's `analyzer/yolo.py`; the two
+   * are a cross-process pair and the discriminators must stay identical, or a
+   * model file classifies one way on the phone and the other way on the server.
+   */
+  enum class OutputFormat {
+    /** `[batch, 4+C, anchors]` — raw predictions, NMS owed by us. */
+    ANCHORS,
+
+    /** `[batch, N, 6]` — `(x1, y1, x2, y2, conf, cls)`, NMS already applied. */
+    NMS_BOXES,
+  }
+
   companion object {
     /**
      * Model was trained at 512x512 — mirrors DEFAULT_INPUT_SIZE in types.ts.
@@ -96,6 +226,27 @@ class YoloDetector private constructor(
      */
     val CLASS_NAMES = arrayOf("BP_Monitor", "BP_Screen_Monitor", "dia", "pulse", "sys")
 
+    /** Columns in one row of an end-to-end export: x1, y1, x2, y2, conf, cls. */
+    const val NMS_BOXES_ROW_WIDTH = 6
+
+    // cv2.COLOR_BGR2GRAY fixed-point coefficients (BT.601), 2^14 scale — the
+    // same constants CrnnRecognizer already ports, for the same reason: this
+    // has to be the luma ai-service's `cv2.cvtColor(BGR2GRAY)` produces, not
+    // merely a luma.
+    //
+    // "Produces", not "produces bit-for-bit". Measured against cv2 4.13 over
+    // 200k random RGB triples, this disagrees on 0.25% of pixels and always by
+    // exactly 1/255, always on a half-way tie that OpenCV's higher-precision
+    // SIMD path rounds the other way. Chasing that last LSB is not worth it and
+    // is not even a fixed target — cv2's own result depends on its build. What
+    // matters is that a `-gray` model sees a grayscale render rather than
+    // colour; 1/255 at a rounding tie is orders of magnitude below that.
+    private const val R2Y = 4899
+    private const val G2Y = 9617
+    private const val B2Y = 1868
+    private const val Y_SHIFT = 14
+    private const val Y_ROUND = 1 shl (Y_SHIFT - 1)
+
     private const val TAG = "YoloDetector"
 
     /**
@@ -105,6 +256,90 @@ class YoloDetector private constructor(
      * traffic cost more than the parallelism buys.
      */
     private const val COMPUTE_THREADS = 4
+
+    /**
+     * The declared shape of the session's single output.
+     *
+     * "Declared", not "observed": this runs at construction, before any
+     * inference, which is the only moment an unusable model is still cheap to
+     * reject.
+     */
+    private fun declaredOutputShape(session: OrtSession): LongArray {
+      val name = session.outputNames.first()
+      val info = session.outputInfo[name]?.info
+      if (info !is TensorInfo) {
+        throw UnsupportedDetectorOutputException(
+          "detector output '$name' is not a tensor " +
+            "(got ${info?.javaClass?.simpleName ?: "nothing"})",
+        )
+      }
+      return info.shape
+    }
+
+    /**
+     * A graph dimension as an Int, or null when it is symbolic / unknown.
+     *
+     * ORT reports a dynamic axis as `-1`. Comparing that raw to an expected
+     * size is silently false, which is exactly the class of accident this file
+     * exists to avoid, so make the distinction explicit. Mirrors
+     * `_static_dim` in ai-service's `analyzer/yolo.py`, which has the same job
+     * against Python's string-valued symbolic dims.
+     */
+    private fun staticDim(dim: Long): Int? = if (dim > 0L) dim.toInt() else null
+
+    private fun printableShape(shape: LongArray): String =
+      shape.joinToString(", ", "[", "]") { staticDim(it)?.toString() ?: "dynamic" }
+
+    /**
+     * Classify a detector graph by its declared output shape.
+     *
+     * The two families are separable without ambiguity:
+     *
+     *  - an end-to-end export ends in a **static** [NMS_BOXES_ROW_WIDTH], the
+     *    row width. An anchors export cannot: its last axis is the anchor
+     *    count, which is symbolic on the dynamic export we ship and 5376 at
+     *    512x512 on a static one.
+     *  - an anchors export carries `4 + numClasses` on axis 1. An end-to-end
+     *    export carries its max-detection ceiling (300) there.
+     *
+     * The discriminator is "static 6", not "== 300", because 300 is `max_det`
+     * — an export knob. A re-export at 100 or 1000 detections is still the same
+     * format, and the row width is what the decode actually depends on.
+     *
+     * The two checks are ordered axis-2-first to match `resolve_output_format`
+     * in ai-service's `analyzer/yolo.py` exactly, so a hypothetical `[1, 9, 6]`
+     * cannot classify one way on the phone and the other way on the server.
+     *
+     * Anything else throws rather than being guessed at.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun resolveOutputFormat(
+      outputShape: LongArray,
+      numClasses: Int = CLASS_NAMES.size,
+    ): OutputFormat {
+      if (outputShape.size != 3) {
+        throw UnsupportedDetectorOutputException(
+          "detector output must be rank 3, got shape ${printableShape(outputShape)}. " +
+            "Expected either [batch, ${4 + numClasses}, anchors] (yolo11-style, " +
+            "nms=False) or [batch, N, $NMS_BOXES_ROW_WIDTH] (end-to-end export).",
+        )
+      }
+
+      val axis1 = staticDim(outputShape[1])
+      val axis2 = staticDim(outputShape[2])
+
+      if (axis2 == NMS_BOXES_ROW_WIDTH) return OutputFormat.NMS_BOXES
+      if (axis1 == 4 + numClasses) return OutputFormat.ANCHORS
+
+      throw UnsupportedDetectorOutputException(
+        "cannot classify detector output shape ${printableShape(outputShape)} for a " +
+          "$numClasses-class model: axis 1 is not 4+$numClasses=${4 + numClasses} " +
+          "(anchors export) and axis 2 is not $NMS_BOXES_ROW_WIDTH (end-to-end " +
+          "export). Refusing to guess — decoding the wrong format does not fail, " +
+          "it returns wrong boxes.",
+      )
+    }
 
     /**
      * Session options for the detector.
@@ -166,26 +401,48 @@ class YoloDetector private constructor(
       return options
     }
 
-    /** Build a detector from raw model bytes — the common case. */
+    /**
+     * Build a detector from raw model bytes — the common case.
+     *
+     * [rendering] has no default on purpose; see [InputRendering].
+     *
+     * Throws [UnsupportedDetectorOutputException] when the graph's output shape
+     * matches no decoder. The session is closed on that path: it is ours, and a
+     * rejected graph must not leave an ORT session alive behind a construction
+     * that never returned.
+     */
     @JvmStatic
     @JvmOverloads
     fun fromModelBytes(
       modelBytes: ByteArray,
+      rendering: InputRendering,
       env: OrtEnvironment = OrtEnvironment.getEnvironment(),
       provider: ExecutionProvider = ExecutionProvider.DEFAULT,
     ): YoloDetector {
       val session = env.createSession(modelBytes, buildSessionOptions(provider))
-      return YoloDetector(env, session)
+      return try {
+        YoloDetector(env, session, rendering)
+      } catch (e: Throwable) {
+        session.close()
+        throw e
+      }
     }
 
-    /** Build a detector from an already-open session (e.g. shared/pre-warmed elsewhere). */
+    /**
+     * Build a detector from an already-open session (e.g. shared/pre-warmed
+     * elsewhere).
+     *
+     * The caller owns the session, so a graph rejected here is left open for
+     * them to close — unlike [fromModelBytes], which owns what it created.
+     */
     @JvmStatic
     @JvmOverloads
     fun fromSession(
       session: OrtSession,
+      rendering: InputRendering,
       env: OrtEnvironment = OrtEnvironment.getEnvironment(),
     ): YoloDetector {
-      return YoloDetector(env, session)
+      return YoloDetector(env, session, rendering)
     }
   }
 
@@ -209,11 +466,19 @@ class YoloDetector private constructor(
     val confidence: Float,
   )
 
+  /**
+   * Internal detection candidate — letterbox-space xyxy, class, score.
+   *
+   * xyxy rather than the xywh-center the anchors export emits: the end-to-end
+   * export already speaks xyxy, and corner form is what both NMS and the
+   * inverse-letterbox actually want. One conversion in [decodeAnchors] beats
+   * two everywhere else. Mirrors `_Candidate` in ai-service's `analyzer/yolo.py`.
+   */
   private data class Candidate(
-    val cx: Float,
-    val cy: Float,
-    val w: Float,
-    val h: Float,
+    val x1: Float,
+    val y1: Float,
+    val x2: Float,
+    val y2: Float,
     val cls: Int,
     val conf: Float,
   )
@@ -274,6 +539,15 @@ class YoloDetector private constructor(
 
   // ---- preprocess: letterbox to INPUT_SIZE x INPUT_SIZE, RGB, /255, NCHW ----
 
+  /**
+   * Letterbox to [inputSize] square, then write RGB (or replicated luma) into
+   * an NCHW float tensor in [0, 1].
+   *
+   * The gray render happens here, per source pixel after the scale, rather
+   * than as a separate pass over the padded image: same order as ai-service's
+   * `_preprocess` (which letterboxes and only then calls `cvtColor`), and the
+   * zero-initialized padding is already what BGR2GRAY makes of black.
+   */
   private fun letterbox(
     bitmap: Bitmap,
     sourceWidth: Int,
@@ -302,6 +576,10 @@ class YoloDetector private constructor(
     // same as the `new Float32Array(3 * plane)` zero-init in preprocess.ts.
     val tensor = FloatArray(3 * plane)
 
+    // Hoisted out of the loop: loop-invariant, so the branch below costs a
+    // perfectly-predicted test rather than a second copy of the loop body.
+    val grayscale = rendering == InputRendering.GRAYSCALE_REPLICATED
+
     for (y in 0 until newH) {
       val dstRowBase = (padTop + y) * inputSize + padLeft
       val srcRowBase = y * newW
@@ -312,9 +590,23 @@ class YoloDetector private constructor(
         // of the bitmap's real config. R/G/B extraction, no BGR swap —
         // matches preprocess.ts's src[sIdx]/[sIdx+1]/[sIdx+2] (RGBA JPEG
         // decode) exactly, alpha ignored.
-        tensor[dIdx] = ((pixel shr 16) and 0xFF) / 255f
-        tensor[plane + dIdx] = ((pixel shr 8) and 0xFF) / 255f
-        tensor[2 * plane + dIdx] = (pixel and 0xFF) / 255f
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        if (grayscale) {
+          // Integer luma first, then the divide: ai-service converts to a
+          // uint8 gray image and only then divides by 255, so quantising here
+          // is what keeps the two on the same rung. Averaging in float would
+          // skip the rounding step the server cannot skip.
+          val luma = ((r * R2Y + g * G2Y + b * B2Y + Y_ROUND) shr Y_SHIFT) / 255f
+          tensor[dIdx] = luma
+          tensor[plane + dIdx] = luma
+          tensor[2 * plane + dIdx] = luma
+        } else {
+          tensor[dIdx] = r / 255f
+          tensor[plane + dIdx] = g / 255f
+          tensor[2 * plane + dIdx] = b / 255f
+        }
       }
     }
 
@@ -322,8 +614,20 @@ class YoloDetector private constructor(
     return FloatBuffer.wrap(tensor) to pad
   }
 
-  // ---- postprocess: decode [1, 4+C, anchors], per-class NMS, inverse-letterbox ----
+  // ---- postprocess: decode (format fixed at load), per-class NMS, inverse-letterbox ----
 
+  /**
+   * Turn one inference output into source-image detections.
+   *
+   * The branch is on [outputFormat], resolved once at construction — not on a
+   * filename, a build flag, or anything re-derived per frame. [dims] is the
+   * *runtime* shape and is read only for the concrete sizes the declared shape
+   * leaves symbolic (the anchor count).
+   *
+   * [iouThreshold] is consumed by the anchors path only. An end-to-end export
+   * suppressed inside the graph, so there is nothing left here for it to act
+   * on; it is accepted either way so one call site serves both models.
+   */
   private fun postprocess(
     raw: FloatArray,
     dims: LongArray,
@@ -334,16 +638,37 @@ class YoloDetector private constructor(
     iouThreshold: Float,
   ): List<Detection> {
     require(dims.size == 3) {
-      "postprocess: expected 3-D output [batch, 4+C, anchors], got dims=${dims.joinToString(",")}"
+      "postprocess: expected 3-D output, got dims=${dims.joinToString(",")}"
     }
+
+    val kept = when (outputFormat) {
+      OutputFormat.NMS_BOXES -> decodeNmsBoxes(raw, dims, confThreshold)
+      OutputFormat.ANCHORS -> nms(decodeAnchors(raw, dims, confThreshold), iouThreshold)
+    }
+    return kept.map { toDetection(it, pad, sourceWidth, sourceHeight) }
+  }
+
+  /**
+   * Decode `[1, 4+C, anchors]` → confidence-filtered candidates. Still owes NMS.
+   *
+   * Layout in the flat buffer: `raw[c * numAnchors + a]` is channel c, anchor a
+   * (batch=1, no batch stride) — the numpy `preds[0].T` iteration order
+   * ai-service's `_decode_anchors` documents. Rows 4.. are per-class scores
+   * already through sigmoid; there is no separate objectness.
+   *
+   * `bestCls` cannot exceed [CLASS_NAMES] here: reaching this path means the
+   * declared axis 1 was exactly `4 + CLASS_NAMES.size`.
+   */
+  private fun decodeAnchors(
+    raw: FloatArray,
+    dims: LongArray,
+    confThreshold: Float,
+  ): List<Candidate> {
     val channels = dims[1].toInt()
     val numAnchors = dims[2].toInt()
     val numClasses = channels - 4
-    require(numClasses >= 1) { "postprocess: channels=$channels too small (need >= 5)" }
+    require(numClasses >= 1) { "decodeAnchors: channels=$channels too small (need >= 5)" }
 
-    // Layout in the flat buffer: raw[c * numAnchors + a] is channel c, anchor a
-    // (batch=1, no batch stride) — matches numpy's preds[0].T iteration order
-    // that postprocess.ts documents.
     val candidates = ArrayList<Candidate>()
     for (a in 0 until numAnchors) {
       var bestCls = 0
@@ -357,20 +682,89 @@ class YoloDetector private constructor(
       }
       if (bestScore < confThreshold) continue
 
+      val cx = raw[0 * numAnchors + a]
+      val cy = raw[1 * numAnchors + a]
+      val w = raw[2 * numAnchors + a]
+      val h = raw[3 * numAnchors + a]
       candidates.add(
         Candidate(
-          cx = raw[0 * numAnchors + a],
-          cy = raw[1 * numAnchors + a],
-          w = raw[2 * numAnchors + a],
-          h = raw[3 * numAnchors + a],
+          x1 = cx - w / 2f,
+          y1 = cy - h / 2f,
+          x2 = cx + w / 2f,
+          y2 = cy + h / 2f,
           cls = bestCls,
           conf = bestScore,
         ),
       )
     }
+    return candidates
+  }
 
-    // Per-class NMS — group by predicted class so a BP_Monitor box never
-    // suppresses a nested sys/dia/pulse box.
+  /**
+   * Decode `[1, N, 6]` end-to-end output → final candidates. No NMS owed.
+   *
+   * Each row is `(x1, y1, x2, y2, conf, cls)` in letterbox pixels, already
+   * suppressed. The N rows are a ceiling, not a count: everything the model did
+   * not detect is padding that reads as `conf == 0`, so [confThreshold] is also
+   * what trims the padding.
+   *
+   * The rows arrive sorted by descending confidence, which would let this stop
+   * at the first sub-threshold row — but that ordering is a property of the
+   * export, not of the format, and 300 float compares per frame is not worth
+   * owing the decode to an assumption the shape does not state.
+   */
+  private fun decodeNmsBoxes(
+    raw: FloatArray,
+    dims: LongArray,
+    confThreshold: Float,
+  ): List<Candidate> {
+    val rows = dims[1].toInt()
+    val rowWidth = dims[2].toInt()
+    require(rowWidth == NMS_BOXES_ROW_WIDTH) {
+      "decodeNmsBoxes: expected row width $NMS_BOXES_ROW_WIDTH, got $rowWidth"
+    }
+
+    val candidates = ArrayList<Candidate>()
+    for (r in 0 until rows) {
+      val base = r * rowWidth
+      val conf = raw[base + 4]
+      if (conf < confThreshold) continue
+
+      // The class id arrives as tensor data, and unlike the anchors path —
+      // where `4 + C` is literally what identified the format — nothing in an
+      // end-to-end export's *shape* declares how many classes it has. A row we
+      // cannot name is dropped rather than forwarded: `className` feeds
+      // DetectionRecord straight into detection.ts's closed `ClassName` union,
+      // so passing an id we do not understand would launder the problem into
+      // TypeScript, where it type-checks.
+      val cls = raw[base + 5].toInt()
+      if (cls !in CLASS_NAMES.indices) {
+        Log.w(TAG, "decodeNmsBoxes: dropped detection with unknown class id $cls")
+        continue
+      }
+
+      candidates.add(
+        Candidate(
+          x1 = raw[base],
+          y1 = raw[base + 1],
+          x2 = raw[base + 2],
+          y2 = raw[base + 3],
+          cls = cls,
+          conf = conf,
+        ),
+      )
+    }
+    return candidates
+  }
+
+  /**
+   * Per-class NMS — group by predicted class so a `BP_Monitor` box never
+   * suppresses a nested `sys`/`dia`/`pulse` box.
+   *
+   * Only the anchors path reaches this; end-to-end exports suppressed inside
+   * the graph.
+   */
+  private fun nms(candidates: List<Candidate>, iouThreshold: Float): List<Candidate> {
     val byClass = LinkedHashMap<Int, MutableList<Candidate>>()
     for (c in candidates) byClass.getOrPut(c.cls) { mutableListOf() }.add(c)
 
@@ -387,38 +781,34 @@ class YoloDetector private constructor(
         }
       }
     }
-
-    return survivors.map { toDetection(it, pad, sourceWidth, sourceHeight) }
+    return survivors
   }
 
+  /**
+   * IoU of two candidates.
+   *
+   * Areas come off the corners now that [Candidate] is xyxy, where they used to
+   * come off the stored w/h. For an anchors candidate the two differ by float
+   * rounding on `(cx + w/2) - (cx - w/2)`, which is ~1e-7 of a pixel and cannot
+   * move a 0.45 threshold decision.
+   */
   private fun iou(a: Candidate, b: Candidate): Float {
-    val ax1 = a.cx - a.w / 2f
-    val ay1 = a.cy - a.h / 2f
-    val ax2 = a.cx + a.w / 2f
-    val ay2 = a.cy + a.h / 2f
-    val bx1 = b.cx - b.w / 2f
-    val by1 = b.cy - b.h / 2f
-    val bx2 = b.cx + b.w / 2f
-    val by2 = b.cy + b.h / 2f
-
-    val interW = maxOf(0f, min(ax2, bx2) - maxOf(ax1, bx1))
-    val interH = maxOf(0f, min(ay2, by2) - maxOf(ay1, by1))
+    val interW = maxOf(0f, min(a.x2, b.x2) - maxOf(a.x1, b.x1))
+    val interH = maxOf(0f, min(a.y2, b.y2) - maxOf(a.y1, b.y1))
     val inter = interW * interH
-    val union = a.w * a.h + b.w * b.h - inter
+    val areaA = (a.x2 - a.x1) * (a.y2 - a.y1)
+    val areaB = (b.x2 - b.x1) * (b.y2 - b.y1)
+    val union = areaA + areaB - inter
     return if (union > 0f) inter / union else 0f
   }
 
+  /** Map a letterbox-space candidate back to source-image xyxy, clamped. */
   private fun toDetection(c: Candidate, pad: LetterboxPad, srcW: Int, srcH: Int): Detection {
     // Inverse letterbox: subtract padding, divide by scale.
-    var x1 = (c.cx - c.w / 2f - pad.left) / pad.scale
-    var y1 = (c.cy - c.h / 2f - pad.top) / pad.scale
-    var x2 = (c.cx + c.w / 2f - pad.left) / pad.scale
-    var y2 = (c.cy + c.h / 2f - pad.top) / pad.scale
-
-    x1 = x1.coerceIn(0f, srcW.toFloat())
-    y1 = y1.coerceIn(0f, srcH.toFloat())
-    x2 = x2.coerceIn(0f, srcW.toFloat())
-    y2 = y2.coerceIn(0f, srcH.toFloat())
+    val x1 = ((c.x1 - pad.left) / pad.scale).coerceIn(0f, srcW.toFloat())
+    val y1 = ((c.y1 - pad.top) / pad.scale).coerceIn(0f, srcH.toFloat())
+    val x2 = ((c.x2 - pad.left) / pad.scale).coerceIn(0f, srcW.toFloat())
+    val y2 = ((c.y2 - pad.top) / pad.scale).coerceIn(0f, srcH.toFloat())
 
     return Detection(
       x1 = x1,
