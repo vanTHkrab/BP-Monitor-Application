@@ -18,6 +18,16 @@
  * to prevent: a value the server would store that the app refuses to save.
  * The trade-off it costs instead is written out in `@/lib/health-validation`.
  *
+ * The health block is required on the register form specifically — that is a
+ * **client-only UX policy**, not a wire-contract change: `RegisterInput`'s
+ * `dob` / `gender` / `weight` / `height` / `congenitalDisease` stay optional
+ * on the gateway (the profile and caregiver forms still leave them optional),
+ * so "must be present to submit *this* form" is layered on top of, not
+ * instead of, the shared plausibility checks below. It cannot itself violate
+ * the never-stricter-than-the-gateway rule, because refusing to submit an
+ * empty field is not refusing a value the server would have accepted — the
+ * server was never offered a value at all.
+ *
  * Nothing here may be **looser** in a way that guarantees a server rejection
  * either: a 73-character password or an 81-character name is refused by
  * `RegisterInput` with an English class-validator message the user cannot
@@ -25,7 +35,17 @@
  *
  * Returns a map of field → Thai message. Empty means "nothing obviously
  * wrong", not "the server will accept this".
+ *
+ * `registerSchema()` re-expresses `validateRegister` as a Zod schema so the
+ * register screen can wire it through `zodResolver` for React Hook Form. It
+ * is a thin adapter around the function above, not a second copy of the
+ * rules — every message it can produce comes from calling `validateRegister`
+ * and turning its `FieldErrors` map into Zod issues. Keeping the pure
+ * function as the source of truth is what lets `validation.test.ts` keep
+ * testing plain input/output pairs instead of asserting on Zod's issue shape.
  */
+import { z } from 'zod';
+
 import {
   HEIGHT_RANGE_CM,
   WEIGHT_RANGE_KG,
@@ -39,12 +59,6 @@ import type { Gender, RegisterInput } from '../types';
 export type FieldErrors<K extends string> = Partial<Record<K, string>>;
 
 export type LoginField = 'phone' | 'password';
-/**
- * `gender` is absent deliberately: the register screen sets it through an
- * `OptionRow` whose only three options are the three values the gateway's
- * `@IsIn` accepts, so there is no input a user can produce that would need an
- * error slot. Adding the key would mint one nothing can ever write to.
- */
 export type RegisterField =
   | LoginField
   | 'firstname'
@@ -52,6 +66,7 @@ export type RegisterField =
   | 'email'
   | 'confirmPassword'
   | 'dob'
+  | 'gender'
   | 'weight'
   | 'height'
   | 'congenitalDisease';
@@ -97,22 +112,25 @@ export function validateLogin(input: { phone: string; password: string }): Field
 }
 
 /**
- * The five optional health fields are typed as the *form* holds them, not as
- * `RegisterInput` declares them: the picker yields a `Date`, and the two
- * numeric inputs hold strings because converting on every keystroke makes
- * backspacing the last digit snap the field back to its old value. They are
- * optional here so a caller that only fills the required half still type-checks.
+ * The health block is typed as the *form* holds it, not as `RegisterInput`
+ * declares it: the picker yields a `Date`, and the two numeric inputs hold
+ * strings because converting on every keystroke makes backspacing the last
+ * digit snap the field back to its old value. Every one of these is now
+ * required to submit the register form (the avatar is the only field that
+ * stays optional), so none of them carry a `?` here — a controlled React
+ * Hook Form always has a value for a field, even if that value is `''` or
+ * `null` pending its own "please fill this in" error.
  */
 export type RegisterFormValues = Pick<
   RegisterInput,
   'firstname' | 'lastname' | 'phone' | 'password' | 'email'
 > & {
   confirmPassword: string;
-  dob?: Date | null;
-  gender?: Gender | null;
-  weight?: string;
-  height?: string;
-  congenitalDisease?: string;
+  dob: Date | null;
+  gender: Gender | null;
+  weight: string;
+  height: string;
+  congenitalDisease: string;
 };
 
 export function validateRegister(
@@ -151,22 +169,77 @@ export function validateRegister(
   else if (values.confirmPassword !== values.password)
     errors.confirmPassword = 'รหัสผ่านไม่ตรงกัน';
 
-  // The optional health block. Same rules the profile and caregiver forms run,
-  // from `@/lib/health-validation` — a value this form accepts and the profile
-  // screen rejects is one the user can never correct.
-  const dobError = validateDob(values.dob ?? null, now);
-  if (dobError) errors.dob = dobError;
+  // The health block. It is required on *this* form — see the docblock at
+  // the top of the file for why that is a client-only UX policy rather than
+  // a wire-contract change. Each field checks presence first, then defers to
+  // the shared plausibility rule from `@/lib/health-validation`, which is
+  // itself unchanged and still treats an empty value as fine on its own — a
+  // value this form accepts and the profile screen rejects is one the user
+  // can never correct.
+  if (!values.dob) errors.dob = 'กรุณาเลือกวันเกิด';
+  else {
+    const dobError = validateDob(values.dob, now);
+    if (dobError) errors.dob = dobError;
+  }
 
-  const weightError = validateMeasurement(values.weight ?? '', WEIGHT_RANGE_KG, 'กก.');
-  if (weightError) errors.weight = weightError;
+  if (!values.gender) errors.gender = 'กรุณาเลือกเพศ';
 
-  const heightError = validateMeasurement(values.height ?? '', HEIGHT_RANGE_CM, 'ซม.');
-  if (heightError) errors.height = heightError;
+  if (!values.weight.trim()) errors.weight = 'กรุณากรอกน้ำหนัก';
+  else {
+    const weightError = validateMeasurement(values.weight, WEIGHT_RANGE_KG, 'กก.');
+    if (weightError) errors.weight = weightError;
+  }
 
-  const congenitalError = validateCongenitalDisease(values.congenitalDisease ?? '');
-  if (congenitalError) errors.congenitalDisease = congenitalError;
+  if (!values.height.trim()) errors.height = 'กรุณากรอกส่วนสูง';
+  else {
+    const heightError = validateMeasurement(values.height, HEIGHT_RANGE_CM, 'ซม.');
+    if (heightError) errors.height = heightError;
+  }
+
+  if (!values.congenitalDisease.trim()) errors.congenitalDisease = 'กรุณากรอกโรคประจำตัว';
+  else {
+    const congenitalError = validateCongenitalDisease(values.congenitalDisease);
+    if (congenitalError) errors.congenitalDisease = congenitalError;
+  }
 
   return errors;
+}
+
+/**
+ * The Zod adapter React Hook Form drives via `zodResolver`.
+ *
+ * `now` is a constructor argument rather than baked in because `validateDob`
+ * needs one and a schema has to be built fresh to close over it — Zod has no
+ * hook for threading extra arguments through `superRefine` at parse time.
+ * The register screen calls this once, memoized; tests that care about the
+ * date boundary (`dob` in the future, or 120+ years old) pass a fixed `now`
+ * the same way they already do for `validateRegister`.
+ *
+ * The base shape below only checks JS type — every Thai message still comes
+ * from `validateRegister` itself, reused rather than re-expressed, so there
+ * is exactly one place that decides what each field requires.
+ */
+export function registerSchema(now: Date = new Date()) {
+  return z
+    .object({
+      firstname: z.string(),
+      lastname: z.string(),
+      phone: z.string(),
+      email: z.string(),
+      password: z.string(),
+      confirmPassword: z.string(),
+      dob: z.date().nullable(),
+      gender: z.enum(['male', 'female', 'other']).nullable(),
+      weight: z.string(),
+      height: z.string(),
+      congenitalDisease: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      const errors = validateRegister(values, now);
+      for (const [field, message] of Object.entries(errors)) {
+        if (message) ctx.addIssue({ code: 'custom', message, path: [field] });
+      }
+    });
 }
 
 /**

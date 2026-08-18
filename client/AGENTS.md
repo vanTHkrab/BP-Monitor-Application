@@ -84,7 +84,7 @@ the finishing check is `pnpm check`.
 | `test` | everything | both, and what any full audit should use |
 
 The two halves must **add up to `pnpm test`**: 112 + 77 = 189 suites and
-1831 + 736 = 2567 tests, which is what `pnpm test` reports. A test file
+1836 + 745 = 2581 tests, which is what `pnpm test` reports. A test file
 outside all four matched directories is orphaned from both scripts and from
 CI, and **nothing reports it** — the run it is missing from still passes.
 That happened on the first version of this split, which omitted `/scripts/`
@@ -376,6 +376,24 @@ for what the manifest cannot express: the non-obvious choices and their traps.
   must, instead of stubbing the whole module.
 - **`client-old/` is not a dependency of anything.** It is the legacy tree,
   kept for history. Its docs describe *its* layout, not this app's.
+- **`react-hook-form` + `zod` + `@hookform/resolvers` are on `register.tsx`
+  only, deliberately** — a scoped first migration off the hand-rolled
+  `useState` + `validate*()` pattern the other auth screens still use, not a
+  library swap. Before wiring a second screen onto it, read
+  `app/(auth)/register.tsx`'s `fieldError` docblock first: `Controller`
+  subscribes to its own field's state independently of the form it belongs
+  to, and its `fieldState` can commit on a **different render tick** than
+  the `formState` the screen destructures at the top — reproduced by hand
+  while building this screen, isolated over dozens of runs, and invisible to
+  every fix that touches only test code (`waitFor`, `userEvent`, explicit
+  microtask/macrotask flushes all failed to paper over it reliably). It
+  showed up as a validation error that `formState.errors` correctly held
+  while the field it belonged to kept rendering no error at all — sometimes
+  for several renders in a row, with no exception, no warning, and no
+  correlation to which interaction API fired the event. The fix is to read
+  every field's error from the *one* `formState` (`errors`, `touchedFields`)
+  the screen already destructures, never from a `Controller`'s own
+  `fieldState` — see `fieldError` for the working pattern.
 
 ## Where tests live
 

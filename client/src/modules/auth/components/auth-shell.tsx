@@ -7,7 +7,7 @@
  * and the header spacing differed between them.
  */
 import { Image } from 'expo-image';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -19,9 +19,19 @@ export type AuthShellProps = {
   children: ReactNode;
   /** Hidden on the taller register form so the fields stay above the fold. */
   showHero?: boolean;
+  /**
+   * Forwarded to the underlying `ScrollView`. The register form is tall
+   * enough that a focused field near the bottom can land under the
+   * keyboard with nothing to scroll it into view — the screen needs an
+   * imperative handle on the same `ScrollView` it does not otherwise own,
+   * both to call `scrollTo` and to reach `getInnerViewNode()` as the
+   * ancestor for a field's own `measureLayout` call. See
+   * `app/(auth)/register.tsx`'s `useScrollFieldIntoView`.
+   */
+  scrollRef?: RefObject<ScrollView | null>;
 };
 
-export function AuthShell({ children, showHero = true }: AuthShellProps) {
+export function AuthShell({ children, showHero = true, scrollRef }: AuthShellProps) {
   const { scheme } = useColorSchemePreference();
   const colors = useTheme();
   const isDark = scheme === 'dark';
@@ -32,6 +42,7 @@ export function AuthShell({ children, showHero = true }: AuthShellProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1">
         <ScrollView
+          ref={scrollRef}
           className="flex-1"
           contentContainerClassName="flex-grow"
           keyboardShouldPersistTaps="handled"
