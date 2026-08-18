@@ -91,4 +91,30 @@ class TestAnalysisMetricsBuild:
         # No nesting — JSONL row is flat by design
         assert all(not isinstance(v, dict) for v in wire.values())
         assert wire["engine"] == "ssocr"
+
         assert wire["image_size_bytes"] == 999
+
+    def test_recovery_flags_go_out_as_numbers_not_booleans(self):
+        """The gateway parses metrics by asserting every key in its
+        allowlist is a finite number (`ai.process.ts::parseMetrics`).
+        Emitting booleans would make the gateway-side half of this
+        change a new type branch instead of three added strings."""
+        m = AnalysisMetrics.build(
+            engine=OCREngine.CRNN,
+            fetch_ms=5.0,
+            pipeline_metrics=PipelineMetrics(
+                detect_ms=1.0, rectify_ms=0.0, ocr_ms=2.0, validate_ms=0.5,
+                recovery_attempted=True, recovery_committed=False,
+                recovery_ms=27.0,
+            ),
+            total_ms=10.0,
+            rss_before_mb=200.0, rss_after_mb=210.0,
+            image_size_bytes=999,
+        )
+        wire = m.to_wire()
+        assert wire["recovery_attempted"] == 1
+        assert wire["recovery_committed"] == 0
+        assert wire["recovery_ms"] == 27.0
+        for key in ("recovery_attempted", "recovery_committed", "recovery_ms"):
+            assert not isinstance(wire[key], bool)
+            assert isinstance(wire[key], (int, float))

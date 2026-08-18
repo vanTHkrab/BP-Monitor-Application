@@ -78,6 +78,12 @@ class TestDefaults:
         assert opts.intra_op_num_threads == cfg.onnx_intra_op_threads
         assert opts.inter_op_num_threads == cfg.onnx_inter_op_threads
 
+    def test_detection_recovery_is_on_by_default(self):
+        """The fallback only runs after the first pass has already
+        failed, so it cannot regress a frame that worked — and the
+        distance failure it addresses is measured. Default ON."""
+        assert AnalyzerConfig().detection_recovery_enabled is True
+
     def test_cpu_providers(self):
         assert AnalyzerConfig().onnx_providers == ["CPUExecutionProvider"]
 
@@ -95,6 +101,10 @@ class TestEnvOverride:
         cfg = AnalyzerConfig()
         assert cfg.confidence_threshold == 0.7
         assert cfg.pipeline_timeout_s == 60.0
+
+    def test_detection_recovery_can_be_switched_off(self, monkeypatch):
+        monkeypatch.setenv("AI_DETECTION_RECOVERY_ENABLED", "0")
+        assert AnalyzerConfig().detection_recovery_enabled is False
 
     def test_relative_path_anchors_to_ai_service_root_not_cwd(self, monkeypatch, tmp_path):
         # Running pytest from any directory must not affect the resolved path.

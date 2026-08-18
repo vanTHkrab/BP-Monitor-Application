@@ -78,7 +78,12 @@ class AnalysisStatus(StrEnum):
     """
 
     SUCCESS = "success"              # all 3 fields read + in range + high confidence
-    LOW_CONFIDENCE = "low_confidence"  # all 3 read but some out of range / low conf
+    # Three ways in, not two: some field out of range, confidence below a
+    # floor, OR the reading came from the detection-recovery crop — which
+    # is capped here however well it scores, because nothing in the
+    # confidence signals separates its right answers from its wrong ones.
+    # See AGENTS.md "A recovered reading is never `success`".
+    LOW_CONFIDENCE = "low_confidence"
     UNREADABLE = "unreadable"         # <3 fields detected — no trustworthy reading
 
 
@@ -101,6 +106,10 @@ class FieldReading:
     ocr_confidence: float
     in_range: bool
     value_range: tuple[int, int]
+    #: At least one digit in ``raw_text`` was not in the image — see
+    #: ``ocr.base.OCRResult.fabricated``. Defaulted because only the
+    #: SSOCR systolic rescue can currently set it.
+    fabricated: bool = False
 
     @property
     def combined_confidence(self) -> float:
@@ -129,6 +138,35 @@ class PipelineMetrics:
     skipped (no screen box detected) or failed silently and the
     pipeline ran on the original image.
 
+    The three ``recovery_*`` fields describe the detection-recovery
+    fallback (``pipeline._recover_from_device_crop``), which only runs
+    when the first pass found fewer than 3 field classes. They exist
+    because that fallback fires on frames the service currently loses
+    **silently** — the reply is ``unreadable`` either way, so without a
+    counter there is no way to tell whether the fallback is earning its
+    latency or never firing at all:
+
+    * ``recovery_attempted`` — a device ROI was found, cropped, and
+      re-detected. ``False`` covers both "the first pass was fine" and
+      "there was nothing to crop to", which are distinguished in the
+      logs, not here.
+    * ``recovery_committed`` — the recovered crop produced a plausible
+      reading and became the working image. ``committed / attempted``
+      is the recovery rate; ``attempted / rows`` is the fire rate.
+    * ``recovery_ms`` — the padded crop plus the second detection.
+      OCR on the recovered crop is **not** counted here; it lands in
+      ``ocr_ms`` like any other OCR so the stage stays comparable
+      across the normal and recovery paths.
+
+    **``ocr_ms`` changed meaning on ``unreadable`` rows** when the
+    fallback landed. It used to be ``0.0`` on every such row, because
+    reaching ``unreadable`` meant no OCR had run. A recovery that reads
+    the crop and then discards it as implausible now reports the real
+    time it spent — the read genuinely happened. So an ``unreadable``
+    row with ``ocr_ms > 0`` is a declined recovery, not a contradiction,
+    and rows either side of this change are not directly comparable on
+    that column.
+
     Fields are written once during a single ``analyze()`` call and
     treated as read-only afterwards; the frozen dataclass enforces that.
     """
@@ -137,6 +175,12 @@ class PipelineMetrics:
     rectify_ms: float
     ocr_ms: float
     validate_ms: float
+    # Defaulted so constructions that predate the fallback keep meaning
+    # what they meant: no recovery was attempted, none was committed,
+    # and it cost nothing.
+    recovery_attempted: bool = False
+    recovery_committed: bool = False
+    recovery_ms: float = 0.0
 
 
 @dataclass(frozen=True)

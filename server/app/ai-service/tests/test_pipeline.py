@@ -11,6 +11,7 @@ import pytest
 from ai_service.analyzer.pipeline import (
     BPAnalysisPipeline,
     _mean_field_confidence,
+    _pad_box,
     _parse_int,
     _pick_best_per_class,
 )
@@ -613,3 +614,399 @@ class TestSplitConfidenceVerdict:
         assert res.status == AnalysisStatus.UNREADABLE
         assert res.detection_confidence == 0.0
         assert res.read_confidence == 0.0
+
+
+# ─── detection recovery ─────────────────────────────────────────────────
+
+
+def _monitor(x2: float = 400, y2: float = 300, conf: float = 0.60) -> BoundingBox:
+    """A device box of the kind the recovery fallback crops to.
+
+    Confidence 0.60 by default because that is the regime the fallback
+    exists for: the false monitor boxes measured at distance sat at
+    median 0.515-0.649, indistinguishable from the true ones, which is
+    precisely why the commit decision cannot be a confidence check.
+    """
+    return BoundingBox(
+        0, 0, x2, y2, cls=0, class_name="BP_Monitor", confidence=conf,
+    )
+
+
+def _crop_field(cls: BPClass, name: str, conf: float = 0.9) -> BoundingBox:
+    """A field box as returned by the second pass — in the CROP's frame."""
+    return BoundingBox(5, 5, 25, 20, cls=int(cls), class_name=name, confidence=conf)
+
+
+CROP_FIELDS = [
+    _crop_field(BPClass.SYSTOLIC, "sys"),
+    _crop_field(BPClass.DIASTOLIC, "dia"),
+    _crop_field(BPClass.PULSE, "pulse"),
+]
+
+
+class CountingSequentialDetector(SequentialMockDetector):
+    """SequentialMockDetector that records how many times it ran."""
+
+    def __init__(self, *responses, version: str = "2026-01-29") -> None:
+        super().__init__(*responses, version=version)
+        self.calls = 0
+
+    def detect(self, image, *, class_filter=None):
+        self.calls += 1
+        return super().detect(image, class_filter=class_filter)
+
+
+def _recovery_pipe(first_pass, second_pass, ocr_readers, **kwargs):
+    """Pipeline whose first YOLO pass fails and whose crop pass is fixed."""
+    return BPAnalysisPipeline(
+        detector=CountingSequentialDetector(first_pass, second_pass),
+        ocr_readers=ocr_readers,
+        field_timeout_s=1.0,
+        **kwargs,
+    )
+
+
+class TestPadBox:
+    def test_grows_by_fraction_of_own_size(self):
+        box = BoundingBox(100, 100, 200, 300, cls=0, class_name="m", confidence=0.5)
+        padded = _pad_box(box, (1000, 1000, 3), 0.10)
+        # 10% of width 100 = 10 per side; 10% of height 200 = 20 per side.
+        assert (padded.x1, padded.x2) == (90.0, 210.0)
+        assert (padded.y1, padded.y2) == (80.0, 320.0)
+
+    def test_clamps_to_image_bounds(self):
+        box = BoundingBox(0, 0, 100, 100, cls=0, class_name="m", confidence=0.5)
+        padded = _pad_box(box, (100, 100, 3), 0.50)
+        assert (padded.x1, padded.y1) == (0.0, 0.0)
+        assert (padded.x2, padded.y2) == (100.0, 100.0)
+
+    def test_keeps_class_and_confidence(self):
+        box = BoundingBox(10, 10, 50, 50, cls=1, class_name="screen", confidence=0.77)
+        padded = _pad_box(box, (500, 500, 3), 0.12)
+        assert (padded.cls, padded.class_name) == (1, "screen")
+        assert padded.confidence == pytest.approx(0.77)
+
+
+class TestDetectionRecoveryCommits:
+    """The fallback fires, reads the crop, and keeps it when plausible."""
+
+    async def test_recovers_a_frame_the_first_pass_could_not_read(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],          # 1/3 fields — first pass fails
+            CROP_FIELDS,                    # crop pass finds all three
+            make_ocr_readers("120", "80", "72", 0.95),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert (res.systolic, res.diastolic, res.pulse) == (120, 80, 72)
+        assert metrics.recovery_attempted is True
+        assert metrics.recovery_committed is True
+        assert metrics.recovery_ms > 0.0
+
+    async def test_a_recovered_reading_is_never_reported_as_success(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """Perfect confidence on both axes cannot buy a recovery the
+        SUCCESS verdict. Measured: committed recoveries are wrong about
+        2 times in 5 at distance, and no existing confidence signal
+        separates the wrong ones from the right ones — a correct read
+        and a wrong one landed on the same 0.68 blend. So the doubt is
+        carried structurally instead."""
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("120", "80", "72", 1.0),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert metrics.recovery_committed is True
+        assert res.status == AnalysisStatus.LOW_CONFIDENCE
+        # ... and the values are still reported, not suppressed.
+        assert (res.systolic, res.diastolic, res.pulse) == (120, 80, 72)
+
+    async def test_the_same_reading_on_the_normal_path_is_success(
+        self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers,
+    ):
+        """Guards the demotion against over-reach: it must key off the
+        recovery path, not off anything about the reading itself."""
+        pipe = BPAnalysisPipeline(
+            detector=MockDetector([box_sys, box_dia, box_pul]),
+            ocr_readers=make_ocr_readers("120", "80", "72", 1.0),
+            field_timeout_s=1.0,
+        )
+        res, _ = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.SUCCESS
+
+    async def test_committed_fields_carry_crop_frame_coordinates(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """The crop becomes the working image, so the reported bboxes are
+        the crop's — not remapped back to the source frame."""
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("120", "80", "72", 0.95),
+        )
+        res, _ = await pipe.analyze(fake_image)
+        sys_field = next(f for f in res.fields if f.bp_class == BPClass.SYSTOLIC)
+        assert (sys_field.bbox.x1, sys_field.bbox.y1) == (5, 5)
+
+    async def test_prefers_the_screen_box_over_the_monitor_box(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """Class 1 wins when both are present, even at lower confidence —
+        the screen is the tighter true crop."""
+        screen = BoundingBox(
+            50, 50, 250, 200, cls=1, class_name="BP_Screen_Monitor",
+            confidence=0.40,
+        )
+        pipe = _recovery_pipe(
+            [_monitor(conf=0.95), screen, box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("120", "80", "72", 0.95),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert metrics.recovery_committed is True
+        assert res.systolic == 120
+
+    async def test_ocr_runs_exactly_once_across_the_whole_request(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """The recovery OCR replaces the read that never happened; it is
+        not a second read on top of one. Keeps ``ocr_ms`` meaning the
+        same thing on both paths."""
+        readers = make_ocr_readers("120", "80", "72", 0.95)
+        counts = {c: 0 for c in readers}
+
+        for bp_class, reader in readers.items():
+            inner = reader.read
+
+            def counting(image, _inner=inner, _c=bp_class):
+                counts[_c] += 1
+                return _inner(image)
+
+            reader.read = counting
+
+        pipe = _recovery_pipe([_monitor(), box_sys], CROP_FIELDS, readers)
+        await pipe.analyze(fake_image)
+        assert set(counts.values()) == {1}
+
+
+class TestDetectionRecoveryDiscards:
+    """The plausibility gate — the whole reason this is safe to enable.
+
+    Committing on the 3-fields-found check alone was measured to add
+    wrong answers at every rotated stratum (crnn 10 -> 11 wrong fields at
+    rot90). Each case below is a reading the detection count would have
+    accepted.
+    """
+
+    async def test_discards_when_sys_is_not_above_dia(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("80", "120", "72", 0.95),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_attempted is True
+        assert metrics.recovery_committed is False
+
+    async def test_discards_when_a_field_is_out_of_range(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("400", "80", "72", 0.95),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_committed is False
+
+    async def test_discards_a_reading_containing_a_fabricated_digit(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """The rule that separates a clean golden run from a regression.
+
+        SSOCR completes a 2-digit systolic by prefixing a ``1`` that was
+        never on the display. That read is in range, parses, and beats
+        dia — so every other clause here passes it. On the real corpus
+        it was the single frame that turned 3 refusals into 3 wrong
+        answers at rot90. A recovery exists to override a refusal, and a
+        digit nobody read cannot be the thing that overrides it.
+        """
+        readers = make_ocr_readers("111", "80", "72", 0.95, sys_fabricated=True)
+        pipe = _recovery_pipe([_monitor(), box_sys], CROP_FIELDS, readers)
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_attempted is True
+        assert metrics.recovery_committed is False
+
+    async def test_a_fabricated_digit_is_still_reported_on_the_normal_path(
+        self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers,
+    ):
+        """The fabrication rule is scoped to the recovery path only — it
+        must not silently change what an ordinary frame reports."""
+        readers = make_ocr_readers("111", "80", "72", 0.95, sys_fabricated=True)
+        pipe = BPAnalysisPipeline(
+            detector=MockDetector([box_sys, box_dia, box_pul]),
+            ocr_readers=readers,
+            field_timeout_s=1.0,
+        )
+        res, _ = await pipe.analyze(fake_image)
+        assert res.systolic == 111
+
+    async def test_discards_when_a_field_does_not_parse(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("", "80", "72", 0.95),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_committed is False
+
+    async def test_a_discarded_recovery_still_reports_what_it_cost(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """Latency spent on a recovery that was thrown away is still
+        latency — a metric that hid it would make the stage look free."""
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("80", "120", "72", 0.95),
+        )
+        _res, metrics = await pipe.analyze(fake_image)
+        assert metrics.recovery_ms > 0.0
+        assert metrics.ocr_ms > 0.0
+
+
+class TestDetectionRecoveryDeclines:
+    """Cases where the fallback never runs a second detection at all."""
+
+    async def test_declines_when_there_is_no_device_box(
+        self, fake_image, box_sys, box_dia, make_ocr_readers,
+    ):
+        pipe = _recovery_pipe(
+            [box_sys, box_dia],             # fields only, no class 0/1
+            CROP_FIELDS,
+            make_ocr_readers("120", "80", "72", 0.95),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_attempted is False
+        assert metrics.recovery_ms == 0.0
+
+    async def test_declines_a_degenerate_roi(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """A box a few tens of pixels wide would be upscaled >10x into the
+        512x512 letterbox — the second pass would read interpolation."""
+        pipe = _recovery_pipe(
+            [_monitor(x2=20, y2=15), box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("120", "80", "72", 0.95),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_attempted is False
+
+    async def test_attempts_but_declines_when_the_crop_is_still_short(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],
+            CROP_FIELDS[:2],                # crop pass finds only 2/3
+            make_ocr_readers("120", "80", "72", 0.95),
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_attempted is True
+        assert metrics.recovery_committed is False
+        assert metrics.ocr_ms == 0.0     # never got as far as reading
+
+    async def test_a_crash_inside_recovery_still_answers_unreadable(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """A raise in the second detect must not escalate the reply.
+
+        These frames could not raise at all before the fallback existed
+        — they short-circuited to ``unreadable`` before any detection or
+        OCR ran. Letting an exception through would turn them into
+        ``pipeline error`` replies, which is a strictly worse answer
+        introduced by a stage whose promise is that failing is free.
+        """
+
+        class ExplodingSecondPass(CountingSequentialDetector):
+            def detect(self, image, *, class_filter=None):
+                if self.calls >= 1:
+                    raise RuntimeError("onnxruntime fell over on the crop")
+                return super().detect(image, class_filter=class_filter)
+
+        pipe = BPAnalysisPipeline(
+            detector=ExplodingSecondPass([_monitor(), box_sys], CROP_FIELDS),
+            ocr_readers=make_ocr_readers("120", "80", "72", 0.95),
+            field_timeout_s=1.0,
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_attempted is True
+        assert metrics.recovery_committed is False
+
+    async def test_a_crash_while_reading_the_crop_is_also_contained(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        """The guard covers the recovery read too, not just the detect."""
+        readers = make_ocr_readers("120", "80", "72", 0.95)
+
+        def boom(_image):
+            raise RuntimeError("OCR engine fell over")
+
+        readers[BPClass.SYSTOLIC].read = boom
+        pipe = _recovery_pipe([_monitor(), box_sys], CROP_FIELDS, readers)
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_committed is False
+
+    async def test_flag_off_skips_the_second_detection_entirely(
+        self, fake_image, box_sys, make_ocr_readers,
+    ):
+        pipe = _recovery_pipe(
+            [_monitor(), box_sys],
+            CROP_FIELDS,
+            make_ocr_readers("120", "80", "72", 0.95),
+            detection_recovery_enabled=False,
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.UNREADABLE
+        assert metrics.recovery_attempted is False
+        assert pipe._detector.calls == 1
+
+
+class TestDetectionRecoveryLeavesTheHappyPathAlone:
+    """The property the whole design rests on: a frame that already
+    worked never enters the fallback, so it cannot change behaviour."""
+
+    async def test_three_fields_never_triggers_recovery(
+        self, fake_image, box_sys, box_dia, box_pul, make_ocr_readers,
+    ):
+        detector = CountingSequentialDetector(
+            [_monitor(), box_sys, box_dia, box_pul],
+            CROP_FIELDS,
+        )
+        pipe = BPAnalysisPipeline(
+            detector=detector,
+            ocr_readers=make_ocr_readers("120", "80", "72", 0.95),
+            field_timeout_s=1.0,
+        )
+        res, metrics = await pipe.analyze(fake_image)
+        assert res.status == AnalysisStatus.SUCCESS
+        assert metrics.recovery_attempted is False
+        assert metrics.recovery_committed is False
+        assert metrics.recovery_ms == 0.0
+        assert detector.calls == 1
