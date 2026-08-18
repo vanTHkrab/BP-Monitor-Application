@@ -20,6 +20,7 @@ import {
   registerSessionExpiryHandler,
   registerSessionUserMirror,
 } from '@/modules/auth';
+import { registerActivePatientReset } from '@/modules/caregivers';
 import {
   initReminderNotifications,
   registerPushNotifications,
@@ -69,10 +70,16 @@ function useAuthBootstrap() {
     // Mirrors the signed-in user id to device storage so an offline cold
     // start knows whose local readings to show — see `modules/auth/bootstrap`.
     const unsubscribe = registerSessionUserMirror();
+    // Drops the caregiver's selected patient when the account changes. Also a
+    // store subscription rather than a call inside `useLogout`, because a
+    // session ends two ways and only one of them goes through that hook — see
+    // `modules/caregivers/bootstrap`.
+    const unsubscribeActivePatient = registerActivePatientReset();
     void initAuth();
     return () => {
       unregister();
       unsubscribe();
+      unsubscribeActivePatient();
     };
   }, []);
 }

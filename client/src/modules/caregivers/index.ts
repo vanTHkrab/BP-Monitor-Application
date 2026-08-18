@@ -7,6 +7,7 @@
  * that still renders as "รอตอบรับ" is exactly the kind of bug that makes
  * someone accept twice.
  */
+export { registerActivePatientReset } from './bootstrap';
 export {
   resetActivePatient,
   useActivePatient,
