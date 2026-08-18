@@ -369,9 +369,12 @@ for what the manifest cannot express: the non-obvious choices and their traps.
   missing native module. It replaced two hand-rolled attempts at the same
   problem on the register form, both of which failed *silently* — read
   `app/(auth)/register.tsx`'s header before writing a third. `KeyboardProvider`
-  is mounted in `app/_layout.tsx` and mirrored into
-  `__test__/test-utils.tsx`; the package's own mock is wired in
-  `jest.setup.js`.
+  is mounted in `app/_layout.tsx` and deliberately **not** mirrored into
+  `__test__/test-utils.tsx` — the package's own jest mock, wired in
+  `jest.setup.js`, exports it as a host component that no mocked
+  `KeyboardAware*` reads context from, so mirroring it would add a phantom
+  root node and break the "renders nothing" assertions for nothing. The
+  reasoning is written out in `test-utils.tsx`.
 - **`onnxruntime-react-native` is deliberately NOT a dependency.** Inference
   runs only in the Kotlin `bp-vision` module. The JS detector `client-old`
   once had was deleted rather than left broken. If you find yourself adding

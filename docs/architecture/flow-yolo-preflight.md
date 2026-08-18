@@ -39,13 +39,14 @@ flowchart TD
     C --> D["Decode by the loaded graph's output shape<br/>[1,4+C,anchors] → per-class NMS here (yolo11n family)<br/>[1,300,6] → already suppressed (yolo26n family, loaded today)<br/>conf 0.25 / IoU 0.45 on the anchors path only"]
     D --> E["Detection[] in source-image pixels"]
 
-    E --> F["evaluateFraming(frame)"]
-    F --> G{"Monitor box present?<br/>(class 0 or 1, highest confidence)"}
+    E --> F["evaluateFraming(frame, viewportAspect)"]
+    F --> V["Visible rect = computeCoverCropBox(frame, viewportAspect)<br/>the ~80% of a 16:9 frame FILL_CENTER leaves on screen<br/>every ratio below is against this, not the whole frame"]
+    V --> G{"Monitor box present?<br/>(screen class 1 preferred, body class 0 as fallback)"}
     G -- "no" --> S["searching"]
-    G -- "yes" --> H{"area ratio"}
-    H -- "< 0.08" --> TF["too-far"]
-    H -- "> 0.85" --> TC["too-close"]
-    H -- "in range" --> I{"centre offset <= 0.22<br/>and >= 2 of sys/dia/pulse"}
+    G -- "yes" --> H{"area ratio, per class"}
+    H -- "class 0 < 0.10 / class 1 < 0.04" --> TF["too-far"]
+    H -- "class 0 > 0.90 / class 1 > 0.55" --> TC["too-close"]
+    H -- "in range" --> I{"centre offset <= 0.22 of the visible extent<br/>and >= 2 of sys/dia/pulse"}
     I -- "no" --> OC["off-center"]
     I -- "yes" --> T{"field-line tilt <= 10 deg?<br/>(estimateFieldTiltDeg — null = no opinion)"}
     T -- "no" --> TI["tilted"]
