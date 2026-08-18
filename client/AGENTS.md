@@ -185,6 +185,60 @@ and why it was not bundled with the first.
   `analyzer/yolo.py`. Change one side, change the other, or the phone approves
   a framing the server cannot read. See
   [ADR-002](../docs/decisions/ADR-002-detection-taxonomy-wire-contract.md).
+- **The detector decode dispatches on the graph, never on config.**
+  `YoloDetector` decodes two export families — yolo11n's raw
+  `[1, 4+C, anchors]` (NMS owed here, which is the only thing
+  `DEFAULT_IOU_THRESHOLD` still feeds) and yolo26n's end-to-end `[1, 300, 6]`
+  (already suppressed). `resolveOutputFormat` reads the format off the loaded
+  session's declared output shape and throws
+  `UnsupportedDetectorOutputException` **at load**. Both halves of that are
+  load-bearing: the shapes have the same rank and dtype, so decoding one as the
+  other returns confident garbage rather than failing, and `detect()` runs
+  inside the CameraX analysis stream where a throw has no failure surface —
+  it would paint bad boxes over the preview. `runReadBp` already maps a load
+  throw to `unavailable("model-load-failed")`.
+  Keep the discriminators identical to `resolve_output_format` in
+  `analyzer/yolo.py`, ordering included; they are a pair.
+- **A `-gray` model still takes 3-channel input, and this side declares that
+  rather than inferring it.** `-gray` means "trained on grayscale renders";
+  feeding it colour costs accuracy with no symptom at all. ai-service reads the
+  marker off the model filename and calls that its own soft spot. Here the
+  rendering is stated next to the asset name (`YOLO_ASSET` / `YOLO_RENDERING`
+  in `BPVisionModule.kt`) and `fromModelBytes` takes it as a required argument,
+  so a swap cannot skip the question — but adjacency alone would not stop you
+  answering it wrong. `checkRenderingMatchesAsset` throws at load when the
+  filename marker and the declared rendering disagree. That is a veto, not
+  inference: the declaration decides, the filename only refuses to contradict
+  it, and it has no override because ai-service infers from that same filename
+  on the same file. The phone loads `yolo11n.onnx` / `InputRendering.COLOR`
+  today.
+- **What actually gates a bundled model is two `MODELS` arrays, not the
+  manifest.** `scripts/verify-models.mjs` and
+  `modules/bp-vision/plugin/withBpVisionModels.js` each hold their own
+  `['yolo11n.onnx', 'crnn.onnx']` list; `verify-models` iterates *that* and
+  looks up only those names, so an extra key in `EXPECTED_HASHES.json` is
+  structurally unreachable and harmless. A manifest entry ahead of bundling is
+  in fact the correct order — the hash has to exist before a file can be
+  verified against it. The failure modes are the reverse, and they are not
+  symmetric:
+  - a name in **`verify-models.mjs`'s** array with no file in
+    `assets/models/` → `pnpm start` dies at `prestart` with
+    `Bundled model missing`;
+  - a name in **the plugin's** array with no file → `expo prebuild` dies with
+    `[bp-vision] bundled model missing`. `pnpm start` stays green, because
+    nothing on that path reads the plugin's list;
+  - the file in `assets/models/` and **only** the plugin's array updated → the
+    bytes reach the APK and are **never SHA256-checked against the backend
+    manifest at all**. This is the one that ships, and it is the ADR-002 drift
+    the check exists to prevent;
+  - the file alone, neither array → it never enters the APK. The plugin is the
+    only writer of `android/app/src/main/assets/models/` (`client/android/` is
+    gitignored and regenerated), Metro is not a second path (no
+    `assetBundlePatterns`, and nothing `require()`s an `.onnx` despite
+    `metro.config.js` allowing the extension), and `readModelAsset` throws
+    `ModelAssetException` if `YOLO_ASSET` points at something uncopied.
+
+  Both arrays move together, in the same change as the asset.
 - **Typography is centralised, and the multiplication happens once.**
   `hooks/use-typography.ts` is the only place in `src/` that turns a base px
   into a rendered px — `Math.round(base × sizeScale × opticalScale)`. The data

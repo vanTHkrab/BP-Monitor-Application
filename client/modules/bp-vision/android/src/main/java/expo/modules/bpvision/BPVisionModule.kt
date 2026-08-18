@@ -38,8 +38,91 @@ private const val TAG = "BPVisionModule"
 // (modules/bp-vision/plugin/withBpVisionModels.js copies them from
 // client/assets/models/ into android/app/src/main/assets/models/ at prebuild).
 // Keep these names in sync with that plugin's MODELS list and verify-models.mjs.
+//
+// The detector's input rendering is declared on the line below its filename,
+// not inferred from it. ai-service reads `-gray` off the model path and calls
+// that its own soft spot, because a `-gray` export still takes 3-channel input
+// and feeding it colour costs accuracy with no symptom — a rename there is a
+// silent regression. See YoloDetector.InputRendering.
+//
+// Declaring the pair adjacently is a convention, and a convention is not an
+// enforcement: editing YOLO_ASSET to a `-gray` export and leaving YOLO_RENDERING
+// at COLOR compiles cleanly into exactly the silent accuracy loss the design
+// exists to prevent. checkRenderingMatchesAsset below is what actually holds
+// them together.
 private const val YOLO_ASSET = "yolo11n.onnx"
+private val YOLO_RENDERING = YoloDetector.InputRendering.COLOR
 private const val CRNN_ASSET = "crnn.onnx"
+
+// Filename markers meaning "trained on grayscale renders". Mirrors
+// GRAYSCALE_NAME_MARKERS in ai-service's analyzer/yolo.py, which is the point:
+// the phone and the server bundle the same file under the same name, and the
+// server infers its preprocessing from that name.
+private val GRAYSCALE_NAME_MARKERS = listOf("gray", "grey")
+
+/**
+ * Refuse a detector asset whose filename contradicts its declared rendering.
+ *
+ * This is **not** filename inference creeping back in. The declaration still
+ * decides what the preprocessing does; the filename is given no say beyond a
+ * veto, and it can only veto a disagreement. Nothing here ever picks a
+ * rendering.
+ *
+ * Both directions are wrong and both throw:
+ *  - a `-gray` asset declared COLOR feeds a grayscale-trained model real
+ *    colour, which is an accuracy loss with no symptom at all;
+ *  - a marker-less asset declared GRAYSCALE_REPLICATED throws away the colour
+ *    a model was trained on, and additionally lies to ai-service — the same
+ *    file ships there under the same name (`verify-models.mjs` hashes it
+ *    against the shared manifest) and `infer_grayscale_input` reads that name.
+ *    A name our declaration disagrees with is a name that mis-preprocesses on
+ *    the server too, where no second declaration exists to catch it.
+ *
+ * There is deliberately no override. ai-service accepts one because its path
+ * is configurable at deploy time; here the asset is a source constant, so the
+ * escape hatch is to name the file per the convention both sides already
+ * depend on. Failing at load matches how [YoloDetector.resolveOutputFormat]
+ * treats an unrecognised graph.
+ *
+ * **Where the throw lands depends on who loads first.** `ensureDetector()` has
+ * three callers. Reached through `runReadBp` it surfaces as
+ * `unavailable("model-load-failed")`; reached through `detect` it rejects that
+ * promise with the Kotlin exception. Reached through the live framing gate it
+ * does not: `setLiveDetection` hands `ensureDetector` over as the supplier, so
+ * the session is built inside `onAnalysisFrame`, and `CameraController
+ * .analyzeFrame` catches `Throwable` and keeps the analyzer thread alive — by
+ * design, since one bad frame must not end detection for the session. The
+ * developer this guard exists for — the one who repointed [YOLO_ASSET] and
+ * left [YOLO_RENDERING] — most likely opens the camera screen, and sees a
+ * preview with no boxes plus a `Log.w` **per analysis frame**: nothing is
+ * cached on the throwing path, so every frame re-runs the check and re-logs.
+ * A repeating warn is easier to notice than a single one, but it is also the
+ * opposite of what [YoloDetector.resolveOutputFormat] does deliberately — a
+ * property, not a `lazy`, so its gate fires once rather than per frame. That
+ * is why the message below has to explain itself in logcat with no
+ * surrounding context.
+ */
+private fun checkRenderingMatchesAsset(asset: String, rendering: YoloDetector.InputRendering) {
+  // Stem, not the whole name, to match `Path(model_path).stem.lower()` server-side.
+  val stem = asset.substringBeforeLast('.').lowercase()
+  val nameSaysGrayscale = GRAYSCALE_NAME_MARKERS.any { it in stem }
+  val declaredGrayscale = rendering == YoloDetector.InputRendering.GRAYSCALE_REPLICATED
+
+  check(nameSaysGrayscale == declaredGrayscale) {
+    if (nameSaysGrayscale) {
+      "detector asset '$asset' is named as a grayscale-trained export but is declared " +
+        "$rendering. A `-gray` model takes 3-channel input like any other, so this " +
+        "would feed it colour and lose accuracy with no symptom. Set YOLO_RENDERING " +
+        "to ${YoloDetector.InputRendering.GRAYSCALE_REPLICATED}, or rename the asset " +
+        "if it is not in fact grayscale-trained."
+    } else {
+      "detector asset '$asset' is declared $rendering but carries no " +
+        "${GRAYSCALE_NAME_MARKERS.joinToString("/")} marker. ai-service infers its own " +
+        "preprocessing from this same filename, so the name has to carry the marker or " +
+        "the server will feed the model colour no matter what this side declares."
+    }
+  }
+}
 
 private fun stripFileScheme(path: String): String = path.removePrefix("file://")
 
@@ -80,10 +163,12 @@ class BPVisionModule : Module() {
       crnn = null
     }
 
-    // Runs the full letterbox -> ONNX inference -> per-class-NMS pipeline
-    // against a decoded image and returns detections in source-image pixel
-    // coordinates. The YOLO model is loaded from the bundled APK asset on the
-    // first call (no pushed file / adb push needed).
+    // Runs the full letterbox -> ONNX inference -> decode pipeline against a
+    // decoded image and returns detections in source-image pixel coordinates.
+    // Whether the decode owes per-class NMS is fixed when the session loads,
+    // by the graph's output shape — see YoloDetector.OutputFormat. The YOLO
+    // model is loaded from the bundled APK asset on the first call (no pushed
+    // file / adb push needed).
     // `inputSize` lets the dev benchmark trade small-object recall for
     // latency when measuring a live framing gate; it defaults to the model's
     // native 512 so every production caller (and the OCR pipeline, which must
@@ -190,13 +275,19 @@ class BPVisionModule : Module() {
   }
 
   private fun ensureDetector(): YoloDetector = synchronized(loadLock) {
-    detector ?: YoloDetector
-      .fromModelBytes(
-        readModelAsset(YOLO_ASSET),
-        OrtEnvironment.getEnvironment(),
-        detectorProvider,
-      )
-      .also { detector = it }
+    detector ?: run {
+      // First, and before the 10.7 MB asset read: a contradictory pairing is
+      // cheaper to reject than to load, and there is no session yet to leak.
+      checkRenderingMatchesAsset(YOLO_ASSET, YOLO_RENDERING)
+      YoloDetector
+        .fromModelBytes(
+          readModelAsset(YOLO_ASSET),
+          YOLO_RENDERING,
+          OrtEnvironment.getEnvironment(),
+          detectorProvider,
+        )
+        .also { detector = it }
+    }
   }
 
   private fun ensureCrnn(): CrnnRecognizer = synchronized(loadLock) {

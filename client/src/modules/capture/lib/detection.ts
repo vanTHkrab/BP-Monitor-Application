@@ -11,6 +11,13 @@
  * Rule 5 in the root CLAUDE.md: change one side without the other and the AI
  * flow breaks silently — the phone approves a framing the server cannot read.
  *
+ * Two detector export families now decode on both sides — yolo11n's raw
+ * `[1, 4+C, anchors]` and yolo26n's end-to-end `[1, 300, 6]` — and each side
+ * picks between them by inspecting the loaded graph's output shape, never by
+ * configuration, so the two cannot be set to disagree. Nothing below moves:
+ * both families carry this class map and this input size. The phone still
+ * loads `yolo11n.onnx`; the yolo26n files are not bundled here yet.
+ *
  * `Detection` is also the literal return shape of the native module's
  * `detect()` (`DetectionRecord` in `BPVisionModule.kt`), so it is declared
  * once here rather than mirrored on both sides of the bridge.
@@ -43,8 +50,32 @@ export const FIELD_CLASS_IDS = [2, 3, 4] as const;
 /** Detector input edge. The model was trained at 512×512. */
 export const DEFAULT_INPUT_SIZE = 512;
 
-/** Backend defaults, so "detected" means the same thing on both sides. */
+/**
+ * Backend defaults, so "detected" means the same thing on both sides.
+ *
+ * Neither is read by TypeScript. The Kotlin detector and `analyzer/yolo.py`
+ * each hold their own copy, and these two lines are the declaration those
+ * copies get reconciled against by hand (ADR-002) — changing a number here is
+ * not a change until both of them move with it.
+ */
 export const DEFAULT_CONF_THRESHOLD = 0.25;
+
+/**
+ * Per-class NMS IoU — **consumed by the anchors decode path only.**
+ *
+ * That path is `yolo11n.onnx`, which exports raw predictions and owes
+ * suppression to whoever decodes them: `YoloDetector.nms` in
+ * `modules/bp-vision/android/.../YoloDetector.kt` on the phone, `YoloDetector._nms`
+ * in `analyzer/yolo.py` on the server. The yolo26n exports suppress inside the
+ * graph, so on those this value has nothing to act on; both decoders still
+ * accept it and log it as ignored rather than making the caller know which
+ * model is loaded.
+ *
+ * Inert on one path is not unused. yolo11n is the model the phone loads today
+ * and the one `assets/models/` is hash-checked against, so removing this would
+ * remove a live half of the contract. It retires when — and only when — no
+ * anchors export runs on either side.
+ */
 export const DEFAULT_IOU_THRESHOLD = 0.45;
 
 export interface Detection {
