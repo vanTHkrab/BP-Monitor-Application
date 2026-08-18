@@ -7,7 +7,7 @@ description: >-
     use-camera-analysis.ts carry one photo to numbers. Every failure path ends
     at a typeable form — the user is never stranded.
 status: current
-updated: 2026-08-18
+updated: 2026-08-19
 owner: client
 ---
 
@@ -57,12 +57,14 @@ stateDiagram-v2
     }
 
     prepared --> analysis
-    analysis --> prefilled: confidence >= 0.5
-    analysis --> confirm_values: numbers, but confidence < 0.5
-    analysis --> empty_form: failed, cancelled, or nothing read
+    analysis --> prefilled: numbers read — filled whatever the confidence
+    analysis --> unreadable_dialog: engine ran on this photo and read nothing
+    analysis --> empty_form: failed (user taps ยืนยันภาพ), or no engine on this platform
+    analysis --> [*]: superseded by a retake — no fill, no sheet, no dialog
 
-    confirm_values --> prefilled: user accepts the values
-    confirm_values --> empty_form: user rejects them
+    prefilled --> prefilled: confidence < 0.5 — review banner, single ack
+    unreadable_dialog --> framing: "ถ่ายใหม่" — back to the live preview
+    unreadable_dialog --> empty_form: "กรอกเอง" — manual entry, fields blank
 
     prefilled --> editing
     empty_form --> editing
@@ -83,12 +85,29 @@ stateDiagram-v2
 - **Two read paths, one save** — online analysis and on-device OCR return the
   same `ReadOutcome` and raise the same low-confidence flag, so the offline path
   cannot drift into being a second, less tested way of recording a reading.
-- **0.5 is the confidence line, both engines** — above it the form is filled;
-  below it the user is asked to check the numbers first. A wrong number nobody
-  noticed becomes a wrong number in a medical history; a confirmation tap costs
-  a second.
+- **0.5 is the confidence line, both engines** — it decides whether the user is
+  asked to double-check, not whether the form is filled. Both sides of the line
+  auto-fill; below it a review banner with a single acknowledgement asks the
+  user to compare against the monitor's own display. A wrong number nobody
+  noticed becomes a wrong number in a medical history — but the older
+  two-button "use these / I'll type them" prompt bought nothing against that
+  risk which the banner does not, and charged a tap for it.
+- **"Read nothing" is a dialog, not a banner** — an engine that ran on the photo
+  and produced nothing interrupts with `Alert.alert`, because the fix is
+  physical (square the monitor to the camera, don't tilt it, don't hold it
+  upside down) and belongs in front of the user rather than inside a form they
+  may never scroll to. Its primary action returns to the live preview; its
+  secondary opens the form empty. That second action is what keeps "nothing can
+  block a save" true for a monitor this engine can never read.
 - **A cancelled analysis is not a failure** — `AbortError` returns null and
   leaves no error banner. The user moving on is not an incident.
+- **A superseded read is silent on both sides** — retaking, or capturing again,
+  invalidates any analysis still running: `analyze` aborts its request,
+  `readOnDevice` drops its result, and the screen ignores the outcome
+  regardless. Retaking without capturing again counts, which is why both
+  `startCaptureFlow` and `retake` advance the screen's capture generation. A
+  late result from a discarded photo must not fill fields, raise the dialog, or
+  open the sheet over a live camera.
 - **Saving is optimistic and offline-safe** — `createReading()` enqueues into
   `pending_readings` and the drain promotes it to the mirror once the server
   confirms. See [state-reading-lifecycle.md](./state-reading-lifecycle.md).

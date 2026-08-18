@@ -204,9 +204,14 @@ describe('reading on this device', () => {
       read = await view.result.current.readOnDevice(IMAGE_URI);
     });
 
-    // Still no prefill and still not routed through `error` — this is a
-    // distinct concept from a transport failure, same as `lowConfidence`.
-    expect(read).toBeNull();
+    // Non-null and distinguishable from "no engine on this platform"
+    // (`null`, see the test above): the caller needs to tell "ran, found
+    // nothing" apart from "nothing to react to at all" now that the two
+    // drive different UI (a retake-or-manual-entry dialog vs. silently
+    // opening the entry sheet). No prefill either way, and still not routed
+    // through `error` — this is a distinct concept from a transport failure,
+    // same as `lowConfidence`.
+    expect(read).toEqual({ confident: false, readings: null });
     expect(view.result.current.error).toBeNull();
     expect(view.result.current.unreadable).toBe(true);
     expect(view.result.current.lowConfidence).toBe(false);
@@ -508,6 +513,57 @@ describe('cancelling an analysis', () => {
     expect(view.result.current.uploadedImageId).toBeNull();
     expect(view.result.current.result).toBeNull();
     expect(view.result.current.lowConfidence).toBe(false);
+  });
+});
+
+describe('a stale on-device read racing a newer online result', () => {
+  it('does not let a superseded readOnDevice call clobber a later analyze() result', async () => {
+    // Call A: an on-device read starts and is held before its single await
+    // resolves — same pattern as 'reports the reading phase while the
+    // on-device pass runs' above.
+    let settleOffline: (value: unknown) => void = () => {};
+    mockReadBpFromImage.mockImplementation(() => new Promise((r) => (settleOffline = r)));
+
+    const view = await renderHook(() => useCameraAnalysis());
+    await act(async () => {
+      void view.result.current.readOnDevice(IMAGE_URI);
+    });
+    expect(view.result.current.phase).toBe('reading');
+
+    // The screen's retake() calls reset() (simulated here directly). `reset`
+    // aborts `abortRef` — there is no online request in flight yet, so this
+    // is a no-op — and bumps `offlineReadGenerationRef`, so call A's
+    // captured generation is now stale.
+    await act(async () => {
+      view.result.current.reset();
+    });
+
+    // Call B: a fresh online analysis for the retaken photo runs to
+    // completion and lands a real, successful result.
+    await act(async () => {
+      await view.result.current.analyze('file:///cache/capture-2.jpg');
+    });
+    expect(view.result.current.phase).toBe('done');
+    expect(view.result.current.unreadable).toBe(false);
+    expect(view.result.current.result?.status).toBe('success');
+
+    // Only now does call A's stale on-device read settle: the engine ran and
+    // found nothing on the *first*, already-abandoned photo.
+    await act(async () => {
+      settleOffline({
+        unavailable: true,
+        reason: 'model-load-failed',
+        platformUnsupported: false,
+      });
+    });
+
+    // The offline generation guard advances on both another `readOnDevice`
+    // call and on `reset()`. A `readOnDevice` call orphaned by a reset in
+    // between must not be able to overwrite state a later, unrelated
+    // `analyze()` call already committed — the screen is showing call B's
+    // successful result and must keep showing it.
+    expect(view.result.current.unreadable).toBe(false);
+    expect(view.result.current.result?.status).not.toBe('unreadable');
   });
 });
 

@@ -171,6 +171,7 @@ jest.mock('@/modules/caregivers', () => ({
 
 import NetInfo from '@react-native-community/netinfo';
 import * as ImagePicker from 'expo-image-picker';
+import { Alert } from 'react-native';
 
 import CameraScreen from '@/app/(tabs)/camera';
 import { prepareCaptureForAnalysis, prepareImageForAnalysis } from '@/modules/capture';
@@ -180,8 +181,16 @@ const PICK_A_PATIENT = 'เลือกผู้ป่วยก่อนถ่�
 const VIEW_ONLY = 'คุณดูข้อมูลได้อย่างเดียว';
 const NEEDS_PERMISSION = 'ต้องการสิทธิ์เข้าถึงกล้อง';
 
+/** Runs the button at `index` of the last Alert — same helper shape as `profile.test.tsx` / `history.test.tsx`. */
+function pressAlertButton(index: number) {
+  const spy = Alert.alert as unknown as jest.Mock;
+  const buttons = spy.mock.calls.at(-1)?.[2] as { onPress?: () => void }[] | undefined;
+  return buttons?.[index]?.onPress?.();
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   mockPermission.current = { granted: true, canAskAgain: true };
   mockSession.current = { user: { role: 'patient' }, isAuthenticated: true };
   mockActivePatient.current = { patient: null, viewingPatientId: undefined };
@@ -382,8 +391,12 @@ describe('CameraScreen — the permission gates', () => {
  */
 describe('CameraScreen — the capture flow, once past the gates', () => {
   const GALLERY_BUTTON = 'เลือกรูปจากอัลบั้ม';
+  const SHUTTER = 'ถ่ายภาพเครื่องวัดความดัน';
+  const CONFIRM_CAPTURE = 'ยืนยันภาพและกรอกค่าความดัน';
   const ENTRY_SHEET_TITLE = 'กรอกค่าความดัน';
-  const UNREADABLE_HEADLINE = 'อ่านค่าจากภาพนี้ไม่ได้';
+  const UNREADABLE_ALERT_TITLE = 'ไม่สามารถอ่านค่าจากภาพได้';
+  const UNREADABLE_ALERT_MESSAGE =
+    'กรุณาจัดเครื่องวัดความดันให้อยู่ตรงหน้ากล้อง ไม่เอียง ไม่ไกลเกินไป และไม่กลับหัว แล้วลองถ่ายภาพอีกครั้ง';
 
   const pickFromGallery = (uri = 'file://gallery.jpg') => {
     (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({
@@ -391,8 +404,6 @@ describe('CameraScreen — the capture flow, once past the gates', () => {
       assets: [{ uri, width: 1200, height: 900 }],
     });
   };
-
-  const SHUTTER = 'ถ่ายภาพเครื่องวัดความดัน';
 
   /*
    * The two intake paths must not converge on one chain. A live capture is
@@ -527,10 +538,16 @@ describe('CameraScreen — the capture flow, once past the gates', () => {
     expect(view.getByDisplayValue('70')).toBeOnTheScreen();
   });
 
-  // Task 2 + Task 3 (online): the same auto-open now also has to carry a
-  // genuinely-unreadable result, not just a confident one — and show the
-  // new banner once it does.
-  it('opens the entry sheet with the unreadable banner when the online analysis finds nothing', async () => {
+  /*
+   * Superseded by the unreadable dialog below: an engine that ran and found
+   * nothing no longer opens the sheet with an in-sheet banner — it fires
+   * `Alert.alert` instead, and the sheet stays closed until the user picks
+   * "กรอกเอง". `analyze`'s `onSettled` still runs synchronously in the same
+   * tick as `phase: 'done'` (see the comment on the confident-read test
+   * above); this pins that the *reaction* to that outcome changed, not the
+   * timing.
+   */
+  it('fires the unreadable dialog instead of opening the entry sheet, when the online analysis finds nothing', async () => {
     pickFromGallery();
     let settle: () => void = () => {};
     mockCameraAnalysis.current.analyze = jest.fn(
@@ -538,10 +555,6 @@ describe('CameraScreen — the capture flow, once past the gates', () => {
         new Promise((resolve) => {
           settle = () => {
             const outcome = { confident: false, readings: null };
-            // Mirrors the real hook: `unreadable` is set in the same
-            // synchronous tick as `onSettled` fires, before the promise
-            // resolves, so the re-render `onSettled`'s own state changes
-            // trigger already sees it.
             mockCameraAnalysis.current.unreadable = true;
             options?.onSettled?.(outcome);
             resolve(outcome);
@@ -557,27 +570,213 @@ describe('CameraScreen — the capture flow, once past the gates', () => {
       settle();
     });
 
-    await waitFor(() => expect(view.getByText(ENTRY_SHEET_TITLE)).toBeOnTheScreen());
-    expect(view.getByText(UNREADABLE_HEADLINE)).toBeOnTheScreen();
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith(
+        UNREADABLE_ALERT_TITLE,
+        UNREADABLE_ALERT_MESSAGE,
+        expect.arrayContaining([
+          expect.objectContaining({ text: 'ถ่ายใหม่' }),
+          expect.objectContaining({ text: 'กรอกเอง' }),
+        ]),
+      ),
+    );
+    // Never a gate, but also never an open sheet the user did not ask for —
+    // the dialog's own two actions are what decide where the user goes next.
+    expect(view.queryByText(ENTRY_SHEET_TITLE)).toBeNull();
   });
 
-  // Task 3 (offline): the offline branch already opens unconditionally, so
-  // this pins that the banner renders there too, and alongside the
-  // pre-existing offline banner rather than instead of it — being offline
-  // and the photo being unreadable are independent facts.
-  it('shows the unreadable banner on the offline path, alongside the offline notice', async () => {
+  // The offline branch fires the identical dialog for the identical
+  // reason — the screen's reaction to "engine ran, found nothing" does not
+  // depend on which engine ran it.
+  it('fires the same unreadable dialog on the offline path', async () => {
     (NetInfo.fetch as jest.Mock).mockResolvedValueOnce({ isConnected: false });
     pickFromGallery();
     mockCameraAnalysis.current.readOnDevice = jest.fn(async () => {
       mockCameraAnalysis.current.unreadable = true;
-      return null;
+      return { confident: false, readings: null };
     });
 
     const view = await renderScreen(<CameraScreen />);
     await fireEvent.press(view.getByLabelText(GALLERY_BUTTON));
 
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith(
+        UNREADABLE_ALERT_TITLE,
+        UNREADABLE_ALERT_MESSAGE,
+        expect.any(Array),
+      ),
+    );
+    expect(view.queryByText(ENTRY_SHEET_TITLE)).toBeNull();
+  });
+
+  /*
+   * The dialog's two actions, both reachable only after `Alert.alert` fired
+   * (above) — this is what "never a gate" resolves to now that the banner is
+   * gone. "ถ่ายใหม่" (index 0) returns to the live preview without ever
+   * opening the sheet; "กรอกเอง" (index 1) opens it for manual entry, empty,
+   * alongside whatever independent banners the sheet already shows (the
+   * offline notice, here, to also cover that the two facts — offline, and
+   * unreadable — still render together once the sheet does open).
+   */
+  it('"ถ่ายใหม่" clears back to the live camera without opening the sheet', async () => {
+    pickFromGallery();
+    let settle: () => void = () => {};
+    mockCameraAnalysis.current.analyze = jest.fn(
+      (_uri: string, options?: MockAnalyzeOptions) =>
+        new Promise((resolve) => {
+          settle = () => {
+            const outcome = { confident: false, readings: null };
+            options?.onSettled?.(outcome);
+            resolve(outcome);
+          };
+        }),
+    );
+
+    const view = await renderScreen(<CameraScreen />);
+    await fireEvent.press(view.getByLabelText(GALLERY_BUTTON));
+    await waitFor(() => expect(mockCameraAnalysis.current.analyze).toHaveBeenCalled());
+    // Confirms the captured-photo screen (not the live preview) is what is
+    // showing right before the retake, so the assertion below is a real
+    // transition rather than a no-op.
+    expect(view.getByLabelText(CONFIRM_CAPTURE)).toBeOnTheScreen();
+
+    await act(async () => {
+      settle();
+    });
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
+
+    await act(async () => {
+      await pressAlertButton(0);
+    });
+
+    expect(view.queryByLabelText(CONFIRM_CAPTURE)).toBeNull();
+    expect(view.getByLabelText(SHUTTER)).toBeOnTheScreen();
+    expect(view.queryByText(ENTRY_SHEET_TITLE)).toBeNull();
+  });
+
+  /*
+   * The retake-with-no-re-capture case, and the reason `retake` bumps
+   * `captureGenerationRef` rather than leaving that to `startCaptureFlow`.
+   *
+   * A superseded `readOnDevice` returns `null` — deliberately the same value
+   * as "no on-device engine on this platform", which the offline branch
+   * treats as a reason to open the entry sheet for manual entry. Nothing
+   * downstream of that return can tell the two apart, so the generation
+   * check is the only thing that keeps an abandoned photo's late read from
+   * opening the sheet on top of a live camera preview. If the user retakes
+   * and then simply waits — never taking a second photo — `startCaptureFlow`
+   * never runs again, so a bump that lived only there would never fire.
+   */
+  it('ignores an on-device read that lands after a retake, with no new capture in between', async () => {
+    (NetInfo.fetch as jest.Mock).mockResolvedValueOnce({ isConnected: false });
+    pickFromGallery();
+    let settleRead: (value: unknown) => void = () => {};
+    mockCameraAnalysis.current.readOnDevice = jest.fn(
+      () => new Promise((resolve) => (settleRead = resolve)),
+    );
+
+    const view = await renderScreen(<CameraScreen />);
+    await fireEvent.press(view.getByLabelText(GALLERY_BUTTON));
+
+    // The photo is on screen and the on-device engine is still running.
+    await waitFor(() => expect(mockCameraAnalysis.current.readOnDevice).toHaveBeenCalled());
+    expect(view.getByLabelText(CONFIRM_CAPTURE)).toBeOnTheScreen();
+
+    // The user gives up on this shot and goes back to the camera — and then
+    // does nothing. No second capture follows.
+    await fireEvent.press(view.getByLabelText('ถ่ายภาพใหม่'));
+    expect(view.getByLabelText(SHUTTER)).toBeOnTheScreen();
+
+    // Only now does the abandoned read finish. `null` is what the real hook
+    // returns for a superseded read (its own generation guard fired first).
+    await act(async () => {
+      settleRead(null);
+    });
+
+    // It must change nothing: the user is left on the live camera, not
+    // staring at an entry sheet for a photo they already discarded.
+    expect(view.queryByText(ENTRY_SHEET_TITLE)).toBeNull();
+    expect(view.getByLabelText(SHUTTER)).toBeOnTheScreen();
+    expect(view.queryByLabelText(CONFIRM_CAPTURE)).toBeNull();
+    // And the offline banner's flag must not have been forced back on for a
+    // capture that no longer exists.
+    expect(view.queryByText(/ตอนนี้ออฟไลน์อยู่/)).toBeNull();
+  });
+
+  it('"กรอกเอง" opens the sheet empty, offline notice and all', async () => {
+    (NetInfo.fetch as jest.Mock).mockResolvedValueOnce({ isConnected: false });
+    pickFromGallery();
+    mockCameraAnalysis.current.readOnDevice = jest.fn(async () => ({
+      confident: false,
+      readings: null,
+    }));
+
+    const view = await renderScreen(<CameraScreen />);
+    await fireEvent.press(view.getByLabelText(GALLERY_BUTTON));
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
+
+    await act(async () => {
+      await pressAlertButton(1);
+    });
+
     await waitFor(() => expect(view.getByText(ENTRY_SHEET_TITLE)).toBeOnTheScreen());
-    expect(view.getByText(UNREADABLE_HEADLINE)).toBeOnTheScreen();
     expect(view.getByText(/ตอนนี้ออฟไลน์อยู่/)).toBeOnTheScreen();
+    expect(view.getByPlaceholderText('SYS').props.value).toBe('');
+    expect(view.getByPlaceholderText('DIA').props.value).toBe('');
+  });
+
+  /*
+   * The low-confidence banner used to offer a choice — "ใช้ค่านี้" applied the
+   * read, "แก้เอง" discarded it. Both are gone: the read is auto-applied the
+   * same way a confident one is (see `applyOutcomeReadings` in the screen),
+   * and the banner's one button is a plain acknowledgement that neither
+   * fills nor clears anything.
+   */
+  it('auto-applies a low-confidence read and offers only one way to dismiss the banner', async () => {
+    pickFromGallery();
+    let settle: () => void = () => {};
+    mockCameraAnalysis.current.analyze = jest.fn(
+      (_uri: string, options?: MockAnalyzeOptions) =>
+        new Promise((resolve) => {
+          settle = () => {
+            const outcome = { confident: false, readings: { systolic: 118, diastolic: 76, pulse: 68 } };
+            mockCameraAnalysis.current.lowConfidence = true;
+            mockCameraAnalysis.current.result = {
+              readings: outcome.readings,
+              confidence: 0.3,
+              status: 'low_confidence',
+            };
+            options?.onSettled?.(outcome);
+            resolve(outcome);
+          };
+        }),
+    );
+
+    const view = await renderScreen(<CameraScreen />);
+    await fireEvent.press(view.getByLabelText(GALLERY_BUTTON));
+    await waitFor(() => expect(mockCameraAnalysis.current.analyze).toHaveBeenCalled());
+
+    await act(async () => {
+      settle();
+    });
+
+    await waitFor(() => expect(view.getByText(ENTRY_SHEET_TITLE)).toBeOnTheScreen());
+    // Filled without a tap, unlike the old two-button version of this banner.
+    expect(view.getByDisplayValue('118')).toBeOnTheScreen();
+    expect(view.getByDisplayValue('76')).toBeOnTheScreen();
+    expect(view.getByDisplayValue('68')).toBeOnTheScreen();
+    // The choice is gone — neither old button survives — leaving exactly one.
+    expect(view.queryByText('ใช้ค่านี้')).toBeNull();
+    expect(view.queryByText('แก้เอง')).toBeNull();
+    expect(view.getByText('เข้าใจแล้ว')).toBeOnTheScreen();
+
+    await fireEvent.press(view.getByText('เข้าใจแล้ว'));
+
+    // Dismissing the banner only hides it — the numbers it already filled
+    // must survive the tap, not reset to whatever "discard" used to mean.
+    expect(mockCameraAnalysis.current.dismissLowConfidence).toHaveBeenCalled();
+    expect(view.getByDisplayValue('118')).toBeOnTheScreen();
+    expect(view.getByDisplayValue('76')).toBeOnTheScreen();
+    expect(view.getByDisplayValue('68')).toBeOnTheScreen();
   });
 });

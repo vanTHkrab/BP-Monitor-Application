@@ -78,8 +78,12 @@ const CONFIDENCE_THRESHOLD = 0.5;
  * read nothing (`unreadable`) still has to be distinguishable, by the
  * returned value alone, from an analysis that never settled at all — an
  * aborted or hard-failed `analyze()` call returns `null` outright (see
- * below). The screen's online branch uses that split to decide whether to
- * react to the promise settling, not just what to fill.
+ * below), and so does a superseded `readOnDevice()` call. The screen's
+ * online and offline branches both use that split to decide whether to
+ * react to the promise settling at all, not just what to fill — an
+ * `{ confident: false, readings: null }` object means "this ran, and found
+ * nothing," which is worth surfacing; a bare `null` means "there is nothing
+ * here to react to."
  */
 export type ReadOutcome =
   | { confident: true; readings: BPValues }
@@ -93,12 +97,16 @@ interface AnalysisState {
   result: AnalysisResult | null;
   /** Set once the online path has uploaded — carried into `save`. */
   uploadedImageId: number | null;
-  /** Values came back, but not confidently. The screen asks before filling. */
+  /**
+   * Values came back, but not confidently. The screen fills them in anyway
+   * (same as a confident read) and asks the user to double check, rather
+   * than withholding them until they choose to accept.
+   */
   lowConfidence: boolean;
   /**
    * The engine ran — on-device or backend — and produced nothing. Distinct
    * from `lowConfidence`: there are no values to offer here, only a reason
-   * to fall back to manual entry.
+   * to prompt a retake or, failing that, manual entry.
    */
   unreadable: boolean;
   error: string | null;
@@ -118,9 +126,29 @@ export function useCameraAnalysis() {
   const [state, setState] = useState<AnalysisState>(INITIAL_STATE);
   const { createReading, isSaving } = useCreateReading();
   const abortRef = useRef<AbortController | null>(null);
+  /**
+   * `readOnDevice`'s equivalent of `abortRef` — a generation counter rather
+   * than an `AbortController`, because there is no request to cancel here,
+   * only a background inference call whose result can be ignored. Bumped at
+   * the top of every `readOnDevice` call *and* by `reset()` below; a call
+   * whose captured generation no longer matches this ref's current value
+   * when `readBpFromImage` resolves knows a newer call — or a reset with no
+   * new call yet — has superseded it, and skips every `setState` from that
+   * point on. The same "the user already moved on, say nothing" contract
+   * `analyze`'s `AbortError` branch gives the online path.
+   *
+   * The `reset()` bump matters on its own: `reset` is `retake`'s only hook
+   * into this state, and a retake does not guarantee the *next* capture is
+   * also offline. Without this, an on-device read orphaned by a retake into
+   * an online capture has no later `readOnDevice` call to invalidate it —
+   * its generation would still read as current — and its late completion
+   * would overwrite whatever the online capture already committed.
+   */
+  const offlineReadGenerationRef = useRef(0);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
+    offlineReadGenerationRef.current += 1;
     setState(INITIAL_STATE);
   }, []);
 
@@ -130,9 +158,24 @@ export function useCameraAnalysis() {
    * surfaces a failure as an error.
    */
   const readOnDevice = useCallback(async (imageUri: string): Promise<ReadOutcome | null> => {
+    const generation = ++offlineReadGenerationRef.current;
+
     setState((prev) => ({ ...prev, phase: 'reading', error: null }));
 
     const ocr = await readBpFromImage({ imageUri });
+
+    if (generation !== offlineReadGenerationRef.current) {
+      // Either a newer call to `readOnDevice` started, or `reset()` ran with
+      // no new call yet (a retake into an online capture, most often) —
+      // either way this result belongs to a photo the user has already
+      // moved past. No `setState`, and a `null` return the caller cannot
+      // tell apart from "no engine on this platform": either way there is
+      // nothing for it to react to (see `captureGenerationRef` in
+      // `camera.tsx`, which is what actually keeps the caller from reacting
+      // to a superseded call at all, regardless of what it returns).
+      return null;
+    }
+
     if (isOcrUnavailable(ocr)) {
       if (ocr.platformUnsupported) {
         // No engine on this device at all (iOS, web, Expo Go) — the
@@ -146,10 +189,12 @@ export function useCameraAnalysis() {
       // no monitor found, unreadable digits, an implausible value, or an
       // unexpected native error. Unlike the platform-absence case above,
       // this is a per-photo outcome worth telling the user about — see the
-      // `unreadable` banner it drives. Still returns `null`: the screen's
-      // offline branch already opens the entry sheet unconditionally, so
-      // there is nothing left for the return value to distinguish here
-      // (contrast `analyze`, whose caller does need that distinction).
+      // unreadable dialog it drives (`showUnreadableAlert` in `camera.tsx`).
+      // Returns a real, non-null outcome rather than `null`: the caller
+      // needs to tell "ran, found nothing" apart from "no engine here at
+      // all" now that the two lead to different reactions (a dialog vs. a
+      // silently-opened sheet), and `{ confident: false, readings: null }`
+      // is exactly what `ReadOutcome` already has the shape to say.
       setState((prev) => ({
         ...prev,
         phase: 'done',
@@ -166,7 +211,7 @@ export function useCameraAnalysis() {
         lowConfidence: false,
         error: null,
       }));
-      return null;
+      return { confident: false, readings: null };
     }
 
     const readings: BPValues = { systolic: ocr.sys, diastolic: ocr.dia, pulse: ocr.pulse };
@@ -280,19 +325,21 @@ export function useCameraAnalysis() {
   );
 
 /**
-   * The user has resolved the "please check these numbers" banner, either way.
-   *
-   * Only the flag lives here. Whether the values end up in the form is the
-   * screen's call, because the screen owns the form — and `result.readings` is
-   * already exposed for it to read.
+   * The user has acknowledged the "please check these numbers" banner. The
+   * values themselves are auto-applied into the form as soon as the read
+   * settles (`applyOutcomeReadings` in `camera.tsx`), so unlike the old
+   * two-button version of this banner there is no longer a choice to make
+   * here — only the flag lives here, and clearing it just hides the banner.
    */
   const dismissLowConfidence = useCallback(() => {
     setState((prev) => ({ ...prev, lowConfidence: false }));
   }, []);
 
   /**
-   * The user has acknowledged "we couldn't read this photo" and is moving on
-   * to manual entry. Unlike `dismissLowConfidence`, there are no values to
+   * The user has picked "กรอกเอง" on the unreadable dialog — acknowledging
+   * "we couldn't read this photo" and moving on to manual entry, rather than
+   * the dialog's other action (`retake`, which resets this whole hook via
+   * `reset` instead). Unlike `dismissLowConfidence`, there are no values to
    * offer here — this only clears the flag.
    */
   const dismissUnreadable = useCallback(() => {

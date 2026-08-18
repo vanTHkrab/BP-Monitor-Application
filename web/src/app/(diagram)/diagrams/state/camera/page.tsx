@@ -39,12 +39,14 @@ stateDiagram-v2
     }
 
     prepared --> analysis
-    analysis --> prefilled: confidence >= 0.5
-    analysis --> confirm_values: numbers, but confidence < 0.5
-    analysis --> empty_form: failed, cancelled, or nothing read
+    analysis --> prefilled: numbers read — filled whatever the confidence
+    analysis --> unreadable_dialog: engine ran on this photo and read nothing
+    analysis --> empty_form: failed (user taps ยืนยันภาพ), or no engine on this platform
+    analysis --> [*]: superseded by a retake — no fill, no sheet, no dialog
 
-    confirm_values --> prefilled: user accepts the values
-    confirm_values --> empty_form: user rejects them
+    prefilled --> prefilled: confidence < 0.5 — review banner, single ack
+    unreadable_dialog --> framing: "ถ่ายใหม่" — back to the live preview
+    unreadable_dialog --> empty_form: "กรอกเอง" — manual entry, fields blank
 
     prefilled --> editing
     empty_form --> editing
@@ -63,8 +65,10 @@ export default function DiagramPage() {
             <h2>Worth knowing</h2>
             <ul>
                 <li>AnalysisPhase is literal: idle | reading | uploading | queued | processing | done | failed.</li>
-                <li>0.5 is the confidence line for both engines — above it the form fills, below it the user is asked to check.</li>
+                <li>0.5 is the confidence line for both engines — it decides whether the user is asked to double-check, not whether the form fills. Both sides auto-fill; below it a review banner asks for a single acknowledgement.</li>
+                <li>An engine that ran and read nothing interrupts with a dialog, not a banner — the fix is physical (square the monitor, don&apos;t tilt it, don&apos;t hold it upside down). Its two actions are retake, or type the numbers by hand.</li>
                 <li>Every failure path ends at a typeable form. Nothing about analysis can prevent a save.</li>
+                <li>Retaking invalidates an analysis still in flight on both sides, so a late result from a discarded photo stays silent.</li>
             </ul>
         </DiagramShell>
     );

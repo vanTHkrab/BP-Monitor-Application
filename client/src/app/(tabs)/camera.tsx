@@ -4,17 +4,22 @@
  * **The layout is the original's**: full-bleed preview, the floating close /
  * auto-capture row, the corner-bracket guide frame with its crosshair and
  * coaching pill, the 88px shutter with its countdown ring, the three-action
- * control row, and the bottom-sheet entry form with its offline /
- * unreadable / low-confidence / error banners. Copy, radii, and the status
- * colour language are unchanged.
+ * control row, and the bottom-sheet entry form with its offline / low-
+ * confidence / error banners. Copy, radii, and the status colour language
+ * are unchanged.
  *
  * What the flow does, in one paragraph, because it is spread across several
  * handlers: a capture (or a gallery pick) is resized, stamped with the moment
  * it was taken, and shown full-screen. Online it goes to the backend AI
  * pipeline; offline that request is skipped entirely — it would only fail — and
- * the on-device engine tries instead. Either way the entry sheet opens with
- * whatever numbers were read, or empty, and the save goes through the readings
- * queue. **Nothing on this screen can prevent a reading being recorded.**
+ * the on-device engine tries instead. A confident or low-confidence read
+ * opens the entry sheet with the numbers already filled in; an engine that
+ * ran and found nothing opens a retake-or-manual-entry dialog instead (see
+ * `showUnreadableAlert`); no engine at all (no network and no on-device
+ * support) opens the sheet empty, same as before. The save goes through the
+ * readings queue either way. **Nothing on this screen can prevent a reading
+ * being recorded** — the dialog's own "กรอกเอง" is that guarantee's escape
+ * hatch for a photo the engine can never read.
  *
  * Differences from the original, all of them because of what this tree does
  * differently rather than by choice:
@@ -112,6 +117,25 @@ const BOUNDS = {
   pulse: { min: 30, max: 220 },
 } as const;
 
+/**
+ * Shape of `analyze`'s and `readOnDevice`'s settled result, restated
+ * structurally rather than imported: `use-camera-analysis.ts` exports the
+ * named `ReadOutcome` type, but the capture module's barrel deliberately
+ * keeps it unexported (this screen is its only consumer, and until now it
+ * only ever read the value inline). `BPValues` is already part of the
+ * public surface, so this stays exact without widening that barrier for a
+ * type only this screen's own helpers need named.
+ *
+ * Deliberately narrower than the real `ReadOutcome`: it also carries
+ * `confident`, but nothing here branches on it any more. A confident read
+ * and a low-confidence one now land on the identical reaction — both
+ * auto-fill and both open the sheet, the confidence gap only changes
+ * whether the low-confidence banner asks for a check — so `readings`
+ * (present or `null`) is the only field `applyOutcomeReadings` and
+ * `reactToOutcome` ever need to look at.
+ */
+type SettledOutcome = { readings: BPValues | null } | null;
+
 /** The press feedback client-old got from its `AnimatedPressable`. */
 function TapScale({ children, style, ...props }: PressableProps) {
   return (
@@ -168,12 +192,13 @@ export default function CameraScreen() {
   const capturedAtRef = useRef<Date | null>(null);
 
   /**
-   * Guards the online analysis's `onSettled` callback (see `startCaptureFlow`)
-   * against popping the entry sheet after the user has already left this
-   * screen — an online analysis can run for up to a minute
-   * (`POLL_TIMEOUT_MS`), long enough to navigate away in the meantime. A
-   * same-screen do-over (retake, a new capture) is already handled by
-   * `analyze`'s own abort; this only covers "the screen itself is gone."
+   * Guards a settled analysis's reaction (opening the entry sheet, or the
+   * unreadable dialog — see `startCaptureFlow`) against firing after the
+   * user has already left this screen — an online analysis can run for up
+   * to a minute (`POLL_TIMEOUT_MS`), long enough to navigate away in the
+   * meantime, and the offline read has no such bound either. This only
+   * covers "the screen itself is gone"; a same-screen do-over is
+   * `captureGenerationRef`'s job, below.
    */
   const isMountedRef = useRef(true);
   useEffect(() => {
@@ -181,6 +206,38 @@ export default function CameraScreen() {
       isMountedRef.current = false;
     };
   }, []);
+
+  /**
+   * Guards a settled analysis's reaction against firing for a capture the
+   * user has already moved past. Bumped by `startCaptureFlow` (a new photo)
+   * **and** by `retake` (abandoning the current one); if the value has moved
+   * on by the time an analysis settles, that outcome belongs to a photo
+   * nobody is looking at anymore and produces no fill, no offline flag, no
+   * sheet, and no dialog.
+   *
+   * Both bump sites are load-bearing, and the `retake` one is the subtler:
+   * a retake that is *not* immediately followed by another capture leaves
+   * the user on the live preview with an on-device read still running, and
+   * `startCaptureFlow` alone would never bump past that read's captured
+   * generation. Its late completion would then be treated as current — and
+   * because a superseded `readOnDevice` returns the same `null` as "no
+   * engine on this platform", the offline branch would read it as the
+   * latter and open the entry sheet over the live camera. `reset()` bumping
+   * `offlineReadGenerationRef` (see `use-camera-analysis.ts`) protects the
+   * *hook's* state from that same read; this is the screen-side half of the
+   * identical guarantee, and the two move together for that reason.
+   *
+   * This is the screen-level half of "superseded is a no-op." The online
+   * path also has `analyze`'s own `AbortController`, which stops a
+   * same-modality retake's stale request from ever reaching `onSettled` at
+   * all; the offline path gets the equivalent inside `readOnDevice` itself,
+   * since there is no request to abort — only a result to ignore. This ref
+   * is what additionally catches what neither covers on its own: the
+   * cross-modality case (an online analysis in flight when a retake goes
+   * offline, or vice versa — a different function running, so the other
+   * guard never sees it), and the retake-with-no-re-capture case above.
+   */
+  const captureGenerationRef = useRef(0);
 
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [systolic, setSystolic] = useState('');
@@ -308,6 +365,108 @@ export default function CameraScreen() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  /**
+   * Back to the camera, keeping whatever the user typed — asking them to
+   * re-enter it on every retake would be punishing. `resetAll` is the hard
+   * reset, for after a save.
+   *
+   * The framing gate is reset too: without it a retake resumes with the old
+   * committed state and the auto-capture one-shot already spent, leaving the
+   * user at a camera whose gate can never arm again.
+   *
+   * Declared up here, ahead of `startCaptureFlow`, because the unreadable
+   * dialog's primary action (below) needs to call it — moved rather than
+   * reached via a ref indirection (contrast `takePictureRef`) since nothing
+   * about this function depends on anything declared between its old
+   * position and here.
+   */
+  const retake = () => {
+    // Abandoning the current photo supersedes any analysis still running on
+    // it, exactly as starting a new one does — a retake the user does not
+    // immediately follow with another capture is otherwise the one way a
+    // stale read stays "current" all the way to opening the entry sheet over
+    // the live preview. Paired with `resetAnalysis`'s own bump of the hook's
+    // offline-read generation; see `captureGenerationRef`.
+    captureGenerationRef.current += 1;
+    setCapturedImage(null);
+    setShowEntryModal(false);
+    setFieldErrors({});
+    setSaveError(null);
+    setOfflineCapture(false);
+    capturedAtRef.current = null;
+    resetFraming();
+    resetAnalysis();
+  };
+
+  /**
+   * The engine ran on this photo and found nothing — replaces what used to
+   * be an in-sheet banner. Retake-focused copy, but the manual-entry escape
+   * hatch the old banner offered is still here, just moved to the secondary
+   * action: a monitor model the engine can never read must never strand a
+   * patient with no way to log a reading at all (see the module docblock in
+   * `use-camera-analysis.ts`). The primary action retakes immediately —
+   * clearing the captured photo and returning to the live preview — rather
+   * than merely dismissing back to the still-displayed photo, since
+   * retaking is the whole point of the dialog and that screen's own
+   * "ถ่ายใหม่" button would otherwise make the user tap twice.
+   */
+  const showUnreadableAlert = () => {
+    Alert.alert(
+      'ไม่สามารถอ่านค่าจากภาพได้',
+      'กรุณาจัดเครื่องวัดความดันให้อยู่ตรงหน้ากล้อง ไม่เอียง ไม่ไกลเกินไป และไม่กลับหัว แล้วลองถ่ายภาพอีกครั้ง',
+      [
+        { text: 'ถ่ายใหม่', onPress: retake },
+        {
+          text: 'กรอกเอง',
+          onPress: () => {
+            dismissUnreadable();
+            setShowEntryModal(true);
+          },
+        },
+      ],
+    );
+  };
+
+  /**
+   * The fill half of reacting to a settled outcome, split from
+   * `reactToOutcome` below because it runs whenever this capture is still
+   * the current one — `generation === captureGenerationRef.current` in
+   * `startCaptureFlow` — regardless of whether the screen is still mounted.
+   * A filled-but-unseen form is harmless; skipping it would only complicate
+   * the mount check below for nothing.
+   */
+  const applyOutcomeReadings = (outcome: SettledOutcome) => {
+    if (outcome?.readings) applyReading(outcome.readings);
+  };
+
+  /**
+   * The visible half of reacting to a settled outcome: open the entry sheet,
+   * or — for a read that produced nothing to offer — the unreadable dialog
+   * instead. Shared by both branches of `startCaptureFlow` so a confident
+   * read and a low-confidence one land on exactly the same reaction; the
+   * confidence gap only changes whether the low-confidence banner (still
+   * rendered inside the sheet) asks the user to double check, never whether
+   * the fields fill or the sheet opens.
+   *
+   * `whenNothingSettled` is where the two engines disagree about what a
+   * `null` outcome means: online, it means nothing settled here at all — an
+   * aborted request, or a hard failure with its own recovery banner — and
+   * there is nothing to show. Offline, it means there is no on-device engine
+   * on this platform at all, and manual entry should open exactly as if
+   * nothing had been attempted.
+   */
+  const reactToOutcome = (outcome: SettledOutcome, whenNothingSettled: () => void) => {
+    if (!outcome) {
+      whenNothingSettled();
+      return;
+    }
+    if (outcome.readings) {
+      setShowEntryModal(true);
+      return;
+    }
+    showUnreadableAlert();
+  };
+
   const requestCameraPermission = async () => {
     try {
       if (permission?.granted) return;
@@ -356,6 +515,11 @@ export default function CameraScreen() {
    * the overwrite to a genuinely new capture.
    */
   const startCaptureFlow = async (preparedUri: string) => {
+    // Bumped before anything async, so both branches below can tell — once
+    // their own await resolves — whether a newer capture (retake or
+    // otherwise) has already superseded them. See `captureGenerationRef`.
+    const generation = ++captureGenerationRef.current;
+
     setSystolic('');
     setDiastolic('');
     setPulse('');
@@ -374,37 +538,58 @@ export default function CameraScreen() {
     const { isConnected } = await NetInfo.fetch();
     if (isConnected === false) {
       const outcome = await readOnDevice(preparedUri);
-      if (outcome?.confident) applyReading(outcome.readings);
+
+      // A retake — with or without a new capture after it — happened before
+      // this on-device read finished. `readOnDevice`'s own generation guard
+      // already kept it from touching `phase` / `result` / `unreadable`;
+      // this is the matching guard at the screen level, so the result also
+      // drives nothing here: no fill, no offline flag, no sheet, no dialog.
+      // It belongs to a photo the user has already moved past.
+      //
+      // This early return is the *only* thing standing between a superseded
+      // read and the entry sheet, because the `null` it returns is
+      // deliberately indistinguishable from "no on-device engine on this
+      // platform" — which the branch below treats as a reason to open the
+      // sheet. Both `startCaptureFlow` and `retake` therefore have to bump
+      // the generation, or that fallback fires for an abandoned photo and
+      // the sheet opens over a live camera preview.
+      if (generation !== captureGenerationRef.current) return;
+
+      applyOutcomeReadings(outcome);
       setOfflineCapture(true);
-      setShowEntryModal(true);
+      if (!isMountedRef.current) return;
+      // Offline, a `null` outcome means there is no on-device engine on this
+      // platform at all (iOS, web, Expo Go) — open the sheet for plain
+      // manual entry exactly as if nothing had been attempted.
+      reactToOutcome(outcome, () => setShowEntryModal(true));
       return;
     }
 
     // Not awaited: the preview and its controls stay live while the backend
-    // works. Once it settles, open the entry sheet the same way the offline
-    // branch above already does — unconditionally on completion, so a
-    // confident read, a low-confidence one, and a genuinely unreadable one
-    // all land the user on the same sheet the offline path already shows for
-    // all three, which is what already renders the low-confidence /
-    // unreadable banners. `outcome` is `null` for both an aborted analysis
-    // (the user retook or reset — `analyze`'s own `abortRef` already
-    // distinguishes that from a real failure) and a hard failure (network,
-    // timeout — its own recovery banner already owns that case on the
-    // photo-confirm screen); only a completed pipeline reaches here with a
-    // non-null outcome. `isMountedRef` guards only the sheet, not the fill
-    // below: a filled-but-unseen form is harmless, but popping a sheet on a
-    // screen the user has already left is not.
+    // works.
     //
     // `onSettled`, not `.then()` on the returned promise: the phase pill
-    // reaching "วิเคราะห์เสร็จแล้ว ✓" and the sheet opening have to read as one
+    // reaching "วิเคราะห์เสร็จแล้ว ✓" and the reaction below have to read as one
     // event, and only a callback invoked inside `analyze`'s own synchronous
     // update — not a `.then()`, which is always a separate microtask — lands
     // in the same React batch as `phase: 'done'`. See the comment on
     // `onSettled` in `use-camera-analysis.ts`.
     void analyze(preparedUri, {
       onSettled: (outcome) => {
-        if (outcome?.confident) applyReading(outcome.readings);
-        if (outcome && isMountedRef.current) setShowEntryModal(true);
+        // `analyze`'s own `AbortController` already stops a same-modality
+        // retake's stale request from ever reaching this callback. This
+        // check is what additionally catches a retake that went *offline*
+        // while this online request was still in flight — a different
+        // function running, so `analyze`'s own abort never sees it.
+        if (generation !== captureGenerationRef.current) return;
+
+        applyOutcomeReadings(outcome);
+        if (!isMountedRef.current) return;
+        // Online, a `null` outcome only ever means nothing settled here at
+        // all — an aborted request, or a hard failure with its own recovery
+        // banner on the photo-confirm screen — so there is nothing to open a
+        // sheet for.
+        reactToOutcome(outcome, () => {});
       },
     });
   };
@@ -602,26 +787,6 @@ export default function CameraScreen() {
     setCameraMountError(null);
     setCameraKey((key) => key + 1);
     setCameraReady(false);
-  };
-
-  /**
-   * Back to the camera, keeping whatever the user typed — asking them to
-   * re-enter it on every retake would be punishing. `resetAll` is the hard
-   * reset, for after a save.
-   *
-   * The framing gate is reset too: without it a retake resumes with the old
-   * committed state and the auto-capture one-shot already spent, leaving the
-   * user at a camera whose gate can never arm again.
-   */
-  const retake = () => {
-    setCapturedImage(null);
-    setShowEntryModal(false);
-    setFieldErrors({});
-    setSaveError(null);
-    setOfflineCapture(false);
-    capturedAtRef.current = null;
-    resetFraming();
-    resetAnalysis();
   };
 
   const resetAll = () => {
@@ -1380,64 +1545,23 @@ export default function CameraScreen() {
                     </View>
                   ) : null}
 
-                  {/* The engine ran and genuinely found nothing — no values to
-                      offer, unlike the low-confidence banner below, so a
-                      single acknowledgement is the whole action set. Same
-                      structural shape (icon + headline + detail + action row)
-                      as that banner, kept in the same amber "reading quality"
-                      family rather than the red used for a hard failure:
-                      nothing broke, the photo just did not yield digits. */}
-                  {unreadable ? (
-                    <View
-                      accessibilityLiveRegion="polite"
-                      className="mb-3 rounded-xl px-3.5 py-3"
-                      style={{
-                        backgroundColor: 'rgba(243,156,18,0.12)',
-                        borderWidth: 1,
-                        borderColor: statusColor.elevated,
-                      }}
-                    >
-                      <View className="mb-1 flex-row items-center">
-                        <Ionicons
-                          name="alert-circle-outline"
-                          size={18}
-                          color="#B97400"
-                          style={{ marginRight: 8 }}
-                        />
-                        <ThemedText type="body" weight="semibold" style={{ color: '#7A4E00' }}>
-                          อ่านค่าจากภาพนี้ไม่ได้
-                        </ThemedText>
-                      </View>
-                      <ThemedText type="caption" className="mb-3" style={{ color: 'rgba(122,78,0,0.92)' }}>
-                        ระบบมองไม่เห็นตัวเลขบนหน้าจอเครื่องวัดในภาพนี้
-                        กรุณากรอกค่า SYS / DIA / ชีพจรด้วยตนเอง
-                      </ThemedText>
-                      <TapScale
-                        onPress={dismissUnreadable}
-                        className="overflow-hidden rounded-lg"
-                        accessibilityRole="button"
-                        accessibilityLabel="เข้าใจแล้ว กรอกค่าด้วยตนเอง"
-                      >
-                        <View
-                          className="items-center px-3 py-2"
-                          style={{
-                            backgroundColor: '#FFF4E0',
-                            borderWidth: 1,
-                            borderColor: 'rgba(217,119,6,0.45)',
-                          }}
-                        >
-                          <ThemedText type="caption" weight="semibold" style={{ color: '#7A4E00' }}>
-                            เข้าใจแล้ว กรอกด้วยตนเอง
-                          </ThemedText>
-                        </View>
-                      </TapScale>
-                    </View>
-                  ) : null}
+                  {/* The engine ran on this photo and found nothing — this used
+                      to be a banner here, with a single "understood" button.
+                      It is now the retake-or-manual-entry dialog fired from
+                      `showUnreadableAlert` the moment the read settles, before
+                      this sheet would even open for that outcome (see
+                      `reactToOutcome`) — so `unreadable` no longer has
+                      anything to render inside the sheet itself. It still
+                      drives the phase pill on the photo-preview screen behind
+                      this sheet (`phaseLabel`, above). */}
 
-                  {/* The read produced values but was not sure. They are shown
-                      for comparison rather than silently filled in — a wrong
-                      number nobody noticed becomes a wrong number in a medical
-                      history. */}
+                  {/* The read produced values but was not sure. Auto-applied
+                      into the fields already (`applyOutcomeReadings` in
+                      `startCaptureFlow`) — this is a review prompt, not a
+                      choice, matching the single-acknowledgement shape the
+                      unreadable dialog also uses: a wrong number nobody
+                      noticed becomes a wrong number in a medical history, so
+                      the ask is "check it," never "silently trust it." */}
                   {lowConfidenceReadings ? (
                     <View
                       accessibilityLiveRegion="polite"
@@ -1462,41 +1586,25 @@ export default function CameraScreen() {
                       <ThemedText type="caption" className="mb-3" style={{ color: 'rgba(122,78,0,0.92)' }}>
                         {`ระบบไม่แน่ใจ (ความมั่นใจ ${lowConfidencePct}%) กรุณาเทียบกับหน้าจอเครื่องวัด`}
                       </ThemedText>
-                      <View className="flex-row gap-2">
-                        <TapScale
-                          onPress={() => {
-                            applyReading(lowConfidenceReadings);
-                            dismissLowConfidence();
+                      <TapScale
+                        onPress={dismissLowConfidence}
+                        className="overflow-hidden rounded-lg"
+                        accessibilityRole="button"
+                        accessibilityLabel="เข้าใจแล้ว ตรวจสอบตัวเลขที่กรอกไว้ให้"
+                      >
+                        <View
+                          className="items-center px-3 py-2"
+                          style={{
+                            backgroundColor: '#FFF4E0',
+                            borderWidth: 1,
+                            borderColor: 'rgba(217,119,6,0.45)',
                           }}
-                          className="flex-1 overflow-hidden rounded-lg"
-                          accessibilityRole="button"
-                          accessibilityLabel="ใช้ค่าที่ระบบอ่านได้"
                         >
-                          <LinearGradient colors={accent} className="items-center px-3 py-2">
-                            <ThemedText type="caption" weight="semibold" style={{ color: '#FFFFFF' }}>
-                              ใช้ค่านี้
-                            </ThemedText>
-                          </LinearGradient>
-                        </TapScale>
-                        <TapScale
-                          onPress={dismissLowConfidence}
-                          className="flex-1 overflow-hidden rounded-lg"
-                          accessibilityRole="button"
-                          accessibilityLabel="กรอกค่าด้วยตนเอง"
-                        >
-                          <View
-                            className="items-center border px-3 py-2"
-                            style={{
-                              backgroundColor: '#FFF4E0',
-                              borderColor: 'rgba(217,119,6,0.45)',
-                            }}
-                          >
-                            <ThemedText type="caption" weight="semibold" style={{ color: '#7A4E00' }}>
-                              แก้เอง
-                            </ThemedText>
-                          </View>
-                        </TapScale>
-                      </View>
+                          <ThemedText type="caption" weight="semibold" style={{ color: '#7A4E00' }}>
+                            เข้าใจแล้ว
+                          </ThemedText>
+                        </View>
+                      </TapScale>
                     </View>
                   ) : null}
 
