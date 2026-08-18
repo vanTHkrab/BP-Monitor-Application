@@ -7,7 +7,7 @@ description: >-
     queue and a Redis request/reply pair. Media bytes flow client → S3 directly
     via presigned PUT.
 status: current
-updated: 2026-08-16
+updated: 2026-08-19
 owner: cross
 ---
 
@@ -29,7 +29,7 @@ flowchart LR
         direction TB
         ZUSTAND["Zustand stores<br/>auth + preferences"]
         SQLITE[("SQLite (Drizzle)<br/>pending_readings outbox<br/>readings mirror")]
-        VISION["bp-vision (Kotlin)<br/>YOLOv11n + CRNN<br/>Android only"]
+        VISION["bp-vision (Kotlin)<br/>YOLO26n + CRNN<br/>Android only"]
         ZUSTAND --> SQLITE
         ZUSTAND --> VISION
     end
@@ -53,7 +53,7 @@ flowchart LR
     subgraph AIService["🟢 AI Service — FastAPI / Python"]
         direction TB
         SUB["Redis subscriber<br/>handlers.py"]
-        YOLOA["YoloDetector<br/>same yolo11n.onnx"]
+        YOLOA["YoloDetector<br/>same yolo26n-adamw-color.onnx"]
         OCRP["Pipeline<br/>rectify → OCR → validate"]
         SUB --> YOLOA --> OCRP
     end

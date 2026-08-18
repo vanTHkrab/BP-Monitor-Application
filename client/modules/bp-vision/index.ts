@@ -1,7 +1,7 @@
 /**
  * bp-vision — the app's local Expo module (Android only).
  *
- * Runs YOLOv11n detection and CRNN digit OCR on the device, against the same
+ * Runs YOLO26n detection and CRNN digit OCR on the device, against the same
  * ONNX files the backend uses: bundled verbatim in `client/assets/models/` and
  * SHA256-gated by `scripts/verify-models.mjs` on every `pnpm start`. The native
  * implementation lives in `android/src/main/java/expo/modules/bpvision/`.

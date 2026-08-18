@@ -21,7 +21,7 @@ re-litigating.
 
 | | |
 | --- | --- |
-| `assets/models/yolo11n.onnx`, `assets/models/crnn.onnx` | Bundled, SHA256-verified on every `pnpm start`. |
+| `assets/models/yolo26n-adamw-color.onnx`, `assets/models/crnn.onnx` | Bundled, SHA256-verified on every `pnpm start`. |
 | `modules/bp-vision/` | Ported verbatim — 7 Kotlin files, the TS wrapper, `expo-module.config.json`, and the `withBpVisionModels` config plugin. |
 | `src/modules/capture/` | The feature module: analysis service, capture state machine, framing gate, camera surface, image helpers. |
 | `src/app/(tabs)/camera.tsx` | The screen, at the original's layout. |

@@ -67,7 +67,7 @@ flowchart TB
         K_GQL["GraphQL schema<br/>src/schema.gql"]
         K_REDIS["analyze_bp_image<br/>+ .reply payloads"]
         K_S3["S3 key layout<br/>users/{id}/…"]
-        K_MODEL["yolo11n.onnx<br/>+ 5 class IDs"]
+        K_MODEL["yolo26n-adamw-color.onnx<br/>+ 5 class IDs"]
     end
 
     subgraph DATA["🗄 Datastores"]

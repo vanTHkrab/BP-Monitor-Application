@@ -1,12 +1,12 @@
 ---
 title: On-device Detection & Framing Gate
 description: >-
-    The shared YOLOv11n detector on the phone: what runs where, how a frame
+    The shared YOLO26n detector on the phone: what runs where, how a frame
     becomes a framing verdict, and why auto-capture is a nudge rather than a
     gate. The model file is byte-identical to the one ai-service runs, so a
     class on the phone means what it means on the server.
 status: current
-updated: 2026-08-18
+updated: 2026-08-19
 owner: cross
 ---
 
@@ -19,23 +19,24 @@ resolved with `requireOptionalNativeModule`, so on iOS, web, and Expo Go they
 return "nothing found" and "unavailable" instead of throwing.
 
 **Two detector export families decode, and the graph picks.** `yolo11n.onnx`
-emits raw `[1, 4+C, anchors]` and owes per-class NMS to the decoder;
-`yolo26n-gray.onnx` / `yolo26n-color.onnx` emit `[1, 300, 6]` rows of
-`(x1, y1, x2, y2, conf, cls)` with the suppression already done inside the
-graph, which makes the IoU threshold inert for them. Kotlin's
-`YoloDetector.resolveOutputFormat` and ai-service's `resolve_output_format`
-both read the format off the loaded graph's declared output shape and both
-throw at load on anything else, because decoding one family as the other does
-not fail — it returns confident, wrong boxes. **The phone still loads
-`yolo11n.onnx`**; the yolo26n files are not bundled in `assets/models/` and are
-not in `verify-models.mjs`'s list yet. The dual decode exists so the two
-processes can be switched over one at a time.
+(and the rest of the anchors-family comparison set) emits raw `[1, 4+C, anchors]`
+and owes per-class NMS to the decoder; `yolo26n-adamw-color.onnx` — the
+shipped default on both the phone and ai-service — and the other `yolo26n-*`
+exports emit `[1, 300, 6]` rows of `(x1, y1, x2, y2, conf, cls)` with the
+suppression already done inside the graph, which makes the IoU threshold
+inert for them. Kotlin's `YoloDetector.resolveOutputFormat` and ai-service's
+`resolve_output_format` both read the format off the loaded graph's declared
+output shape and both throw at load on anything else, because decoding one
+family as the other does not fail — it returns confident, wrong boxes. **The
+phone now loads `yolo26n-adamw-color.onnx`**, same as ai-service; the dual
+decode remains so either side can still be pointed at a comparison-set model
+(e.g. `yolo11n.onnx`) independently without the other's decoder breaking.
 
 ```mermaid
 flowchart TD
     A["Analysis frame (~4 fps)"] --> B["BPVision.detect(uri, w, h, 512)"]
     B --> C["Kotlin: letterbox → [1,3,512,512] float32<br/>ONNX Runtime session (CPU / XNNPACK / NNAPI)"]
-    C --> D["Decode by the loaded graph's output shape<br/>[1,4+C,anchors] → per-class NMS here (yolo11n, loaded today)<br/>[1,300,6] → already suppressed (yolo26n)<br/>conf 0.25 / IoU 0.45 on the anchors path only"]
+    C --> D["Decode by the loaded graph's output shape<br/>[1,4+C,anchors] → per-class NMS here (yolo11n family)<br/>[1,300,6] → already suppressed (yolo26n family, loaded today)<br/>conf 0.25 / IoU 0.45 on the anchors path only"]
     D --> E["Detection[] in source-image pixels"]
 
     E --> F["evaluateFraming(frame)"]
@@ -79,10 +80,10 @@ flowchart TD
 
 ## Shared-model contract
 
-- **Byte-identical model file** — `client/assets/models/yolo11n.onnx` and
-  `server/app/ai-service/models/yolo11n.onnx` are the same bytes. `pnpm
-  verify-models` on every `pnpm start` asserts SHA256 equality against
-  `server/app/ai-service/models/EXPECTED_HASHES.json`.
+- **Byte-identical model file** — `client/assets/models/yolo26n-adamw-color.onnx`
+  and `server/app/ai-service/models/yolo26n-adamw-color.onnx` are the same
+  bytes. `pnpm verify-models` on every `pnpm start` asserts SHA256 equality
+  against `server/app/ai-service/models/EXPECTED_HASHES.json`.
 - **Class IDs are a wire contract** — 0 `BP_Monitor` / 1 `BP_Screen_Monitor` /
   2 `dia` / 3 `pulse` / 4 `sys` — mirrored in
   `client/src/modules/capture/lib/detection.ts` and

@@ -50,7 +50,7 @@ private const val TAG = "BPVisionModule"
 // at COLOR compiles cleanly into exactly the silent accuracy loss the design
 // exists to prevent. checkRenderingMatchesAsset below is what actually holds
 // them together.
-private const val YOLO_ASSET = "yolo11n.onnx"
+private const val YOLO_ASSET = "yolo26n-adamw-color.onnx"
 private val YOLO_RENDERING = YoloDetector.InputRendering.COLOR
 private const val CRNN_ASSET = "crnn.onnx"
 

@@ -7,7 +7,7 @@ description: >-
     sitting outside src/, and web/ reaching the datastores directly instead of
     going through the gateway.
 status: current
-updated: 2026-08-16
+updated: 2026-08-19
 owner: cross
 ---
 
@@ -85,7 +85,7 @@ flowchart TB
         K_GQL["GraphQL schema<br/>src/schema.gql"]
         K_REDIS["analyze_bp_image<br/>+ .reply payloads"]
         K_S3["S3 key layout<br/>users/{id}/…"]
-        K_MODEL["yolo11n.onnx<br/>+ 5 class IDs"]
+        K_MODEL["yolo26n-adamw-color.onnx<br/>+ 5 class IDs"]
     end
 
     subgraph DATA["🗄 Datastores"]

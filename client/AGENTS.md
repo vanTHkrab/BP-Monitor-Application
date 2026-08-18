@@ -160,7 +160,7 @@ and why it was not bundled with the first.
 | `src/database/` | SQLite. `pending_readings` (outbox) and `readings` (mirror) |
 | `modules/bp-vision/android/` | Native Kotlin: YOLO, CRNN OCR, CameraX `ImageAnalysis` |
 | `modules/bp-vision/plugin/withBpVisionModels.js` | Config plugin — copies models into the native project **at prebuild only** |
-| `assets/models/` | `yolo11n.onnx`, `crnn.onnx`. Tracked, hash-checked on every start |
+| `assets/models/` | `yolo26n-adamw-color.onnx`, `crnn.onnx`. Tracked, hash-checked on every start |
 | `scripts/verify-models.mjs` | sha256 vs the ai-service manifest |
 | `eslint-rules/` | Project-owned ESLint rules, wired under `bp/` in `eslint.config.js` |
 
@@ -210,12 +210,12 @@ and why it was not bundled with the first.
   filename marker and the declared rendering disagree. That is a veto, not
   inference: the declaration decides, the filename only refuses to contradict
   it, and it has no override because ai-service infers from that same filename
-  on the same file. The phone loads `yolo11n.onnx` / `InputRendering.COLOR`
-  today.
+  on the same file. The phone loads `yolo26n-adamw-color.onnx` /
+  `InputRendering.COLOR` today.
 - **What actually gates a bundled model is two `MODELS` arrays, not the
   manifest.** `scripts/verify-models.mjs` and
   `modules/bp-vision/plugin/withBpVisionModels.js` each hold their own
-  `['yolo11n.onnx', 'crnn.onnx']` list; `verify-models` iterates *that* and
+  `['yolo26n-adamw-color.onnx', 'crnn.onnx']` list; `verify-models` iterates *that* and
   looks up only those names, so an extra key in `EXPECTED_HASHES.json` is
   structurally unreachable and harmless. A manifest entry ahead of bundling is
   in fact the correct order — the hash has to exist before a file can be

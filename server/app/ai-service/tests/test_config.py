@@ -26,7 +26,7 @@ def _clean_ai_env(monkeypatch):
 class TestDefaults:
     def test_detector_path_anchors_to_ai_service_root(self):
         cfg = AnalyzerConfig()
-        assert cfg.detector_path == AI_SERVICE_ROOT / "models" / "yolo11n.onnx"
+        assert cfg.detector_path == AI_SERVICE_ROOT / "models" / "yolo26n-adamw-color.onnx"
 
     def test_model_file_actually_exists_at_default(self, require_model):
         """The fetched artifact lands exactly where config looks for it.
@@ -37,7 +37,7 @@ class TestDefaults:
         fresh CI checkout it skips; the path-resolution assertions above
         cover the part that holds without weights.
         """
-        fetched = require_model("yolo11n.onnx")
+        fetched = require_model("yolo26n-adamw-color.onnx")
         cfg = AnalyzerConfig()
         assert cfg.detector_path == fetched
         assert cfg.detector_path.exists()

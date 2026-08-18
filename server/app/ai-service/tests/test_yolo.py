@@ -31,6 +31,7 @@ from ai_service.analyzer.yolo import (
     infer_grayscale_input,
     resolve_output_format,
 )
+from ai_service.config import AnalyzerConfig
 
 # ─── fake ORT session ───────────────────────────────────────────────────
 #
@@ -394,9 +395,13 @@ class TestModelLoad:
         with pytest.raises(Exception):  # onnxruntime InvalidProtobuf or similar
             YoloDetector.load("/tmp/does-not-exist-12345.onnx")
 
-    def test_bundled_detector_is_an_anchors_export(self, detector):
-        """The default `AI_DETECTOR_PATH`. If this ever flips, the mobile
-        pre-flight detector's decode has to flip with it (ADR-002)."""
+    def test_yolo11n_remains_an_anchors_export(self, detector):
+        """`yolo11n.onnx` stays in the comparison set as an anchors-family
+        export — it is no longer `AI_DETECTOR_PATH`'s default. The default
+        is `yolo26n-adamw-color.onnx`, an end-to-end export; see
+        `TestRealYolo26Models.test_configured_default_is_an_end_to_end_color_export`
+        for the pin on *that* file. If either one's format ever flips, the
+        mobile pre-flight detector's decode has to flip with it (ADR-002)."""
         assert detector.output_format is DetectorOutputFormat.ANCHORS
         assert detector.grayscale_input is False
 
@@ -417,6 +422,17 @@ class TestRealYolo26Models:
     def test_uniform_gray_returns_empty_list(self, require_model, fake_image):
         d = YoloDetector.load(require_model("yolo26n-adamw-gray.onnx"))
         assert d.detect(fake_image) == []
+
+    def test_configured_default_is_an_end_to_end_color_export(self, require_model):
+        """Pins `AnalyzerConfig().detector_path` itself, not just a
+        hardcoded filename — this is the test that must fail first if the
+        default ever silently drifts back to an anchors export without the
+        mobile pre-flight detector (ADR-002) moving with it."""
+        cfg = AnalyzerConfig()
+        assert cfg.detector_path.name == "yolo26n-adamw-color.onnx"
+        d = YoloDetector.load(require_model(cfg.detector_path.name))
+        assert d.output_format is DetectorOutputFormat.NMS_BOXES
+        assert d.grayscale_input is False
 
 
 class TestDetectSmoke:
