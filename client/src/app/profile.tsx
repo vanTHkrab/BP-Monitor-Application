@@ -166,7 +166,23 @@ export default function ProfileScreen() {
       const { message, field } = formatAuthError(error, {
         fallback: 'บันทึกไม่สำเร็จ กรุณาลองใหม่',
       });
-      // The gateway's one field-specific rejection here is a duplicate phone.
+      /*
+       * Dead today, and kept deliberately rather than deleted.
+       *
+       * The gateway's one field-specific rejection here is a duplicate phone,
+       * but `field` is never `'phone'` on this path: `formatAuthError` only
+       * attributes a `CONFLICT` to a field inside `if (options.context ===
+       * 'register')`, and this call passes no context — so a duplicate phone
+       * reaches the user as the generic "ข้อมูลซ้ำกับที่มีอยู่แล้วในระบบ" in
+       * the banner instead of under the input it belongs to.
+       *
+       * Pre-existing: the `useState` version of this screen called
+       * `formatAuthError` the same way. Not fixed here because `'profile'` is
+       * not in the `context` union, so it widens a type in `modules/auth` and
+       * needs a decision about what a profile save claims to be — rule 12, not
+       * a port. The branch stays so the fix is one argument rather than a
+       * re-discovery.
+       */
       if (field === 'phone') setError('phone', { message });
       setBanner({ tone: 'error', text: message });
     }
