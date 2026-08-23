@@ -113,9 +113,23 @@ model User {
   firstname String @db.VarChar(100)
   lastname  String @db.VarChar(100)
 
-  // Mapped to Better Auth's `phoneNumber` field. Stays NOT NULL: caregivers
-  // find patients by phone, so an account without one is unreachable.
-  phone               String  @unique @db.VarChar(30)
+  /// Mapped to Better Auth's `phoneNumber` field.
+  ///
+  /// Nullable as of the Google sign-in work, reversing the earlier decision
+  /// recorded in docs/architecture/AUTH-better-auth-identity.md. A Google ID
+  /// token carries no phone number, and Better Auth's `phoneNumber` plugin
+  /// declares the field `required: false` — the NOT NULL was ours alone, and
+  /// it made social sign-up impossible to complete.
+  ///
+  /// `@unique` is kept and is load-bearing in a second way now: Postgres
+  /// allows many NULLs under a unique index, and `findUnique({ where: {
+  /// phone } })` can never match a NULL. So an account with no phone is
+  /// simply not reachable by the caregiver invite lookup
+  /// (`caregiver.service.ts` `addCaregiverPatient`) — the database guarantees
+  /// that property instead of a test having to prove it. This is why nullable
+  /// was chosen over a synthetic placeholder value, which would have been
+  /// matchable and indistinguishable from a real number.
+  phone               String? @unique @db.VarChar(30)
   phoneNumberVerified Boolean @default(false) @map("phone_number_verified")
 
   /// Legacy bcrypt hash, retained only until the credential backfill is
@@ -152,16 +166,15 @@ model User {
   banReason  String?   @map("ban_reason") @db.VarChar(255)
   banExpires DateTime? @map("ban_expires")
 
-  // ── Domain fields (declared to Better Auth as `additionalFields`) ──
-  dob               DateTime? @db.Date
-  gender            Gender?
-  weight            Float?
-  height            Float?
-  congenitalDisease String?   @map("congenital_disease") @db.VarChar(255)
+  // ── Domain fields ──
+  // The five health fields (dob, gender, weight, height, congenitalDisease)
+  // moved to `UserInformation`. `avatar` stays here because Better Auth maps
+  // it as its own `image` field, and a Better Auth field can only resolve to
+  // a column on the model's own table.
   /// Mapped to Better Auth's `image` field.
-  avatar            String?   @db.VarChar(512)
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+  avatar    String?  @db.VarChar(512)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   accounts         Account[]
   images           Image[]
@@ -181,7 +194,73 @@ model User {
   profileChanges   ProfileChangeLog[] @relation("ProfileChangeSubject")
   profileEditsMade ProfileChangeLog[] @relation("ProfileChangeActor")
 
+  /// Optional on this side because the row is created when registration
+  /// completes, not when the `users` row is inserted. A Google sign-in
+  /// creates the account first and collects the health block afterwards, so
+  /// there is a window — and for a caregiver who never fills it in, forever —
+  /// where a user has no information row. Every read must therefore treat a
+  /// missing row as "not yet provided", not as an error.
+  information UserInformation?
+
   @@map("users")
+}
+
+/// The patient health block, one row per user, created when registration
+/// completes rather than alongside the `users` row.
+///
+/// Split out of `users` because `users` is Better Auth's table: every column
+/// on it is either a field Better Auth owns or a field we had to declare to
+/// it as an `additionalField`, and a required `additionalField` that a social
+/// provider cannot supply makes that provider's sign-up impossible. Moving
+/// the health block off the table takes it out of Better Auth's field set
+/// entirely, so the adapter neither reads nor writes it and social sign-up
+/// stops depending on it.
+///
+/// The four required columns are NOT NULL: the row's existence is what carries
+/// "the patient has provided their health information", so a row of nulls
+/// would reintroduce exactly the ambiguity the split removes. The cost is that
+/// a value can no longer be cleared to null and that registration must supply
+/// all four — see the migration notes.
+///
+/// `congenitalDisease` is the exception, and its nullability is meaningful
+/// rather than a leftover. The UI asks it in two parts — a มี / ไม่มี select,
+/// with the text box revealed only for มี — so "no condition" is an *answered*
+/// state, not an empty box. Three states, and the pair (row, column) tells
+/// them apart with no ambiguity:
+///
+/// | state                              | meaning                       |
+/// | ---------------------------------- | ----------------------------- |
+/// | no `user_informations` row         | health step not completed     |
+/// | row exists, `congenital_disease` NULL | answered: no condition     |
+/// | row exists, text present           | answered: that condition      |
+///
+/// **Do not "tidy up" that NULL into the literal string `'ไม่มี'`.** It is the
+/// same sentinel-in-a-column pattern rejected for `users.phone`, and it is
+/// worse here: a user can type `ไม่มี` into the text box themselves, at which
+/// point the sentinel and a real answer are indistinguishable — permanently,
+/// with no migration able to separate them again. `'ไม่มี'` is what the
+/// *presentation* layer renders for NULL, and it belongs in the GraphQL
+/// mapper, not in this column.
+model UserInformation {
+  /// Both primary key and foreign key: one row per user, enforced by the PK
+  /// rather than by a separate unique index. `Cascade` because the health
+  /// block has no meaning without the account it describes.
+  userId String @id @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  dob    DateTime @db.Date
+  gender Gender
+  weight Float
+  height Float
+
+  /// NULL means "answered: no condition". See the model docstring — this is
+  /// deliberately not the string `'ไม่มี'`.
+  congenitalDisease String? @map("congenital_disease") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("user_informations")
 }
 
 /// One row per health field changed on a patient's profile.
