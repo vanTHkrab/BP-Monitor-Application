@@ -9,9 +9,19 @@ import {
 } from '@nestjs/common';
 import {
   CaregiverPermission,
-  Gender,
   RelationshipType,
 } from '../prisma/generated/enums';
+import {
+  HealthPatch,
+  HealthValue,
+  INCOMPLETE_HEALTH_MESSAGE,
+  UserInformationRow,
+  applyHealthValue,
+  buildInformationCreate,
+  cannotClearMessage,
+  isRequiredHealthField,
+  presentCongenitalDisease,
+} from '../auth/user-information';
 import { PrismaService } from '../prisma/prisma.service';
 import { RateLimitService } from '../redis/rate-limit.service';
 import {
@@ -31,16 +41,19 @@ type CaregiverLinkWithUsers = {
   status: 'pending' | 'accepted' | 'rejected';
   permission: CaregiverPermission;
   respondedAt: Date | null;
+  // `phone` is nullable as of the Google sign-in work: an account created
+  // through a social provider has none. It reaches GraphQL as a nullable
+  // field rather than as `''` — see `UserObject.phone`.
   caregiver: {
     firstname: string;
     lastname: string;
-    phone: string;
+    phone: string | null;
     avatar: string | null;
   };
   patient: {
     firstname: string;
     lastname: string;
-    phone: string;
+    phone: string | null;
     avatar: string | null;
   };
 };
@@ -103,6 +116,12 @@ const EDITABLE_HEALTH_FIELDS = [
 
 type EditableHealthField = (typeof EDITABLE_HEALTH_FIELDS)[number];
 
+/**
+ * The five columns, selected off `user_informations` rather than off `users`.
+ *
+ * Always reached through `HEALTH_INCLUDE`, never applied to a `user` select
+ * directly — the columns do not exist on that table any more.
+ */
 const HEALTH_SELECT = {
   dob: true,
   gender: true,
@@ -111,24 +130,17 @@ const HEALTH_SELECT = {
   congenitalDisease: true,
 } as const;
 
-type HealthFields = {
-  dob: Date | null;
-  gender: Gender | null;
-  weight: number | null;
-  height: number | null;
-  congenitalDisease: string | null;
-};
+/** How a `user` query pulls the health block along. `null` means no row. */
+const HEALTH_INCLUDE = {
+  information: { select: HEALTH_SELECT },
+} as const;
 
 /**
- * Any value one of the five editable fields can hold, on either side of the
- * wire. Deliberately not `unknown`: the helpers below narrow on `field`, and
- * `unknown` would push every branch into a cast, which is exactly the kind of
- * escape hatch that lets an unintended field through.
- *
- * `Gender` is absorbed by `string` rather than listed — the input arrives as a
- * `@IsIn`-validated string and only becomes the enum at the Prisma boundary.
+ * The four required fields are non-optional here because they are NOT NULL
+ * *within a row*. The optionality moved up a level: it is now the row itself
+ * that may be absent, which every caller expresses as `HealthFields | null`.
  */
-type HealthValue = Date | number | string | null | undefined;
+type HealthFields = UserInformationRow;
 
 /**
  * The value to store, given what the client submitted.
@@ -171,16 +183,22 @@ const renderHealthValue = (
   return value instanceof Date ? value.toISOString() : String(value);
 };
 
+/**
+ * `row` is `null` for a patient who has not completed the health step, and
+ * every field then comes back absent — including `congenitalDisease`, which is
+ * how the client tells "not answered" from the answered-no-condition case that
+ * `presentCongenitalDisease` renders as `'ไม่มี'`.
+ */
 const toHealthProfile = (
   patientId: string,
-  row: HealthFields,
+  row: HealthFields | null,
 ): PatientHealthProfileType => ({
   patientId,
-  dob: row.dob ?? undefined,
-  gender: row.gender ?? undefined,
-  weight: row.weight ?? undefined,
-  height: row.height ?? undefined,
-  congenitalDisease: row.congenitalDisease ?? undefined,
+  dob: row?.dob,
+  gender: row?.gender,
+  weight: row?.weight,
+  height: row?.height,
+  congenitalDisease: presentCongenitalDisease(row),
 });
 
 /**
@@ -567,11 +585,7 @@ export class CaregiverService {
             lastname: true,
             phone: true,
             avatar: true,
-            dob: true,
-            weight: true,
-            height: true,
-            gender: true,
-            congenitalDisease: true,
+            ...HEALTH_INCLUDE,
           },
         },
       },
@@ -614,14 +628,14 @@ export class CaregiverService {
       id: link.patient.id,
       firstname: link.patient.firstname,
       lastname: link.patient.lastname,
-      phone: link.patient.phone,
+      phone: link.patient.phone ?? undefined,
       avatar: link.patient.avatar ?? undefined,
-      dob: link.patient.dob ?? undefined,
+      dob: link.patient.information?.dob,
       relationship: link.relationship,
-      weight: link.patient.weight ?? undefined,
-      height: link.patient.height ?? undefined,
-      gender: link.patient.gender ?? undefined,
-      congenitalDisease: link.patient.congenitalDisease ?? undefined,
+      weight: link.patient.information?.weight,
+      height: link.patient.information?.height,
+      gender: link.patient.information?.gender,
+      congenitalDisease: presentCongenitalDisease(link.patient.information),
     }));
   }
 
@@ -748,7 +762,7 @@ export class CaregiverService {
     const [patient, actor] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: patientId },
-        select: HEALTH_SELECT,
+        select: HEALTH_INCLUDE,
       }),
       this.prisma.user.findUnique({
         where: { id: actorId },
@@ -762,8 +776,17 @@ export class CaregiverService {
       throw new NotFoundException('ไม่พบผู้ใช้');
     }
 
+    // `null` when the patient has never completed the health step. Every read
+    // below goes through it optionally, and the write below has to *create*
+    // the row rather than update it — which is only possible if this edit
+    // carries all four required values.
+    const information = patient.information;
+
     const actorName = `${actor.firstname} ${actor.lastname}`.trim();
-    const patch: Record<string, unknown> = {};
+    // Typed rather than `Record<string, unknown>`. The untyped version is what
+    // let the old `patch[field] = null` writes survive a schema in which four
+    // of these columns had stopped accepting null.
+    const patch: HealthPatch = {};
     const entries: {
       patientId: string;
       actorId: string;
@@ -781,7 +804,32 @@ export class CaregiverService {
       if (submitted === undefined) continue;
 
       const next = normalizeHealthValue(field, submitted);
-      const before = renderHealthValue(field, patient[field]);
+
+      // Clearing one of the four required fields is refused, not dropped.
+      //
+      // They are NOT NULL on `user_informations`, and deliberately so: the
+      // row's existence is what says "this patient has provided their health
+      // information", and a row of nulls would put back exactly the ambiguity
+      // the split removed. So there is no longer any write that expresses
+      // "clear this" — the only question is what to do with a request for one.
+      //
+      // Refusing beats dropping because dropping is a lie the audit trail
+      // cannot correct: the mutation would return 200 with the old value still
+      // in place, `ProfileChangeLog` would record nothing, and neither the
+      // caregiver nor the patient would ever learn the clear did not happen.
+      // A 400 is the honest answer to "the database can no longer represent
+      // that", and the caregiver can still *change* the value.
+      //
+      // `congenitalDisease` is untouched by this: NULL there is an answer
+      // ("no condition"), not an absence, so clearing it stays legal.
+      if (next === null && isRequiredHealthField(field)) {
+        throw new BadRequestException(cannotClearMessage(field));
+      }
+
+      const before = renderHealthValue(
+        field,
+        information ? information[field] : null,
+      );
       const after = renderHealthValue(field, next);
 
       // Compared as rendered text, which is the same value the log stores.
@@ -790,7 +838,7 @@ export class CaregiverService {
       // whose column is a bare DATE.
       if (before === after) continue;
 
-      patch[field] = next;
+      applyHealthValue(patch, field, next);
       entries.push({
         patientId,
         actorId,
@@ -802,13 +850,30 @@ export class CaregiverService {
     }
 
     if (entries.length === 0) {
-      return toHealthProfile(patientId, patient);
+      return toHealthProfile(patientId, information);
     }
 
+    // `upsert`, not `update`: the patient may have no row at all, and a
+    // caregiver filling the health block in for the first time is a real case
+    // — a Google-created account starts in exactly that state.
+    //
+    // `create` needs all four required values, so a *partial* edit against a
+    // patient with no row cannot be honoured. `buildInformationCreate` returns
+    // null for that, and it becomes a 400 rather than a row with invented
+    // values. When the row already exists this can never fail.
+    const create = buildInformationCreate(information, patch);
+    if (!create) {
+      throw new BadRequestException(INCOMPLETE_HEALTH_MESSAGE);
+    }
+
+    // The write and its audit rows stay in one transaction, unchanged in
+    // intent: an edit that landed without its trail is the situation
+    // `ProfileChangeLog` exists to prevent.
     const [updated] = await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: patientId },
-        data: patch,
+      this.prisma.userInformation.upsert({
+        where: { userId: patientId },
+        create: { userId: patientId, ...create },
+        update: patch,
         select: HEALTH_SELECT,
       }),
       this.prisma.profileChangeLog.createMany({ data: entries }),
@@ -858,10 +923,10 @@ export class CaregiverService {
       relationship: link.relationship,
       caregiverName:
         `${link.caregiver.firstname} ${link.caregiver.lastname}`.trim(),
-      caregiverPhone: link.caregiver.phone,
+      caregiverPhone: link.caregiver.phone ?? undefined,
       caregiverAvatar: link.caregiver.avatar ?? undefined,
       patientName: `${link.patient.firstname} ${link.patient.lastname}`.trim(),
-      patientPhone: link.patient.phone,
+      patientPhone: link.patient.phone ?? undefined,
       patientAvatar: link.patient.avatar ?? undefined,
       status: link.status as CaregiverLinkStatusGql,
       permission: link.permission as CaregiverPermissionGql,
