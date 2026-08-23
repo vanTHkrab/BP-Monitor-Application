@@ -28,10 +28,12 @@ const mockAvatar = {
   },
 };
 
+const mockUpdateProfile = jest.fn();
+
 jest.mock('@/modules/auth', () => ({
   ...jest.requireActual('@/modules/auth'),
   useSession: () => mockSession.current,
-  useUpdateProfile: () => ({ updateProfile: jest.fn(), isPending: false }),
+  useUpdateProfile: () => ({ updateProfile: mockUpdateProfile, isPending: false }),
 }));
 
 jest.mock('@/modules/profile', () => ({
@@ -74,6 +76,44 @@ beforeEach(() => {
     error: null,
     changeAvatar: jest.fn(),
   };
+  mockUpdateProfile.mockResolvedValue(undefined);
+});
+
+/*
+ * One interaction case, deliberately not a suite.
+ *
+ * `updateProfile` is a partial update where a present-but-empty value *clears*
+ * the column, so sending the whole form rewrites every column with whatever
+ * this screen was holding — silently reverting anything another device
+ * changed. `changedFields` is what stops that, and after the move to React
+ * Hook Form it is only still safe because `profileSchema` happens to be a
+ * transform-free `z.object` whose keys match `ProfileForm` exactly. Add one
+ * key, or one `.transform()`, and the diff starts shipping fields nobody
+ * edited — with no type error and no other test objecting.
+ *
+ * The rest of edit mode (validation, cancel, the banner) is covered by a plan
+ * in the PR body rather than here.
+ */
+describe('ProfileScreen — edit mode sends only what changed', () => {
+  it('posts the one edited field and nothing else', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+    await fireEvent.changeText(view.getByTestId('profile-firstname'), 'สมหญิง');
+    await fireEvent.press(view.getByTestId('profile-save'));
+
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ firstname: 'สมหญิง' });
+  });
+
+  it('sends nothing at all when the form is reopened and left alone', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+    await fireEvent.press(view.getByTestId('profile-save'));
+
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
 });
 
 describe('ProfileScreen — read mode', () => {
@@ -212,10 +252,14 @@ describe('ProfileScreen — changing the avatar', () => {
 
 /*
  * The scrollable form is wrapped so a field near the bottom (weight, height,
- * โรคประจำตัว) is not left under the on-screen keyboard. `padding` on iOS;
- * no `behavior` on Android, since `adjustResize` (set app-wide in
- * AndroidManifest.xml) already resizes the window and `'height'` on top of
- * that would double-compensate — see the comment beside the wrapper itself.
+ * โรคประจำตัว) is not left under the on-screen keyboard.
+ *
+ * The wrapper is `KeyboardAwareScrollView` from
+ * `react-native-keyboard-controller` now, not the `KeyboardAvoidingView` this
+ * comment used to describe — it reads the IME insets natively and there is no
+ * per-platform `behavior` left to get wrong. The testID is unchanged, which is
+ * why this assertion survived the swap without anyone noticing the prose had
+ * stopped being true.
  */
 describe('ProfileScreen — keyboard avoidance', () => {
   it('wraps the form so the keyboard cannot cover the field being edited', async () => {

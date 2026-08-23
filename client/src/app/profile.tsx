@@ -35,8 +35,10 @@
  * keep the badge. Changing it needs a gateway change that resets the flag;
  * until then the row links to the verification flow instead.
  */
+import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Alert, TextInput, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
@@ -65,9 +67,8 @@ import {
   formFromUser,
   genderLabel,
   hasChanges,
+  profileSchema,
   useProfileAvatar,
-  validateProfile,
-  type ProfileErrors,
   type ProfileForm,
 } from '@/modules/profile';
 import { SecurityHeader } from '@/modules/security';
@@ -92,65 +93,120 @@ export default function ProfileScreen() {
   const { updateProfile, isPending } = useUpdateProfile();
   const avatar = useProfileAvatar();
 
-  const [form, setForm] = useState<ProfileForm | null>(null);
-  const [errors, setErrors] = useState<ProfileErrors>({});
+  /**
+   * Read mode is its own flag now, and that is a real cost of this screen's
+   * move to React Hook Form, worth naming rather than discovering.
+   *
+   * The old form used `form === null` *as* the mode, on the stated ground that
+   * one source of truth beats a boolean that can disagree with the form it
+   * guards. RHF removes that option — `useForm` cannot be created
+   * conditionally, so the values always exist. The compensating rule is that
+   * nothing outside `startEditing` / `cancelEditing` writes either half: each
+   * sets the flag and seeds or discards the values in the same breath, so the
+   * two cannot drift the way independently-updated state would.
+   */
+  const [isEditing, setIsEditing] = useState(false);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
 
-  // `form === null` *is* read mode. One source of truth for the mode beats a
-  // boolean that can disagree with the form it guards.
-  const isEditing = form !== null;
+  // Per mount, not module load: `validateDob` inside the schema compares
+  // against `now`, and a module-level schema would freeze "today" at the
+  // moment the bundle was evaluated.
+  const schema = useMemo(() => profileSchema(), []);
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors },
+  } = useForm<ProfileForm>({
+    resolver: zodResolver(schema),
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
+    defaultValues: formFromUser(null),
+  });
 
   const startEditing = () => {
     setBanner(null);
-    setErrors({});
-    setForm(formFromUser(user));
+    // `reset` seeds the values and clears every error in one call, which is
+    // what carries the old screen's "tapping แก้ไข is an event, so it can seed
+    // honestly" property across — no effect writes state during render.
+    reset(formFromUser(user));
+    setIsEditing(true);
   };
 
   const cancelEditing = () => {
-    setForm(null);
-    setErrors({});
+    setIsEditing(false);
+    reset(formFromUser(user));
   };
 
-  const patch = <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => {
-    setForm((current) => (current ? { ...current, [key]: value } : current));
-    setErrors((current) => ({ ...current, [key]: undefined }));
-  };
-
-  const save = async () => {
-    if (!form) return;
-
-    const found = validateProfile(form);
-    setErrors(found);
-    if (Object.keys(found).length > 0) {
-      setBanner({ tone: 'error', text: 'กรุณาตรวจสอบข้อมูลที่มีเครื่องหมายสีแดง' });
-      return;
-    }
-
-    const changes = changedFields(form, user);
+  /**
+   * Still diffs before sending, and that has not become optional.
+   * `updateProfile` is a partial update where a present-but-empty value clears
+   * the column, so posting `values` wholesale would rewrite every column with
+   * whatever this screen was holding — silently reverting anything another
+   * device changed. RHF changes who owns the values, not what the gateway does
+   * with them.
+   */
+  const onValid = async (values: ProfileForm) => {
+    const changes = changedFields(values, user);
     if (!hasChanges(changes)) {
       // Not an error, and not a save either. Saying "บันทึกแล้ว" for a request
       // that never went out teaches people to distrust the message.
-      setForm(null);
+      setIsEditing(false);
       setBanner({ tone: 'ok', text: 'ไม่มีข้อมูลที่เปลี่ยนแปลง' });
       return;
     }
 
     try {
       await updateProfile(changes);
-      setForm(null);
+      setIsEditing(false);
       setBanner({ tone: 'ok', text: 'บันทึกข้อมูลเรียบร้อยแล้ว' });
     } catch (error) {
       const { message, field } = formatAuthError(error, {
         fallback: 'บันทึกไม่สำเร็จ กรุณาลองใหม่',
       });
-      // The gateway's one field-specific rejection here is a duplicate phone.
-      if (field === 'phone') setErrors((current) => ({ ...current, phone: message }));
+      /*
+       * Dead today, and kept deliberately rather than deleted.
+       *
+       * The gateway's one field-specific rejection here is a duplicate phone,
+       * but `field` is never `'phone'` on this path: `formatAuthError` only
+       * attributes a `CONFLICT` to a field inside `if (options.context ===
+       * 'register')`, and this call passes no context — so a duplicate phone
+       * reaches the user as the generic "ข้อมูลซ้ำกับที่มีอยู่แล้วในระบบ" in
+       * the banner instead of under the input it belongs to.
+       *
+       * Pre-existing: the `useState` version of this screen called
+       * `formatAuthError` the same way. Not fixed here because `'profile'` is
+       * not in the `context` union, so it widens a type in `modules/auth` and
+       * needs a decision about what a profile save claims to be — rule 12, not
+       * a port. The branch stays so the fix is one argument rather than a
+       * re-discovery.
+       */
+      if (field === 'phone') setError('phone', { message });
       setBanner({ tone: 'error', text: message });
     }
   };
 
+  const save = () => {
+    setBanner(null);
+    void handleSubmit(onValid, () => {
+      setBanner({ tone: 'error', text: 'กรุณาตรวจสอบข้อมูลที่มีเครื่องหมายสีแดง' });
+    })();
+  };
+
+  /*
+   * `useWatch`, not the `watch()` returned by `useForm`. React Compiler is on
+   * in this tree and `react-hooks/incompatible-library` rejects `watch()` by
+   * name: it hands back a *function* that cannot be memoized without risking
+   * stale UI, so the compiler skips optimising the whole component rather than
+   * get it wrong. `--max-warnings 0` makes that a build failure, which is the
+   * correct outcome — the answer is RHF's own subscription hook, which returns
+   * a value, not a suppression comment over a real limitation.
+   */
+  const watchedPhone = useWatch({ control, name: 'phone' });
   const phoneChanged =
-    stripPhoneDigits(form?.phone ?? '') !== stripPhoneDigits(user?.phone ?? '');
+    stripPhoneDigits(watchedPhone ?? '') !== stripPhoneDigits(user?.phone ?? '');
 
   /**
    * Same action sheet as `auth/components/avatar-picker.tsx`'s register-form
@@ -220,30 +276,44 @@ export default function ProfileScreen() {
 
           <ProfileGroup title="ข้อมูลส่วนตัว">
             <ProfileField label="ชื่อ" value={user?.firstname} isEditing={isEditing}>
-              <TextField
-                testID="profile-firstname"
-                placeholder="ชื่อ"
-                value={form?.firstname ?? ''}
-                onChangeText={(text) => patch('firstname', text)}
-                icon="person-outline"
-                autoCapitalize="words"
-                autoComplete="name"
-                editable={!isPending}
-                error={errors.firstname}
+              <Controller
+                control={control}
+                name="firstname"
+                render={({ field }) => (
+                  <TextField
+                    testID="profile-firstname"
+                    placeholder="ชื่อ"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    onBlur={field.onBlur}
+                    icon="person-outline"
+                    autoCapitalize="words"
+                    autoComplete="name"
+                    editable={!isPending}
+                    error={errors.firstname?.message}
+                  />
+                )}
               />
             </ProfileField>
 
             <ProfileField label="นามสกุล" value={user?.lastname} isEditing={isEditing}>
-              <TextField
-                testID="profile-lastname"
-                placeholder="นามสกุล"
-                value={form?.lastname ?? ''}
-                onChangeText={(text) => patch('lastname', text)}
-                icon="person-outline"
-                autoCapitalize="words"
-                autoComplete="name"
-                editable={!isPending}
-                error={errors.lastname}
+              <Controller
+                control={control}
+                name="lastname"
+                render={({ field }) => (
+                  <TextField
+                    testID="profile-lastname"
+                    placeholder="นามสกุล"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    onBlur={field.onBlur}
+                    icon="person-outline"
+                    autoCapitalize="words"
+                    autoComplete="name"
+                    editable={!isPending}
+                    error={errors.lastname?.message}
+                  />
+                )}
               />
             </ProfileField>
 
@@ -254,16 +324,23 @@ export default function ProfileScreen() {
               isLast
             >
               <View>
-                <TextField
-                  testID="profile-phone"
-                  placeholder="เบอร์โทรศัพท์"
-                  value={form?.phone ?? ''}
-                  onChangeText={(text) => patch('phone', formatThaiPhone(text))}
-                  icon="call-outline"
-                  keyboardType="phone-pad"
-                  autoComplete="tel"
-                  editable={!isPending}
-                  error={errors.phone}
+                <Controller
+                  control={control}
+                  name="phone"
+                  render={({ field }) => (
+                    <TextField
+                      testID="profile-phone"
+                      placeholder="เบอร์โทรศัพท์"
+                      value={field.value}
+                      onChangeText={(text) => field.onChange(formatThaiPhone(text))}
+                      onBlur={field.onBlur}
+                      icon="call-outline"
+                      keyboardType="phone-pad"
+                      autoComplete="tel"
+                      editable={!isPending}
+                      error={errors.phone?.message}
+                    />
+                  )}
                 />
 
                 {phoneChanged ? (
@@ -277,24 +354,36 @@ export default function ProfileScreen() {
 
           <ProfileGroup title="ข้อมูลสุขภาพ">
             <ProfileField label="วันเกิด" value={formatBirthday(user?.dob)} isEditing={isEditing}>
-              <DateField
-                testID="profile-dob"
-                value={form?.dob ?? null}
-                onChange={(value) => patch('dob', value)}
-                displayValue={formatBirthday(form?.dob)}
-                placeholder="เลือกวันเกิด"
-                error={errors.dob}
-                maximumDate={new Date()}
+              <Controller
+                control={control}
+                name="dob"
+                render={({ field }) => (
+                  <DateField
+                    testID="profile-dob"
+                    value={field.value}
+                    onChange={field.onChange}
+                    displayValue={formatBirthday(field.value)}
+                    placeholder="เลือกวันเกิด"
+                    error={errors.dob?.message}
+                    maximumDate={new Date()}
+                  />
+                )}
               />
             </ProfileField>
 
             {isEditing ? (
               <View className="px-4 pt-1">
-                <OptionRow
-                  label="เพศ"
-                  options={GENDER_OPTIONS}
-                  value={form?.gender ?? null}
-                  onChange={(value) => patch('gender', value)}
+                <Controller
+                  control={control}
+                  name="gender"
+                  render={({ field }) => (
+                    <OptionRow
+                      label="เพศ"
+                      options={GENDER_OPTIONS}
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  )}
                 />
               </View>
             ) : (
@@ -306,15 +395,22 @@ export default function ProfileScreen() {
               value={user?.weight != null ? `${user.weight} กก.` : ''}
               isEditing={isEditing}
             >
-              <TextField
-                testID="profile-weight"
-                placeholder="น้ำหนัก (กก.)"
-                value={form?.weight ?? ''}
-                onChangeText={(text) => patch('weight', text)}
-                icon="barbell-outline"
-                keyboardType="decimal-pad"
-                editable={!isPending}
-                error={errors.weight}
+              <Controller
+                control={control}
+                name="weight"
+                render={({ field }) => (
+                  <TextField
+                    testID="profile-weight"
+                    placeholder="น้ำหนัก (กก.)"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    onBlur={field.onBlur}
+                    icon="barbell-outline"
+                    keyboardType="decimal-pad"
+                    editable={!isPending}
+                    error={errors.weight?.message}
+                  />
+                )}
               />
             </ProfileField>
 
@@ -323,15 +419,22 @@ export default function ProfileScreen() {
               value={user?.height != null ? `${user.height} ซม.` : ''}
               isEditing={isEditing}
             >
-              <TextField
-                testID="profile-height"
-                placeholder="ส่วนสูง (ซม.)"
-                value={form?.height ?? ''}
-                onChangeText={(text) => patch('height', text)}
-                icon="resize-outline"
-                keyboardType="decimal-pad"
-                editable={!isPending}
-                error={errors.height}
+              <Controller
+                control={control}
+                name="height"
+                render={({ field }) => (
+                  <TextField
+                    testID="profile-height"
+                    placeholder="ส่วนสูง (ซม.)"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    onBlur={field.onBlur}
+                    icon="resize-outline"
+                    keyboardType="decimal-pad"
+                    editable={!isPending}
+                    error={errors.height?.message}
+                  />
+                )}
               />
             </ProfileField>
 
@@ -341,55 +444,77 @@ export default function ProfileScreen() {
               isEditing={isEditing}
               isLast
             >
-              <View className="mb-4">
-                <TextInput
-                  testID="profile-congenital-disease"
-                  className="rounded-[14px] border-2 px-[14px] py-3"
-                  style={{
-                    minHeight: 88,
-                    // No line height: this input had none, and acquiring one
-                    // here would re-centre the text inside the 88px box.
-                    ...typography({ size: 15, weight: 'semibold', lineHeight: null }),
-                    color: colors['text-primary'],
-                    borderColor: errors.congenitalDisease ? statusColor.high : colors.border,
-                    backgroundColor: colors['surface-muted'],
-                    textAlignVertical: 'top',
-                  }}
-                  placeholder="เช่น เบาหวาน ความดันโลหิตสูง — เว้นว่างได้"
-                  placeholderTextColor={colors['text-secondary']}
-                  value={form?.congenitalDisease ?? ''}
-                  onChangeText={(text) => patch('congenitalDisease', text)}
-                  editable={!isPending}
-                  multiline
-                />
+              <Controller
+                control={control}
+                name="congenitalDisease"
+                render={({ field }) => (
+                  <View className="mb-4">
+                    <TextInput
+                      testID="profile-congenital-disease"
+                      className="rounded-[14px] border-2 px-[14px] py-3"
+                      style={{
+                        minHeight: 88,
+                        // No line height: this input had none, and acquiring one
+                        // here would re-centre the text inside the 88px box.
+                        ...typography({ size: 15, weight: 'semibold', lineHeight: null }),
+                        color: colors['text-primary'],
+                        borderColor: errors.congenitalDisease
+                          ? statusColor.high
+                          : colors.border,
+                        backgroundColor: colors['surface-muted'],
+                        textAlignVertical: 'top',
+                      }}
+                      placeholder="เช่น เบาหวาน ความดันโลหิตสูง — เว้นว่างได้"
+                      placeholderTextColor={colors['text-secondary']}
+                      value={field.value}
+                      onChangeText={field.onChange}
+                      onBlur={field.onBlur}
+                      editable={!isPending}
+                      multiline
+                    />
 
-                {errors.congenitalDisease ? (
-                  <ThemedText type="label" className="ml-1 mt-1.5" style={{ color: statusColor.high }}>
-                    {errors.congenitalDisease}
-                  </ThemedText>
-                ) : null}
-              </View>
+                    {errors.congenitalDisease ? (
+                      <ThemedText type="label" className="ml-1 mt-1.5" style={{ color: statusColor.high }}>
+                        {errors.congenitalDisease.message}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                )}
+              />
             </ProfileField>
           </ProfileGroup>
 
-          {/* Hidden while editing: both rows navigate away, and leaving a way
-              off the screen next to an unsaved form is how edits get lost. */}
-          {isEditing ? null : (
-            <ProfileGroup title="บัญชี">
-              <ProfileLinkRow
-                testID="profile-email"
-                label="อีเมล"
-                value={emailSummary(user)}
-                onPress={() => router.push('/verify-email')}
-              />
+          {/*
+            The navigating rows are hidden while editing — leaving a way off the
+            screen next to an unsaved form is how edits get lost — but the email
+            row is not, and that is deliberate.
+
+            Every other field on this form became editable; email did not, and a
+            row that simply vanishes on "แก้ไข" reads as an oversight rather than
+            a decision. Shown read-only, it answers the question the edit mode
+            raises. The reason it cannot be edited is in this file's header:
+            `updateProfile(email:)` writes the column without clearing
+            `emailVerified`, so editing here would move a verified badge onto an
+            address nobody has proven they own. Making it editable is a gateway
+            change, not a client one.
+          */}
+          <ProfileGroup title="บัญชี">
+            <ProfileLinkRow
+              testID="profile-email"
+              label="อีเมล"
+              value={emailSummary(user)}
+              onPress={() => router.push('/verify-email')}
+              isLast={isEditing}
+            />
+            {isEditing ? null : (
               <ProfileLinkRow
                 testID="profile-invitations"
                 label="ผู้ดูแลและผู้ป่วย"
                 onPress={() => router.push('/invitations')}
                 isLast
               />
-            </ProfileGroup>
-          )}
+            )}
+          </ProfileGroup>
 
           {banner ? (
             <ThemedText type="body" weight="regular" accessibilityLiveRegion="polite" className="mt-4 px-2" style={{ color: banner.tone === 'ok' ? statusColor.normal : colors.danger }}>

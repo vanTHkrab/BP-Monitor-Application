@@ -20,6 +20,7 @@ export { changedFields, formFromUser, hasChanges } from './lib/form-state';
  */
 export { GENDER_OPTIONS, formatBirthday, genderLabel } from './lib/display';
 export {
+  profileSchema,
   validateProfile,
   validateDob,
   validateMeasurement,

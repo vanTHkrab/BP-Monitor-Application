@@ -19,6 +19,8 @@
 // function must not drag a native dependency in behind it. The barrel rule
 // exists to stop screens skipping the hooks' cache invalidation, which does
 // not apply between two pure lib files.
+import { z } from 'zod';
+
 import { isValidPhone, type FieldErrors } from '@/modules/auth/lib/validation';
 import {
   HEIGHT_RANGE_CM,
@@ -66,4 +68,45 @@ export function validateProfile(form: ProfileForm, now: Date = new Date()): Prof
   if (congenitalError) errors.congenitalDisease = congenitalError;
 
   return errors;
+}
+
+
+/**
+ * The same rules as [validateProfile], shaped for `zodResolver`.
+ *
+ * A thin `superRefine` wrapper rather than a second set of rules written in
+ * zod's vocabulary, exactly as `auth/lib/validation.ts`'s `registerSchema`
+ * wraps `validateRegister`. Two encodings of one rule set is how the profile
+ * form ends up refusing a value the register form accepts — the failure this
+ * file's own header says it exists to prevent — and it would arrive silently,
+ * because nothing type-checks one against the other.
+ *
+ * `now` is a parameter for the same reason it is one on [validateProfile]:
+ * `validateDob` compares against it, and a schema built once at module load
+ * would freeze "today" at the moment the bundle was evaluated.
+ *
+ * Note what is **not** here. `gender` is nullable and unvalidated because
+ * profile has always treated it as optional, while the register form requires
+ * it; matching register would make an existing account unable to re-save a
+ * profile it created before the field existed. `email` is absent because this
+ * screen does not write it — see the header of `app/profile.tsx`.
+ */
+export function profileSchema(now: Date = new Date()) {
+  return z
+    .object({
+      firstname: z.string(),
+      lastname: z.string(),
+      phone: z.string(),
+      dob: z.date().nullable(),
+      gender: z.enum(['male', 'female', 'other']).nullable(),
+      weight: z.string(),
+      height: z.string(),
+      congenitalDisease: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      const errors = validateProfile(values, now);
+      for (const [field, message] of Object.entries(errors)) {
+        if (message) ctx.addIssue({ code: 'custom', message, path: [field] });
+      }
+    });
 }

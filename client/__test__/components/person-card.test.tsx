@@ -150,10 +150,15 @@ describe('PersonCard', () => {
     });
 
     /*
-     * White text on `colors.accent` (`#FF8A45`) measures ~2.3:1 contrast —
-     * under WCAG AA's 4.5:1 floor. Asserts the label is not white rather than
-     * pinning the exact replacement hex, so a future palette adjustment only
-     * fails this test if it regresses back to something illegible.
+     * The chip no longer uses white text on a saturated `accent` fill — it is
+     * tonal now, `accent-text` on `accent-surface`, per scheme. This assertion
+     * survives the change because it never pinned the replacement hex: it says
+     * "not white", which was the illegible case (~2.3:1) and still is.
+     *
+     * Deliberately still not pinning a hex. The colours are token-derived and
+     * their ratios are argued in `theme/tokens.js`; a test that froze them here
+     * would fail on every palette change including the improving ones, which is
+     * the opposite of what this case is for.
      */
     it('keeps the accent chip label readable against its own background', async () => {
       const view = await renderScreen(

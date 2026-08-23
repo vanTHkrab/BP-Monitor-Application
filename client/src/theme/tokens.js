@@ -68,6 +68,46 @@ const status = {
  * `background` gradient below. Anything painting a full screen should use
  * the gradient; `bg-background` is for the cases that cannot.
  */
+/**
+ * The accent chip is a *tonal* control, not a filled one, and that needs three
+ * tokens rather than one.
+ *
+ * `accent` is a single saturated orange (`#FF8A45`) shared by both schemes, so
+ * anything filled with it looks identical in light and dark while everything
+ * around it flips. On `surface` that measures 2.34:1 in light — a smudge that
+ * barely reads as an object — and 7.45:1 in dark, a lit block. The permission
+ * chip in `caregivers/components/person-card.tsx` was filled that way and
+ * carried a hardcoded `#402000` label because no token could describe "text
+ * that works on top of accent".
+ *
+ * These three are picked per scheme against that scheme's own `surface`, and
+ * every ratio below is computed from those hex values, not estimated
+ * and not read off a screen:
+ *
+ *   light  text #9A4718 on #FFEDE0 = 5.61:1   border #D57F4D on #FFFFFF = 3.01:1
+ *   dark   text #FFB683 on #3B2415 = 8.47:1   border #9A552D on #1A1632 = 3.08:1
+ *
+ * Text clears AA's 4.5:1 and the border clears the 3:1 that WCAG 1.4.11 asks
+ * of a UI component's boundary — which matters here because the chip is a
+ * button. The borders are the *lightest* values that still clear 3:1, so the
+ * outline states the control's edge without drawing a box around it.
+ *
+ * `accent` itself is untouched: gradients and icons still want the saturated
+ * one. This is the tonal surface, not a replacement.
+ */
+const accentTonal = {
+  light: {
+    'accent-surface': '#FFEDE0',
+    'accent-text': '#9A4718',
+    'accent-border': '#D57F4D',
+  },
+  dark: {
+    'accent-surface': '#3B2415',
+    'accent-text': '#FFB683',
+    'accent-border': '#9A552D',
+  },
+};
+
 const semantic = {
   light: {
     background: '#BFE8F0',
@@ -81,6 +121,7 @@ const semantic = {
     primary: palette.purple,
     secondary: palette.blue,
     accent: palette.orange,
+    ...accentTonal.light,
     danger: '#F88B7E',
   },
   dark: {
@@ -95,6 +136,7 @@ const semantic = {
     primary: palette.purpleLight,
     secondary: palette.blue,
     accent: palette.orange,
+    ...accentTonal.dark,
     danger: '#E97A6F',
   },
 };

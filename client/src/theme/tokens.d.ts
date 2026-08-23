@@ -14,6 +14,9 @@ export type SemanticColorName =
   | 'primary'
   | 'secondary'
   | 'accent'
+  | 'accent-surface'
+  | 'accent-text'
+  | 'accent-border'
   | 'danger';
 
 export type GradientName = 'background' | 'header' | 'accent' | 'danger' | 'cta';
