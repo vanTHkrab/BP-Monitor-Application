@@ -98,24 +98,34 @@ export function PersonCard({
         {chips.length > 0 ? (
           <View className="mt-2 flex-row flex-wrap gap-1.5">
             {chips.map((chip) => {
-              // `colors.accent` is a saturated orange (`#FF8A45`); white text on
-              // it measures ~2.3:1 contrast, well under WCAG AA's 4.5:1 — this
-              // dark warm brown clears ~6.3:1. Derived from the same `chip.tone`
-              // check as `fill` below, in one place, rather than three separate
-              // hardcoded `'#FFFFFF'` literals that could drift out of sync with
-              // the background if either one changes later.
-              const onChip =
-                chip.tone === 'accent' ? '#402000' : colors['text-secondary'];
-              const fill = chip.tone === 'accent' ? colors.accent : colors['surface-muted'];
+              /*
+               * Tonal, not filled, and every colour comes from a token.
+               *
+               * `accent` is one saturated orange shared by both schemes, so a
+               * chip filled with it ignored the theme every other part of this
+               * card follows. The `accent-*` trio replaces it; the ratios and
+               * the reasoning live once, on `theme/tokens.js`.
+               *
+               * The neutral chip moves to `text-primary` for a separate reason:
+               * `text-secondary` on `surface-muted` was 3.14:1 in light, under
+               * AA for text, while dark passed at 5.69:1 — which is why light
+               * was the scheme that read as unclear.
+               */
+              const isAccent = chip.tone === 'accent';
+              const onChip = isAccent ? colors['accent-text'] : colors['text-primary'];
+              const fill = isAccent ? colors['accent-surface'] : colors['surface-muted'];
+              /*
+               * Not `border-strong`. That token is currently identical to
+               * `border` in both schemes, so the outline this control asked for
+               * did not exist — see the note in `theme/tokens.js`. Note the
+               * card's own outer border below still uses it: the fix here is
+               * chip-local by choice, not a token repair.
+               */
+              const chipBorder = isAccent ? colors['accent-border'] : colors['surface-muted'];
 
               const inner = (
                 <>
-                  <ThemedText
-                    type="caption"
-                    weight="semibold"
-                    themeColor="text-secondary"
-                    style={chip.tone === 'accent' ? { color: onChip } : undefined}
-                  >
+                  <ThemedText type="caption" weight="semibold" style={{ color: onChip }}>
                     {chip.label}
                   </ThemedText>
                   {chip.onPress ? (
@@ -148,7 +158,7 @@ export function PersonCard({
                     paddingHorizontal: 10,
                     paddingVertical: 4,
                     backgroundColor: fill,
-                    borderColor: colors['border-strong'],
+                    borderColor: chipBorder,
                     opacity: pressed ? 0.6 : 1,
                   })}
                 >
