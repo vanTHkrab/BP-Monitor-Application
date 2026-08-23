@@ -70,7 +70,7 @@ import {
 } from '@/modules/caregivers';
 import { formatErrorMessage } from '@/lib/error-message';
 import { SecurityHeader } from '@/modules/security';
-import { formatThaiPhone } from '@/utils/phone-format';
+import { formatOptionalPhone, formatThaiPhone } from '@/utils/phone-format';
 
 export default function InvitationsScreen() {
   const colors = useTheme();
@@ -182,7 +182,7 @@ export default function InvitationsScreen() {
         lastname: patient.lastname,
         name: `คุณ${patient.firstname} ${patient.lastname}`.trim(),
         avatarUri: patient.avatar,
-        detail: formatThaiPhone(patient.phone),
+        detail: formatOptionalPhone(patient.phone),
         /*
          * Read-only is labelled here as well as in the switcher sheet:
          * discovering you cannot record only after opening the patient and
@@ -222,7 +222,7 @@ export default function InvitationsScreen() {
       lastname: undefined,
       name: `คุณ${link.patientName}`,
       avatarUri: link.patientAvatar,
-      detail: formatThaiPhone(link.patientPhone),
+      detail: formatOptionalPhone(link.patientPhone),
       chips: [{ label: relationshipLabel(link.relationship) }],
       // Same reason as `patient` below: without the record there is nothing
       // to put in the store, and `permission` is not on the symmetric link
@@ -372,7 +372,7 @@ export default function InvitationsScreen() {
                       testID={`caregiver-${link.caregiverId}`}
                       name={`คุณ${link.caregiverName}`}
                       avatarUri={link.caregiverAvatar}
-                      detail={formatThaiPhone(link.caregiverPhone)}
+                      detail={formatOptionalPhone(link.caregiverPhone)}
                       chips={[
                         { label: relationshipLabel(link.relationship) },
                         /*
@@ -486,8 +486,8 @@ export default function InvitationsScreen() {
                     <LinkRow
                       key={linkKey(link)}
                       testID={`sent-${link.patientId}`}
-                      name={`คุณ${link.patientName || formatThaiPhone(link.patientPhone)}`}
-                      detail={`${formatThaiPhone(link.patientPhone)} · ยังไม่ได้ตอบรับ`}
+                      name={`คุณ${link.patientName || formatThaiPhone(link.patientPhone ?? '')}`}
+                      detail={`${formatOptionalPhone(link.patientPhone)} · ยังไม่ได้ตอบรับ`}
                       muted
                       removeIcon="close"
                       removeLabel="ยกเลิกคำเชิญถึง"

@@ -62,6 +62,18 @@ const user = (over: Record<string, unknown> = {}) => ({
   phone: '0812345678',
   email: 'somchai@example.com',
   emailVerified: true,
+  dob: new Date(1980, 0, 15),
+  gender: 'male',
+  weight: 65,
+  height: 170,
+  /*
+   * The string the gateway sends for a NULL column — "answered: no
+   * condition", not "unanswered". It is here so the reopen-and-save case
+   * below covers the congenital round trip for free: if the form ever seeded
+   * the select from this *and* left the literal in the text box, or sent the
+   * word back instead of `null`, that test would start seeing a mutation.
+   */
+  congenitalDisease: 'ไม่มี',
   role: 'patient',
   ...over,
 });
@@ -104,6 +116,42 @@ describe('ProfileScreen — edit mode sends only what changed', () => {
 
     expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
     expect(mockUpdateProfile).toHaveBeenCalledWith({ firstname: 'สมหญิง' });
+  });
+
+  /*
+   * The wire value, which the reopen-and-save case above does **not** reach.
+   *
+   * `changedFields` diffs in the gateway's own rendering, so when nothing
+   * changes the diff is empty and `congenitalWireValue` is never called —
+   * verified by mutating it to send the literal word and watching every test
+   * here stay green. This is the case that exercises it: the answer actually
+   * changes, so the mapper runs, and `null` is what must go out. Sending
+   * `'ไม่มี'` instead would store the word as if it were a diagnosis, because
+   * the gateway has no inverse on the write path.
+   */
+  it('sends null, not the word, when the answer becomes "no condition"', async () => {
+    mockSession.current = { user: user({ congenitalDisease: 'เบาหวาน' }) };
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+    await fireEvent.press(view.getByRole('radio', { name: 'ไม่มี' }));
+    await fireEvent.press(view.getByTestId('profile-save'));
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ congenitalDisease: null });
+  });
+
+  it('sends the text when the answer becomes "has a condition"', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+    await fireEvent.press(view.getByRole('radio', { name: 'มี' }));
+    await fireEvent.changeText(
+      view.getByTestId('profile-congenital-disease'),
+      'เบาหวาน',
+    );
+    await fireEvent.press(view.getByTestId('profile-save'));
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ congenitalDisease: 'เบาหวาน' });
   });
 
   it('sends nothing at all when the form is reopened and left alone', async () => {

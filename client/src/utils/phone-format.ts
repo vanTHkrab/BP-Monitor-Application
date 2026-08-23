@@ -122,3 +122,21 @@ export const formatThaiPhone = (raw: string): string => {
   // country this function does not know.
   return digits;
 };
+
+/**
+ * What to show where a phone number is *displayed* and may be absent.
+ *
+ * `UserType.phone`, `PatientSummaryType.phone`, and both of
+ * `CaregiverLinkType`'s phone fields became nullable when the gateway freed
+ * the column for Google sign-ups, and a blank where a number belongs reads as
+ * a rendering bug — worse, it leaves a dangling separator wherever the number
+ * is composed into a longer line.
+ *
+ * Deliberately not folded into [formatThaiPhone] itself: that one is also on
+ * the *input* path, where `undefined` is a mistake worth a type error rather
+ * than a label.
+ */
+export const NO_PHONE_LABEL = 'ยังไม่มีเบอร์โทรศัพท์';
+
+export const formatOptionalPhone = (raw: string | undefined | null): string =>
+  raw ? formatThaiPhone(raw) : NO_PHONE_LABEL;

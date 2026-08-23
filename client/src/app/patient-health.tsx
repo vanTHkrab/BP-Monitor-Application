@@ -64,11 +64,13 @@ import { TextField } from '@/components/ui/text-field';
 import { useTypography } from '@/hooks/use-typography';
 import { useTheme } from '@/hooks/use-theme';
 import { formatErrorMessage } from '@/lib/error-message';
+import { CONGENITAL_OPTIONS } from '@/lib/health-validation';
 import {
   canEditPatientHealth,
   changedHealthFields,
   hasHealthChanges,
   healthFormFromPatient,
+  patientHasHealthRecord,
   useSubject,
   useUpdatePatientHealth,
   validateHealthForm,
@@ -129,6 +131,18 @@ export default function PatientHealthScreen() {
   const currentWeight = known?.weight ?? patient?.weight;
   const currentHeight = known?.height ?? patient?.height;
 
+  /*
+   * Whether the patient already has a `user_informations` row.
+   *
+   * It decides which refusal the form gives: a patient who has the block
+   * cannot have any of the four cleared (the gateway answers a clear with a
+   * 400 rather than dropping it silently), while a patient who has none of it
+   * may be left alone entirely — but the moment any part of the block is
+   * filled in, all four are needed, because a partial patch cannot bring the
+   * row into existence.
+   */
+  const recorded = patientHasHealthRecord(patient, known);
+
   const startEditing = () => {
     setBanner(null);
     setErrors({});
@@ -151,7 +165,7 @@ export default function PatientHealthScreen() {
   const save = async () => {
     if (!form || !baseline || !patientIdArg) return;
 
-    const found = validateHealthForm(form);
+    const found = validateHealthForm(form, new Date(), { recorded });
     setErrors(found);
     if (Object.keys(found).length > 0) {
       setBanner({ tone: 'error', text: 'กรุณาตรวจสอบข้อมูลที่มีเครื่องหมายสีแดง' });
@@ -287,6 +301,7 @@ export default function PatientHealthScreen() {
                   options={GENDER_OPTIONS}
                   value={form?.gender ?? null}
                   onChange={(value) => patch('gender', value)}
+                  clearable={false}
                 />
               </View>
             ) : (
@@ -341,38 +356,63 @@ export default function PatientHealthScreen() {
               isEditing={isEditing}
               isLast
             >
-              <View className="mb-4">
-                <TextInput
-                  testID="patient-health-congenital-disease-field"
-                  className="rounded-[14px] border-2 px-[14px] py-3"
-                  style={{
-                    minHeight: 88,
-                    // No line height: this input had none, and acquiring one
-                    // here would re-centre the text inside the 88px box.
-                    ...typography({ size: 15, weight: 'semibold', lineHeight: null }),
-                    color: colors['text-primary'],
-                    borderColor: errors.congenitalDisease
-                      ? statusColor.high
-                      : colors.border,
-                    backgroundColor: colors['surface-muted'],
-                    textAlignVertical: 'top',
-                  }}
-                  placeholder="เช่น เบาหวาน ความดันโลหิตสูง — เว้นว่างไว้ถ้าไม่แก้"
-                  placeholderTextColor={colors['text-secondary']}
-                  value={form?.congenitalDisease ?? ''}
-                  onChangeText={(text) => patch('congenitalDisease', text)}
-                  editable={!isPending}
-                  multiline
+              <View>
+                {/*
+                  A มี / ไม่มี answer first, and the text box only for "มี".
+
+                  The single free-text box this replaces could not distinguish
+                  "no condition" from "never asked" — the ambiguity the
+                  gateway removed by storing "no condition" as a NULL column
+                  inside a row whose existence means the health step is done,
+                  and rendering that NULL back as the string 'ไม่มี'. The old
+                  placeholder ("เว้นว่างไว้ถ้าไม่แก้") is gone with it: an
+                  untouched select already leaves the column alone, so the
+                  hint was describing the diff rather than the field.
+                */}
+                <OptionRow
+                  label="มีโรคประจำตัวหรือไม่"
+                  options={CONGENITAL_OPTIONS}
+                  clearable={false}
+                  value={form?.congenital ?? null}
+                  onChange={(value) => patch('congenital', value)}
+                  error={errors.congenital}
                 />
 
-                {errors.congenitalDisease ? (
-                  <ThemedText
-                    type="label"
-                    className="ml-1 mt-1.5"
-                    style={{ color: statusColor.high }}
-                  >
-                    {errors.congenitalDisease}
-                  </ThemedText>
+                {form?.congenital === 'has' ? (
+                  <View className="mb-4">
+                    <TextInput
+                      testID="patient-health-congenital-disease-field"
+                      className="rounded-[14px] border-2 px-[14px] py-3"
+                      style={{
+                        minHeight: 88,
+                        // No line height: this input had none, and acquiring one
+                        // here would re-centre the text inside the 88px box.
+                        ...typography({ size: 15, weight: 'semibold', lineHeight: null }),
+                        color: colors['text-primary'],
+                        borderColor: errors.congenitalDisease
+                          ? statusColor.high
+                          : colors.border,
+                        backgroundColor: colors['surface-muted'],
+                        textAlignVertical: 'top',
+                      }}
+                      placeholder="เช่น เบาหวาน ความดันโลหิตสูง"
+                      placeholderTextColor={colors['text-secondary']}
+                      value={form?.congenitalDisease ?? ''}
+                      onChangeText={(text) => patch('congenitalDisease', text)}
+                      editable={!isPending}
+                      multiline
+                    />
+
+                    {errors.congenitalDisease ? (
+                      <ThemedText
+                        type="label"
+                        className="ml-1 mt-1.5"
+                        style={{ color: statusColor.high }}
+                      >
+                        {errors.congenitalDisease}
+                      </ThemedText>
+                    ) : null}
+                  </View>
                 ) : null}
               </View>
             </ProfileField>
