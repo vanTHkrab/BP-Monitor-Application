@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -58,6 +59,7 @@ function readMessage(error: unknown): string | undefined {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly verifyAttempts = new Map<string, VerifyAttempt>();
 
   constructor(
@@ -710,7 +712,25 @@ export class AuthService {
     try {
       return await call();
     } catch (error) {
-      if (onFailure) throw onFailure(error);
+      if (onFailure) {
+        /*
+         * The caller replaces the cause with a deliberately vague message —
+         * a sign-in failure must not tell the client whether the provider is
+         * misconfigured, the audience is wrong, or the account was refused.
+         * That is right for the response and wrong for the operator, who
+         * previously had nothing at all: the original error was passed into
+         * `onFailure` and every caller ignored it, so Better Auth's reason
+         * was discarded here and logged nowhere.
+         *
+         * Logged at `warn` rather than `error` because a refused sign-in is
+         * an expected outcome, not a fault of the service.
+         */
+        this.logger.warn(
+          `Better Auth call failed: ${readMessage(error) ?? 'no message'}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        throw onFailure(error);
+      }
 
       const status = readStatus(error);
       const message = readMessage(error) ?? 'ไม่สามารถดำเนินการได้';
