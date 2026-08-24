@@ -1,7 +1,11 @@
 // Jest's matcher helpers (`expect.any`, `expect.objectContaining`) are typed
 // as `any`, which trips no-unsafe-assignment on otherwise correct test code.
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
@@ -29,9 +33,15 @@ type PrismaMock = {
     findMany: jest.Mock;
     updateMany: jest.Mock;
   };
+  userInformation: {
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    upsert: jest.Mock;
+  };
   postLike: { deleteMany: jest.Mock };
   bloodPressureReading: { deleteMany: jest.Mock };
   post: { deleteMany: jest.Mock };
+  $transaction: jest.Mock;
 };
 
 /**
@@ -71,9 +81,20 @@ const buildPrismaMock = (): PrismaMock => ({
     findMany: jest.fn(),
     updateMany: jest.fn(),
   },
+  // The health block is its own table now. `findUnique` defaults to `null`
+  // — no row, the state an account that never completed the health step is
+  // in — so a test that needs one says so explicitly.
+  userInformation: {
+    findUnique: jest.fn().mockResolvedValue(null),
+    create: jest.fn(),
+    upsert: jest.fn(),
+  },
   postLike: { deleteMany: jest.fn() },
   bloodPressureReading: { deleteMany: jest.fn() },
   post: { deleteMany: jest.fn() },
+  // Prisma's array form resolves each operation in order; `updateProfile`
+  // reads the *second* result, so the ordering is part of the contract.
+  $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
 });
 
 const baseUser = {
@@ -86,11 +107,9 @@ const baseUser = {
   avatar: null,
   role: 'patient',
   createdAt: new Date('2025-01-01T00:00:00Z'),
-  dob: null,
-  gender: null,
-  weight: null,
-  height: null,
-  congenitalDisease: null,
+  // The five health fields moved off `users` into `user_informations`.
+  // `null` is "no row" — the health step was never completed.
+  information: null,
 };
 
 describe('AuthService', () => {
@@ -311,6 +330,7 @@ describe('AuthService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: { firstname: 'New', name: 'New One' },
+        include: { information: true },
       });
       expect(result.firstname).toBe('New');
     });
@@ -326,6 +346,7 @@ describe('AuthService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: {},
+        include: { information: true },
       });
     });
 
@@ -374,6 +395,7 @@ describe('AuthService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: { email: 'foo@example.com' },
+        include: { information: true },
       });
     });
 
@@ -393,6 +415,190 @@ describe('AuthService', () => {
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: 'taken@x.co' },
+      });
+    });
+
+    /**
+     * The health block is a second table now, so one profile save is two
+     * writes. What has to hold across them:
+     *
+     * - they are one transaction — a `users` update that landed without its
+     *   `user_informations` half shows the patient a saved form whose health
+     *   fields silently did not save;
+     * - the four NOT NULL columns can be changed but not cleared, and a
+     *   refused clear is a 400 rather than a silently dropped field;
+     * - a partial edit cannot conjure a missing row, because `upsert`'s
+     *   create half needs all four required values.
+     */
+    describe('the health block', () => {
+      const EXISTING = {
+        dob: new Date('1950-03-02T00:00:00.000Z'),
+        gender: 'female',
+        weight: 60,
+        height: 158,
+        congenitalDisease: 'เบาหวาน',
+      };
+
+      const hasHealthRow = () =>
+        prisma.userInformation.findUnique.mockResolvedValue({ ...EXISTING });
+
+      /** The `update` half of the upsert — what the row is asked to change. */
+      const healthPatch = () =>
+        (
+          prisma.userInformation.upsert.mock.calls as {
+            update: Record<string, unknown>;
+          }[][]
+        )[0][0].update;
+
+      beforeEach(() => {
+        prisma.user.update.mockResolvedValue(baseUser);
+        prisma.userInformation.upsert.mockResolvedValue({ ...EXISTING });
+      });
+
+      it('leaves the health row alone for an edit that names no health field', async () => {
+        await service.updateProfile('user-1', { avatar: 'avatars/a.jpg' });
+
+        expect(prisma.userInformation.findUnique).not.toHaveBeenCalled();
+        expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      });
+
+      // The health columns do not exist on `users` any more. If one leaked
+      // into this patch the update would fail at the database, so the
+      // separation is asserted rather than assumed.
+      it('never puts a health field into the users patch', async () => {
+        hasHealthRow();
+        // Renaming reads the current name back to recompute the display name.
+        prisma.user.findUnique.mockResolvedValueOnce({
+          firstname: 'Some',
+          lastname: 'One',
+        });
+
+        await service.updateProfile('user-1', { weight: 80, firstname: 'New' });
+
+        const [args] = prisma.user.update.mock.calls.at(-1) as [
+          { data: Record<string, unknown> },
+        ];
+        expect(args.data).toEqual({ firstname: 'New', name: 'New One' });
+      });
+
+      it('sends only the submitted field to the health row', async () => {
+        hasHealthRow();
+
+        await service.updateProfile('user-1', { weight: 80 });
+
+        expect(healthPatch()).toEqual({ weight: 80 });
+      });
+
+      // Both halves in one transaction: the failure this prevents is a saved
+      // profile whose health fields silently did not save.
+      it('writes both halves in a single transaction', async () => {
+        hasHealthRow();
+
+        await service.updateProfile('user-1', { weight: 80 });
+
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        const [operations] = prisma.$transaction.mock.calls[0] as unknown[][];
+        expect(operations).toHaveLength(2);
+      });
+
+      // Ordering, not just co-occurrence. The `user.update` is what builds the
+      // response, and it reads the health block through its `include` — so it
+      // has to run *after* the upsert or the caller gets back the values they
+      // just replaced.
+      it('upserts the health row before the user update that reads it back', async () => {
+        hasHealthRow();
+
+        await service.updateProfile('user-1', { weight: 80 });
+
+        expect(
+          prisma.userInformation.upsert.mock.invocationCallOrder[0],
+        ).toBeLessThan(prisma.user.update.mock.invocationCallOrder[0]);
+      });
+
+      // The response is the second operation's result, not the first. Taking
+      // index 0 would return the health row where a user is expected.
+      it('builds the response from the user update, not the health upsert', async () => {
+        hasHealthRow();
+        prisma.user.update.mockResolvedValue({ ...baseUser, firstname: 'New' });
+
+        const result = await service.updateProfile('user-1', { weight: 80 });
+
+        expect(result.firstname).toBe('New');
+      });
+
+      // NOT NULL, and the row's existence is the "health step completed"
+      // signal — so a row of nulls is not representable. Refusing beats
+      // dropping: a dropped clear returns 200 with the old value still there.
+      it.each([
+        ['dob', { dob: null }],
+        ['gender', { gender: null }],
+        ['gender', { gender: '  ' }],
+        ['weight', { weight: null }],
+        ['height', { height: null }],
+      ])('refuses to clear %s with 400', async (_field, input) => {
+        hasHealthRow();
+
+        await expect(
+          service.updateProfile('user-1', input as never),
+        ).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
+        expect(prisma.user.update).not.toHaveBeenCalled();
+      });
+
+      // The exception, and the reason the split is worth the trouble: NULL in
+      // `congenitalDisease` is an answer ("no condition"), not an absence.
+      it.each([
+        ['null', { congenitalDisease: null }],
+        ['an empty string', { congenitalDisease: '' }],
+        ['whitespace', { congenitalDisease: '   ' }],
+      ])('still clears congenitalDisease given %s', async (_label, input) => {
+        hasHealthRow();
+
+        await service.updateProfile('user-1', input as never);
+
+        expect(healthPatch()).toEqual({ congenitalDisease: null });
+      });
+
+      // `upsert`'s create half needs all four required values, and a user who
+      // never completed the health step has none of them. A half-built row
+      // would claim the step was completed.
+      it('refuses a partial edit against a user with no health row', async () => {
+        prisma.userInformation.findUnique.mockResolvedValue(null);
+
+        await expect(
+          service.updateProfile('user-1', { weight: 80 }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
+        expect(prisma.user.update).not.toHaveBeenCalled();
+      });
+
+      it('creates the row when the edit carries all four required values', async () => {
+        prisma.userInformation.findUnique.mockResolvedValue(null);
+
+        await service.updateProfile('user-1', {
+          dob: EXISTING.dob,
+          gender: 'female',
+          weight: 60,
+          height: 158,
+        });
+
+        const [args] = prisma.userInformation.upsert.mock.calls[0] as [
+          { where: unknown; create: unknown },
+        ];
+        expect(args).toMatchObject({
+          where: { userId: 'user-1' },
+          create: {
+            userId: 'user-1',
+            dob: EXISTING.dob,
+            gender: 'female',
+            weight: 60,
+            height: 158,
+            congenitalDisease: null,
+          },
+        });
       });
     });
   });

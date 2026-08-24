@@ -18,15 +18,21 @@
  * to prevent: a value the server would store that the app refuses to save.
  * The trade-off it costs instead is written out in `@/lib/health-validation`.
  *
- * The health block is required on the register form specifically — that is a
- * **client-only UX policy**, not a wire-contract change: `RegisterInput`'s
- * `dob` / `gender` / `weight` / `height` / `congenitalDisease` stay optional
- * on the gateway (the profile and caregiver forms still leave them optional),
- * so "must be present to submit *this* form" is layered on top of, not
- * instead of, the shared plausibility checks below. It cannot itself violate
- * the never-stricter-than-the-gateway rule, because refusing to submit an
- * empty field is not refusing a value the server would have accepted — the
- * server was never offered a value at all.
+ * The health block is required on the register form, and that is no longer a
+ * client-only UX policy. `RegisterInput`'s five health fields are still
+ * optional in the GraphQL sense, but the row they land in
+ * (`user_informations`) has `dob` / `gender` / `weight` / `height` `NOT NULL`
+ * and is created by an upsert that needs all four — so a registration missing
+ * any of them silently creates an account with **no health block at all**
+ * (`buildInformationCreate` returns null and the gateway skips the write).
+ * Requiring them here is what stops that. The presence rules themselves live
+ * in `@/lib/health-validation`'s `validateHealthBlock`, shared with the
+ * profile and caregiver forms, because all three now write the same row under
+ * the same constraint.
+ *
+ * It still cannot violate the never-stricter-than-the-gateway rule: refusing
+ * to submit an empty field is not refusing a value the server would have
+ * accepted — the server was never offered a value at all.
  *
  * Nothing here may be **looser** in a way that guarantees a server rejection
  * either: a 73-character password or an 81-character name is refused by
@@ -51,8 +57,10 @@ import {
   WEIGHT_RANGE_KG,
   validateCongenitalDisease,
   validateDob,
+  validateHealthBlock,
   validateMeasurement,
 } from '@/lib/health-validation';
+import type { CongenitalAnswer } from '@/lib/health-validation';
 import { stripPhoneDigits } from '@/utils/phone-format';
 import type { Gender, RegisterInput } from '../types';
 
@@ -69,6 +77,7 @@ export type RegisterField =
   | 'gender'
   | 'weight'
   | 'height'
+  | 'congenital'
   | 'congenitalDisease';
 export type ForgotPasswordField = 'email';
 export type ResetPasswordField = 'otp' | 'password' | 'confirmPassword';
@@ -130,6 +139,14 @@ export type RegisterFormValues = Pick<
   gender: Gender | null;
   weight: string;
   height: string;
+  /**
+   * มี / ไม่มี, `null` while unanswered. The question is a select plus a
+   * conditional text box, not a free-text field, because the gateway stores
+   * "no condition" as a NULL `congenitalDisease` and renders it back as the
+   * string `'ไม่มี'` — an empty box would answer nothing, and the row this
+   * form creates has no second chance to ask.
+   */
+  congenital: CongenitalAnswer | null;
   congenitalDisease: string;
 };
 
@@ -176,30 +193,37 @@ export function validateRegister(
   // itself unchanged and still treats an empty value as fine on its own — a
   // value this form accepts and the profile screen rejects is one the user
   // can never correct.
-  if (!values.dob) errors.dob = 'กรุณาเลือกวันเกิด';
-  else {
-    const dobError = validateDob(values.dob, now);
-    if (dobError) errors.dob = dobError;
-  }
+  const dobError = validateDob(values.dob, now);
+  if (dobError) errors.dob = dobError;
 
-  if (!values.gender) errors.gender = 'กรุณาเลือกเพศ';
+  const weightError = validateMeasurement(values.weight, WEIGHT_RANGE_KG, 'กก.');
+  if (weightError) errors.weight = weightError;
 
-  if (!values.weight.trim()) errors.weight = 'กรุณากรอกน้ำหนัก';
-  else {
-    const weightError = validateMeasurement(values.weight, WEIGHT_RANGE_KG, 'กก.');
-    if (weightError) errors.weight = weightError;
-  }
+  const heightError = validateMeasurement(values.height, HEIGHT_RANGE_CM, 'ซม.');
+  if (heightError) errors.height = heightError;
 
-  if (!values.height.trim()) errors.height = 'กรุณากรอกส่วนสูง';
-  else {
-    const heightError = validateMeasurement(values.height, HEIGHT_RANGE_CM, 'ซม.');
-    if (heightError) errors.height = heightError;
-  }
+  const congenitalError = validateCongenitalDisease(values.congenitalDisease);
+  if (congenitalError) errors.congenitalDisease = congenitalError;
 
-  if (!values.congenitalDisease.trim()) errors.congenitalDisease = 'กรุณากรอกโรคประจำตัว';
-  else {
-    const congenitalError = validateCongenitalDisease(values.congenitalDisease);
-    if (congenitalError) errors.congenitalDisease = congenitalError;
+  /*
+   * The health block's *presence* rules, shared with the profile and
+   * caregiver forms rather than restated here.
+   *
+   * `required: true` because registration is the one path that **creates** the
+   * `user_informations` row, and the row cannot be inserted without all four
+   * — what the docblock above calls a client-only UX policy has become the
+   * wire's own rule. `recorded: false` because a blank register form is not
+   * erasing anything, and that is the flag that picks the wording.
+   *
+   * Assigned only where nothing is already reported, so a plausibility
+   * message from above (a 1750 cm height, an implausible birth year) is never
+   * replaced by a weaker "please fill this in" for a field that is filled in.
+   */
+  const block = validateHealthBlock(values, { recorded: false, required: true });
+  for (const [field, message] of Object.entries(block)) {
+    if (!errors[field as RegisterField]) {
+      errors[field as RegisterField] = message;
+    }
   }
 
   return errors;
@@ -232,6 +256,7 @@ export function registerSchema(now: Date = new Date()) {
       gender: z.enum(['male', 'female', 'other']).nullable(),
       weight: z.string(),
       height: z.string(),
+      congenital: z.enum(['has', 'none']).nullable(),
       congenitalDisease: z.string(),
     })
     .superRefine((values, ctx) => {

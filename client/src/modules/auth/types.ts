@@ -19,8 +19,20 @@ export type Gender = 'male' | 'female' | 'other';
 export type User = {
   id: string;
   firstname: string;
+  /**
+   * `String!` on the wire, but `''` satisfies that and the gateway
+   * deliberately produces it: `deriveGoogleName` gives a single-word Google
+   * name an empty surname rather than inventing one. Anything rendering it
+   * has to survive the empty string, and the profile form only *requires* it
+   * for a record that already has one.
+   */
   lastname: string;
-  phone: string;
+  /**
+   * Optional since the gateway freed the column: a Google account is created
+   * by `signInSocial` before any onboarding runs, and a Google ID token
+   * carries no phone number. Every other sign-up path still supplies one.
+   */
+  phone?: string;
   email?: string;
   /** Gates linking a Google account, and nothing else — never required to use the app. */
   emailVerified: boolean;

@@ -3,18 +3,41 @@
  *
  * ## `GOOGLE_SIGN_IN_ENABLED`
  *
- * **This is off by product decision, not a technical blocker — do not read
- * its `false` as "not ready" and do not delete anything it hides.**
+ * **On since 2026-08-25, shipping in 1.2.0.** Verified end to end on a real
+ * Android device the day before: a Google account is created, `resolveGate`
+ * routes it through the phone step and then role selection, and it lands in
+ * the app. Every blocker `docs/project/AUTH-google-oauth-plan.md` named is
+ * closed.
+ *
+ * **Two rough edges ship with it, deliberately.** Neither breaks the flow;
+ * both are worth knowing before the first support message arrives:
+ *
+ *   - **The completion form is one screen short of what was asked for.** A
+ *     Google account arrives missing three things — phone, the health block,
+ *     and role — and collects them across two screens, with the health block
+ *     deferred until the profile screen demands it. Merging them into one
+ *     step is being decided by the team.
+ *   - **Gap 4 is open.** `googleSignInRefusalMessage()` is written and tested
+ *     and rendered nowhere, so the one refusal `emailVerified: false`
+ *     produces reaches the user as a generic "try again" rather than as the
+ *     "verify your email first" it was written to say.
+ *
+ * Turning it off again is one line and everything behind it stays exercised.
+ *
+ * **Being on here is not enough on its own**, and the failure is
+ * environment-shaped rather than code-shaped — see
+ * `docs/guides/google-sign-in-setup.md`. Every signing key needs its own
+ * Android OAuth client registered against its SHA-1, and every client ID has
+ * to belong to the same Google Cloud project as `google-services.json`. A
+ * mismatch surfaces as `DEVELOPER_ERROR` and nothing else.
  *
  * Unlike the passkey flag this module's sibling defines
- * (`modules/security/lib/feature-flags.ts`), there is no missing
- * configuration behind this one. `isGoogleSignInConfigured()` in
- * `hooks/use-google-sign-in.ts` already answers the technical question — a
- * build either has `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` or it does not, and the
- * code path works end to end when it does. This flag exists because the
- * sign-in flow itself has not had product sign-off to ship yet, which is a
- * different kind of gate: nothing here becomes true by configuring a service
- * correctly. Turning it back on is a product call, not an infra checklist.
+ * (`modules/security/lib/feature-flags.ts`), this one never gated missing
+ * configuration. `isGoogleSignInConfigured()` in
+ * `hooks/use-google-sign-in.ts` answers the technical question — a build
+ * either has `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` or it does not — and this
+ * flag answered the separate product question of whether the route should be
+ * offered at all. Both now say yes.
  *
  * ### What it gates
  *
@@ -32,4 +55,4 @@
  * — *linking* an already-authenticated account — and are untouched by this
  * flag. Hiding sign-in does not hide account state or the linking flow.
  */
-export const GOOGLE_SIGN_IN_ENABLED: boolean = false;
+export const GOOGLE_SIGN_IN_ENABLED: boolean = true;

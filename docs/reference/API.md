@@ -2,7 +2,7 @@
 title: BP Monitor GraphQL API contract
 description: Endpoint, auth, error codes, and the operation catalogue client developers build against.
 status: current
-updated: 2026-08-12
+updated: 2026-08-24
 owner: api-gateway
 ---
 
@@ -253,7 +253,7 @@ ISO string directly.
 | `register` | Mutation | ❌ | Creates the account → `AuthPayload`. Always `patient` |
 | `login` | Mutation | ❌ | → `AuthPayload`; throttled |
 | `selectRole` | Mutation | ✅ | Onboarding role choice → `UserType` |
-| `updateProfile` | Mutation | ✅ | Partial update (every field optional) |
+| `updateProfile` | Mutation | ✅ | Partial update (every field optional). Clearing `dob` / `gender` / `weight` / `height` is a 400 — same rules as §5.6.1 |
 | `changePassword` | Mutation | ✅ | Requires `currentPassword`; throttled |
 | `verifyPassword` | Mutation | ✅ | Unlocks sensitive screens; throttled |
 | `logout(pushToken)` | Mutation | ✅ | Flips `isActive=false` on the current session; deletes the supplied push token (§5.5.1) |
@@ -335,6 +335,12 @@ Required: `firstname`, `lastname`, `phone`, `password`, `email`.
 Optional: `avatar`, `dob`, `gender`, `weight`, `height`,
 `congenitalDisease`, `deviceLabel`.
 
+`RegisterInput.phone` is still `String!` even though the `users.phone` column
+is now nullable — see below. The health fields are still accepted here, but
+they now write a `user_informations` row, and that row is created **only when
+all four of `dob` / `gender` / `weight` / `height` are supplied**. Send three
+of them and none is stored; registration itself still succeeds.
+
 Two things are easy to get wrong:
 
 - **`email` is required.** It was optional before the Better Auth
@@ -343,6 +349,17 @@ Two things are easy to get wrong:
 - **`register` takes no `role`.** Sending one is a validation error. Every
   account is created as `patient` with `roleSelectedAt` null; the role is
   chosen afterwards via `selectRole`. See below.
+
+> ⚠️ **`phone` is nullable on the wire.** `UserType.phone`,
+> `PatientSummaryType.phone`, and `UpdateProfileInput.phone` are `String`, not
+> `String!`. Only `RegisterInput.phone` and `LoginInput.phone` stay `String!` —
+> those are the credential routes, and both supply the number. A null appears
+> only for an account created through `loginWithGoogle`, which carries no phone
+> number: the column used to be `NOT NULL`, which is what made Google sign-up
+> impossible at the database. The requirement now lives in the client's
+> onboarding step, not in the schema, so **a client that renders `phone`
+> without a null check will crash on exactly those accounts**. See
+> [AUTH-better-auth-identity.md](../architecture/AUTH-better-auth-identity.md#phone-nullability).
 
 #### Onboarding — `selectRole`
 
@@ -797,9 +814,46 @@ is a `token` Expo's own validator rejects.
   are how other people identify the patient, not health data. This is
   deliberately **not** a widening of `UpdateProfileInput`: sharing that input
   is how `email` ends up reachable later by accident.
-- Absent and `null` mean different things. A field left out of `input` is
-  untouched; a field sent as `null` (or, for `congenitalDisease`, an empty
-  string) is cleared.
+- **Absent, `null`, and "cleared" are three different things, and only two of
+  them are legal.** A field left out of `input` is untouched. A field sent as
+  `null` — or, for `gender` and `congenitalDisease`, an empty string — is a
+  request to clear it, and four of the five now answer **400 `BAD_REQUEST`**
+  instead:
+
+  | Field | Sending `null` |
+  | --- | --- |
+  | `dob` | 400 — `ไม่สามารถลบข้อมูลวันเกิดได้ กรุณาระบุค่าใหม่แทน` |
+  | `gender` | 400 — same shape, `เพศ` |
+  | `weight` | 400 — same shape, `น้ำหนัก` |
+  | `height` | 400 — same shape, `ส่วนสูง` |
+  | `congenitalDisease` | Cleared. This is the one field where "empty" is an answer. |
+
+  The four are `NOT NULL` on `user_informations`, the table the health block
+  moved to. The row's *existence* is what says "this patient completed the
+  health step", so a row of nulls would reintroduce the ambiguity the split
+  removed — there is no longer any write that expresses "clear this". A 400
+  rather than a silent drop, because a drop returns 200 with the old value
+  still in place and writes no `ProfileChangeLog` row, so neither the caregiver
+  nor the patient ever learns the clear did not happen. Changing a value is
+  unaffected.
+
+- **A partial edit cannot create a missing row.** A patient who has never
+  completed the health step has no `user_informations` row, and inserting one
+  needs all four required values. Sending only `weight` for such a patient is
+  **400 `BAD_REQUEST`**
+  (`ข้อมูลสุขภาพยังไม่ครบ กรุณาระบุวันเกิด เพศ น้ำหนัก และส่วนสูงให้ครบถ้วน`), not a
+  half-built row. A Google-created account starts in exactly this state.
+
+  > **Note:** `congenitalDisease` reads back as the Thai string `ไม่มี` when the
+  > column is NULL — the gateway renders it at the DTO boundary and has **no
+  > inverse on the write path**. Sending `ไม่มี` back stores the word verbatim,
+  > as if it were a diagnosis. Send `null` to mean "no condition". A form that
+  > round-trips this field must diff in the rendered form and write `null`.
+
+- Reading it back: `PatientHealthProfileType.congenitalDisease` is `null` only
+  when the patient has no row at all — i.e. the health step is not done. The
+  three states are: no row → `null`; row with NULL column → `'ไม่มี'`; row with
+  text → that text.
 - Passing your own id is allowed and takes the same audited path, so a
   patient editing their own record through a caregiver-shaped client is not a
   special case. Note that `updateProfile` in §5.1 remains **unaudited** — the

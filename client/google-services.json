@@ -12,7 +12,28 @@
           "package_name": "com.project.bpmobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "45060231184-e647r06r0uge3gj4hmh9psk9a57van80.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.project.bpmobile",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "45060231184-ji1b476ap07svntuqrklh65t8l1m5ng6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.project.bpmobile",
+            "certificate_hash": "36c4964e098ce1f7cecf67d54897986429c102ea"
+          }
+        },
+        {
+          "client_id": "45060231184-bq49pm1b3m6onh940sqsi48mlbv0njpf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDTbD9qTcOCx2d7UZ1pCNAfYhrHn4jXj7E"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "45060231184-bq49pm1b3m6onh940sqsi48mlbv0njpf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

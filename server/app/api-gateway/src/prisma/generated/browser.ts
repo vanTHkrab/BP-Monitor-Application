@@ -23,6 +23,46 @@ export * from './enums.js';
  */
 export type User = Prisma.UserModel
 /**
+ * Model UserInformation
+ * The patient health block, one row per user, created when registration
+ * completes rather than alongside the `users` row.
+ * 
+ * Split out of `users` because `users` is Better Auth's table: every column
+ * on it is either a field Better Auth owns or a field we had to declare to
+ * it as an `additionalField`, and a required `additionalField` that a social
+ * provider cannot supply makes that provider's sign-up impossible. Moving
+ * the health block off the table takes it out of Better Auth's field set
+ * entirely, so the adapter neither reads nor writes it and social sign-up
+ * stops depending on it.
+ * 
+ * The four required columns are NOT NULL: the row's existence is what carries
+ * "the patient has provided their health information", so a row of nulls
+ * would reintroduce exactly the ambiguity the split removes. The cost is that
+ * a value can no longer be cleared to null and that registration must supply
+ * all four — see the migration notes.
+ * 
+ * `congenitalDisease` is the exception, and its nullability is meaningful
+ * rather than a leftover. The UI asks it in two parts — a มี / ไม่มี select,
+ * with the text box revealed only for มี — so "no condition" is an *answered*
+ * state, not an empty box. Three states, and the pair (row, column) tells
+ * them apart with no ambiguity:
+ * 
+ * | state                              | meaning                       |
+ * | ---------------------------------- | ----------------------------- |
+ * | no `user_informations` row         | health step not completed     |
+ * | row exists, `congenital_disease` NULL | answered: no condition     |
+ * | row exists, text present           | answered: that condition      |
+ * 
+ * **Do not "tidy up" that NULL into the literal string `'ไม่มี'`.** It is the
+ * same sentinel-in-a-column pattern rejected for `users.phone`, and it is
+ * worse here: a user can type `ไม่มี` into the text box themselves, at which
+ * point the sentinel and a real answer are indistinguishable — permanently,
+ * with no migration able to separate them again. `'ไม่มี'` is what the
+ * *presentation* layer renders for NULL, and it belongs in the GraphQL
+ * mapper, not in this column.
+ */
+export type UserInformation = Prisma.UserInformationModel
+/**
  * Model ProfileChangeLog
  * One row per health field changed on a patient's profile.
  * 

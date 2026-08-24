@@ -49,6 +49,7 @@ import { OptionRow } from '@/components/ui/option-row';
 import { TextField } from '@/components/ui/text-field';
 import { useTypography } from '@/hooks/use-typography';
 import { useTheme } from '@/hooks/use-theme';
+import { CONGENITAL_OPTIONS } from '@/lib/health-validation';
 import {
   formatAuthError,
   useSession,
@@ -67,13 +68,18 @@ import {
   formFromUser,
   genderLabel,
   hasChanges,
+  hasHealthRecord,
   profileSchema,
   useProfileAvatar,
   type ProfileForm,
 } from '@/modules/profile';
 import { SecurityHeader } from '@/modules/security';
 import { status as statusColor } from '@/theme';
-import { formatThaiPhone, stripPhoneDigits } from '@/utils/phone-format';
+import {
+  formatOptionalPhone,
+  formatThaiPhone,
+  stripPhoneDigits,
+} from '@/utils/phone-format';
 
 /**
  * Space left between a focused field and the top of the keyboard.
@@ -108,10 +114,26 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
 
-  // Per mount, not module load: `validateDob` inside the schema compares
-  // against `now`, and a module-level schema would freeze "today" at the
-  // moment the bundle was evaluated.
-  const schema = useMemo(() => profileSchema(), []);
+  /*
+   * Per `user`, not per mount and not per module load. Two reasons, and the
+   * second is new:
+   *
+   *   1. `validateDob` inside the schema compares against `now`, and a
+   *      module-level schema would freeze "today" at the moment the bundle
+   *      was evaluated.
+   *   2. The schema now closes over the record being edited. `lastname` and
+   *      the health block are only required *conditionally* — see
+   *      `ProfileBaseline` — so a schema built before `me` resolved would
+   *      judge the form against an empty record and let a clear through.
+   *
+   * React Hook Form re-reads `control._options` on every render, so handing
+   * it a new resolver when `user` changes takes effect on the next
+   * validation rather than being pinned at mount.
+   */
+  const schema = useMemo(() => profileSchema(new Date(), user), [user]);
+  // Same question `profileSchema` asks through `validateProfile`, asked once
+  // here so the form can say so before the user submits rather than after.
+  const hasHealth = hasHealthRecord(user ?? {});
 
   const {
     control,
@@ -207,6 +229,13 @@ export default function ProfileScreen() {
   const watchedPhone = useWatch({ control, name: 'phone' });
   const phoneChanged =
     stripPhoneDigits(watchedPhone ?? '') !== stripPhoneDigits(user?.phone ?? '');
+
+  /*
+   * The text box exists only for "มี". `null` (unanswered) shows neither the
+   * box nor a stale note — an answer of "ไม่มี" that still displayed a text
+   * field would be asking the same question twice.
+   */
+  const congenitalAnswer = useWatch({ control, name: 'congenital' });
 
   /**
    * Same action sheet as `auth/components/avatar-picker.tsx`'s register-form
@@ -319,7 +348,7 @@ export default function ProfileScreen() {
 
             <ProfileField
               label="เบอร์โทรศัพท์"
-              value={formatThaiPhone(user?.phone ?? '')}
+              value={formatOptionalPhone(user?.phone)}
               isEditing={isEditing}
               isLast
             >
@@ -352,6 +381,18 @@ export default function ProfileScreen() {
             </ProfileField>
           </ProfileGroup>
 
+          {/* See `patient-health.tsx` — the same first-run gap, own account. */}
+          {isEditing && !hasHealth ? (
+            <ThemedText
+              type="small"
+              weight="regular"
+              themeColor="text-secondary"
+              className="mb-2 px-2"
+            >
+              ยังไม่มีข้อมูลสุขภาพในระบบ กรุณากรอกให้ครบทั้ง 4 ช่อง (วันเกิด เพศ น้ำหนัก ส่วนสูง) จึงจะบันทึกได้
+            </ThemedText>
+          ) : null}
+
           <ProfileGroup title="ข้อมูลสุขภาพ">
             <ProfileField label="วันเกิด" value={formatBirthday(user?.dob)} isEditing={isEditing}>
               <Controller
@@ -382,6 +423,7 @@ export default function ProfileScreen() {
                       options={GENDER_OPTIONS}
                       value={field.value}
                       onChange={field.onChange}
+                      clearable={false}
                     />
                   )}
                 />
@@ -444,43 +486,74 @@ export default function ProfileScreen() {
               isEditing={isEditing}
               isLast
             >
-              <Controller
-                control={control}
-                name="congenitalDisease"
-                render={({ field }) => (
-                  <View className="mb-4">
-                    <TextInput
-                      testID="profile-congenital-disease"
-                      className="rounded-[14px] border-2 px-[14px] py-3"
-                      style={{
-                        minHeight: 88,
-                        // No line height: this input had none, and acquiring one
-                        // here would re-centre the text inside the 88px box.
-                        ...typography({ size: 15, weight: 'semibold', lineHeight: null }),
-                        color: colors['text-primary'],
-                        borderColor: errors.congenitalDisease
-                          ? statusColor.high
-                          : colors.border,
-                        backgroundColor: colors['surface-muted'],
-                        textAlignVertical: 'top',
-                      }}
-                      placeholder="เช่น เบาหวาน ความดันโลหิตสูง — เว้นว่างได้"
-                      placeholderTextColor={colors['text-secondary']}
-                      value={field.value}
-                      onChangeText={field.onChange}
-                      onBlur={field.onBlur}
-                      editable={!isPending}
-                      multiline
-                    />
+              <View>
+                {/*
+                  มี / ไม่มี first, free text second and only for "มี".
 
-                    {errors.congenitalDisease ? (
-                      <ThemedText type="label" className="ml-1 mt-1.5" style={{ color: statusColor.high }}>
-                        {errors.congenitalDisease.message}
-                      </ThemedText>
-                    ) : null}
-                  </View>
-                )}
-              />
+                  The old single text box could not tell "no condition" from
+                  "never asked", and that ambiguity is precisely what the
+                  gateway removed: it stores "no condition" as a NULL column
+                  inside a row whose *existence* means the health step was
+                  completed, and renders that NULL back as the string
+                  'ไม่มี'. A box the user leaves empty answers nothing, so
+                  the placeholder that used to say "เว้นว่างได้" was making a
+                  promise the column no longer keeps.
+                */}
+                <Controller
+                  control={control}
+                  name="congenital"
+                  render={({ field }) => (
+                    <OptionRow
+                      label="มีโรคประจำตัวหรือไม่"
+                      options={CONGENITAL_OPTIONS}
+                      clearable={false}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.congenital?.message}
+                    />
+                  )}
+                />
+
+                {congenitalAnswer === 'has' ? (
+                  <Controller
+                    control={control}
+                    name="congenitalDisease"
+                    render={({ field }) => (
+                      <View className="mb-4">
+                        <TextInput
+                          testID="profile-congenital-disease"
+                          className="rounded-[14px] border-2 px-[14px] py-3"
+                          style={{
+                            minHeight: 88,
+                            // No line height: this input had none, and acquiring one
+                            // here would re-centre the text inside the 88px box.
+                            ...typography({ size: 15, weight: 'semibold', lineHeight: null }),
+                            color: colors['text-primary'],
+                            borderColor: errors.congenitalDisease
+                              ? statusColor.high
+                              : colors.border,
+                            backgroundColor: colors['surface-muted'],
+                            textAlignVertical: 'top',
+                          }}
+                          placeholder="เช่น เบาหวาน ความดันโลหิตสูง"
+                          placeholderTextColor={colors['text-secondary']}
+                          value={field.value}
+                          onChangeText={field.onChange}
+                          onBlur={field.onBlur}
+                          editable={!isPending}
+                          multiline
+                        />
+
+                        {errors.congenitalDisease ? (
+                          <ThemedText type="label" className="ml-1 mt-1.5" style={{ color: statusColor.high }}>
+                            {errors.congenitalDisease.message}
+                          </ThemedText>
+                        ) : null}
+                      </View>
+                    )}
+                  />
+                ) : null}
+              </View>
             </ProfileField>
           </ProfileGroup>
 

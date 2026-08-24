@@ -38,7 +38,12 @@
  */
 import type { AuthStatus } from '@/stores';
 
-export type GateHref = '/(tabs)' | '/login' | '/onboarding/role' | '/onboarding/setup';
+export type GateHref =
+  | '/(tabs)'
+  | '/login'
+  | '/onboarding-phone'
+  | '/onboarding/role'
+  | '/onboarding/setup';
 
 export type GateDestination =
   /** Something is still hydrating — hold on the entry screen. */
@@ -55,6 +60,23 @@ export type GateInput = {
    * `null` means the answer is not known yet (the `me` query is in flight).
    */
   roleSelected: boolean | null;
+  /**
+   * From `User.phone` being present.
+   *
+   * A Google account is created by `signInSocial` before any screen can ask
+   * for anything, and a Google ID token carries no phone number — so this is
+   * the one onboarding signal that can be false for an account the user did
+   * not knowingly half-finish. `users.phone` is nullable for exactly that
+   * reason, and nothing in the database enforces the requirement any more;
+   * this gate is what does.
+   *
+   * It matters more than it looks: caregivers find patients by phone, and the
+   * invite lookup is an equality match that cannot match a NULL. Until this
+   * is true the account exists but is unreachable.
+   *
+   * `null` means the answer is not known yet, same as `roleSelected`.
+   */
+  phoneComplete: boolean | null;
   /** Local flag. False means first-run setup is still due on this device. */
   appConfigured: boolean;
   /** False until AsyncStorage has been read back. */
@@ -64,6 +86,7 @@ export type GateInput = {
 export function resolveGate({
   status,
   roleSelected,
+  phoneComplete,
   appConfigured,
   preferencesHydrated,
 }: GateInput): GateDestination {
@@ -75,10 +98,22 @@ export function resolveGate({
   if (status === 'unknown') return { kind: 'wait' };
   if (status === 'unauthenticated') return { kind: 'redirect', href: '/login' };
 
-  // Signed in from here on. `roleSelected` writes to the server, so it needs a
-  // session — and `null` means `me` is still in flight, which is not the same
-  // as "not selected". Treating it as the latter flashes the role screen at
-  // someone who chose months ago.
+  /*
+   * Signed in from here on. Both remaining signals are server state, so both
+   * can be `null` while `me` is in flight — and `null` is not "not done".
+   * Treating it as the latter flashes an onboarding screen at someone who
+   * finished months ago.
+   *
+   * Phone before role, and the order is not arbitrary: a missing phone means
+   * the account is unreachable by any caregiver, while a missing role only
+   * means the app does not yet know which tabs to show. Asking for the
+   * reachable identity first also matches how a Google account was made —
+   * everything else arrived from the provider, and this is the one thing only
+   * the user can supply.
+   */
+  if (phoneComplete === null) return { kind: 'wait' };
+  if (!phoneComplete) return { kind: 'redirect', href: '/onboarding-phone' };
+
   if (roleSelected === null) return { kind: 'wait' };
   if (!roleSelected) return { kind: 'redirect', href: '/onboarding/role' };
 

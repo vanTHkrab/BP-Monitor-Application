@@ -17,12 +17,14 @@ import { useAuthStore } from '@/stores';
 
 export default function IndexRoute() {
   const status = useAuthStore((state) => state.status);
-  const { roleSelected, appConfigured, preferencesHydrated } = useOnboardingState();
+  const { roleSelected, phoneComplete, appConfigured, preferencesHydrated } =
+    useOnboardingState();
   const colors = useTheme();
 
   const destination = resolveGate({
     status,
     roleSelected,
+    phoneComplete,
     appConfigured,
     preferencesHydrated,
   });

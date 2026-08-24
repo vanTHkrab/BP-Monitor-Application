@@ -11,6 +11,12 @@
  *
  * So: send only what the user actually touched.
  */
+import {
+  congenitalAnswerFrom,
+  congenitalTextFrom,
+  congenitalWireValue,
+  renderCongenital,
+} from '@/lib/health-validation';
 import type { UpdateProfileInput, User } from '@/modules/auth';
 import { formatIsoDate } from '@/utils/date-formatter';
 import { stripPhoneDigits } from '@/utils/phone-format';
@@ -47,7 +53,12 @@ export function formFromUser(user: User | null): ProfileForm {
     gender: user?.gender ?? null,
     weight: user?.weight != null ? String(user.weight) : '',
     height: user?.height != null ? String(user.height) : '',
-    congenitalDisease: user?.congenitalDisease ?? '',
+    // Two controls out of one column. `'ไม่มี'` on the wire is the gateway
+    // rendering a NULL, so it seeds the select rather than the text box —
+    // putting it in the text box would make the user look like they had typed
+    // it, and re-saving would then store the literal string.
+    congenital: congenitalAnswerFrom(user?.congenitalDisease),
+    congenitalDisease: congenitalTextFrom(user?.congenitalDisease),
   };
 }
 
@@ -93,8 +104,22 @@ export function changedFields(form: ProfileForm, user: User | null): UpdateProfi
     patch.height = trimmed ? Number(trimmed) : null;
   }
 
-  if (!sameText(form.congenitalDisease, user?.congenitalDisease)) {
-    patch.congenitalDisease = form.congenitalDisease.trim() || null;
+  /*
+   * Compared in the gateway's *rendering*, not in the form's representation.
+   *
+   * The server sends `'ไม่มี'` for a NULL column and this form holds that as
+   * `congenital: 'none'` with an empty text box. Comparing the text box
+   * against `user.congenitalDisease` would report a change on every save for
+   * every user who answered "ไม่มี" — a write, and a row in their audit
+   * trail, for an edit nobody made. `renderCongenital` puts both sides in the
+   * same vocabulary; `congenitalWireValue` then says what to actually send,
+   * which for "ไม่มี" is `null` (there is no inverse mapping server-side, so
+   * sending the string would store it verbatim).
+   */
+  const congenital = renderCongenital(form.congenital, form.congenitalDisease);
+  if (congenital !== (user?.congenitalDisease ?? undefined)) {
+    const wire = congenitalWireValue(form.congenital, form.congenitalDisease);
+    if (wire !== undefined) patch.congenitalDisease = wire;
   }
 
   return patch;

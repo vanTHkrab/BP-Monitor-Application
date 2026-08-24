@@ -4,6 +4,7 @@ import { resolveGate, type GateInput } from './route-gate';
 const onboarded: GateInput = {
   status: 'authenticated',
   roleSelected: true,
+  phoneComplete: true,
   appConfigured: true,
   preferencesHydrated: true,
 };
@@ -127,6 +128,53 @@ describe('resolveGate', () => {
   describe('fully onboarded', () => {
     it('goes to the tabs', () => {
       expect(resolveGate(onboarded)).toEqual({ kind: 'redirect', href: '/(tabs)' });
+    });
+  });
+
+  /*
+   * The phone step exists because a Google account is created by
+   * `signInSocial` before any screen can ask for anything, and a Google ID
+   * token carries no phone number. `users.phone` is nullable so that insert
+   * can happen at all — which means the database no longer enforces the
+   * requirement and this gate is the only thing that does.
+   */
+  describe('an account with no phone number', () => {
+    it('collects the phone before anything else it is signed in for', () => {
+      expect(resolveGate({ ...onboarded, phoneComplete: false })).toEqual({
+        kind: 'redirect',
+        href: '/onboarding-phone',
+      });
+    });
+
+    it('asks for the phone before the role, not after', () => {
+      // Both outstanding. A missing phone makes the account unreachable by any
+      // caregiver; a missing role only leaves the app unsure which tabs to
+      // show. Reversing this order would let someone finish onboarding and
+      // still be invisible to the person meant to be looking after them.
+      expect(
+        resolveGate({ ...onboarded, phoneComplete: false, roleSelected: false }),
+      ).toEqual({ kind: 'redirect', href: '/onboarding-phone' });
+    });
+
+    it('waits rather than asking again while `me` is still in flight', () => {
+      // `null` is "not known yet", not "absent". Treating it as absent shows
+      // the phone screen for a frame to someone who has had a number for
+      // years — the same trap `roleSelected` documents.
+      expect(resolveGate({ ...onboarded, phoneComplete: null })).toEqual({
+        kind: 'wait',
+      });
+    });
+
+    it('does not reach the phone step before the session resolves', () => {
+      // Ordering guard: `status` is checked first, so a signed-out launch goes
+      // to login even though `phoneComplete` is false for want of a session.
+      expect(
+        resolveGate({
+          ...onboarded,
+          status: 'unauthenticated',
+          phoneComplete: null,
+        }),
+      ).toEqual({ kind: 'redirect', href: '/login' });
     });
   });
 });
