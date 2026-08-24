@@ -129,6 +129,32 @@ describe('ProfileScreen — edit mode sends only what changed', () => {
    * `'ไม่มี'` instead would store the word as if it were a diagnosis, because
    * the gateway has no inverse on the write path.
    */
+  /*
+   * The migration created no `user_informations` row for anyone missing one of
+   * the four, so "no health record" is a state real accounts are in. Four empty
+   * fields look exactly like four unchanged ones, and without this the first
+   * save is how the user finds out — four red fields at once.
+   */
+  it('explains the whole block is required when the record has none', async () => {
+    mockSession.current = {
+      user: user({ dob: undefined, gender: undefined, weight: undefined, height: undefined }),
+    };
+    const view = await renderScreen(<ProfileScreen />);
+
+    expect(view.queryByText(/กรุณากรอกให้ครบทั้ง 4 ช่อง/)).toBeNull();
+    await fireEvent.press(view.getByTestId('profile-edit'));
+
+    expect(view.getByText(/กรุณากรอกให้ครบทั้ง 4 ช่อง/)).toBeOnTheScreen();
+  });
+
+  it('stays quiet for a record that already has the block', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+
+    expect(view.queryByText(/กรุณากรอกให้ครบทั้ง 4 ช่อง/)).toBeNull();
+  });
+
   it('sends null, not the word, when the answer becomes "no condition"', async () => {
     mockSession.current = { user: user({ congenitalDisease: 'เบาหวาน' }) };
     const view = await renderScreen(<ProfileScreen />);

@@ -68,6 +68,7 @@ import {
   formFromUser,
   genderLabel,
   hasChanges,
+  hasHealthRecord,
   profileSchema,
   useProfileAvatar,
   type ProfileForm,
@@ -130,6 +131,9 @@ export default function ProfileScreen() {
    * validation rather than being pinned at mount.
    */
   const schema = useMemo(() => profileSchema(new Date(), user), [user]);
+  // Same question `profileSchema` asks through `validateProfile`, asked once
+  // here so the form can say so before the user submits rather than after.
+  const hasHealth = hasHealthRecord(user ?? {});
 
   const {
     control,
@@ -376,6 +380,18 @@ export default function ProfileScreen() {
               </View>
             </ProfileField>
           </ProfileGroup>
+
+          {/* See `patient-health.tsx` — the same first-run gap, own account. */}
+          {isEditing && !hasHealth ? (
+            <ThemedText
+              type="small"
+              weight="regular"
+              themeColor="text-secondary"
+              className="mb-2 px-2"
+            >
+              ยังไม่มีข้อมูลสุขภาพในระบบ กรุณากรอกให้ครบทั้ง 4 ช่อง (วันเกิด เพศ น้ำหนัก ส่วนสูง) จึงจะบันทึกได้
+            </ThemedText>
+          ) : null}
 
           <ProfileGroup title="ข้อมูลสุขภาพ">
             <ProfileField label="วันเกิด" value={formatBirthday(user?.dob)} isEditing={isEditing}>

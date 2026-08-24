@@ -276,6 +276,25 @@ export default function PatientHealthScreen() {
               : `${patientName}ให้สิทธิ์คุณดูอย่างเดียว จึงแก้ไขข้อมูลนี้ไม่ได้`}
           </ThemedText>
 
+          {/*
+            The migration could not create a `user_informations` row for a
+            patient who was missing any of the four, so "no record yet" is a
+            real state a caregiver will meet — and four empty fields look
+            exactly like four unchanged ones. Without this the first save is
+            how they find out, as four red fields at once. Said before the
+            attempt, it is an instruction instead.
+          */}
+          {isEditing && !recorded ? (
+            <ThemedText
+              type="small"
+              weight="regular"
+              themeColor="text-secondary"
+              className="mb-2 px-4"
+            >
+              ยังไม่มีข้อมูลสุขภาพในระบบ กรุณากรอกให้ครบทั้ง 4 ช่อง (วันเกิด เพศ น้ำหนัก ส่วนสูง) จึงจะบันทึกได้
+            </ThemedText>
+          ) : null}
+
           <ProfileGroup title="ข้อมูลสุขภาพ">
             <ProfileField
               testID="patient-health-dob"
