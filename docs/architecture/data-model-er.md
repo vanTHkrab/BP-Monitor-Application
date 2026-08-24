@@ -1,18 +1,18 @@
 ---
 title: EER Diagram (Prisma schema)
 description: >-
-    All 13 Postgres tables and their relations as Prisma sees them, including
+    All 16 Postgres tables and their relations as Prisma sees them, including
     the four Better Auth owns. The gateway is the only writer. UUIDs for
     identity rows, auto-increment ints for the clinical and community ones, and
     every relation enforced at the database level.
 status: current
-updated: 2026-08-16
+updated: 2026-08-24
 owner: api-gateway
 ---
 
 ## Full schema
 
-Source of truth: `server/app/api-gateway/prisma/schema.prisma` — 13 models and
+Source of truth: `server/app/api-gateway/prisma/schema.prisma` — 16 models and
 8 enums. Four of the models (`User`, `Account`, `UserSession`, `Verification`)
 are Better Auth's, extended with this project's own columns rather than
 duplicated alongside them; `Passkey` is the passkey plugin's. Everything else
@@ -25,6 +25,9 @@ erDiagram
     User ||--o{ UserSession : "owns"
     User ||--o{ Passkey : "registers"
     User ||--o{ PushToken : "notified_on"
+
+    %% ── Patient health block (split out of users) ──
+    User ||--o| UserInformation : "health_block"
 
     %% ── Care relationships and audit ──
     User ||--o{ CaregiverPatient : "caregiver_of"
@@ -57,7 +60,7 @@ erDiagram
         string name "Better Auth display name, 201 chars"
         string firstname
         string lastname
-        string phone UK "NOT NULL — caregivers find patients by phone"
+        string phone UK "nullable — a Google account has none; see note below"
         bool phone_number_verified
         string password_hash "legacy bcrypt; Better Auth writes accounts.password"
         enum role "caregiver | developer | patient"
@@ -66,12 +69,18 @@ erDiagram
         bool banned
         string ban_reason
         timestamp ban_expires
-        date dob
-        enum gender "male | female | other"
-        float weight
-        float height
-        string congenital_disease
         string avatar "mapped to Better Auth image"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    UserInformation {
+        uuid user_id PK "also FK to users.id — one row per user"
+        date dob "NOT NULL"
+        enum gender "NOT NULL — male | female | other"
+        float weight "NOT NULL"
+        float height "NOT NULL"
+        string congenital_disease "NULL = answered: no condition"
         timestamp created_at
         timestamp updated_at
     }
@@ -245,6 +254,33 @@ erDiagram
 - **`email` and `phone` are both `@unique` and both sign-in identifiers** —
   which is why the caregiver edit path cannot touch either. A caregiver who
   could change one could request a password reset and take the account.
+- **`users.phone` is nullable, and that reverses an earlier decision.** It was
+  `NOT NULL` on the ground that caregivers find patients by phone, so an
+  account without one is unreachable. That reasoning still holds; what changed
+  is where it is enforced. The `NOT NULL` was this project's own choice and
+  never a Better Auth requirement — its `phoneNumber()` plugin declares the
+  field `required: false` — and at the database it blocked Google sign-up
+  outright, because a Google ID token carries no phone number. The requirement
+  moved up a layer: [`client/src/app/(auth)/onboarding-phone.tsx`](../../client/src/app/%28auth%29/onboarding-phone.tsx)
+  is now what enforces it, and nothing in the database does. See
+  [AUTH-better-auth-identity.md](./AUTH-better-auth-identity.md#phone-nullability).
+- **The health block lives on `user_informations`, not on `users`.** `users` is
+  Better Auth's table, so every column on it must be declared to Better Auth as
+  an `additionalField` — and a *required* `additionalField` that a social
+  provider cannot supply makes that provider's sign-up impossible before any
+  SQL is issued. Moving `dob`, `gender`, `weight`, `height`, and
+  `congenital_disease` off the table takes them out of Better Auth's field set
+  entirely.
+
+  > **Note:** The row's *existence* is the "health step completed" signal, which
+  > is why the four required columns are `NOT NULL` and `congenital_disease` is
+  > not. Three states: no row (step not completed); row with
+  > `congenital_disease` NULL (answered: no condition); row with text (answered:
+  > that condition). The NULL is rendered as the Thai string `'ไม่มี'` in the
+  > GraphQL mapper
+  > ([`src/auth/user-information.ts`](../../server/app/api-gateway/src/auth/user-information.ts)),
+  > never stored. Do not write `'ไม่มี'` into the column — a user can type it
+  > themselves, and the two would then be indistinguishable forever.
 - **`verifications` has no foreign key on purpose** — it is keyed by
   `identifier` (the email or phone the code was sent to), so a code can be
   issued before an account exists.

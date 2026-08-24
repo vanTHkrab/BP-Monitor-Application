@@ -12,7 +12,8 @@ export type UserPayload = {
   id: string;
   firstname: string;
   lastname: string;
-  phone: string;
+  /** Nullable since `UserType.phone` became `String` — see `User.phone`. */
+  phone?: string | null;
   email?: string | null;
   emailVerified: boolean;
   avatar?: string | null;
@@ -60,7 +61,7 @@ export const userFromGql = (payload: UserPayload): User => ({
   id: payload.id,
   firstname: payload.firstname,
   lastname: payload.lastname,
-  phone: payload.phone,
+  phone: payload.phone ?? undefined,
   email: payload.email ?? undefined,
   emailVerified: payload.emailVerified,
   avatar: payload.avatar ?? undefined,

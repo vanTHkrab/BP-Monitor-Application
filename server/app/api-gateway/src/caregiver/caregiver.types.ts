@@ -55,7 +55,14 @@ export class CaregiverLinkType {
   @Field() patientId: string;
   @Field() relationship: string;
   @Field() caregiverName: string;
-  @Field() caregiverPhone: string;
+  /**
+   * **Nullable as of the Google sign-in work — a breaking change to this
+   * type.** `users.phone` became `String?` because a Google ID token carries
+   * no phone number, so an account created through a social provider has none
+   * to show. Rendering it as `''` would have been a lie the client could not
+   * tell from a real value; absent is the honest shape. See `UserObject.phone`.
+   */
+  @Field({ nullable: true }) caregiverPhone?: string;
   /**
    * Both avatars ride along on the link.
    *
@@ -71,7 +78,14 @@ export class CaregiverLinkType {
    */
   @Field({ nullable: true }) caregiverAvatar?: string;
   @Field() patientName: string;
-  @Field() patientPhone: string;
+  /**
+   * **Nullable as of the Google sign-in work — a breaking change to this
+   * type.** `users.phone` became `String?` because a Google ID token carries
+   * no phone number, so an account created through a social provider has none
+   * to show. Rendering it as `''` would have been a lie the client could not
+   * tell from a real value; absent is the honest shape. See `UserObject.phone`.
+   */
+  @Field({ nullable: true }) patientPhone?: string;
   @Field({ nullable: true }) patientAvatar?: string;
   @Field(() => CaregiverLinkStatusGql) status: CaregiverLinkStatusGql;
   @Field({ nullable: true }) respondedAt?: Date;
@@ -111,7 +125,14 @@ export class PatientSummaryType {
   @Field() id: string;
   @Field() firstname: string;
   @Field() lastname: string;
-  @Field() phone: string;
+  /**
+   * **Nullable as of the Google sign-in work — a breaking change to this
+   * type.** `users.phone` became `String?` because a Google ID token carries
+   * no phone number, so an account created through a social provider has none
+   * to show. Rendering it as `''` would have been a lie the client could not
+   * tell from a real value; absent is the honest shape. See `UserObject.phone`.
+   */
+  @Field({ nullable: true }) phone?: string;
   @Field({ nullable: true }) avatar?: string;
   @Field({ nullable: true }) dob?: Date;
   @Field({ nullable: true }) relationship?: string;

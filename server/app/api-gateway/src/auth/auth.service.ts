@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -17,11 +19,18 @@ import { AuthPayloadObject } from './dto/auth-payload.object';
 import { LoginInput } from './dto/login.input';
 import { RegisterInput } from './dto/register.input';
 import { UserObject } from './dto/user.object';
+import { JwtPayload, normalizeSelfAssignedRole } from './types/auth.types';
 import {
-  Gender,
-  JwtPayload,
-  normalizeSelfAssignedRole,
-} from './types/auth.types';
+  HealthPatch,
+  HealthValue,
+  INCOMPLETE_HEALTH_MESSAGE,
+  REQUIRED_HEALTH_FIELDS,
+  UserInformationRow,
+  applyHealthValue,
+  buildInformationCreate,
+  cannotClearMessage,
+  presentCongenitalDisease,
+} from './user-information';
 
 // Verify-password throttle (per-userId, in-memory). Tighter than the login
 // throttle because the caller is already authenticated — a wrong guess on
@@ -50,6 +59,7 @@ function readMessage(error: unknown): string | undefined {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly verifyAttempts = new Map<string, VerifyAttempt>();
 
   constructor(
@@ -101,14 +111,33 @@ export class AuthService {
           firstname: input.firstname,
           lastname: input.lastname,
           phoneNumber: input.phone,
-          dob: input.dob ?? null,
-          gender: (input.gender as Gender | undefined) ?? null,
-          weight: input.weight ?? null,
-          height: input.height ?? null,
-          congenitalDisease: input.congenitalDisease ?? null,
         },
       }),
     );
+
+    // The health block is ours, not Better Auth's, and it is a separate row
+    // now — so it is written here rather than ridden in on the sign-up body.
+    //
+    // All five fields are `@IsOptional()` on RegisterInput and always were, so
+    // a registration that supplies only some of the four required ones has not
+    // completed the health step. It gets no row, which is exactly the state
+    // the health step exists to resolve and the same state a Google sign-up
+    // starts in. This deliberately matches the migration's backfill policy;
+    // the cost is that a `congenitalDisease` typed alongside incomplete
+    // required fields is dropped rather than stored against nothing.
+    const registrationInformation = buildInformationCreate(null, {
+      dob: input.dob,
+      gender: input.gender as HealthPatch['gender'],
+      weight: input.weight,
+      height: input.height,
+      congenitalDisease: input.congenitalDisease?.trim() || null,
+    });
+
+    if (registrationInformation) {
+      await this.prisma.userInformation.create({
+        data: { userId: result.user.id, ...registrationInformation },
+      });
+    }
 
     // Avatar is ours, not Better Auth's: it is normalised to a storage key
     // before writing so the database never holds a signed URL.
@@ -203,6 +232,22 @@ export class AuthService {
     // misconfigured rather than that the user did something wrong — but it is
     // a real union, and returning a URL as a token would be worse than a 401.
     if (!('token' in result) || !result.token || !result.user) {
+      /*
+       * This branch is not a user error and the comment above says so, but it
+       * used to be as silent as the catch was: the call *succeeded* and handed
+       * back the browser-redirect shape, and nothing recorded that. An
+       * operator saw the same vague 401 as a rejected token, with no way to
+       * tell the two apart. Logging the keys rather than the value keeps a
+       * session token out of the log while still saying which shape arrived.
+       */
+      this.logger.warn(
+        'signInSocial returned no session — the ID-token branch was not taken, ' +
+          `which means the google provider is misconfigured. Result keys: ${
+            result && typeof result === 'object'
+              ? Object.keys(result).join(', ') || '(none)'
+              : typeof result
+          }`,
+      );
       throw new UnauthorizedException('เข้าสู่ระบบด้วย Google ไม่สำเร็จ');
     }
 
@@ -217,6 +262,7 @@ export class AuthService {
   async me(userId: string): Promise<UserObject> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: { information: true },
     });
 
     if (!user) {
@@ -309,13 +355,6 @@ export class AuthService {
     // linking depends on, and the column is NOT NULL as of the Better Auth
     // identity migration. An empty string is ignored rather than written.
     if (email) patch.email = email;
-    if (data.dob !== undefined) patch.dob = data.dob || null;
-    if (data.gender !== undefined) patch.gender = data.gender || null;
-    if (data.weight !== undefined) patch.weight = data.weight ?? null;
-    if (data.height !== undefined) patch.height = data.height ?? null;
-    if (data.congenitalDisease !== undefined) {
-      patch.congenitalDisease = data.congenitalDisease || null;
-    }
     if (data.avatar !== undefined) {
       // Strip any signed-URL query strings (or accept a bare key) so the DB
       // only ever holds a stable storage key. Reads sign on the fly.
@@ -343,12 +382,109 @@ export class AuthService {
       patch.name = `${firstname} ${lastname}`.trim();
     }
 
-    const user = await this.prisma.user.update({
-      where: { id: userId },
-      data: patch,
-    });
+    // The health block is a second row now, so the write splits in two and
+    // has to stay atomic: a `users` update that landed without its
+    // `user_informations` half would show the patient a saved form whose
+    // health fields silently did not save.
+    //
+    // Order matters inside the transaction. The upsert runs first so the
+    // `user.update` that follows — which is what builds the response — reads
+    // the row it just wrote through its `include`.
+    const information = await this.buildInformationWrite(userId, data);
+
+    const user = information
+      ? (
+          await this.prisma.$transaction([
+            this.prisma.userInformation.upsert(information),
+            this.prisma.user.update({
+              where: { id: userId },
+              data: patch,
+              include: { information: true },
+            }),
+          ])
+        )[1]
+      : await this.prisma.user.update({
+          where: { id: userId },
+          data: patch,
+          include: { information: true },
+        });
 
     return this.toUserType(user);
+  }
+
+  /**
+   * The `userInformation.upsert` argument for a profile edit, or `null` when
+   * the edit does not touch the health block at all.
+   *
+   * Three things this has to get right, none of which the type system can
+   * enforce on its own because a GraphQL nullable field arrives as `null` at
+   * runtime while `UpdateProfileInput` types it as `T | undefined`:
+   *
+   * 1. **Absent still means "leave alone".** Only keys actually present in the
+   *    input reach the patch.
+   * 2. **The four required fields can no longer be cleared.** They are NOT
+   *    NULL, and the row's existence is the "health step completed" signal, so
+   *    a row of nulls would reintroduce the ambiguity the split removed. An
+   *    explicit null is refused rather than dropped: dropping it would return
+   *    200 with the old value still in place, which is a write the caller was
+   *    told succeeded and that never happened.
+   * 3. **A partial edit cannot create a missing row.** `upsert` needs all four
+   *    to insert, and a user who has never completed the health step has no
+   *    row — so editing just their weight is a 400, not a half-built row.
+   *
+   * `congenitalDisease` is the exception throughout: NULL there is an answer
+   * ("no condition"), so clearing it stays legal and `|| null` still means
+   * what it used to.
+   */
+  private async buildInformationWrite(
+    userId: string,
+    data: {
+      dob?: Date;
+      gender?: string;
+      weight?: number;
+      height?: number;
+      congenitalDisease?: string;
+    },
+  ) {
+    const submitted = data as Record<string, HealthValue>;
+    const patch: HealthPatch = {};
+    let touched = false;
+
+    for (const field of REQUIRED_HEALTH_FIELDS) {
+      const raw = submitted[field];
+      if (raw === undefined) continue;
+      touched = true;
+
+      // `''` is how the client clears a text control; for these four it is a
+      // clear, not a value, and is refused alongside an explicit null.
+      if (raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+        throw new BadRequestException(cannotClearMessage(field));
+      }
+
+      applyHealthValue(patch, field, raw);
+    }
+
+    if (data.congenitalDisease !== undefined) {
+      touched = true;
+      patch.congenitalDisease = data.congenitalDisease?.trim() || null;
+    }
+
+    if (!touched) return null;
+
+    const existing = await this.prisma.userInformation.findUnique({
+      where: { userId },
+    });
+
+    const create = buildInformationCreate(existing, patch);
+    if (!create) {
+      throw new BadRequestException(INCOMPLETE_HEALTH_MESSAGE);
+    }
+
+    return {
+      where: { userId },
+      create: { userId, ...create },
+      update: patch,
+    };
   }
 
   /**
@@ -592,7 +728,25 @@ export class AuthService {
     try {
       return await call();
     } catch (error) {
-      if (onFailure) throw onFailure(error);
+      if (onFailure) {
+        /*
+         * The caller replaces the cause with a deliberately vague message —
+         * a sign-in failure must not tell the client whether the provider is
+         * misconfigured, the audience is wrong, or the account was refused.
+         * That is right for the response and wrong for the operator, who
+         * previously had nothing at all: the original error was passed into
+         * `onFailure` and every caller ignored it, so Better Auth's reason
+         * was discarded here and logged nowhere.
+         *
+         * Logged at `warn` rather than `error` because a refused sign-in is
+         * an expected outcome, not a fault of the service.
+         */
+        this.logger.warn(
+          `Better Auth call failed: ${readMessage(error) ?? 'no message'}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        throw onFailure(error);
+      }
 
       const status = readStatus(error);
       const message = readMessage(error) ?? 'ไม่สามารถดำเนินการได้';
@@ -706,40 +860,49 @@ export class AuthService {
     return jwt.sign(payload, getJwtSecret(), options);
   }
 
+  /**
+   * `information` is `null` for any account that has not completed the health
+   * step — a fresh Google sign-in, and a caregiver forever. That is why the
+   * five health fields stay nullable on `UserObject` even though four of them
+   * are NOT NULL columns: they are non-null *within a row*, and the row is
+   * what is optional.
+   *
+   * The `?? undefined` that used to sit on those four was load-bearing when
+   * they were nullable columns and is dead now; `information?.x` carries the
+   * whole of the missing-row case. `congenitalDisease` does not read straight
+   * through — see `presentCongenitalDisease`.
+   */
   private async toUserType(user: {
     id: string;
     email: string | null;
     emailVerified: boolean;
     firstname: string;
     lastname: string;
-    phone: string;
+    phone: string | null;
     avatar: string | null;
     role: string;
     roleSelectedAt: Date | null;
     createdAt: Date;
-    dob: Date | null;
-    gender: string | null;
-    weight: number | null;
-    height: number | null;
-    congenitalDisease: string | null;
+    information: UserInformationRow | null;
   }): Promise<UserObject> {
     const signedAvatar = await this.storage.signImageKey(user.avatar);
+    const information = user.information;
     return {
       id: user.id,
       email: user.email ?? undefined,
       emailVerified: user.emailVerified,
       firstname: user.firstname,
       lastname: user.lastname,
-      phone: user.phone,
+      phone: user.phone ?? undefined,
       avatar: signedAvatar ?? undefined,
       role: user.role,
       roleSelectedAt: user.roleSelectedAt ?? undefined,
       createdAt: user.createdAt,
-      dob: user.dob ?? undefined,
-      gender: user.gender ?? undefined,
-      weight: user.weight ?? undefined,
-      height: user.height ?? undefined,
-      congenitalDisease: user.congenitalDisease ?? undefined,
+      dob: information?.dob,
+      gender: information?.gender,
+      weight: information?.weight,
+      height: information?.height,
+      congenitalDisease: presentCongenitalDisease(information),
     };
   }
 }

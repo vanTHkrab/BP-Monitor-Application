@@ -732,7 +732,8 @@ describe('CaregiverService.updatePatientHealth', () => {
   let service: CaregiverService;
   let prisma: {
     caregiverPatient: { findUnique: jest.Mock };
-    user: { findUnique: jest.Mock; update: jest.Mock };
+    user: { findUnique: jest.Mock };
+    userInformation: { upsert: jest.Mock };
     profileChangeLog: { createMany: jest.Mock; findMany: jest.Mock };
     $transaction: jest.Mock;
   };
@@ -748,17 +749,46 @@ describe('CaregiverService.updatePatientHealth', () => {
   const linkIs = (link: { status: string; permission?: string } | null) =>
     prisma.caregiverPatient.findUnique.mockResolvedValue(link);
 
+  /**
+   * Points the patient's `user_informations` row at something else.
+   *
+   * `null` is the "health step never completed" state — a Google-created
+   * account starts there, and it is a different state from every field being
+   * empty. The read goes through `user.findUnique` with a nested select, so
+   * this swaps what that relation resolves to rather than the user row.
+   */
+  const informationIs = (information: Partial<typeof CURRENT> | null) =>
+    prisma.user.findUnique.mockImplementation(({ select }) =>
+      Promise.resolve(
+        'firstname' in select
+          ? { firstname: 'สมชาย', lastname: 'ใจดี' }
+          : { information },
+      ),
+    );
+
   /** The audit rows the call tried to write, across every createMany. */
   const loggedRows = () =>
     prisma.profileChangeLog.createMany.mock.calls.flatMap(
       (call: [{ data: Record<string, unknown>[] }]) => call[0].data,
     );
 
-  /** What `user.update` was asked to patch onto the patient row. */
-  const patchedData = () =>
+  /** The whole `userInformation.upsert` argument, both halves. */
+  const upsertArg = () =>
     (
-      prisma.user.update.mock.calls as { data: Record<string, unknown> }[][]
-    )[0][0].data;
+      prisma.userInformation.upsert.mock.calls as {
+        where: Record<string, unknown>;
+        create: Record<string, unknown>;
+        update: Record<string, unknown>;
+      }[][]
+    )[0][0];
+
+  /**
+   * What the health row was asked to change. The `update` half of the upsert —
+   * the `create` half carries the four required values as well, so asserting
+   * the whole argument would stop distinguishing "changed weight" from
+   * "wrote every field".
+   */
+  const patchedData = () => upsertArg().update;
 
   beforeEach(async () => {
     prisma = {
@@ -768,19 +798,23 @@ describe('CaregiverService.updatePatientHealth', () => {
           .mockResolvedValue({ status: 'accepted', permission: 'full' }),
       },
       user: {
-        // The service reads the patient's current values and the actor's name
-        // in one Promise.all; both resolve from here.
+        // The service reads the patient's health row and the actor's name in
+        // one Promise.all; both resolve from here. The health block is a
+        // nested relation now, not columns on `users`.
         findUnique: jest
           .fn()
           .mockImplementation(({ select }) =>
             Promise.resolve(
               'firstname' in select
                 ? { firstname: 'สมชาย', lastname: 'ใจดี' }
-                : { ...CURRENT },
+                : { information: { ...CURRENT } },
             ),
           ),
-        update: jest.fn().mockResolvedValue({ ...CURRENT }),
       },
+      // `user.update` is deliberately absent from this mock: the health block
+      // does not live on `users` any more, so a call to it is a bug and
+      // should blow up rather than be silently recorded.
+      userInformation: { upsert: jest.fn().mockResolvedValue({ ...CURRENT }) },
       profileChangeLog: {
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([]),
@@ -885,7 +919,7 @@ describe('CaregiverService.updatePatientHealth', () => {
       });
 
       expect(prisma.$transaction).not.toHaveBeenCalled();
-      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
       expect(prisma.profileChangeLog.createMany).not.toHaveBeenCalled();
     });
 
@@ -910,7 +944,7 @@ describe('CaregiverService.updatePatientHealth', () => {
         dob: new Date('1950-03-02T13:45:00.000Z'),
       });
 
-      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
     });
 
     it('leaves a field out of the patch entirely when it was not submitted', async () => {
@@ -976,7 +1010,7 @@ describe('CaregiverService.updatePatientHealth', () => {
           .updatePatientHealth(CAREGIVER_ID, PATIENT_ID, { weight: 80 })
           .catch(() => undefined);
 
-        expect(prisma.user.update).not.toHaveBeenCalled();
+        expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
         expect(prisma.profileChangeLog.createMany).not.toHaveBeenCalled();
       },
     );
@@ -987,7 +1021,7 @@ describe('CaregiverService.updatePatientHealth', () => {
       await service.updatePatientHealth(PATIENT_ID, PATIENT_ID, { weight: 80 });
 
       expect(prisma.caregiverPatient.findUnique).not.toHaveBeenCalled();
-      expect(prisma.user.update).toHaveBeenCalled();
+      expect(prisma.userInformation.upsert).toHaveBeenCalled();
     });
 
     // Self-edits are audited too. The trail answers "who changed this", and
@@ -1005,6 +1039,18 @@ describe('CaregiverService.updatePatientHealth', () => {
     });
   });
 
+  /**
+   * Clearing splits in two along the NOT NULL line.
+   *
+   * `congenitalDisease` is nullable, and NULL there is an *answer* ("no
+   * condition"), so clearing it stays a normal write. The other four are NOT
+   * NULL on `user_informations` — the row's existence is what says "this
+   * patient has provided their health information" — so there is no write
+   * that expresses "clear this", and the request is refused rather than
+   * dropped. Dropping it would return 200 with the old value still in place
+   * and nothing in the audit trail, which is a write the caller was told
+   * succeeded and that never happened.
+   */
   describe('clearing a field', () => {
     it('records the old value against an empty new one', async () => {
       await service.updatePatientHealth(CAREGIVER_ID, PATIENT_ID, {
@@ -1030,6 +1076,165 @@ describe('CaregiverService.updatePatientHealth', () => {
 
       expect(patchedData()).toEqual({ congenitalDisease: null });
       expect(loggedRows()[0]).toMatchObject({ newValue: null });
+    });
+
+    // The four NOT NULL columns. `null` and `''` are the same user action for
+    // these too — the difference is that here it has no representation in the
+    // schema, so it becomes a 400 rather than a value.
+    it.each([
+      ['dob', { dob: null }],
+      ['gender', { gender: null }],
+      ['gender', { gender: '   ' }],
+      ['weight', { weight: null }],
+      ['height', { height: null }],
+    ])('refuses to clear %s with 400', async (_field, input) => {
+      await expect(
+        service.updatePatientHealth(CAREGIVER_ID, PATIENT_ID, input as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    // A refusal has to be a refusal all the way down: a 400 that had already
+    // written half the batch would leave the row and its trail disagreeing.
+    it('writes neither the row nor the trail when a required clear is refused', async () => {
+      await service
+        .updatePatientHealth(CAREGIVER_ID, PATIENT_ID, {
+          weight: 80,
+          dob: null,
+        } as never)
+        .catch(() => undefined);
+
+      expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
+      expect(prisma.profileChangeLog.createMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    // The point of the split: the refusal is about the column, not about
+    // clearing in general.
+    it('still allows congenitalDisease to be cleared in the same request', async () => {
+      await service.updatePatientHealth(CAREGIVER_ID, PATIENT_ID, {
+        weight: 80,
+        congenitalDisease: null,
+      });
+
+      expect(patchedData()).toEqual({ weight: 80, congenitalDisease: null });
+    });
+  });
+
+  /**
+   * A patient with no `user_informations` row — the state a Google-created
+   * account starts in, and the state the health step exists to leave.
+   *
+   * `upsert` has to *create* the row here, and a create needs all four
+   * required values. So the interesting question is not "does the write
+   * happen" but "what does a partial edit do", and the answer has to be a 400
+   * rather than a row built out of invented values.
+   */
+  describe('a patient who has never completed the health step', () => {
+    beforeEach(() => informationIs(null));
+
+    it('reads back as every field absent, not as empty values', async () => {
+      const profile = await service.updatePatientHealth(
+        CAREGIVER_ID,
+        PATIENT_ID,
+        {},
+      );
+
+      expect(profile).toEqual({
+        patientId: PATIENT_ID,
+        dob: undefined,
+        gender: undefined,
+        weight: undefined,
+        height: undefined,
+        // Absent, *not* 'ไม่มี'. "Not answered" and "answered: no condition"
+        // are different states and the client renders them differently.
+        congenitalDisease: undefined,
+      });
+    });
+
+    it('refuses a partial edit with 400 rather than inventing the rest', async () => {
+      await expect(
+        service.updatePatientHealth(CAREGIVER_ID, PATIENT_ID, { weight: 80 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
+      expect(prisma.profileChangeLog.createMany).not.toHaveBeenCalled();
+    });
+
+    // "Answered: no condition" cannot bring the row into existence on its
+    // own, and it is not a diff against a missing row either — both render as
+    // null — so this is a no-op rather than a 400.
+    it('treats a lone congenitalDisease clear as no change at all', async () => {
+      await expect(
+        service.updatePatientHealth(CAREGIVER_ID, PATIENT_ID, {
+          congenitalDisease: null,
+        }),
+      ).resolves.toMatchObject({ congenitalDisease: undefined });
+
+      expect(prisma.userInformation.upsert).not.toHaveBeenCalled();
+      expect(prisma.profileChangeLog.createMany).not.toHaveBeenCalled();
+    });
+
+    // The one edit that *can* create the row: all four required values at
+    // once. `congenitalDisease` is absent from the input, so the created row
+    // carries NULL for it — the answered-no-condition state.
+    it('creates the row when the edit carries all four required values', async () => {
+      await service.updatePatientHealth(CAREGIVER_ID, PATIENT_ID, {
+        dob: new Date('1950-03-02T00:00:00.000Z'),
+        gender: 'female',
+        weight: 60,
+        height: 158,
+      });
+
+      expect(upsertArg()).toMatchObject({
+        where: { userId: PATIENT_ID },
+        create: {
+          userId: PATIENT_ID,
+          dob: new Date('1950-03-02T00:00:00.000Z'),
+          gender: 'female',
+          weight: 60,
+          height: 158,
+          congenitalDisease: null,
+        },
+      });
+      expect(loggedRows().map((row) => row.field)).toEqual([
+        'dob',
+        'gender',
+        'weight',
+        'height',
+      ]);
+    });
+  });
+
+  /**
+   * The upsert argument itself, which the reshaped `patchedData()` only ever
+   * looks at one half of.
+   */
+  describe('the row the write targets', () => {
+    it('keys the upsert on the patient, never on the actor', async () => {
+      await service.updatePatientHealth(CAREGIVER_ID, PATIENT_ID, {
+        weight: 80,
+      });
+
+      expect(upsertArg().where).toEqual({ userId: PATIENT_ID });
+    });
+
+    // The `create` half is only reachable when the row is missing, but it is
+    // built unconditionally — so it has to carry the patient's existing
+    // values, not just the submitted one, or a race that took the create
+    // branch would blank the other four.
+    it('carries the existing values into the create half, with the edit applied', async () => {
+      await service.updatePatientHealth(CAREGIVER_ID, PATIENT_ID, {
+        weight: 80,
+      });
+
+      expect(upsertArg().create).toEqual({
+        userId: PATIENT_ID,
+        dob: CURRENT.dob,
+        gender: CURRENT.gender,
+        weight: 80,
+        height: CURRENT.height,
+        congenitalDisease: CURRENT.congenitalDisease,
+      });
     });
   });
 });

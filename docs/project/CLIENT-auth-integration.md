@@ -2,7 +2,7 @@
 title: "Client: integrating the Better Auth gateway"
 description: The mobile-side work that follows the gateway auth migration, and the gateway decisions that constrain it.
 status: current
-updated: 2026-08-11
+updated: 2026-08-24
 owner: client
 ---
 
@@ -108,8 +108,14 @@ error handler once both exist.
 
 ### 4. Phone collection after OAuth sign-up — screen done, unreachable
 
-A Google sign-up carries no phone number, and `phone` is `NOT NULL` and
-unique because caregivers find patients by it. Built as
+A Google sign-up carries no phone number, and caregivers find patients by
+phone (`addCaregiverPatient(patientContact:)`), so an account without one is
+unreachable. That requirement is now **this screen's alone**: `users.phone`
+was `NOT NULL` until 2026-08-24, when it was made nullable because the
+constraint blocked Google sign-up at the database before any screen could run.
+Nothing in the schema enforces it any more — see
+[AUTH-better-auth-identity.md](../architecture/AUTH-better-auth-identity.md#phone-nullability).
+Built as
 `app/(auth)/onboarding-phone.tsx` + `modules/auth/hooks/use-set-phone.ts`,
 reusing the existing `updateProfile` mutation (it already validates
 `phone`) rather than a new one. On success it routes to `/onboarding/role`,

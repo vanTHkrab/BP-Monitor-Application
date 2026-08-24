@@ -24,7 +24,12 @@ const validRegister = {
   gender: 'male' as const,
   weight: '70',
   height: '170',
-  congenitalDisease: 'ไม่มี',
+  // The answered-"no" state. It is `congenital: 'none'` with an empty text
+  // box, never the literal string — the gateway stores NULL for it and
+  // renders 'ไม่มี' back, and typing the word is a different value that
+  // happens to look the same.
+  congenital: 'none' as const,
+  congenitalDisease: '',
 };
 
 describe('validateLogin', () => {
@@ -123,6 +128,7 @@ describe('validateRegister', () => {
       gender: null,
       weight: '',
       height: '',
+      congenital: null,
       congenitalDisease: '',
     });
     expect(Object.keys(errors)).toHaveLength(11);
@@ -134,14 +140,16 @@ describe('validateRegister', () => {
  * existed: a weight of 9999 went out, the gateway refused it with an English
  * class-validator message, and the whole registration failed with nothing
  * pointing at the field that caused it. It has since become *required* on
- * this form specifically (`dob`, `gender`, `weight`, `height`,
- * `congenitalDisease` — the avatar is the only field left optional), which is
- * a client-only UX policy layered on top of the same shared plausibility
- * rules, not a replacement for them — see the docblock at the top of
- * `validation.ts`.
+ * this form specifically (`dob`, `gender`, `weight`, `height`, and an
+ * answered congenital question — the avatar is the only field left optional),
+ * which is no longer a client-only UX policy: the `user_informations` row
+ * this form creates cannot be inserted without the four, so a registration
+ * missing any of them silently produces an account with no health block at
+ * all. See the docblock at the top of `validation.ts`.
  *
  * The bounds below are `@/lib/health-validation`'s, shared with the profile
- * and caregiver forms, where these columns remain optional. The failure being
+ * and caregiver forms, where the block may be left alone but never
+ * half-filled. The failure being
  * guarded against is not "an out-of-range value reaches the server" — it is a
  * value the sign-up form accepts and the user's own profile screen then
  * refuses to re-save, leaving them stuck with a number they cannot correct.
@@ -154,6 +162,7 @@ describe('validateRegister — the required health block', () => {
       gender: null,
       weight: '',
       height: '',
+      congenital: null,
       congenitalDisease: '',
     });
 
@@ -161,7 +170,26 @@ describe('validateRegister — the required health block', () => {
     expect(errors.gender).toBe('กรุณาเลือกเพศ');
     expect(errors.weight).toBe('กรุณากรอกน้ำหนัก');
     expect(errors.height).toBe('กรุณากรอกส่วนสูง');
-    expect(errors.congenitalDisease).toBe('กรุณากรอกโรคประจำตัว');
+    expect(errors.congenital).toBe('กรุณาระบุว่ามีโรคประจำตัวหรือไม่');
+  });
+
+  /*
+   * The two-part answer. "ไม่มี" is a complete answer with an empty text box;
+   * "มี" is not an answer until the box says what.
+   */
+  it('accepts "ไม่มี" with nothing typed', () => {
+    expect(validateRegister({ ...validRegister, congenital: 'none', congenitalDisease: '' }))
+      .toEqual({});
+  });
+
+  it('rejects "มี" with nothing typed', () => {
+    const errors = validateRegister({
+      ...validRegister,
+      congenital: 'has',
+      congenitalDisease: '   ',
+    });
+
+    expect(errors.congenitalDisease).toBe('กรุณาระบุโรคประจำตัว');
   });
 
   it('accepts a plausible set of values', () => {
@@ -239,6 +267,7 @@ describe('validateRegister — the required health block', () => {
   it('rejects an over-long congenital disease note', () => {
     const errors = validateRegister({
       ...validRegister,
+      congenital: 'has',
       congenitalDisease: 'ก'.repeat(501),
     });
 
@@ -252,6 +281,7 @@ describe('validateRegister — the required health block', () => {
       ...validRegister,
       weight: '9999',
       height: '1700',
+      congenital: 'has',
       congenitalDisease: 'ก'.repeat(501),
     });
 
@@ -336,6 +366,7 @@ describe('registerSchema', () => {
       gender: null,
       weight: '',
       height: '',
+      congenital: null,
       congenitalDisease: '',
     };
 

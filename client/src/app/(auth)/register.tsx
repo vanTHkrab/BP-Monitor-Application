@@ -47,7 +47,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Controller, useForm, type FieldErrors } from 'react-hook-form';
+import { Controller, useForm, useWatch, type FieldErrors } from 'react-hook-form';
 import { View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -59,6 +59,7 @@ import { AuthShell } from '@/modules/auth/components/auth-shell';
 import { AuthTabs } from '@/modules/auth/components/auth-tabs';
 import { AvatarPicker } from '@/modules/auth/components/avatar-picker';
 import { OptionRow } from '@/components/ui/option-row';
+import { CONGENITAL_OPTIONS } from '@/lib/health-validation';
 import {
   registerSchema,
   type RegisterField,
@@ -87,6 +88,7 @@ const DEFAULT_VALUES: RegisterFormValues = {
   gender: null,
   weight: '',
   height: '',
+  congenital: null,
   congenitalDisease: '',
 };
 
@@ -156,6 +158,14 @@ export default function RegisterScreen() {
     defaultValues: DEFAULT_VALUES,
   });
 
+  /*
+   * `useWatch`, not the `watch()` returned by `useForm`: React Compiler is on
+   * in this tree and `react-hooks/incompatible-library` rejects `watch()` by
+   * name. The text box below exists only for "มี" — an answer of "ไม่มี" that
+   * still showed one would be asking the same question twice.
+   */
+  const congenitalAnswer = useWatch({ control, name: 'congenital' });
+
   // A duplicate phone or email arrives as CONFLICT with the field named, so
   // it belongs under that input rather than in the banner.
   const serverErrorFor = (field: RegisterField) =>
@@ -177,7 +187,12 @@ export default function RegisterScreen() {
         // unless both parsed as plausible numbers in range.
         weight: Number(values.weight),
         height: Number(values.height),
-        congenitalDisease: values.congenitalDisease.trim(),
+        // "ไม่มี" is sent as nothing at all. The column stores NULL for it and
+        // the gateway renders that back as 'ไม่มี' — sending the literal
+        // string would store the word instead, which reads identically today
+        // and is indistinguishable from a typed answer forever after.
+        congenitalDisease:
+          values.congenital === 'has' ? values.congenitalDisease.trim() : undefined,
         avatarUri,
       });
       // Not `/(tabs)`: a fresh registration has no `roleSelectedAt`, and
@@ -317,6 +332,7 @@ export default function RegisterScreen() {
         render={({ field }) => (
           <OptionRow
             label="เพศ"
+            clearable={false}
             options={GENDERS}
             value={field.value}
             onChange={(value) => {
@@ -377,25 +393,56 @@ export default function RegisterScreen() {
         </View>
       </View>
 
+      {/*
+        A มี / ไม่มี answer, and the text box only for "มี".
+
+        The free-text field this replaces required *something*, so "no
+        condition" was answered by typing the word — which is the ambiguity
+        the gateway just removed on the other side: it stores "no condition"
+        as a NULL `congenitalDisease` inside a row whose existence means the
+        health step is done, and renders that NULL back as 'ไม่มี'. Asking the
+        question as a choice is what makes the blank state impossible here
+        too, and this form is the one path that creates the row.
+      */}
       <Controller
         control={control}
-        name="congenitalDisease"
+        name="congenital"
         render={({ field }) => (
-          <TextField
-            testID="register-congenital-disease"
-            placeholder="โรคประจำตัว"
+          <OptionRow
+            label="มีโรคประจำตัวหรือไม่"
+            options={CONGENITAL_OPTIONS}
+            clearable={false}
             value={field.value}
-            onChangeText={(text) => {
-              field.onChange(text);
+            onChange={(value) => {
+              field.onChange(value);
               clearError();
             }}
-            onBlur={field.onBlur}
-            icon="medkit-outline"
-            autoCapitalize="sentences"
-            error={fieldError('congenitalDisease', errors, touchedFields, serverErrorFor('congenitalDisease'), isSubmitted)}
+            error={fieldError('congenital', errors, touchedFields, serverErrorFor('congenital'), isSubmitted)}
           />
         )}
       />
+
+      {congenitalAnswer === 'has' ? (
+        <Controller
+          control={control}
+          name="congenitalDisease"
+          render={({ field }) => (
+            <TextField
+              testID="register-congenital-disease"
+              placeholder="โรคประจำตัว"
+              value={field.value}
+              onChangeText={(text) => {
+                field.onChange(text);
+                clearError();
+              }}
+              onBlur={field.onBlur}
+              icon="medkit-outline"
+              autoCapitalize="sentences"
+              error={fieldError('congenitalDisease', errors, touchedFields, serverErrorFor('congenitalDisease'), isSubmitted)}
+            />
+          )}
+        />
+      ) : null}
 
       <ThemedText type="label" themeColor="text-secondary" className="mb-3 ml-1">
         ตั้งรหัสผ่าน

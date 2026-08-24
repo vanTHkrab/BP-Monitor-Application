@@ -22,8 +22,20 @@ export class UserObject {
   @Field()
   lastname: string;
 
-  @Field()
-  phone: string;
+  /**
+   * **Nullable as of the Google sign-in work — this is a breaking change to
+   * `UserType`.** A Google ID token carries no phone number, and the column
+   * became `String?` for exactly that reason, so a socially-created account
+   * genuinely has nothing to put here.
+   *
+   * Not papered over with an empty string: `phone` is a `@unique` Better Auth
+   * sign-in identifier and the key `addCaregiverPatient` looks patients up by,
+   * so a placeholder would be a matchable value that belongs to nobody. Null
+   * is the honest answer and the database enforces its unreachability —
+   * `findUnique({ where: { phone } })` can never match a NULL.
+   */
+  @Field({ nullable: true })
+  phone?: string;
 
   @Field({ nullable: true })
   avatar?: string;
