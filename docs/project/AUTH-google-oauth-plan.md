@@ -1,15 +1,17 @@
 ---
 title: "Google OAuth: what is left to make it work"
-description: The configuration, the one undocumented blocker in the users table, and the routing gap between a Google sign-in and a usable account.
+description: The configuration gap that still blocks Google sign-in, the two insert failures that are now fixed, and the routing gap between a Google sign-in and a usable account.
 status: draft
-updated: 2026-08-17
+updated: 2026-08-24
 owner: cross
 ---
 
 # Google OAuth — what is left
 
 Almost all of this feature is already built and merged. It has never worked
-because of four gaps, only one of which is code anybody would have predicted.
+because of four gaps. **Gap 2 was closed on 2026-08-24** (commit `c01658b9`)
+and turned out to be two failures in sequence rather than one; gaps 1, 3, and
+4 are open, and gap 1 is still first.
 
 Read this before touching anything: the temptation on picking up "add Google
 sign-in" is to write a sign-in hook and a button. **Both already exist.**
@@ -25,7 +27,8 @@ sign-in" is to write a sign-in hook and a button. **Both already exist.**
 | Gateway mutation | `loginWithGoogle` → `AuthService.loginWithGoogleIdToken` | Built, in `schema.gql` |
 | Audience config | `googleProvider()` in `better-auth.ts` | Accepts the web client ID plus `GOOGLE_ANDROID_CLIENT_ID` as a second audience |
 | Account-linking policy | `accountLinking` in `better-auth.ts` | `requireLocalEmailVerified`, `allowDifferentEmails: false` |
-| Phone-collection screen | [`onboarding-phone.tsx`](../../client/src/app/%28auth%29/onboarding-phone.tsx) | Built and unit-verified — but unreachable, see gap 3 |
+| Phone-collection screen | [`onboarding-phone.tsx`](../../client/src/app/%28auth%29/onboarding-phone.tsx) | Built and unit-verified — but unreachable, see gap 3. Now the **only** thing requiring a phone number at all, since the column is nullable |
+| Google name derivation | [`src/auth/google-profile-name.ts`](../../server/app/api-gateway/src/auth/google-profile-name.ts) | Built and unit-tested. Closes half of gap 2 |
 | Refusal copy | `googleSignInRefusalMessage()` in `lib/errors.ts` | Written and tested — but never rendered, see gap 4 |
 | Compose env forwarding | `docker-compose.yml` | All three `GOOGLE_*` variables already reach the container |
 
@@ -62,79 +65,89 @@ Debug, release, and Play App Signing are three different keys and each needs
 its own Android OAuth client, exactly as with `ANDROID_APP_SHA256_FINGERPRINT`
 for passkeys.
 
-### Gap 2 — a new Google user cannot be inserted at all
+### Gap 2 — a new Google user could not be inserted at all — **CLOSED 2026-08-24**
 
-**This is the blocker, and no document currently records it.**
+Closed by commit `c01658b9`. This section is kept rather than deleted because
+its analysis was half right, and the half it got wrong is the useful part.
 
-`users` has three `NOT NULL` columns that a Google ID token does not supply:
+#### What it actually was: two failures in sequence, not one
 
-```prisma
-phone      String @unique @db.VarChar(30)   // nothing supplies this
-firstname  String @db.VarChar(100)          // Google gives a combined `name`
-lastname   String @db.VarChar(100)          // same
-```
+`signInSocial` creates the account as a side effect of signing in, so both
+landed before any onboarding screen could run:
 
-`signInSocial` creates the account as a side effect of signing in. With no
-value for `phone`, Postgres rejects the insert, so a first-time Google sign-in
-fails **before any onboarding screen can run**.
+1. **`MISSING_FIELD`, thrown before any SQL was issued.** Better Auth throws it
+   for a required `additionalField` absent on a create path
+   (`db/schema.mjs`, `parseInputData`). `firstname` and `lastname` are declared
+   `required: true`, and Google's provider hands over only
+   `{ id, name, email, image, emailVerified }`. **This section did not record
+   this failure**, and it fired first — which is why the plan's own
+   verification step ("sign in with a Google account whose email already has a
+   local user") could not have distinguished the two.
+2. **`users.phone` was `NOT NULL`**, and a Google ID token carries no phone
+   number. This is the failure the section did record, and it was real — it was
+   simply never reached.
 
-[`AUTH-better-auth-identity.md`](../architecture/AUTH-better-auth-identity.md)
-says "a mandatory onboarding step collects the phone number immediately after
-the OAuth callback". That describes the UX correctly and leaves the
-persistence question unanswered: the onboarding step can only run once a row
-exists.
+#### What was done
 
-#### Why we cannot simply avoid creating the row
+**The first failure** is fixed by a `mapProfileToUser` callback on the Google
+provider, deriving both columns from the ID token's claims. The derivation
+lives in
+[`src/auth/google-profile-name.ts`](../../server/app/api-gateway/src/auth/google-profile-name.ts)
+rather than in `better-auth.ts`, because that file imports ESM-only packages
+the CJS Jest setup cannot parse and anything in it is permanently untestable.
+This answers the section's first open question: the provider does expose
+`given_name` / `family_name`, but they are absent often enough (a mononym
+account) that the fallback chain is required anyway.
 
-The obvious fix — verify the ID token, and if no account matches, collect the
-phone *before* creating anything — requires verifying a Google token outside
-Better Auth. Root `AUTH-better-auth-identity.md` forbids that: anything that
-reads or writes credentials, sessions, or accounts goes through `auth.api.*`,
-and a wrapper "may translate shapes and errors, never re-implement a check".
-Signature, issuer, and audience validation is exactly such a check.
+> ⚠️ **The "single-word names must not produce an empty `lastname`" instruction
+> below is now inverted.** `deriveGoogleName` returns `lastname: ''` for a
+> mononym **on purpose**. The column is `NOT NULL`, `''` satisfies it, and
+> `` `${firstname} ${lastname}`.trim() `` renders correctly. Repeating the given
+> name or writing a placeholder invents a surname the user does not have — the
+> same sentinel mistake this section was trying to avoid for `phone`.
 
-So the row **must** be insertable at creation time. Two mechanisms can do
-that, and the choice is the one real decision in this plan.
+**The second failure** was fixed by taking the alternative this section
+recorded as a last resort: `users.phone` is now nullable. The sentinel
+(`pending:<uuid>` in a `@unique` sign-in column) was **not** built. The
+weighing that flipped:
 
-#### Chosen: fill the gaps in `databaseHooks.user.create.before`
+| | Sentinel `phone` | Nullable `phone` (chosen) |
+| --- | --- | --- |
+| Honesty | A fake number lives in the column caregivers search | "no phone yet" is representable |
+| Cost of being wrong | Permanent: no migration can separate a sentinel from a real number once a user can type one | A missed null check is a crash, found and fixed |
+| Work | Three properties, each needing its own test | A migration plus an audit of every `phone` read |
+| Reverses a closed decision | No | **Yes** — see below |
 
-`better-auth.ts:375` already has this hook; today it only normalises `role`.
-Extend it to:
+The reversal is recorded in
+[AUTH-better-auth-identity.md](../architecture/AUTH-better-auth-identity.md#phone-nullability),
+which no longer describes `phone` as `NOT NULL`. The short version: the
+constraint was never Better Auth's (its `phoneNumber()` plugin declares the
+field `required: false`), it was this project's own, and the requirement moved
+up a layer to `onboarding-phone.tsx` rather than disappearing.
 
-1. **Split Google's `name` into `firstname` / `lastname`** when they are
-   absent. Verify first whether Better Auth's Google provider already maps
-   `given_name` / `family_name` — if it does, this half is unnecessary.
-   Single-word names must not produce an empty `lastname`, which is also
-   `NOT NULL`.
-2. **Write a placeholder `phone`** that cannot function as a credential, to be
-   replaced by the registration step.
+#### The health block moved too
 
-**What this costs, stated plainly.** A sentinel value lives in a `@unique`
-column that is also a sign-in identifier and the key caregivers search by. It
-is acceptable only if the sentinel is unreachable through every path that
-consumes a phone number:
+Closing gap 2 also moved `dob`, `gender`, `weight`, `height`, and
+`congenitalDisease` off `users` into a 1:1 `user_informations` table. Same
+root cause generalised: every column on `users` must be declared to Better
+Auth, and a required declared field a social provider cannot supply makes that
+provider's sign-up impossible. See
+[data-model-er.md](../architecture/data-model-er.md) for the table and the
+three states its row encodes.
 
-- it must fail the client's 9–10 digit validation and the gateway's
-  `PHONE_REGEX`, so `/sign-in/phone-number` can never match it;
-- it must be unique per user, or the second Google sign-up collides on the
-  unique index;
-- `addCaregiverPatient`'s phone lookup must not surface it.
+**A Google-created account therefore has no `user_informations` row**, which
+is a legal state and the one gap 3 has to route out of.
 
-A non-numeric, per-user value such as `pending:<uuid>` satisfies all three,
-but **each of those three must be verified by a test, not by reasoning.** That
-is the bulk of the work in this gap.
+#### What is still true from the original analysis
 
-**The alternative, if the sentinel is judged too sharp:** make `phone`
-nullable. It is semantically honest — "no phone yet" becomes representable —
-but it reverses a decision `AUTH-better-auth-identity.md` records as closed,
-needs a migration, and requires auditing every read of `phone` (caregiver
-invite first). Prefer it only if a reviewer objects to the sentinel.
-
-**An abandoned registration leaves a real account** either way: a row with a
-Google-owned email and no usable phone. That is recoverable — the next Google
-sign-in matches the same row and routes back to the registration step — but
-it must be *deliberately* recoverable, not accidentally so, and that path
-needs a test.
+- **The row must be insertable at creation time.** Verifying a Google token
+  outside Better Auth to avoid creating a row remains forbidden: anything
+  reading or writing credentials, sessions, or accounts goes through
+  `auth.api.*`, and a wrapper "may translate shapes and errors, never
+  re-implement a check".
+- **An abandoned registration leaves a real account** — a row with a
+  Google-owned email and no phone. The next Google sign-in matches the same row
+  and must route back to the phone step. That path still needs a test.
 
 ### Gap 3 — the registration step is unreachable
 
@@ -153,10 +166,16 @@ Work:
 - Add a signal to the gate. It must be derived from something the server owns,
   not from "did we just sign in with Google" — a user who abandons the step and
   returns days later must still be caught.
-- Surface it on `UserType` so the client can read it. Whether that is a
-  boolean like `phoneComplete` or the client testing the phone's shape is a
-  schema decision; a boolean is preferable, because it keeps the sentinel's
-  format private to the gateway.
+- **The signal is now better than the boolean this originally proposed.**
+  `UserType.phone` is `String` on the wire, so `phone == null` *is* the signal
+  and needs no new field — the boolean was only ever there to keep a sentinel's
+  format private to the gateway, and there is no sentinel.
+- **There is a second incomplete state to route out of, added by the same
+  change:** a Google-created account has no `user_informations` row. The
+  existence of that row is the "health step completed" signal, and its absence
+  reads on the wire as `PatientHealthProfileType` / `UserType` health fields
+  all being `null`. Decide whether the gate handles both steps or only the
+  phone; do not assume the phone step is the last one before `role`.
 - Route to `onboarding-phone` from the gate, ahead of role selection.
 - `onboarding-phone` already calls `updateProfile`, which validates `phone`
   and enforces uniqueness — no new mutation needed.
@@ -179,23 +198,24 @@ a dead end.
    account whose email already has a local user, which does not create a row
    and therefore does not hit gap 2. If that fails, nothing after it is worth
    debugging.
-2. **Gap 2.** Gateway only. Testable without a device: a service-level spec can
-   assert the hook's output shape and the three sentinel properties.
+2. ~~**Gap 2.**~~ Done — see above.
 3. **Gap 3.** Crosses the gateway (one field) and the client (gate + routing).
    Per root rule 1 this is two PRs unless a reason is stated.
 4. **Gap 4.** Client only, small.
 
 ## Verification
 
-Gaps 2–4 are testable in the suite. Gap 1 is not, and neither is the ID-token
+Gaps 3–4 are testable in the suite. Gap 1 is not, and neither is the ID-token
 exchange:
 
 - **A real device or emulator with Play Services and a signed build.**
   Credential Manager does not run in Expo Go, so `pnpm start` cannot exercise
   any of this. The dev-client or an EAS build is the only path.
 - **Exercise both branches**: a Google account whose email already has a local
-  user (links, no row created) and one that does not (creates, must route to
-  the registration step).
+  user (links, no row created) and one that does not (creates a row with a
+  null `phone` and no `user_informations` row, and must route to the phone
+  step). The create branch has never been exercised against a real Google
+  account — gap 2's fix is verified by unit tests only.
 - **Then the abandoned-registration path**: sign in, leave, sign in again.
 
 `pnpm check` and `pnpm test:screens` in `client/`, and
@@ -204,8 +224,11 @@ code parts.
 
 ## Open questions
 
-- Does Better Auth's Google provider populate `given_name` / `family_name`, or
-  only `name`? Determines whether half of gap 2 exists at all.
+- ~~Does Better Auth's Google provider populate `given_name` / `family_name`,
+  or only `name`?~~ **Answered:** it exposes both, but a mononym account has no
+  `family_name`, so `deriveGoogleName`'s fallback chain (structured claims →
+  `name` split on whitespace → email local part, for `firstname` only) is
+  needed regardless.
 - Should the avatar Google supplies be written to `User.avatar` on first
   sign-in, and re-written on later ones? Google's URLs expire; the project
   otherwise stores avatars in S3.

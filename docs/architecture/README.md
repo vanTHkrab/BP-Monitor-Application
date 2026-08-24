@@ -2,7 +2,7 @@
 title: Architecture
 description: Index of the system diagrams and the architecture decisions behind them.
 status: current
-updated: 2026-08-16
+updated: 2026-08-24
 owner: cross
 ---
 
@@ -41,7 +41,7 @@ file it came from.
 | [flow-yolo-preflight.md](./flow-yolo-preflight.md) | flowchart | Shared model, framing thresholds, auto-capture as a nudge |
 | [state-camera.md](./state-camera.md) | state | Framing gate plus the seven analysis phases |
 | [state-reading-lifecycle.md](./state-reading-lifecycle.md) | state | Outbox → mirror, and the one transaction it depends on |
-| [data-model-er.md](./data-model-er.md) | erDiagram | All 13 Prisma models, including the four Better Auth owns |
+| [data-model-er.md](./data-model-er.md) | erDiagram | All 16 Prisma models, including the four Better Auth owns and the `user_informations` health block |
 
 ## Decisions recorded here
 

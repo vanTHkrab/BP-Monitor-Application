@@ -2,7 +2,7 @@
 title: "Auth migration: custom JWT to Better Auth"
 description: Identity model, account-linking rules, and the Better Auth feature set the gateway adopted, with the alternatives rejected.
 status: current
-updated: 2026-08-11
+updated: 2026-08-24
 owner: api-gateway
 ---
 
@@ -85,7 +85,7 @@ Three identifiers, each with a distinct job:
 
 | Identifier | Unique | Required | Purpose |
 | --- | --- | --- | --- |
-| `phone` | yes | yes | Primary human-facing identifier. Caregivers add patients by phone. |
+| `phone` | yes | **not at the database** — see [Phone nullability](#phone-nullability) | Primary human-facing identifier. Caregivers add patients by phone. |
 | `email` | yes | yes | Verification, password reset, and the ownership proof account linking depends on. |
 | Google account | — | no | Convenience sign-in, linked to a user that already owns a verified email. |
 
@@ -170,20 +170,87 @@ accounts.
 **Google sign-in, email not registered** — new user, no phone yet. See
 below.
 
-## Phone collection after OAuth sign-up
+## Phone nullability
 
-`phone` is `NOT NULL @unique` and a Google sign-up supplies no phone
-number, so both cannot be satisfied at account creation.
+> ⚠️ **Reversed 2026-08-24.** This section originally decided that `phone`
+> stays `NOT NULL` and that a mandatory onboarding step would satisfy it
+> after the OAuth callback. `users.phone` is now `String?`. The section is
+> rewritten below rather than superseded by a new file, because `docs/`
+> supersede-in-place applies to architecture documents; only `docs/decisions/`
+> supersedes by pointer.
 
-The column stays `NOT NULL`. A mandatory onboarding step collects the
-phone number immediately after the OAuth callback, before the account is
-usable.
+### What was decided, and why it was reasonable
 
-Making `phone` nullable was rejected. It is not a profile field — it is
-how caregivers find patients (`addCaregiverPatient(patientContact:)`, which
-takes a phone number or an email) and one
-of the two credential routes. A user without one is a second class of
-account that every downstream feature would have to handle.
+`phone` was `NOT NULL @unique`. The ground was that it is not a profile
+field: it is how caregivers find patients
+(`addCaregiverPatient(patientContact:)` takes a phone number or an email)
+and one of the two credential routes. A user without one is a second class
+of account that every downstream feature has to handle. Making the column
+nullable was rejected on exactly that reasoning, and the reasoning is still
+correct — an account with no phone number really is unreachable by a
+caregiver who only knows the number.
+
+The plan was to keep the constraint and collect the number in a mandatory
+onboarding step immediately after the OAuth callback, before the account
+was usable.
+
+### Why it was reversed
+
+**That onboarding step never ran, and could not have.** `signInSocial`
+creates the account as a side effect of signing in, so the insert lands
+before any client screen can be shown. `NOT NULL` against an ID token that
+carries no phone number is a failed insert, not a screen to fill in. The
+plan's ordering was impossible from the start; nothing about it was
+discovered late.
+
+**The constraint was never Better Auth's.** Its `phoneNumber()` plugin
+declares the field `required: false`. The `NOT NULL` was this project's own
+addition, so it could be removed without touching a plugin contract.
+
+**A sentinel value was the alternative, and is worse.** Writing a
+placeholder number to satisfy the column makes a fake number and a real one
+indistinguishable in the same column, permanently, with no migration able to
+separate them afterwards. The same argument rules out `'ไม่มี'` in
+`user_informations.congenital_disease` and a synthesised surname in
+`lastname`.
+
+### What enforces it now
+
+The requirement did not disappear; it moved up a layer.
+[`client/src/app/(auth)/onboarding-phone.tsx`](../../client/src/app/%28auth%29/onboarding-phone.tsx)
+is what makes a Google-created account collect a phone number.
+
+> ⚠️ **Nothing in the database enforces it.** Any query, report, or feature
+> that assumed a non-null phone must handle `null` — the GraphQL fields
+> `UserType.phone`, `PatientSummaryType.phone`, and `UpdateProfileInput.phone`
+> are all `String` now, not `String!`. A null only appears for an account
+> created through Google, so the failure is rare, late, and easy to miss in
+> testing.
+
+## Google sign-up was blocked twice, not once
+
+Two failures in sequence, and only the second was the one this document
+recorded:
+
+1. **`MISSING_FIELD` on a required `additionalField`.** Better Auth throws it
+   for any required additional field absent on a create path — the OAuth one
+   included (`db/schema.mjs`, `parseInputData`) — **before it issues any SQL**.
+   `firstname` and `lastname` are declared `required: true`, and Google's
+   provider hands over only `{ id, name, email, image, emailVerified }`. This
+   fired first, so the `NOT NULL` phone was never even reached.
+2. **`users.phone` was `NOT NULL`.** The blocker described above.
+
+The first is fixed by a `mapProfileToUser` callback on the Google provider
+that derives both columns from the ID token's claims
+([`src/auth/google-profile-name.ts`](../../server/app/api-gateway/src/auth/google-profile-name.ts)).
+It lives in its own file because `better-auth.ts` imports ESM-only packages
+the CJS Jest setup cannot parse, and the mononym branch needs a test.
+
+> **Note:** `deriveGoogleName` returns `lastname: ''` for a single-word Google
+> name **on purpose**. The column is `NOT NULL`, `''` satisfies it, and
+> `` `${firstname} ${lastname}`.trim() `` renders correctly. Repeating the
+> given name or writing a placeholder would invent a surname the user does not
+> have — the same sentinel mistake rejected for `phone`.
 
 ## Adopted plugins
 
@@ -384,7 +451,7 @@ defaults:
 
 | Better Auth model | Target | Notes |
 | --- | --- | --- |
-| `user` | `users` | `fieldName` maps `email`; domain columns (`dob`, `gender`, `weight`, `height`, `congenitalDisease`) declared as `additionalFields`. |
+| `user` | `users` | `fieldName` maps `email`; `firstname` / `lastname` are `additionalFields` (`required: true`), `role` and `passwordHash` are `input: false`. The health block is **not** here — see below. |
 | `session` | `user_sessions` | Needs new `token` (unique) and `expiresAt` columns; existing `deviceLabel` / `isActive` / `revokedAt` / `lastActiveAt` kept as additional fields. |
 | `account` | new table | Holds the credential password and the Google tokens. |
 | `verification` | new table | Email verification and reset tokens. |
@@ -402,6 +469,19 @@ Three changes need care:
 3. **Passwords move to `account.password`** under
    `providerId = 'credential'`. A data migration creates one account row
    per user carrying the existing bcrypt hash.
+4. **The health block left `users` for `user_informations`** (2026-08-24).
+   `dob`, `gender`, `weight`, `height`, and `congenitalDisease` were
+   `additionalFields` on the Better Auth `user` model; they are now a
+   separate 1:1 table that the adapter neither reads nor writes. The reason
+   is the `MISSING_FIELD` failure above generalised: every column on `users`
+   has to be declared to Better Auth, and a *required* declared field that a
+   social provider cannot supply makes that provider's sign-up impossible.
+   Moving the block off the table removes the whole class of problem rather
+   than downgrading each field to `required: false` one at a time.
+
+   > ⚠️ Do not re-declare the five fields as `additionalFields`. Better Auth
+   > resolves a field only to a column on the model's own table, so the
+   > adapter would select and write columns that no longer exist on `users`.
 
 ## What this changes for the client
 
