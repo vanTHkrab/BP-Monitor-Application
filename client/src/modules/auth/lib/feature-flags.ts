@@ -3,8 +3,23 @@
  *
  * ## `GOOGLE_SIGN_IN_ENABLED`
  *
- * **This is off by product decision, not a technical blocker — do not read
- * its `false` as "not ready" and do not delete anything it hides.**
+ * **On since 2026-08-24, for testing ahead of the PR.** It had been off by
+ * product decision rather than any technical blocker, and the technical half
+ * is now genuinely done — `user_informations` freed `users.phone`, and
+ * `mapProfileToUser` supplies the `firstname` / `lastname` that Better Auth
+ * required. Before that a Google account could not be inserted at all.
+ *
+ * **What is still missing, and what it looks like when you hit it.** Gap 3 of
+ * `docs/project/AUTH-google-oauth-plan.md` is not done: nothing routes a new
+ * Google account to `app/(auth)/onboarding-phone.tsx`. `resolveGate` has no
+ * signal for "this account has no usable phone", so a first-time Google user
+ * lands on role selection and then in the app holding `phone: null`. They are
+ * not broken — the profile form asks for the number the first time they open
+ * it — but until they fill it in **no caregiver can find them**, because the
+ * invite lookup is an equality match on `phone` and cannot match a NULL. The
+ * signal Gap 3 needs now exists (`phone == null`); the routing does not.
+ *
+ * Turning this off again is one line, and the code it hides stays working.
  *
  * Unlike the passkey flag this module's sibling defines
  * (`modules/security/lib/feature-flags.ts`), there is no missing
@@ -32,4 +47,4 @@
  * — *linking* an already-authenticated account — and are untouched by this
  * flag. Hiding sign-in does not hide account state or the linking flow.
  */
-export const GOOGLE_SIGN_IN_ENABLED: boolean = false;
+export const GOOGLE_SIGN_IN_ENABLED: boolean = true;
