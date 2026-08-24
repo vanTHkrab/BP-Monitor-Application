@@ -31,6 +31,14 @@
  * to belong to the same Google Cloud project as `google-services.json`. A
  * mismatch surfaces as `DEVELOPER_ERROR` and nothing else.
  *
+ * **1.2.0 proved that "verified on a device" and "works in production" are
+ * different claims.** It shipped green off a debug build and failed on the
+ * first real install, because the two differ in three places at once that no
+ * test can see: Play re-signs the app with its own certificate, EAS supplies
+ * `EXPO_PUBLIC_*` from its own environment rather than `client/.env`, and the
+ * deployed gateway's `.env` never gained `GOOGLE_CLIENT_ID`. Verify against
+ * the artefact you are actually shipping, not the one on your desk.
+ *
  * Unlike the passkey flag this module's sibling defines
  * (`modules/security/lib/feature-flags.ts`), this one never gated missing
  * configuration. `isGoogleSignInConfigured()` in

@@ -2,7 +2,7 @@
 title: Deploying the backend stack
 description: The two runtimes — Podman Quadlet on EC2 behind a Cloudflare Tunnel for production, Docker Compose for development — plus the tunnel setup, the access model, and the Supabase database split.
 status: current
-updated: 2026-08-19
+updated: 2026-08-25
 owner: cross
 ---
 
@@ -544,6 +544,35 @@ The value must include the `/graphql` path.
 `DOMAIN_NAME=api.example.com` the RP ID must be `api.example.com` too. Setting
 it to the bare `example.com` means Android fetches the file from a host this
 stack does not serve, and rejects the passkey with no useful message.
+
+### Google sign-in needs three variables the deploy will not bring with it
+
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_ANDROID_CLIENT_ID`
+entered `.env.example` in 1.2.0, and an example file is not a deployed file — a
+host whose `.env` predates that release has none of them. `googleProvider()`
+drops the provider when the first two are absent, so the gateway boots clean
+and every Google sign-in 401s. The mobile button does **not** disappear with
+it: it is gated on a build-time value baked into the app.
+
+The gateway now warns at boot in both incomplete states. Check that before
+reproducing anything on a device:
+
+```bash
+docker compose logs api-gateway | grep -i google   # silence means configured
+docker compose exec api-gateway printenv | grep GOOGLE
+```
+
+On the Quadlet runtime the same two checks are
+`journalctl --user -u bp-api-gateway | grep -i google` and the `GOOGLE_*` lines
+in `/etc/bp-monitor/bp-monitor.env`.
+
+`googleProvider()` reads `process.env` once at construction, so editing the env
+file needs the container **recreated** — `docker compose up -d`, or
+`systemctl --user restart bp-api-gateway` for Quadlet, which recreates rather
+than signalling. A `docker compose restart` reuses the old environment.
+
+Full setup, including which SHA-1 a Play-distributed build actually needs:
+[google-sign-in-setup.md](./google-sign-in-setup.md).
 
 ### Model weights on first container start
 

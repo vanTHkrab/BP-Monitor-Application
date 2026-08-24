@@ -14,8 +14,13 @@ configuration, and **every configuration mistake produces the same
 attacker cannot probe your project setup. This guide exists because that error
 is uninformative and the answers are not guessable.
 
-Written after a debugging session that cost several hours across four wrong
-turns, three of which are recorded below as their own section.
+That is true of everything on the *device* side. The two failures that do not
+look like it — a button that never appears, and a gateway with no provider
+registered — are the ones production hit, and both are covered below.
+
+Written after two debugging sessions: one that cost several hours getting a
+dev build working, and one after 1.2.0 reached real users and failed anyway.
+The wrong turns from both are recorded at the end.
 
 ## The four values
 
@@ -82,6 +87,47 @@ For an EAS-built APK the key is EAS's, not this one:
 cd client && npx eas credentials -p android
 ```
 
+### Play adds one more key, and it is the one users get
+
+`eas.json`'s `production` profile builds an **app-bundle**, which means Play
+re-signs it before it reaches a device. The certificate on the installed app is
+therefore **Google's**, not EAS's — a fingerprint that exists nowhere on your
+machine and that nothing in this repo can tell you.
+
+**Play Console → your app → Test and release → Setup → App integrity → App
+signing.** That page shows two certificates and they are not interchangeable:
+
+| Certificate | Signs what | Register it? |
+| --- | --- | --- |
+| **App signing key** | every install that came from Play | **Yes — this is the one production needs** |
+| **Upload key** | what EAS hands to Play | Yes, for testing a build before Play re-signs it |
+
+Copy the SHA-1 from each, add both in Firebase, re-download
+`google-services.json`, and **rebuild** — the file is compiled into the
+artifact, so a build already on Play is not fixed by uploading a new one.
+
+Registering only the debug and EAS keys is the state this project shipped 1.2.0
+in, and it fails on exactly one build: the one real users install.
+
+If the app is distributed as a bare APK rather than through Play, none of this
+applies — EAS's key is the final one.
+
+### EAS does not read `client/.env`
+
+`eas.json` names `"environment": "production"`, so the build takes its
+`EXPO_PUBLIC_*` values from the **EAS** environment, server-side. A local
+`.env` that makes the button appear in dev has no bearing on a store build:
+
+```bash
+cd client && npx eas env:list --environment production
+```
+
+`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` missing there does not produce
+`DEVELOPER_ERROR` — `isGoogleSignInConfigured()` returns false and **the button
+is simply absent**, which is easy to read as a rendering bug rather than a
+missing variable. The `preview` profile has its own environment and can differ
+from `production`.
+
 ### Reading the fingerprint off what is actually installed
 
 The decisive check, when the answer matters more than the theory. `keytool
@@ -105,9 +151,14 @@ import json
 d = json.load(open('google-services.json'))
 pn = d['project_info']['project_number']
 oc = d['client'][0]['oauth_client']
-env = dict(l.strip().split('=', 1) for l in open('.env') if '=' in l and not l.strip().startswith('#'))
+def unquote(v):
+    v = v.strip()
+    if len(v) > 1 and v[0] == v[-1] and v[0] in '\"\'':
+        v = v[1:-1]
+    return v.strip()
+env = {k.strip(): unquote(v) for k, v in (l.strip().split('=', 1) for l in open('.env') if '=' in l and not l.strip().startswith('#'))}
 web = [o for o in oc if o['client_type'] == 3]
-w = env.get('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID', '').strip()
+w = env.get('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID', '')
 ok = lambda b: 'OK  ' if b else 'FAIL'
 print(ok(any(o['client_type'] == 1 for o in oc)), 'android client present')
 print(ok(bool(web)), 'web client present')
@@ -119,6 +170,15 @@ print(ok(w.split('-')[0] == pn), 'same Google Cloud project')
 All four must read `OK`. Then confirm the Android entry's `certificate_hash`
 matches the SHA-1 of the build you are installing, lower-cased with the colons
 removed.
+
+The `unquote` is not decoration. `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID="…"` is
+valid and works — dotenv strips the quotes before Expo ever sees the value —
+but a script that splits on `=` and stops keeps them, and then reports a
+correct configuration as two `FAIL` lines including "different Google Cloud
+project". The first version of this check did exactly that. **EAS's
+environment is the opposite case**: paste a quoted value into
+`eas env:create` and the quotes become part of the string, so strip them there
+rather than copying the `.env` line verbatim.
 
 ## Reading the failure
 
@@ -140,7 +200,27 @@ before it is sent.
 
 ### What the gateway logs
 
-Both failure paths in `AuthService.loginWithGoogleIdToken` report themselves:
+**At boot**, `googleProvider()` says whether it registered. Read this before
+reproducing anything — it answers the question without a device:
+
+- `GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not both set …` — no provider.
+  Every attempt 401s. **The mobile button stays visible**, because it is gated
+  on a build-time value on a different machine.
+- `GOOGLE_ANDROID_CLIENT_ID is not set …` — the provider is registered and the
+  browser flow works, but the app's audience is not accepted, so One Tap alone
+  fails. The worse of the two: the gateway looks correctly configured.
+
+Silence from both means the credentials arrived. In a container:
+
+```bash
+docker compose exec api-gateway printenv | grep GOOGLE   # expect three lines
+```
+
+`googleProvider()` reads `process.env` once at construction, so a `.env` edit
+needs the container **recreated**, not restarted.
+
+**Per request**, both failure paths in `AuthService.loginWithGoogleIdToken`
+report themselves:
 
 - `Better Auth call failed: <reason>` — the token was rejected. The reason is
   Better Auth's own and names the actual problem.
@@ -155,7 +235,7 @@ Both failure paths in `AuthService.loginWithGoogleIdToken` report themselves:
 The message the user sees stays deliberately vague in both cases; a sign-in
 failure must not tell the caller which failure it was.
 
-## Four wrong turns, so they are not repeated
+## Six wrong turns, so they are not repeated
 
 1. **`~/.android/debug.keystore` is not this project's key.** It has its own at
    `client/android/app/debug.keystore`. Registering the machine default in
@@ -168,6 +248,14 @@ failure must not tell the caller which failure it was.
    alone does not populate it.
 4. **A new `google-services.json` needs a rebuild, not a reload.** It is
    compiled into the APK.
+5. **Getting it working on a dev device says nothing about production.** The
+   two differ in three independent places at once — a different signing key
+   (Play's), a different source of `EXPO_PUBLIC_*` (EAS's environment), and a
+   different gateway `.env`. 1.2.0 shipped verified on a debug build and
+   failed on the first production install.
+6. **A deploy does not carry `.env` with it.** `GOOGLE_*` was added to
+   `infra/docker-compose/.env.example` in the same change that turned the
+   feature on, and an example file is not a deployed file.
 
 ## What ships today
 
