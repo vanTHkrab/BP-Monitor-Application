@@ -232,6 +232,22 @@ export class AuthService {
     // misconfigured rather than that the user did something wrong — but it is
     // a real union, and returning a URL as a token would be worse than a 401.
     if (!('token' in result) || !result.token || !result.user) {
+      /*
+       * This branch is not a user error and the comment above says so, but it
+       * used to be as silent as the catch was: the call *succeeded* and handed
+       * back the browser-redirect shape, and nothing recorded that. An
+       * operator saw the same vague 401 as a rejected token, with no way to
+       * tell the two apart. Logging the keys rather than the value keeps a
+       * session token out of the log while still saying which shape arrived.
+       */
+      this.logger.warn(
+        'signInSocial returned no session — the ID-token branch was not taken, ' +
+          `which means the google provider is misconfigured. Result keys: ${
+            result && typeof result === 'object'
+              ? Object.keys(result).join(', ') || '(none)'
+              : typeof result
+          }`,
+      );
       throw new UnauthorizedException('เข้าสู่ระบบด้วย Google ไม่สำเร็จ');
     }
 
