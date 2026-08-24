@@ -43,7 +43,7 @@ type UserType {
   emailVerified: Boolean!
   firstname: String!
   lastname: String!
-  phone: String!
+  phone: String
   avatar: String
   role: String!
   roleSelectedAt: DateTime
@@ -75,10 +75,10 @@ type CaregiverLinkType {
   patientId: String!
   relationship: String!
   caregiverName: String!
-  caregiverPhone: String!
+  caregiverPhone: String
   caregiverAvatar: String
   patientName: String!
-  patientPhone: String!
+  patientPhone: String
   patientAvatar: String
   status: CaregiverLinkStatus!
   respondedAt: DateTime
@@ -112,7 +112,7 @@ type PatientSummaryType {
   id: String!
   firstname: String!
   lastname: String!
-  phone: String!
+  phone: String
   avatar: String
   dob: DateTime
   relationship: String

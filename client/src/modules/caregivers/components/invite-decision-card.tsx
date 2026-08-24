@@ -41,7 +41,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 
 import { useTheme } from '@/hooks/use-theme';
-import { formatThaiPhone } from '@/utils/phone-format';
+import { formatOptionalPhone } from '@/utils/phone-format';
 
 import { PERMISSION_OPTIONS } from '../lib/permission';
 import { relationshipLabel } from '../lib/relationship';
@@ -91,7 +91,7 @@ export function InviteDecisionCard({
             themeColor="text-secondary"
             className="mt-0.5"
           >
-            {formatThaiPhone(link.caregiverPhone)} · ระบุว่าเป็น
+            {formatOptionalPhone(link.caregiverPhone)} · ระบุว่าเป็น
             {relationshipLabel(link.relationship)}ของคุณ
           </ThemedText>
         </View>

@@ -48,9 +48,16 @@ import type { Gender } from '../../auth/types';
 import {
   HEIGHT_RANGE_CM,
   WEIGHT_RANGE_KG,
+  congenitalAnswerFrom,
+  congenitalTextFrom,
+  congenitalWireValue,
+  hasHealthRecord,
+  renderCongenital,
   validateCongenitalDisease,
   validateDob,
+  validateHealthBlock,
   validateMeasurement,
+  type CongenitalAnswer,
 } from '@/lib/health-validation';
 import {
   HEALTH_FIELDS,
@@ -71,10 +78,22 @@ export type HealthForm = {
   gender: Gender | null;
   weight: string;
   height: string;
+  /**
+   * มี / ไม่มี, `null` while unanswered. Same two-control split as
+   * `modules/profile`'s `ProfileForm`, and for the same reason — the gateway
+   * stores "no condition" as a NULL column and renders it back as the string
+   * `'ไม่มี'`, so an empty text box is not an answer.
+   */
+  congenital: CongenitalAnswer | null;
   congenitalDisease: string;
 };
 
-export type HealthErrors = FieldErrors<HealthFieldName>;
+/**
+ * `congenital` is an error slot with no column behind it: the select and the
+ * text box can each be wrong on their own, and one shared message would put
+ * "กรุณาระบุโรคประจำตัว" under a text box that is not on screen.
+ */
+export type HealthErrors = FieldErrors<HealthFieldName | 'congenital'>;
 
 /**
  * What the form started as. Compared field-by-field to decide the patch, and
@@ -88,6 +107,7 @@ const EMPTY_BASELINE: HealthBaseline = {
   gender: null,
   weight: '',
   height: '',
+  congenital: null,
   congenitalDisease: '',
 };
 
@@ -118,16 +138,36 @@ export function healthFormFromPatient(
     gender: (gender as HealthForm['gender']) ?? null,
     weight: weight != null ? String(weight) : '',
     height: height != null ? String(height) : '',
-    congenitalDisease: congenital ?? '',
+    // `'ไม่มี'` on the wire is a rendered NULL, so it seeds the select and
+    // leaves the text box empty. Seeding it into the text box would make the
+    // caregiver appear to have typed it, and re-saving would store it.
+    congenital: congenitalAnswerFrom(congenital),
+    congenitalDisease: congenitalTextFrom(congenital),
   };
 }
+
+/**
+ * Does the patient already have a health row?
+ *
+ * The four required columns are all-or-nothing on the gateway — the row's
+ * upsert needs every one of them to insert — so this is one question, not
+ * four. It decides whether the form is refusing a *clear* or asking the
+ * caregiver to *complete* the block; see `validateHealthBlock`.
+ */
+export const patientHasHealthRecord = (
+  patient: PatientSummary | null,
+  known?: PatientHealthProfile | null,
+): boolean =>
+  hasHealthRecord({
+    dob: known?.dob ?? patient?.dob,
+    gender: known?.gender ?? patient?.gender,
+    weight: known?.weight ?? patient?.weight,
+    height: known?.height ?? patient?.height,
+  });
 
 /** Same day, ignoring time — `dob` is a calendar day and its column is a bare DATE. */
 const sameDay = (a: Date | null, b: Date | null): boolean =>
   a === null || b === null ? a === b : a.toDateString() === b.toDateString();
-
-/** `''` and "absent" are the same value for a text column. */
-const sameText = (a: string, b: string): boolean => a.trim() === b.trim();
 
 /**
  * Compared as numbers: "70" and "70.0" are one weight, and re-sending it
@@ -175,10 +215,18 @@ function diffField(
     }
 
     case 'congenitalDisease': {
-      if (sameText(form.congenitalDisease, baseline.congenitalDisease)) {
-        return { changed: false };
-      }
-      return { changed: true, value: form.congenitalDisease.trim() || null };
+      // Compared in the gateway's own rendering, not in the form's two-part
+      // representation: 'ไม่มี' from the server seeds `congenital: 'none'`
+      // with an empty text box, and comparing the text boxes alone would
+      // report a change — and write an audit-trail row — on every save for
+      // every patient who answered "ไม่มี".
+      const next = renderCongenital(form.congenital, form.congenitalDisease);
+      const before = renderCongenital(baseline.congenital, baseline.congenitalDisease);
+      if (next === before) return { changed: false };
+
+      const wire = congenitalWireValue(form.congenital, form.congenitalDisease);
+      // Unanswered: nothing to say about the column, so nothing is sent.
+      return wire === undefined ? { changed: false } : { changed: true, value: wire };
     }
   }
 }
@@ -215,7 +263,11 @@ export const hasHealthChanges = (patch: UpdatePatientHealthInput): boolean =>
  * `@/lib/health-validation` rather than restated: a caregiver form stricter or
  * looser than the patient's own would disagree about the same column.
  */
-export function validateHealthForm(form: HealthForm, now: Date = new Date()): HealthErrors {
+export function validateHealthForm(
+  form: HealthForm,
+  now: Date = new Date(),
+  { recorded = false }: { recorded?: boolean } = {},
+): HealthErrors {
   const errors: HealthErrors = {};
 
   const dobError = validateDob(form.dob, now);
@@ -229,6 +281,18 @@ export function validateHealthForm(form: HealthForm, now: Date = new Date()): He
 
   const congenitalError = validateCongenitalDisease(form.congenitalDisease);
   if (congenitalError) errors.congenitalDisease = congenitalError;
+
+  /*
+   * Presence, last, so a plausibility message is never overwritten by a
+   * "please fill this in" for a field that is filled in.
+   *
+   * This is the half that stops the form asking for something the gateway
+   * will refuse: `dob` / `gender` / `weight` / `height` are `NOT NULL` on
+   * `user_informations`, so clearing one is a 400 and a partial edit that
+   * cannot create a missing row is a 400 too. `recorded` says which of those
+   * two the caregiver is about to do.
+   */
+  Object.assign(errors, validateHealthBlock(form, { recorded }));
 
   return errors;
 }

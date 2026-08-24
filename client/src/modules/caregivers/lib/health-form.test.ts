@@ -18,6 +18,7 @@ import {
   changedHealthFields,
   hasHealthChanges,
   healthFormFromPatient,
+  patientHasHealthRecord,
   validateHealthForm,
   type HealthForm,
 } from './health-form';
@@ -43,9 +44,13 @@ describe('healthFormFromPatient', () => {
       dob: new Date(1950, 2, 1),
       weight: '60',
       height: '165',
-      // `myPatients` carries neither, and there is no query that returns them
-      // to a caregiver. Blank is the honest seed.
+      // Blank on purpose, but no longer because the data is unreachable:
+      // `GQL_MY_PATIENTS` selects `gender` and `congenitalDisease` now
+      // (`services/operations.ts`). This fixture models a patient whose
+      // health row the migration could not backfill — the caregiver has to
+      // supply the whole block before anything saves.
       gender: null,
+      congenital: null,
       congenitalDisease: '',
     });
   });
@@ -64,6 +69,7 @@ describe('healthFormFromPatient', () => {
     const form = healthFormFromPatient(patient(), known);
 
     expect(form.gender).toBe('male');
+    expect(form.congenital).toBe('has');
     expect(form.congenitalDisease).toBe('เบาหวาน');
     expect(form.weight).toBe('72');
     // Not in `known`, so the cached patient row still supplies it.
@@ -80,8 +86,37 @@ describe('healthFormFromPatient', () => {
       gender: null,
       weight: '',
       height: '',
+      congenital: null,
       congenitalDisease: '',
     });
+  });
+
+  /*
+   * `'ไม่มี'` on the wire is the gateway rendering a NULL column, so it is an
+   * *answer*, not typing. Seeding it into the text box would make the
+   * caregiver look like they had typed the word — and re-saving would then
+   * store it verbatim, which the column can never be untangled from again.
+   */
+  it('seeds a rendered "ไม่มี" as the answer, not as typed text', () => {
+    const form = healthFormFromPatient(patient({ congenitalDisease: 'ไม่มี' }));
+
+    expect(form.congenital).toBe('none');
+    expect(form.congenitalDisease).toBe('');
+  });
+});
+
+describe('patientHasHealthRecord', () => {
+  it('is true only when the whole block is there', () => {
+    expect(patientHasHealthRecord(patient({ gender: 'male' }))).toBe(true);
+    // `gender` missing — the row cannot exist without it, so this patient has
+    // no `user_informations` row at all.
+    expect(patientHasHealthRecord(patient())).toBe(false);
+  });
+
+  it('reads what the last save returned over the cached list row', () => {
+    const known: PatientHealthProfile = { patientId: 'p1', gender: 'female' };
+
+    expect(patientHasHealthRecord(patient(), known)).toBe(true);
   });
 });
 
@@ -114,6 +149,7 @@ describe('changedHealthFields', () => {
       gender: 'female',
       weight: '80',
       height: '170',
+      congenital: 'has',
       congenitalDisease: 'ความดันโลหิตสูง',
     };
 
@@ -166,6 +202,29 @@ describe('changedHealthFields', () => {
     expect(changedHealthFields(form, baseline)).toEqual({});
   });
 
+  /*
+   * The round trip has to be stable. The gateway sends `'ไม่มี'` for a NULL
+   * column and the form holds that as `congenital: 'none'` with an empty text
+   * box; comparing the text boxes alone would report a change on every save
+   * for every patient who answered "ไม่มี" — a write, and a row in their
+   * audit trail, for an edit nobody made.
+   */
+  it('does not re-send an unchanged "ไม่มี" answer', () => {
+    const seeded = healthFormFromPatient(patient({ congenitalDisease: 'ไม่มี' }));
+
+    expect(changedHealthFields(seeded, seeded)).toEqual({});
+  });
+
+  // NULL is what the column stores for "no condition"; the gateway has no
+  // inverse mapping, so sending the string would store the word instead.
+  it('sends null when the answer changes to "ไม่มี"', () => {
+    const seeded = healthFormFromPatient(patient({ congenitalDisease: 'เบาหวาน' }));
+
+    expect(
+      changedHealthFields({ ...seeded, congenital: 'none', congenitalDisease: '' }, seeded),
+    ).toEqual({ congenitalDisease: null });
+  });
+
   it('trims a congenital disease and treats whitespace as no change', () => {
     const known: PatientHealthProfile = { patientId: 'p1', congenitalDisease: 'เบาหวาน' };
     const seeded = healthFormFromPatient(patient(), known);
@@ -185,11 +244,68 @@ describe('validateHealthForm', () => {
     gender: null,
     weight: '',
     height: '',
+    congenital: null,
     congenitalDisease: '',
   };
 
-  it('accepts an entirely empty form — every field is optional', () => {
+  const complete: HealthForm = {
+    dob: new Date(1950, 2, 1),
+    gender: 'male',
+    weight: '60',
+    height: '165',
+    congenital: 'none',
+    congenitalDisease: '',
+  };
+
+  /*
+   * A patient with no `user_informations` row: the block may be left entirely
+   * alone, because the patch then carries no health key and the gateway never
+   * looks at it.
+   */
+  it('accepts an entirely empty form when the patient has no health row', () => {
     expect(validateHealthForm(empty)).toEqual({});
+  });
+
+  /*
+   * ...but not half of it. A partial patch cannot create the row, and the
+   * gateway answers that with a 400 rather than a half-built row.
+   */
+  it('requires the rest of the block once any of it is filled in', () => {
+    const errors = validateHealthForm({ ...empty, weight: '60' });
+
+    expect(errors.dob).toBe('กรุณาเลือกวันเกิด');
+    expect(errors.gender).toBe('กรุณาเลือกเพศ');
+    expect(errors.height).toBe('กรุณากรอกส่วนสูง');
+    expect(errors.congenital).toBe('กรุณาระบุว่ามีโรคประจำตัวหรือไม่');
+  });
+
+  /*
+   * The break this change exists for. The four are NOT NULL on
+   * `user_informations`, and the gateway refuses a clear rather than dropping
+   * it — dropping it would answer 200 with the old value still in place and
+   * nothing in the audit trail, on a screen whose whole premise is the audit
+   * trail.
+   */
+  it('refuses to clear a required field a patient already has', () => {
+    const errors = validateHealthForm({ ...complete, weight: '' }, new Date(), {
+      recorded: true,
+    });
+
+    expect(errors.weight).toBe('ไม่สามารถลบข้อมูลน้ำหนักได้ กรุณาระบุค่าใหม่แทน');
+  });
+
+  it('accepts a complete block unchanged', () => {
+    expect(validateHealthForm(complete, new Date(), { recorded: true })).toEqual({});
+  });
+
+  it('rejects "มี" with nothing typed', () => {
+    const errors = validateHealthForm(
+      { ...complete, congenital: 'has', congenitalDisease: '' },
+      new Date(),
+      { recorded: true },
+    );
+
+    expect(errors.congenitalDisease).toBe('กรุณาระบุโรคประจำตัว');
   });
 
   it('rejects a slipped decimal point', () => {

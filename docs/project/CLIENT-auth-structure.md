@@ -320,15 +320,28 @@ why `isValidPhone` is `{9,15}`, matching the gateway's `PHONE_REGEX` exactly;
 it was `{9,10}` and an 11-digit number could not be registered, signed in
 with, or re-saved from the profile screen.
 
-The register form's health block (`dob`, `gender`, `weight`, `height`,
-`congenitalDisease`) is **required on this form**, though `RegisterInput`
-itself still leaves every one of those fields optional — the requirement is a
-client-only UX policy, not a wire-contract change, and it does not violate
-the never-stricter-than-the-gateway rule for the reason spelled out at the
-top of `modules/auth/lib/validation.ts`: refusing to submit an empty field is
-not refusing a value the server would have accepted, because the server was
-never offered a value at all. The avatar is the only field that stays
-optional.
+The register form's health block (`dob`, `gender`, `weight`, `height`, and an
+answered congenital-disease question) is **required on this form**. It was a
+client-only UX policy when the five columns lived on `users`; it is no longer.
+The gateway moved them into `user_informations`, where `dob` / `gender` /
+`weight` / `height` are `NOT NULL` and the row is created by an upsert that
+needs all four — so a registration missing any of them silently produces an
+account with **no health block at all** (`buildInformationCreate` returns
+null and the gateway skips the write). `RegisterInput` still declares the
+fields optional in the GraphQL sense, so requiring them here does not violate
+the never-stricter-than-the-gateway rule for the reason spelled out at the top
+of `modules/auth/lib/validation.ts`: refusing to submit an empty field is not
+refusing a value the server would have accepted, because the server was never
+offered a value at all. The avatar is the only field that stays optional.
+
+`congenitalDisease` is asked as **มี / ไม่มี plus a text box that appears only
+for "มี"**, not as free text. NULL in that column is an *answer* ("no
+condition") — which is the only reason the other four could become `NOT NULL`
+— and the gateway renders it back as the string `'ไม่มี'`. A single empty box
+could not tell "no condition" from "never asked", so "ไม่มี" is sent as
+`null`/absent rather than as the literal word, and the presence rules for the
+whole block live in `@/lib/health-validation`'s `validateHealthBlock`, shared
+with the profile and caregiver forms.
 
 Once a value is present, though, the *plausibility* bounds still follow the
 never-stricter-than-the-gateway rule: they come from `src/lib/health-validation.ts`

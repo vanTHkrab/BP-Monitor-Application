@@ -385,6 +385,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   User: 'User',
+  UserInformation: 'UserInformation',
   ProfileChangeLog: 'ProfileChangeLog',
   Passkey: 'Passkey',
   UserSession: 'UserSession',
@@ -414,7 +415,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "profileChangeLog" | "passkey" | "userSession" | "pushToken" | "account" | "verification" | "caregiverPatient" | "image" | "alert" | "bloodPressureReading" | "post" | "postComment" | "postCommentLike" | "postLike"
+    modelProps: "user" | "userInformation" | "profileChangeLog" | "passkey" | "userSession" | "pushToken" | "account" | "verification" | "caregiverPatient" | "image" | "alert" | "bloodPressureReading" | "post" | "postComment" | "postCommentLike" | "postLike"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -489,6 +490,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.UserCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.UserCountAggregateOutputType> | number
+        }
+      }
+    }
+    UserInformation: {
+      payload: Prisma.$UserInformationPayload<ExtArgs>
+      fields: Prisma.UserInformationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.UserInformationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.UserInformationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>
+        }
+        findFirst: {
+          args: Prisma.UserInformationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.UserInformationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>
+        }
+        findMany: {
+          args: Prisma.UserInformationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>[]
+        }
+        create: {
+          args: Prisma.UserInformationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>
+        }
+        createMany: {
+          args: Prisma.UserInformationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.UserInformationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>[]
+        }
+        delete: {
+          args: Prisma.UserInformationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>
+        }
+        update: {
+          args: Prisma.UserInformationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>
+        }
+        deleteMany: {
+          args: Prisma.UserInformationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.UserInformationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.UserInformationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>[]
+        }
+        upsert: {
+          args: Prisma.UserInformationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserInformationPayload>
+        }
+        aggregate: {
+          args: Prisma.UserInformationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateUserInformation>
+        }
+        groupBy: {
+          args: Prisma.UserInformationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserInformationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.UserInformationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserInformationCountAggregateOutputType> | number
         }
       }
     }
@@ -1583,17 +1658,26 @@ export const UserScalarFieldEnum = {
   banned: 'banned',
   banReason: 'banReason',
   banExpires: 'banExpires',
-  dob: 'dob',
-  gender: 'gender',
-  weight: 'weight',
-  height: 'height',
-  congenitalDisease: 'congenitalDisease',
   avatar: 'avatar',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const UserInformationScalarFieldEnum = {
+  userId: 'userId',
+  dob: 'dob',
+  gender: 'gender',
+  weight: 'weight',
+  height: 'height',
+  congenitalDisease: 'congenitalDisease',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserInformationScalarFieldEnum = (typeof UserInformationScalarFieldEnum)[keyof typeof UserInformationScalarFieldEnum]
 
 
 export const ProfileChangeLogScalarFieldEnum = {
@@ -2111,6 +2195,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit
+  userInformation?: Prisma.UserInformationOmit
   profileChangeLog?: Prisma.ProfileChangeLogOmit
   passkey?: Prisma.PasskeyOmit
   userSession?: Prisma.UserSessionOmit

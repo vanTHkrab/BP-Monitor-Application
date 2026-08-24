@@ -26,11 +26,13 @@ export type CaregiverLinkPayload = {
   patientId: string;
   relationship: string;
   caregiverName: string;
-  caregiverPhone: string;
+  /** Nullable since `CaregiverLinkType.caregiverPhone` became `String`. */
+  caregiverPhone?: string | null;
   /** Nullable so a gateway that predates the field still parses. */
   caregiverAvatar?: string | null;
   patientName: string;
-  patientPhone: string;
+  /** Nullable since `CaregiverLinkType.patientPhone` became `String`. */
+  patientPhone?: string | null;
   patientAvatar?: string | null;
   status: string;
   respondedAt: string | null;
@@ -42,7 +44,8 @@ export type PatientSummaryPayload = {
   id: string;
   firstname: string;
   lastname: string;
-  phone: string;
+  /** Nullable since `PatientSummaryType.phone` became `String`. */
+  phone?: string | null;
   avatar: string | null;
   dob: string | null;
   relationship: string | null;
@@ -74,10 +77,10 @@ export function caregiverLinkFromGql(payload: CaregiverLinkPayload): CaregiverLi
     patientId: payload.patientId,
     relationship: parseRelationship(payload.relationship),
     caregiverName: payload.caregiverName,
-    caregiverPhone: payload.caregiverPhone,
+    caregiverPhone: payload.caregiverPhone ?? undefined,
     caregiverAvatar: payload.caregiverAvatar ?? undefined,
     patientName: payload.patientName,
-    patientPhone: payload.patientPhone,
+    patientPhone: payload.patientPhone ?? undefined,
     patientAvatar: payload.patientAvatar ?? undefined,
     status: parseStatus(payload.status),
     respondedAt: payload.respondedAt ? new Date(payload.respondedAt) : undefined,
@@ -93,7 +96,7 @@ export function patientSummaryFromGql(payload: PatientSummaryPayload): PatientSu
     id: payload.id,
     firstname: payload.firstname,
     lastname: payload.lastname,
-    phone: payload.phone,
+    phone: payload.phone ?? undefined,
     avatar: payload.avatar ?? undefined,
     dob: payload.dob ? new Date(payload.dob) : undefined,
     relationship: payload.relationship ? parseRelationship(payload.relationship) : undefined,

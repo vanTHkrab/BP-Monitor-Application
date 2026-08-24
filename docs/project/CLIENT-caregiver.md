@@ -722,26 +722,38 @@ not import them from profile: `modules/profile/lib/validation.ts` imports
 would have closed a cycle between the two modules. The neutral module imports
 nothing, so nothing can cycle through it.
 
-#### Two of the five cannot be read back, and that shapes the form
+#### All five read back, and four of them can no longer be cleared
 
-`myPatients` (`PatientSummaryType`) carries `dob`, `weight` and `height`. It
-does **not** carry `gender` or `congenitalDisease`, and no query returns those
-two to a caregiver — `PatientHealthProfileType` exists only as the mutation's
-return value. `caregiver.resolver.ts` says a caregiver "can read the current
-values from `myPatients`", which is true of three fields out of five.
+`myPatients` (`PatientSummaryType`) carries all five — `gender` and
+`congenitalDisease` were added to it, closing the gap §4b was left open for —
+so the form seeds every field it may write and nothing starts blank for want
+of a query.
 
 The gateway distinguishes an **absent** key ("leave this column alone") from
-an explicit `null` ("clear it"), so the client sends only fields that differ
-from what the form was seeded with. Those two therefore start blank, and a
-blank field that started blank is not in the patch — saving cannot erase a
-value the caregiver was never shown. The screen says so in a notice rather
-than only in a comment, because a blank "โรคประจำตัว" otherwise reads as
-"this patient has none".
+an explicit `null` ("clear it"), and the client still sends only fields that
+differ from what the form was seeded with. The reason changed rather than
+disappeared: two caregivers can look after the same patient, so a full-form
+write would let the second to submit silently revert a field the first had
+just changed.
 
-The accepted cost: a caregiver cannot *clear* a congenital disease they cannot
-see. Refusing to erase data you were not shown is the right side of that trade
-for a medical record. **Closing the gap is a gateway change** — add `gender`
-and `congenitalDisease` to `PatientSummaryType` — and was out of scope here.
+What is new is that **`dob`, `gender`, `weight` and `height` can no longer be
+cleared at all.** They are `NOT NULL` on `user_informations`, whose *existence*
+records that the patient completed the health step, and the gateway answers a
+clear with a 400 rather than dropping it — dropping it would return 200 with
+the old value still in place and nothing in the audit trail, on a screen whose
+whole premise is the audit trail. A partial patch also cannot bring a missing
+row into existence, so for a patient with no row the block may be left alone
+entirely but never half-filled. `validateHealthBlock` in
+`@/lib/health-validation` enforces both, and `patientHasHealthRecord` says
+which of the two refusals applies.
+
+`congenitalDisease` is the exception and stays clearable, because NULL there
+is an *answer* ("no condition") rather than a gap. It is asked as **มี / ไม่มี
+plus a text box that appears only for "มี"**: the gateway renders that NULL
+back as the string `'ไม่มี'`, so the select seeds from the rendered value and
+the text box stays empty — seeding the word into the box would make the
+caregiver look like they had typed it, and re-saving would then store it
+verbatim, which the column can never be untangled from again.
 
 #### The permission check on the client is not the authority
 
@@ -789,15 +801,14 @@ makes that acceptable is that they can downgrade at any time, which only works
 if they know what they are choosing. Those Thai strings **are** the consent
 UI, on both sides of the wire.
 
-### 4b. `PatientSummaryType` cannot show a caregiver two of the five fields
+### 4b. `PatientSummaryType` cannot show a caregiver two of the five fields — **closed**
 
-Left open by §4 and **it is a gateway change**, so it was not made here.
-`myPatients` returns `dob`, `weight` and `height`; `gender` and
-`congenitalDisease` are returned nowhere a caregiver can read them, so
-`app/patient-health.tsx` renders those two blank and can only *set* them,
-never show or clear them. `caregiver.resolver.ts`'s own comment — "a caregiver
-who wants to know the current values can read them from `myPatients`" — is
-true of three fields out of five.
+Left open by §4 as a gateway change, and since made: `gender` and
+`congenitalDisease` were added to `PatientSummaryType`, so `myPatients`
+returns all five and `app/patient-health.tsx` seeds every field it may write.
+`caregiver.resolver.ts`'s comment — "a caregiver who wants to know the current
+values can read them from `myPatients`" — is now true of all five. See §4 for
+what replaced the patch's original justification.
 
 The fix is two fields on `PatientSummaryType` and two lines in
 `patientSummaryFromGql`; the client seeding (`healthFormFromPatient`) already

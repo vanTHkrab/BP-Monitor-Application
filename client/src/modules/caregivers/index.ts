@@ -53,6 +53,7 @@ export {
   changedHealthFields,
   hasHealthChanges,
   healthFormFromPatient,
+  patientHasHealthRecord,
   validateHealthForm,
   type HealthBaseline,
   type HealthErrors,

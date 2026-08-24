@@ -54,6 +54,15 @@ const patient = (over: Partial<PatientSummary> = {}): PatientSummary => ({
   dob: new Date(1950, 2, 1),
   weight: 60,
   height: 165,
+  /*
+   * A complete health block, because that is the only shape the gateway can
+   * produce: `user_informations` is created by an upsert needing all four of
+   * `dob` / `gender` / `weight` / `height`, so a patient either has the whole
+   * row or has none of it. `'ไม่มี'` is the gateway rendering the NULL
+   * `congenitalDisease` column — an answer, not typed text.
+   */
+  gender: 'male',
+  congenitalDisease: 'ไม่มี',
   ...over,
 });
 
@@ -82,12 +91,12 @@ describe('PatientHealthScreen — what reaches the gateway', () => {
   });
 
   /**
-   * `gender` and `congenitalDisease` render blank because `myPatients` does
-   * not carry them and no query returns them to a caregiver. Sending the
-   * whole form would therefore clear two columns the caregiver was never
-   * shown — the gateway reads an explicit `null` as "clear this".
+   * Two caregivers can look after the same patient, so a full write would let
+   * the second to submit revert a field the first had just changed without
+   * either of them editing it. An untouched field has to be absent — the
+   * gateway reads an explicit `null` as "clear this column".
    */
-  it('does not send the two fields it cannot read when they were left blank', async () => {
+  it('leaves untouched fields out of the patch entirely', async () => {
     enter();
     const view = await renderScreen(<PatientHealthScreen />);
 
@@ -116,6 +125,9 @@ describe('PatientHealthScreen — what reaches the gateway', () => {
     await fireEvent.press(view.getByTestId('patient-health-edit'));
     await fireEvent.changeText(view.getByTestId('patient-health-weight-field'), '80');
     await fireEvent.changeText(view.getByTestId('patient-health-height-field'), '170');
+    // The text box exists only once "มี" is chosen — the question is a
+    // two-part answer now, and an empty box is not one of the parts.
+    await fireEvent.press(view.getByRole('radio', { name: 'มี' }));
     await fireEvent.changeText(
       view.getByTestId('patient-health-congenital-disease-field'),
       'เบาหวาน',
@@ -143,6 +155,25 @@ describe('PatientHealthScreen — what reaches the gateway', () => {
     expect(mockUpdatePatientHealth).not.toHaveBeenCalled();
     expect(view.getByTestId('patient-health-banner')).toHaveTextContent(
       'ไม่มีข้อมูลที่เปลี่ยนแปลง',
+    );
+  });
+
+  /*
+   * The break this change exists for. `weight` is NOT NULL on
+   * `user_informations`, and the gateway answers a clear with a 400 rather
+   * than dropping it — so the form must not offer the clear at all.
+   */
+  it('refuses to clear a required field the patient already has', async () => {
+    enter();
+    const view = await renderScreen(<PatientHealthScreen />);
+
+    await fireEvent.press(view.getByTestId('patient-health-edit'));
+    await fireEvent.changeText(view.getByTestId('patient-health-weight-field'), '');
+    await fireEvent.press(view.getByTestId('patient-health-save'));
+
+    expect(mockUpdatePatientHealth).not.toHaveBeenCalled();
+    expect(view.getByTestId('patient-health-banner')).toHaveTextContent(
+      'กรุณาตรวจสอบข้อมูลที่มีเครื่องหมายสีแดง',
     );
   });
 

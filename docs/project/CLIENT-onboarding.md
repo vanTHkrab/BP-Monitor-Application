@@ -2,7 +2,7 @@
 title: "Client: the onboarding flow"
 description: How a new account gets from registered to using the app, and the rules a new onboarding step must respect.
 status: current
-updated: 2026-08-08
+updated: 2026-08-24
 owner: client
 ---
 
@@ -162,10 +162,17 @@ top-level screens.
 
 ## Known gaps
 
-- **Phone collection after OAuth is not built.** `phone` is `NOT NULL` and a
-  Google sign-up carries none, so that flow needs a step before `role`. It is
-  blocked on Google credentials — see
+- **Phone collection after OAuth is not wired up.** The screen exists
+  (`app/(auth)/onboarding-phone.tsx`); nothing routes to it. It is blocked on
+  Google credentials — see
   [CLIENT-auth-integration.md](./CLIENT-auth-integration.md).
+
+  > ⚠️ `users.phone` is **nullable** as of 2026-08-24 — it used to be
+  > `NOT NULL`, which is what made a Google sign-up impossible at the database.
+  > This screen is now the *only* thing that makes a Google-created account
+  > have a phone number. Nothing in the schema will catch a route that skips
+  > it. See
+  > [AUTH-better-auth-identity.md](../architecture/AUTH-better-auth-identity.md#phone-nullability).
 - ~~**Font size is persisted but not consumed app-wide.**~~ Done, and since
   centralised. Every rendered px in the app now comes out of one resolver,
   [`hooks/use-typography.ts`](../../client/src/hooks/use-typography.ts) —

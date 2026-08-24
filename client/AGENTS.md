@@ -84,7 +84,7 @@ the finishing check is `pnpm check`.
 | `test` | everything | both, and what any full audit should use |
 
 The two halves must **add up to `pnpm test`**: 113 + 77 = 190 suites and
-1846 + 745 = 2591 tests, which is what `pnpm test` reports. A test file
+1871 + 753 = 2624 tests, which is what `pnpm test` reports. A test file
 outside all four matched directories is orphaned from both scripts and from
 CI, and **nothing reports it** — the run it is missing from still passes.
 That happened on the first version of this split, which omitted `/scripts/`
@@ -389,9 +389,25 @@ for what the manifest cannot express: the non-obvious choices and their traps.
 - **`client-old/` is not a dependency of anything.** It is the legacy tree,
   kept for history. Its docs describe *its* layout, not this app's.
 - **`react-hook-form` + `zod` + `@hookform/resolvers` are on `register.tsx`
-  only, deliberately** — a scoped first migration off the hand-rolled
-  `useState` + `validate*()` pattern the other auth screens still use, not a
-  library swap. Before wiring a second screen onto it, read
+  and `profile.tsx`** — the scoped first migration off the hand-rolled
+  `useState` + `validate*()` pattern, now with its second screen. Still not a
+  blanket library swap: the remaining auth screens keep the old pattern until
+  a reason to touch them arrives. Two things the profile migration is worth
+  copying for:
+  - **The schema wraps the existing validator, it does not restate it.**
+    `profileSchema()` is a `superRefine` around `validateProfile`, exactly as
+    `registerSchema()` wraps `validateRegister`. Two encodings of one rule set
+    drift silently, and for these two forms the drift has a specific cost —
+    they write the same columns, so a profile form stricter than the register
+    form makes an account unable to re-save what it signed up with.
+  - **Use `useWatch`, never the `watch()` from `useForm`.** React Compiler is
+    on in this tree and `react-hooks/incompatible-library` rejects `watch()` by
+    name — it returns a function that cannot be memoized safely, so the
+    compiler skips optimising the whole component. With `--max-warnings 0`
+    that is a build failure, and the fix is the subscription hook, not a
+    suppression.
+
+  Before wiring a third screen onto it, read
   `app/(auth)/register.tsx`'s `fieldError` docblock first: `Controller`
   subscribes to its own field's state independently of the form it belongs
   to, and its `fieldState` can commit on a **different render tick** than

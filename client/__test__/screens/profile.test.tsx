@@ -28,10 +28,12 @@ const mockAvatar = {
   },
 };
 
+const mockUpdateProfile = jest.fn();
+
 jest.mock('@/modules/auth', () => ({
   ...jest.requireActual('@/modules/auth'),
   useSession: () => mockSession.current,
-  useUpdateProfile: () => ({ updateProfile: jest.fn(), isPending: false }),
+  useUpdateProfile: () => ({ updateProfile: mockUpdateProfile, isPending: false }),
 }));
 
 jest.mock('@/modules/profile', () => ({
@@ -60,6 +62,18 @@ const user = (over: Record<string, unknown> = {}) => ({
   phone: '0812345678',
   email: 'somchai@example.com',
   emailVerified: true,
+  dob: new Date(1980, 0, 15),
+  gender: 'male',
+  weight: 65,
+  height: 170,
+  /*
+   * The string the gateway sends for a NULL column — "answered: no
+   * condition", not "unanswered". It is here so the reopen-and-save case
+   * below covers the congenital round trip for free: if the form ever seeded
+   * the select from this *and* left the literal in the text box, or sent the
+   * word back instead of `null`, that test would start seeing a mutation.
+   */
+  congenitalDisease: 'ไม่มี',
   role: 'patient',
   ...over,
 });
@@ -74,6 +88,106 @@ beforeEach(() => {
     error: null,
     changeAvatar: jest.fn(),
   };
+  mockUpdateProfile.mockResolvedValue(undefined);
+});
+
+/*
+ * One interaction case, deliberately not a suite.
+ *
+ * `updateProfile` is a partial update where a present-but-empty value *clears*
+ * the column, so sending the whole form rewrites every column with whatever
+ * this screen was holding — silently reverting anything another device
+ * changed. `changedFields` is what stops that, and after the move to React
+ * Hook Form it is only still safe because `profileSchema` happens to be a
+ * transform-free `z.object` whose keys match `ProfileForm` exactly. Add one
+ * key, or one `.transform()`, and the diff starts shipping fields nobody
+ * edited — with no type error and no other test objecting.
+ *
+ * The rest of edit mode (validation, cancel, the banner) is covered by a plan
+ * in the PR body rather than here.
+ */
+describe('ProfileScreen — edit mode sends only what changed', () => {
+  it('posts the one edited field and nothing else', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+    await fireEvent.changeText(view.getByTestId('profile-firstname'), 'สมหญิง');
+    await fireEvent.press(view.getByTestId('profile-save'));
+
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ firstname: 'สมหญิง' });
+  });
+
+  /*
+   * The wire value, which the reopen-and-save case above does **not** reach.
+   *
+   * `changedFields` diffs in the gateway's own rendering, so when nothing
+   * changes the diff is empty and `congenitalWireValue` is never called —
+   * verified by mutating it to send the literal word and watching every test
+   * here stay green. This is the case that exercises it: the answer actually
+   * changes, so the mapper runs, and `null` is what must go out. Sending
+   * `'ไม่มี'` instead would store the word as if it were a diagnosis, because
+   * the gateway has no inverse on the write path.
+   */
+  /*
+   * The migration created no `user_informations` row for anyone missing one of
+   * the four, so "no health record" is a state real accounts are in. Four empty
+   * fields look exactly like four unchanged ones, and without this the first
+   * save is how the user finds out — four red fields at once.
+   */
+  it('explains the whole block is required when the record has none', async () => {
+    mockSession.current = {
+      user: user({ dob: undefined, gender: undefined, weight: undefined, height: undefined }),
+    };
+    const view = await renderScreen(<ProfileScreen />);
+
+    expect(view.queryByText(/กรุณากรอกให้ครบทั้ง 4 ช่อง/)).toBeNull();
+    await fireEvent.press(view.getByTestId('profile-edit'));
+
+    expect(view.getByText(/กรุณากรอกให้ครบทั้ง 4 ช่อง/)).toBeOnTheScreen();
+  });
+
+  it('stays quiet for a record that already has the block', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+
+    expect(view.queryByText(/กรุณากรอกให้ครบทั้ง 4 ช่อง/)).toBeNull();
+  });
+
+  it('sends null, not the word, when the answer becomes "no condition"', async () => {
+    mockSession.current = { user: user({ congenitalDisease: 'เบาหวาน' }) };
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+    await fireEvent.press(view.getByRole('radio', { name: 'ไม่มี' }));
+    await fireEvent.press(view.getByTestId('profile-save'));
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ congenitalDisease: null });
+  });
+
+  it('sends the text when the answer becomes "has a condition"', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+    await fireEvent.press(view.getByRole('radio', { name: 'มี' }));
+    await fireEvent.changeText(
+      view.getByTestId('profile-congenital-disease'),
+      'เบาหวาน',
+    );
+    await fireEvent.press(view.getByTestId('profile-save'));
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ congenitalDisease: 'เบาหวาน' });
+  });
+
+  it('sends nothing at all when the form is reopened and left alone', async () => {
+    const view = await renderScreen(<ProfileScreen />);
+
+    await fireEvent.press(view.getByTestId('profile-edit'));
+    await fireEvent.press(view.getByTestId('profile-save'));
+
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
 });
 
 describe('ProfileScreen — read mode', () => {
@@ -212,10 +326,14 @@ describe('ProfileScreen — changing the avatar', () => {
 
 /*
  * The scrollable form is wrapped so a field near the bottom (weight, height,
- * โรคประจำตัว) is not left under the on-screen keyboard. `padding` on iOS;
- * no `behavior` on Android, since `adjustResize` (set app-wide in
- * AndroidManifest.xml) already resizes the window and `'height'` on top of
- * that would double-compensate — see the comment beside the wrapper itself.
+ * โรคประจำตัว) is not left under the on-screen keyboard.
+ *
+ * The wrapper is `KeyboardAwareScrollView` from
+ * `react-native-keyboard-controller` now, not the `KeyboardAvoidingView` this
+ * comment used to describe — it reads the IME insets natively and there is no
+ * per-platform `behavior` left to get wrong. The testID is unchanged, which is
+ * why this assertion survived the swap without anyone noticing the prose had
+ * stopped being true.
  */
 describe('ProfileScreen — keyboard avoidance', () => {
   it('wraps the form so the keyboard cannot cover the field being edited', async () => {

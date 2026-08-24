@@ -49,11 +49,13 @@ export type CaregiverLink = {
   patientId: string;
   relationship: RelationshipType;
   caregiverName: string;
-  caregiverPhone: string;
+  /** Absent for a Google account that has not been given a phone yet. */
+  caregiverPhone?: string;
   /** Profile photo of each side, absent when they have not set one. */
   caregiverAvatar?: string;
   patientName: string;
-  patientPhone: string;
+  /** Absent for a Google account that has not been given a phone yet. */
+  patientPhone?: string;
   patientAvatar?: string;
   status: CaregiverLinkStatus;
   /** When the patient accepted or rejected; absent while still pending. */
@@ -76,7 +78,13 @@ export type PatientSummary = {
   id: string;
   firstname: string;
   lastname: string;
-  phone: string;
+  /**
+   * Absent for a Google account that has not been given a phone yet —
+   * `PatientSummaryType.phone` became `String` when the gateway freed the
+   * column. Caregivers find patients *by* phone, so a patient without one is
+   * reachable only through an invitation already accepted.
+   */
+  phone?: string;
   avatar?: string;
   dob?: Date;
   relationship?: RelationshipType;

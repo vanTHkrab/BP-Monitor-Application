@@ -87,7 +87,10 @@ async function fillRequired(view: Awaited<ReturnType<typeof renderScreen>>) {
 async function fillHealthBlock(view: Awaited<ReturnType<typeof renderScreen>>) {
   await fireEvent.changeText(view.getByTestId('register-weight'), '70');
   await fireEvent.changeText(view.getByTestId('register-height'), '170');
-  await fireEvent.changeText(view.getByTestId('register-congenital-disease'), 'ไม่มี');
+  // The congenital question is a select now: "ไม่มี" is a complete answer on
+  // its own and reveals no text box. The column stores NULL for it and the
+  // gateway renders the word back — typing it would be a different value.
+  await fireEvent.press(view.getByRole('radio', { name: 'ไม่มี' }));
   await fireEvent.press(view.getByRole('radio', { name: 'ชาย' }));
 
   await fireEvent.press(view.getByTestId('register-dob'));
@@ -123,13 +126,19 @@ describe('RegisterScreen', () => {
       'register-dob',
       'register-weight',
       'register-height',
-      'register-congenital-disease',
       'register-password',
       'register-confirm-password',
       'register-submit',
     ]) {
       expect(view.getByTestId(testID)).toBeOnTheScreen();
     }
+
+    // The congenital-disease text box is deliberately not in that list: it
+    // only exists once "มี" is chosen. An always-present empty box is what
+    // made "no condition" and "never asked" indistinguishable.
+    expect(view.queryByTestId('register-congenital-disease')).toBeNull();
+    await fireEvent.press(view.getByRole('radio', { name: 'มี' }));
+    expect(view.getByTestId('register-congenital-disease')).toBeOnTheScreen();
   });
 
   /*
@@ -226,8 +235,11 @@ describe('RegisterScreen — where an error goes', () => {
 });
 
 /*
- * `dob`, `gender`, `weight`, `height`, and `congenitalDisease` are all
- * required on this form now — the avatar is the only field left optional.
+ * `dob`, `gender`, `weight`, `height`, and an answered congenital question
+ * are all required on this form now — the avatar is the only field left
+ * optional. The row this form creates (`user_informations`) cannot be
+ * inserted without the four, so a registration missing any of them would
+ * silently produce an account with no health block at all.
  * These assertions are that each rule reaches the field that caused it and
  * that a client-side error only appears once the user has actually reached
  * that field (or tried to submit) — `validation.test.ts`'s own tests cover
@@ -243,7 +255,7 @@ describe('RegisterScreen — the required health block', () => {
     expect(view.getByText('กรุณาเลือกเพศ')).toBeOnTheScreen();
     expect(view.getByText('กรุณากรอกน้ำหนัก')).toBeOnTheScreen();
     expect(view.getByText('กรุณากรอกส่วนสูง')).toBeOnTheScreen();
-    expect(view.getByText('กรุณากรอกโรคประจำตัว')).toBeOnTheScreen();
+    expect(view.getByText('กรุณาระบุว่ามีโรคประจำตัวหรือไม่')).toBeOnTheScreen();
     expect(mockRegister.current.register).not.toHaveBeenCalled();
   });
 
@@ -255,7 +267,7 @@ describe('RegisterScreen — the required health block', () => {
     await fillRequired(view);
     await fireEvent.changeText(view.getByTestId('register-weight'), '70');
     await fireEvent.changeText(view.getByTestId('register-height'), '170');
-    await fireEvent.changeText(view.getByTestId('register-congenital-disease'), 'ไม่มี');
+    await fireEvent.press(view.getByRole('radio', { name: 'ไม่มี' }));
     await fireEvent.press(view.getByTestId('register-dob'));
     await act(async () => {
       mockPicker.lastProps!.onValueChange({} as never, new Date('1960-05-20'));
@@ -287,6 +299,7 @@ describe('RegisterScreen — the required health block', () => {
   it('renders an over-long congenital disease note under its own input', async () => {
     const view = await renderScreen(<RegisterScreen />);
     await fillRequired(view);
+    await fireEvent.press(view.getByRole('radio', { name: 'มี' }));
     await fireEvent.changeText(
       view.getByTestId('register-congenital-disease'),
       'ก'.repeat(501),
@@ -331,6 +344,9 @@ describe('RegisterScreen — the required health block', () => {
   // what this file's editing handlers all do.
   it('clears the server error when a previously unbound field is edited', async () => {
     const view = await renderScreen(<RegisterScreen />);
+    // Via the select, which is the field that is always on screen now — the
+    // text box behind it only exists once "มี" is chosen.
+    await fireEvent.press(view.getByRole('radio', { name: 'มี' }));
     await fireEvent.changeText(view.getByTestId('register-congenital-disease'), 'เบาหวาน');
 
     expect(mockRegister.current.clearError).toHaveBeenCalled();

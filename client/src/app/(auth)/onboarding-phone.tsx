@@ -1,9 +1,15 @@
 /**
  * Mandatory phone collection after a Google sign-up.
  *
- * A Google account carries no phone number, and `phone` is `NOT NULL` and
- * unique — caregivers find patients by it — so this has to run before the
+ * A Google account carries no phone number, so this has to run before the
  * account is usable, ahead of `/onboarding/role`.
+ *
+ * The reason is no longer the column. `users.phone` is nullable now — that is
+ * what lets `signInSocial` create the account at all, since the insert happens
+ * before any screen can ask for anything. The requirement moved up a layer and
+ * did not go away: caregivers find patients by phone, so an account without
+ * one is unreachable, and nothing in the database enforces that any more.
+ * This screen is the enforcement.
  *
  * Not yet reachable: Google OAuth has no credentials configured
  * (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), so there is no OAuth callback

@@ -28,6 +28,7 @@ import {
   verifyEmailEmail,
 } from '../mail/mail.templates';
 import { androidOriginsFromFingerprints } from './android-origin';
+import { deriveGoogleName, type GoogleNameClaims } from './google-profile-name';
 import {
   BCRYPT_SALT_ROUNDS,
   SESSION_TTL_MS,
@@ -270,11 +271,11 @@ export function createBetterAuth(
         // Self-selected roles are therefore applied *after* creation, by
         // AuthService.register. See `normalizeSelfAssignedRole`.
         role: { type: 'string', required: false, input: false },
-        dob: { type: 'date', required: false },
-        gender: { type: 'string', required: false },
-        weight: { type: 'number', required: false },
-        height: { type: 'number', required: false },
-        congenitalDisease: { type: 'string', required: false },
+        // The five health fields are gone from here on purpose: they live on
+        // `user_informations` now, and a Better Auth field resolves only to a
+        // column on the model's own table. Leaving them declared would make
+        // the adapter select and write columns that no longer exist.
+        //
         // Legacy column, retained until the credential backfill is confirmed.
         passwordHash: { type: 'string', required: false, input: false },
       },
@@ -547,7 +548,27 @@ function googleProvider() {
   const androidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID?.trim();
   const audiences = androidClientId ? [clientId, androidClientId] : clientId;
 
-  return { google: { clientId: audiences, clientSecret } };
+  return {
+    google: {
+      clientId: audiences,
+      clientSecret,
+      // Without this, Google sign-in cannot create an account at all.
+      //
+      // `firstname` and `lastname` are `additionalFields` with
+      // `required: true`, and Better Auth throws `MISSING_FIELD` for a
+      // required additional field missing on a create path — the OAuth one
+      // included — before it issues any SQL. Google's provider returns only
+      // `{ id, name, email, image, emailVerified }` plus whatever this
+      // callback adds, so the two columns have to be derived here.
+      //
+      // The callback receives the fully decoded ID token, so the structured
+      // `given_name` / `family_name` claims are available and do not need to
+      // be re-parsed out of `name`. The derivation itself lives in
+      // `google-profile-name.ts` because this file cannot be unit-tested.
+      mapProfileToUser: (profile: GoogleNameClaims) =>
+        deriveGoogleName(profile),
+    },
+  };
 }
 
 /**

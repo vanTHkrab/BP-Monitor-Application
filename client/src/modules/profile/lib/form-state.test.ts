@@ -44,8 +44,26 @@ describe('formFromUser', () => {
       gender: null,
       weight: '',
       height: '',
+      congenital: null,
       congenitalDisease: '',
     });
+  });
+
+  /*
+   * `'ไม่มี'` on the wire is the gateway rendering a NULL column — an answer,
+   * not typing. Seeding it into the text box would make the user look like
+   * they had typed the word, and re-saving would then store it verbatim,
+   * which the column can never be untangled from again.
+   */
+  it('seeds a rendered "ไม่มี" as the answer, not as typed text', () => {
+    const form = formFromUser(user({ congenitalDisease: 'ไม่มี' }));
+
+    expect(form.congenital).toBe('none');
+    expect(form.congenitalDisease).toBe('');
+  });
+
+  it('seeds an unanswered question as null, not as "no"', () => {
+    expect(formFromUser(user({ congenitalDisease: undefined })).congenital).toBeNull();
   });
 });
 
@@ -85,6 +103,38 @@ describe('changedFields', () => {
       gender: null,
     });
     expect(Object.values(patch).every((value) => value !== undefined)).toBe(true);
+  });
+
+  /*
+   * The round trip has to be stable: the server sends 'ไม่มี', the form holds
+   * it as `congenital: 'none'` with an empty text box, and comparing the text
+   * box alone would report a change on every save for every user who answered
+   * "ไม่มี" — a write, and an audit-trail row, for an edit nobody made.
+   */
+  it('does not re-send an unchanged "ไม่มี" answer', () => {
+    const seeded = formFromUser(user({ congenitalDisease: 'ไม่มี' }));
+
+    expect(hasChanges(changedFields(seeded, user({ congenitalDisease: 'ไม่มี' })))).toBe(false);
+  });
+
+  // NULL is what the column stores for "no condition", and the gateway has no
+  // inverse mapping — sending the string would store the word instead.
+  it('sends null when the answer changes to "ไม่มี"', () => {
+    expect(
+      changedFields(formOf({ congenital: 'none', congenitalDisease: '' }), user()),
+    ).toEqual({ congenitalDisease: null });
+  });
+
+  // Unanswered means the key must not be sent at all: an absent key leaves
+  // the column alone, which is the only honest thing to say about a question
+  // nobody answered.
+  it('sends no congenital key while the question is unanswered', () => {
+    const patch = changedFields(
+      formOf({ congenital: null, congenitalDisease: '' }),
+      user({ congenitalDisease: undefined }),
+    );
+
+    expect('congenitalDisease' in patch).toBe(false);
   });
 
   it('sends a changed birthday as a calendar day, not an instant', () => {
