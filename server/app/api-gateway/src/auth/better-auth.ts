@@ -533,7 +533,23 @@ function googleProvider() {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
 
-  if (!clientId || !clientSecret) return {};
+  if (!clientId || !clientSecret) {
+    // Dropping the provider is the right call; doing it silently was not.
+    //
+    // The mobile button is gated on `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, which
+    // is a *build-time* value on a different machine, so a deploy whose `.env`
+    // never gained these two ships a visible button in front of a provider
+    // that does not exist. The only trace was a vague 401 per attempt and one
+    // `signInSocial returned no session` line in `AuthService` — after a user
+    // had already tried. Boot is where an operator can still act on it.
+    logger.warn(
+      'GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not both set; the google ' +
+        'provider is not registered and every Google sign-in will fail with ' +
+        'a 401. Note the mobile button is gated on the app build, not on ' +
+        'this, so it stays visible. See docs/guides/google-sign-in-setup.md.',
+    );
+    return {};
+  }
 
   // The Android client ID is a second *audience*, not a second provider.
   //
@@ -547,6 +563,19 @@ function googleProvider() {
   // browser redirect flow, so the web credential stays first.
   const androidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID?.trim();
   const audiences = androidClientId ? [clientId, androidClientId] : clientId;
+
+  if (!androidClientId) {
+    // The comment above describes this failure; it did not report it. This is
+    // the worse of the two misconfigurations to leave quiet, because the
+    // provider *is* registered — the gateway looks correctly set up, and only
+    // the mobile door is shut.
+    logger.warn(
+      'GOOGLE_ANDROID_CLIENT_ID is not set. The google provider is ' +
+        'registered, but the Android client ID is missing from the accepted ' +
+        'audiences, so every One Tap sign-in from the app will be rejected ' +
+        'as an invalid token while the browser flow keeps working.',
+    );
+  }
 
   return {
     google: {
