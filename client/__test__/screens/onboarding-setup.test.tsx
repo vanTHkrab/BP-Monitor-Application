@@ -206,6 +206,7 @@ describe('OnboardingSetupScreen — finishing', () => {
       resolveGate({
         status: 'unauthenticated',
         roleSelected: null,
+        phoneComplete: null,
         appConfigured: usePreferencesStore.getState().setupCompleted,
         preferencesHydrated: true,
       }),
@@ -222,6 +223,7 @@ describe('OnboardingSetupScreen — finishing', () => {
       resolveGate({
         status: 'authenticated',
         roleSelected: false,
+        phoneComplete: true,
         appConfigured: usePreferencesStore.getState().setupCompleted,
         preferencesHydrated: true,
       }),

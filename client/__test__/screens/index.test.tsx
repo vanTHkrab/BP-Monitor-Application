@@ -26,6 +26,7 @@ jest.mock('expo-router', () => {
 const mockOnboarding = {
   current: {
     roleSelected: null as boolean | null,
+    phoneComplete: null as boolean | null,
     appConfigured: false,
     preferencesHydrated: false,
   },
@@ -61,6 +62,10 @@ function setStatus(status: 'unknown' | 'authenticated' | 'unauthenticated') {
 beforeEach(() => {
   mockOnboarding.current = {
     roleSelected: true,
+    // Default true so the existing cases keep testing what they were written
+    // for. The phone step sits ahead of the role step, so leaving it false
+    // here would make every one of them assert the phone screen instead.
+    phoneComplete: true,
     appConfigured: true,
     preferencesHydrated: true,
   };
@@ -88,6 +93,7 @@ describe('IndexRoute', () => {
     setStatus('authenticated');
     mockOnboarding.current = {
       roleSelected: null,
+      phoneComplete: true,
       appConfigured: true,
       preferencesHydrated: true,
     };
@@ -103,6 +109,7 @@ describe('IndexRoute', () => {
     setStatus('authenticated');
     mockOnboarding.current = {
       roleSelected: true,
+      phoneComplete: true,
       appConfigured: true,
       preferencesHydrated: false,
     };
@@ -122,6 +129,7 @@ describe('IndexRoute', () => {
     setStatus('authenticated');
     mockOnboarding.current = {
       roleSelected: false,
+      phoneComplete: true,
       appConfigured: true,
       preferencesHydrated: true,
     };
@@ -134,6 +142,7 @@ describe('IndexRoute', () => {
     setStatus('authenticated');
     mockOnboarding.current = {
       roleSelected: true,
+      phoneComplete: true,
       appConfigured: false,
       preferencesHydrated: true,
     };
@@ -147,5 +156,26 @@ describe('IndexRoute', () => {
     const view = await renderScreen(<IndexRoute />);
 
     expect(view.getByTestId('redirect')).toHaveTextContent('/(tabs)');
+  });
+
+  /*
+   * The step that only a Google account reaches today: `signInSocial` creates
+   * the row before any screen exists, and a Google ID token carries no phone
+   * number. `users.phone` is nullable so that insert can succeed, which makes
+   * this gate the only thing left enforcing the requirement.
+   */
+  it('sends a signed-in user with no phone number to collect one', async () => {
+    setStatus('authenticated');
+    mockOnboarding.current = {
+      ...mockOnboarding.current,
+      phoneComplete: false,
+      roleSelected: false,
+    };
+
+    const view = await renderScreen(<IndexRoute />);
+
+    // Ahead of the role step, not after it: without a phone the account is
+    // unreachable by any caregiver, which is worse than not knowing the role.
+    expect(view.getByTestId('redirect')).toHaveTextContent('/onboarding-phone');
   });
 });

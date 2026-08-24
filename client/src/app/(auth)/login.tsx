@@ -72,7 +72,13 @@ export default function LoginScreen() {
 
     try {
       await login({ phone: stripPhoneDigits(phone), password });
-      router.replace('/(tabs)');
+      // `/`, not `/(tabs)`: the entry route is the only place `resolveGate`
+      // runs, so replacing straight into the tab navigator skips every
+      // onboarding step the gate owns. `register.tsx` records the same trap.
+      // It reaches an account that registered and force-quit before choosing
+      // a role, and — now that Google can create accounts — every Google
+      // sign-up, which has no phone and no role.
+      router.replace('/');
     } catch {
       // `useLogin` already turned this into a displayable view — rendering is
       // handled below. Rethrowing would surface as an unhandled rejection.
@@ -178,7 +184,7 @@ export default function LoginScreen() {
           PASSKEY_ENABLED && isPasskeyAvailableOnDevice()
             ? () => {
                 void passkey.signInWithPasskey().then(
-                  () => router.replace('/(tabs)'),
+                  () => router.replace('/'),
                   // Already turned into a banner by the hook.
                   () => {},
                 );
@@ -193,7 +199,7 @@ export default function LoginScreen() {
           GOOGLE_SIGN_IN_ENABLED && isGoogleSignInConfigured()
             ? () => {
                 void google.signInWithGoogle().then(
-                  () => router.replace('/(tabs)'),
+                  () => router.replace('/'),
                   () => {},
                 );
               }
