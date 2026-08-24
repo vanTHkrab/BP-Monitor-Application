@@ -3,23 +3,26 @@
  *
  * ## `GOOGLE_SIGN_IN_ENABLED`
  *
- * **On since 2026-08-24, for testing ahead of the PR.** It had been off by
- * product decision rather than any technical blocker, and the technical half
- * is now genuinely done — `user_informations` freed `users.phone`, and
- * `mapProfileToUser` supplies the `firstname` / `lastname` that Better Auth
- * required. Before that a Google account could not be inserted at all.
+ * **Off, and the reason is no longer technical either.** It was verified
+ * end to end on a real device on 2026-08-24 — a Google account is created,
+ * `resolveGate` routes it through the phone step and then role selection, and
+ * it lands in the app. Every blocker the plan named is closed.
  *
- * **What is still missing, and what it looks like when you hit it.** Gap 3 of
- * `docs/project/AUTH-google-oauth-plan.md` is not done: nothing routes a new
- * Google account to `app/(auth)/onboarding-phone.tsx`. `resolveGate` has no
- * signal for "this account has no usable phone", so a first-time Google user
- * lands on role selection and then in the app holding `phone: null`. They are
- * not broken — the profile form asks for the number the first time they open
- * it — but until they fill it in **no caregiver can find them**, because the
- * invite lookup is an equality match on `phone` and cannot match a NULL. The
- * signal Gap 3 needs now exists (`phone == null`); the routing does not.
+ * What is left is product, in two pieces:
  *
- * Turning this off again is one line, and the code it hides stays working.
+ *   - **The completion form is one screen short of what was asked for.** A
+ *     Google account arrives missing three things — phone, the health block,
+ *     and role — and today collects them across two screens with the health
+ *     block deferred until the profile screen demands it. Merging them into
+ *     one completion step is designed but not built.
+ *   - **Gap 4 is open.** `googleSignInRefusalMessage()` is written and tested
+ *     and rendered nowhere, so the one refusal `emailVerified: false`
+ *     produces reaches the user as a generic "try again".
+ *
+ * Neither breaks anything on its own, and neither is a reason the flag could
+ * not be flipped tomorrow. It is off because shipping a sign-in route is a
+ * product call — the same kind it always was, now with the engineering behind
+ * it finished rather than pending.
  *
  * Unlike the passkey flag this module's sibling defines
  * (`modules/security/lib/feature-flags.ts`), there is no missing
@@ -47,4 +50,4 @@
  * — *linking* an already-authenticated account — and are untouched by this
  * flag. Hiding sign-in does not hide account state or the linking flow.
  */
-export const GOOGLE_SIGN_IN_ENABLED: boolean = true;
+export const GOOGLE_SIGN_IN_ENABLED: boolean = false;
