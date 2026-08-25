@@ -74,10 +74,25 @@ let cachedToken: string | null | undefined;
  */
 const askedUserIds = new Set<string>();
 
+/**
+ * Who the gateway currently believes this installation belongs to.
+ *
+ * Needed because the rotation listener below fires at an arbitrary moment
+ * with no session in hand, and a token re-registered against the wrong user
+ * is worse than one not re-registered at all.
+ */
+let registeredUserId: string | null = null;
+
+/** The rotation subscription, held so it is armed at most once per session. */
+let rotationSubscription: { remove: () => void } | null = null;
+
 /** Test seam. Nothing in the app should need this. */
 export function resetPushRegistrationState(): void {
   cachedToken = undefined;
   askedUserIds.clear();
+  registeredUserId = null;
+  rotationSubscription?.remove();
+  rotationSubscription = null;
 }
 
 export async function getRegisteredPushToken(): Promise<string | null> {
@@ -109,6 +124,10 @@ async function rememberPushToken(token: string | null): Promise<void> {
  * stale token here would be sent as the *next* user's on their first logout.
  */
 export async function forgetPushToken(): Promise<void> {
+  // Cleared alongside the token: the rotation listener outlives a sign-out,
+  // and a rotation arriving after logout must not re-register this device
+  // against the account that just left.
+  registeredUserId = null;
   await rememberPushToken(null);
 }
 
@@ -268,6 +287,74 @@ async function unregisterStaleToken(): Promise<void> {
 }
 
 /**
+ * Turns a device push token into an Expo token and tells the gateway.
+ *
+ * `devicePushToken` is passed through when the caller already has one — which
+ * the rotation listener does, because that is what it is handed. Without it
+ * `getExpoPushTokenAsync` fetches one itself by calling
+ * `getDevicePushTokenAsync`, and doing *that* from inside the listener is the
+ * infinite loop the API's own JSDoc warns about. The option exists precisely
+ * so the rotation path does not have to ask again for the value it was just
+ * given.
+ */
+async function mintAndRegister(
+  Notifications: NotificationsModule,
+  devicePushToken?: import('expo-notifications').DevicePushToken,
+): Promise<void> {
+  const projectId = getEasProjectId();
+  const { data: token } = await Notifications.getExpoPushTokenAsync({
+    ...(projectId ? { projectId } : {}),
+    ...(devicePushToken ? { devicePushToken } : {}),
+  });
+
+  await graphqlRequest<{ registerPushToken: boolean }>(GQL_REGISTER_PUSH_TOKEN, {
+    input: {
+      token,
+      deviceLabel: deviceLabel(),
+      platform: platformArg(),
+    },
+  });
+
+  await rememberPushToken(token);
+}
+
+/**
+ * Re-registers this installation when the push service rolls its token.
+ *
+ * Rare, and documented by expo-notifications itself: *"In rare situations, a
+ * push token may be changed by the push notification service while the app is
+ * running. When a token is rolled, the old one becomes invalid and sending
+ * notifications to it will fail."* Without this, the gateway keeps addressing
+ * a dead token until the next launch re-registers — and a caregiver whose
+ * patient records a critical reading in that window is simply not told.
+ *
+ * `getExpoPushTokenAsync` also enables Expo's own auto-registration, so a
+ * rolled token does reach *Expo's* service on its own. It does not reach
+ * ours; only this does.
+ *
+ * Armed once, after the first successful registration of the session, and
+ * never removed while the app runs — a rotation is not tied to a session, and
+ * re-arming per sign-in would stack listeners. Sign-out is handled by
+ * `registeredUserId` going null rather than by tearing the listener down,
+ * because the next sign-in on this handset wants it already in place.
+ */
+function armTokenRotationListener(Notifications: NotificationsModule): void {
+  if (rotationSubscription) return;
+
+  rotationSubscription = Notifications.addPushTokenListener((devicePushToken) => {
+    // No session to attach it to. The next `syncPushRegistration` will mint a
+    // fresh token anyway, so dropping this one costs nothing.
+    if (!registeredUserId) return;
+
+    void mintAndRegister(Notifications, devicePushToken).catch(() => {
+      // Offline, or the gateway refused. The launch-time registration is the
+      // backstop, and it runs on every authenticated launch — the same reason
+      // nothing else in this file retries.
+    });
+  });
+}
+
+/**
  * Brings the gateway's idea of this installation in line with the OS's.
  *
  * Called for the signed-in user on every launch and on every sign-in — see
@@ -297,21 +384,10 @@ export async function syncPushRegistration(userId: string): Promise<PushRegistra
     }
 
     await ensureCriticalChannel(Notifications);
+    await mintAndRegister(Notifications);
 
-    const projectId = getEasProjectId();
-    const { data: token } = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
-    );
-
-    await graphqlRequest<{ registerPushToken: boolean }>(GQL_REGISTER_PUSH_TOKEN, {
-      input: {
-        token,
-        deviceLabel: deviceLabel(),
-        platform: platformArg(),
-      },
-    });
-
-    await rememberPushToken(token);
+    registeredUserId = userId;
+    armTokenRotationListener(Notifications);
     return 'registered';
   } catch {
     // Emulator without Google Play services, no network, a project id the

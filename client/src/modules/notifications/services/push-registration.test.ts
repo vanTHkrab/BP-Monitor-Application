@@ -57,8 +57,25 @@ const notificationsModule = (permission: {
     .mockResolvedValue(permission.onRequest ?? permission),
   getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: TOKEN }),
   setNotificationChannelAsync: jest.fn().mockResolvedValue(undefined),
+  // Returns a real subscription shape rather than `undefined`: the module
+  // holds what this returns and calls `.remove()` on reset, so a bare
+  // `jest.fn()` would fail there instead of here.
+  addPushTokenListener: jest
+    .fn()
+    .mockReturnValue({ remove: jest.fn() }),
   AndroidImportance: { MAX: 5 },
 });
+
+/** Fires the rotation listener the module armed, the way the OS would. */
+const rotateDeviceToken = (
+  stub: ReturnType<typeof notificationsModule>,
+  devicePushToken = { data: 'fcm-token-2', type: 'android' },
+) => {
+  const listener = stub.addPushTokenListener.mock.calls[0]?.[0] as
+    | ((token: unknown) => void)
+    | undefined;
+  listener?.(devicePushToken);
+};
 
 beforeEach(async () => {
   jest.clearAllMocks();
@@ -190,5 +207,82 @@ describe('forgetPushToken', () => {
     resetPushRegistrationState();
 
     await expect(getRegisteredPushToken()).resolves.toBeNull();
+  });
+});
+
+/**
+ * The push service can roll a token while the app is running, at which point
+ * the old one is dead and the gateway is still addressing it. Nothing here is
+ * observable without provoking it: a rotation that is missed looks exactly
+ * like a caregiver whose patient happened not to record anything.
+ */
+describe('push token rotation', () => {
+  const ROTATED = 'ExponentPushToken[rotated]';
+
+  it('re-registers the new token against the signed-in user', async () => {
+    const stub = notificationsModule({ granted: true, canAskAgain: false });
+    mockLoadNotifications.mockResolvedValue(stub);
+
+    await syncPushRegistration(USER);
+    stub.getExpoPushTokenAsync.mockResolvedValue({ data: ROTATED });
+    mockGraphqlRequest.mockClear();
+
+    rotateDeviceToken(stub);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockGraphqlRequest).toHaveBeenCalledWith(
+      GQL_REGISTER_PUSH_TOKEN,
+      expect.objectContaining({
+        input: expect.objectContaining({ token: ROTATED }),
+      }),
+    );
+    await expect(getRegisteredPushToken()).resolves.toBe(ROTATED);
+  });
+
+  it('passes the device token it was handed straight back through', async () => {
+    // The loop the API's own JSDoc warns about: without this option
+    // `getExpoPushTokenAsync` calls `getDevicePushTokenAsync`, which is what
+    // raises this listener in the first place.
+    const stub = notificationsModule({ granted: true, canAskAgain: false });
+    mockLoadNotifications.mockResolvedValue(stub);
+
+    await syncPushRegistration(USER);
+    stub.getExpoPushTokenAsync.mockClear();
+
+    const devicePushToken = { data: 'fcm-token-2', type: 'android' };
+    rotateDeviceToken(stub, devicePushToken);
+    await Promise.resolve();
+
+    expect(stub.getExpoPushTokenAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ devicePushToken }),
+    );
+  });
+
+  it('does nothing after sign-out', async () => {
+    // The listener outlives the session on purpose — the next sign-in on this
+    // handset wants it already armed. What must not happen is a rotation
+    // re-registering the device against the account that just left.
+    const stub = notificationsModule({ granted: true, canAskAgain: false });
+    mockLoadNotifications.mockResolvedValue(stub);
+
+    await syncPushRegistration(USER);
+    await forgetPushToken();
+    mockGraphqlRequest.mockClear();
+
+    rotateDeviceToken(stub);
+    await Promise.resolve();
+
+    expect(mockGraphqlRequest).not.toHaveBeenCalled();
+  });
+
+  it('arms the listener once, not once per sign-in', async () => {
+    const stub = notificationsModule({ granted: true, canAskAgain: false });
+    mockLoadNotifications.mockResolvedValue(stub);
+
+    await syncPushRegistration(USER);
+    await syncPushRegistration('u2');
+
+    expect(stub.addPushTokenListener).toHaveBeenCalledTimes(1);
   });
 });
