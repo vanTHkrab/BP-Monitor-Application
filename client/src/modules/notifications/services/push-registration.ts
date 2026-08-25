@@ -355,6 +355,83 @@ function armTokenRotationListener(Notifications: NotificationsModule): void {
 }
 
 /**
+ * What to do about this device's row when permission was refused.
+ *
+ * ## The problem this exists to close
+ *
+ * A `PushToken` row is keyed on the token — the device — and carries a
+ * `userId` saying who it currently belongs to. A logout hands the gateway the
+ * token so the row can be deleted, but that call can fail, and
+ * `use-logout.ts` clears locally regardless because the user asked to be
+ * signed out. The row then survives, still owned by whoever just left.
+ *
+ * Normally the next person to sign in reclaims it: registration upserts on
+ * the token and reassigns `userId`. The hole is a person who never registers
+ * — and refusing the permission prompt was, until now, exactly that. The
+ * device keeps receiving the previous account's critical alerts, which name
+ * a patient and carry their reading, on a lock screen belonging to someone
+ * else. Nothing recovers from it: the previous user has no session left, and
+ * the current one cannot delete a row they do not own (`unregisterToken` is
+ * scoped to the caller, which is what stops anyone silencing anyone).
+ *
+ * ## Why registering anyway is safe on Android
+ *
+ * `POST_NOTIFICATIONS` governs *display*, not FCM registration. Verified by
+ * reading the chain rather than the docs: `getExpoPushTokenAsync` →
+ * `getDevicePushTokenAsync` → `PushTokenModule.kt` →
+ * `FirebaseMessaging.getInstance().token`, with no permission check at any
+ * step, in expo-notifications or in Firebase.
+ *
+ * The token that comes back is live. It is not `DeviceNotRegistered` — that
+ * is the provider's verdict that a token is *dead*, and FCM's documented
+ * causes for it are uninstall, explicit unregister, expiry, 270-day
+ * inactivity, and a build that cannot receive. Permission is not among them.
+ * So the gateway's pruning does not undo this.
+ *
+ * **Android only.** iOS turns out to issue an APNs token without
+ * authorization too — `PushTokenModule.swift` calls
+ * `registerForRemoteNotifications()` unconditionally — but Apple's current
+ * wording could not be read directly, and this app is Android-first, so iOS
+ * keeps the old behaviour of dropping the token. Widening it is a one-line
+ * change once someone confirms it on a device.
+ *
+ * ## What it costs
+ *
+ * A `PushToken` row stops meaning "this device shows notifications" and
+ * starts meaning "this device is registered". The gateway will address these
+ * handsets and get `ok` receipts for notifications nobody sees. That
+ * ambiguity already existed — a user who mutes the channel in system settings
+ * produces the same `ok` — but it is wider now. Anything that later treats a
+ * row as proof a user is reachable will be wrong.
+ */
+async function claimTokenWithoutPermission(
+  Notifications: NotificationsModule,
+  userId: string,
+): Promise<void> {
+  if (Platform.OS !== 'android') {
+    // The token cannot be trusted to be live here, so the old behaviour
+    // stands: tell the gateway to stop addressing it.
+    await unregisterStaleToken();
+    return;
+  }
+
+  try {
+    // Same order as the granted path, for the same Firebase reason: the
+    // channel has to exist before the first notification, and the user may
+    // grant permission later without this code running again.
+    await ensureCriticalChannel(Notifications);
+    await mintAndRegister(Notifications);
+
+    registeredUserId = userId;
+    armTokenRotationListener(Notifications);
+  } catch {
+    // No Play services, offline, a project id Expo rejects. The row stays as
+    // it was — which is the situation this function tries to improve, not one
+    // it can make worse — and the next launch tries again.
+  }
+}
+
+/**
  * Brings the gateway's idea of this installation in line with the OS's.
  *
  * Called for the signed-in user on every launch and on every sign-in — see
@@ -378,11 +455,14 @@ export async function syncPushRegistration(userId: string): Promise<PushRegistra
     const permission = await resolvePermission(Notifications, ask);
 
     if (permission !== 'granted') {
-      await unregisterStaleToken();
+      await claimTokenWithoutPermission(Notifications, userId);
       await explainDenialOnce(userId);
       return permission;
     }
 
+    // Before minting, not after: Firebase documents that an app creating its
+    // first notification channel while backgrounded gets neither a displayed
+    // notification nor a permission prompt until it is next opened.
     await ensureCriticalChannel(Notifications);
     await mintAndRegister(Notifications);
 

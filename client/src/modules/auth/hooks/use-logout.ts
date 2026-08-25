@@ -42,7 +42,13 @@ export function useLogout() {
       await clearAuthToken();
       // Forgotten either way. If the revoke failed the row survives on the
       // server, but keeping the token here would hand it to the *next*
-      // account on this handset as theirs to unregister.
+      // account on this handset as theirs to unregister — which they cannot
+      // do, since `unregisterToken` is scoped to the caller's own rows.
+      //
+      // That surviving row is reclaimed by the next user *registering*, not
+      // by anyone unregistering. On Android that now happens even when they
+      // refuse the notification permission, which is what closes the case
+      // where nobody ever reclaimed it — see `claimTokenWithoutPermission`.
       await forgetPushToken();
     },
     onSettled: () => {

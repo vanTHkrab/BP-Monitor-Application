@@ -30,7 +30,7 @@ jest.mock('./notifications-module', () => ({
 jest.mock('expo-device', () => ({ deviceName: 'Pixel 8', modelName: 'Pixel 8' }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 import { pushDenialNoticeKey, STORAGE_KEYS } from '@/config';
 
@@ -284,5 +284,109 @@ describe('push token rotation', () => {
     await syncPushRegistration('u2');
 
     expect(stub.addPushTokenListener).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Reclaiming a row the previous account left behind.
+ *
+ * A logout whose server revoke failed leaves the `PushToken` row owned by
+ * whoever signed out. The next user normally takes it over by registering —
+ * but refusing the permission prompt used to skip registration entirely, so
+ * the handset kept receiving a stranger's critical alerts with nothing able
+ * to stop it. `POST_NOTIFICATIONS` gates display, not FCM registration, so on
+ * Android the token is still live and still worth claiming.
+ *
+ * `Platform.OS` is redefined rather than mocked at the module level: the
+ * suite's default is iOS, which is what the "drops a token the OS no longer
+ * honours" case above exercises, and both branches need to stay covered.
+ */
+describe('registration when permission is refused', () => {
+  const onAndroid = async (fn: () => Promise<void>) => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', {
+      value: 'android',
+      configurable: true,
+    });
+    try {
+      await fn();
+    } finally {
+      Object.defineProperty(Platform, 'OS', {
+        value: original,
+        configurable: true,
+      });
+    }
+  };
+
+  it('still claims the row on Android, so the previous account loses it', async () => {
+    await onAndroid(async () => {
+      const stub = notificationsModule({ granted: false, canAskAgain: false });
+      mockLoadNotifications.mockResolvedValue(stub);
+      jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+      await expect(syncPushRegistration(USER)).resolves.toBe('blocked');
+
+      expect(mockGraphqlRequest).toHaveBeenCalledWith(
+        GQL_REGISTER_PUSH_TOKEN,
+        expect.objectContaining({
+          input: expect.objectContaining({ token: TOKEN }),
+        }),
+      );
+      // The opposite of what this path used to do. Unregistering here would
+      // undo the claim in the same breath.
+      expect(mockGraphqlRequest).not.toHaveBeenCalledWith(
+        GQL_UNREGISTER_PUSH_TOKEN,
+        expect.anything(),
+      );
+    });
+  });
+
+  it('creates the critical channel before minting', async () => {
+    // Firebase: an app that creates its first channel while backgrounded gets
+    // neither a shown notification nor a prompt until it is next opened. The
+    // user may grant permission later without this code running again.
+    await onAndroid(async () => {
+      const stub = notificationsModule({ granted: false, canAskAgain: false });
+      mockLoadNotifications.mockResolvedValue(stub);
+      jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+      await syncPushRegistration(USER);
+
+      const channelAt =
+        stub.setNotificationChannelAsync.mock.invocationCallOrder[0];
+      const mintAt = stub.getExpoPushTokenAsync.mock.invocationCallOrder[0];
+      expect(channelAt).toBeLessThan(mintAt);
+    });
+  });
+
+  it('reports the refusal, not a success', async () => {
+    // The outcome describes the permission, which is what the caller and the
+    // denial notice key off. Claiming the row does not make this 'registered'.
+    await onAndroid(async () => {
+      mockLoadNotifications.mockResolvedValue(
+        notificationsModule({
+          granted: false,
+          canAskAgain: true,
+          onRequest: { granted: false, canAskAgain: true },
+        }),
+      );
+      const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+      await expect(syncPushRegistration(USER)).resolves.toBe('denied');
+      expect(alert).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('survives a mint that fails on a device without Play services', async () => {
+    await onAndroid(async () => {
+      const stub = notificationsModule({ granted: false, canAskAgain: false });
+      stub.getExpoPushTokenAsync.mockRejectedValue(new Error('no play services'));
+      mockLoadNotifications.mockResolvedValue(stub);
+      jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+      // Still the permission outcome, not 'error': the claim is opportunistic
+      // and its failure leaves the row exactly as it already was.
+      await expect(syncPushRegistration(USER)).resolves.toBe('blocked');
+    });
   });
 });
