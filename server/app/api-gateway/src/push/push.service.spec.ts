@@ -218,6 +218,46 @@ describe('PushService', () => {
       ).resolves.toBeUndefined();
     });
 
+    /**
+     * The failure mode a graceful-degradation branch hides. One transient
+     * error used to abandon every chunk behind it, and the resulting log line
+     * was indistinguishable from the ordinary "these users have no token"
+     * case — so nobody would have learned that half the caregivers of a
+     * critical reading were never told.
+     *
+     * The chunker is overridden here rather than left at the suite default,
+     * which returns a single chunk: with one chunk there is no "behind it"
+     * and the regression cannot be expressed.
+     */
+    it('keeps sending after one chunk fails', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([
+        { token: TOKEN_A },
+        { token: TOKEN_B },
+      ]);
+      expo.chunkPushNotifications.mockImplementation((messages: unknown[]) =>
+        messages.map((message) => [message]),
+      );
+      expo.sendPushNotificationsAsync
+        .mockRejectedValueOnce(new Error('expo 429'))
+        .mockResolvedValueOnce([{ status: 'ok', id: 'receipt-b' }]);
+
+      await expect(
+        service.notifyUsers([USER_ID], { title: 't', body: 'b' }),
+      ).resolves.toBeUndefined();
+
+      expect(expo.sendPushNotificationsAsync).toHaveBeenCalledTimes(2);
+      const secondChunk = expo.sendPushNotificationsAsync.mock
+        .calls[1][0] as { to: string }[];
+      expect(secondChunk[0].to).toBe(TOKEN_B);
+      // The survivor's receipt is still parked, so the sweep can prune it
+      // later — a chunk failing must not cost the chunks that succeeded.
+      expect(prisma.pushToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ pendingReceiptId: 'receipt-b' }),
+        }),
+      );
+    });
+
     it('prunes a token whose ticket comes back DeviceNotRegistered', async () => {
       prisma.pushToken.findMany.mockResolvedValue([
         { token: TOKEN_A },

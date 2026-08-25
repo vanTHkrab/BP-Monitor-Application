@@ -206,13 +206,40 @@ export class PushService {
         data: message.data,
       }));
 
+      // The boundary is per chunk, not around the loop. A transient failure on
+      // the first chunk — a 429, a 5xx, a dropped connection — used to abandon
+      // every chunk after it, which were never attempted and never retried.
+      // The recipients in them were simply not notified, and the single `warn`
+      // that came out was indistinguishable from the `debug` above: "some
+      // caregivers had no token" and "Expo refused half the sends" read the
+      // same in the log. That is the failure this service is most likely to
+      // have and least likely to notice.
+      let failedChunks = 0;
       for (const chunk of this.expo.chunkPushNotifications(messages)) {
-        const tickets = await this.expo.sendPushNotificationsAsync(chunk);
-        await this.handleTickets(chunk, tickets);
+        try {
+          const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+          await this.handleTickets(chunk, tickets);
+        } catch (error) {
+          failedChunks += 1;
+          // `error`, not `warn`: this one is actionable and nobody chose it.
+          this.logger.error(
+            `Push send failed for ${chunk.length} recipient(s): ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+
+      if (failedChunks > 0) {
+        this.logger.error(
+          `Push delivery incomplete: ${failedChunks} chunk(s) undelivered and not retried`,
+        );
       }
     } catch (error) {
-      this.logger.warn(
-        `Push delivery failed: ${error instanceof Error ? error.message : String(error)}`,
+      // Reaching here now means the token lookup or the chunker failed — the
+      // send itself is handled above. Still swallowed: see the class doc.
+      this.logger.error(
+        `Push delivery failed before sending: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -293,6 +320,21 @@ export class PushService {
    */
   @Cron(CronExpression.EVERY_30_MINUTES)
   async sweepPushReceipts(): Promise<void> {
+    try {
+      await this.runReceiptSweep();
+    } catch (error) {
+      // The inner method already tolerates a failed *receipt fetch*; this
+      // catches the three Prisma calls around it, which were outside any
+      // boundary. A rejected promise handed back to `@nestjs/schedule` is at
+      // best an unhandled rejection — the risk `ReadingService` attaches an
+      // explicit no-op `.catch()` to avoid, for the same reason.
+      this.logger.error(
+        `Push receipt sweep failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async runReceiptSweep(): Promise<void> {
     const now = Date.now();
 
     const rows = await this.prisma.pushToken.findMany({
