@@ -2,7 +2,7 @@
 title: Enabling push notifications
 description: The Firebase and EAS credential steps that turn the already-built push code into actual delivery, plus the three ways this config fails without saying so.
 status: current
-updated: 2026-08-07
+updated: 2026-08-25
 owner: client
 ---
 
@@ -36,10 +36,10 @@ before relying on them — an earlier revision of this page asserted the
 | EAS `projectId` `b5572b71-c303-4b8e-b89e-14007c46ca3c` | `client/app.json` → `extra.eas` | Done |
 | Build profiles | `client/eas.json` | Done — this change |
 | `android.googleServicesFile` | `client/app.json` | Done — this change |
-| `google-services.json` | `client/google-services.json` | **Missing — step 2 below** |
+| `google-services.json` | `client/google-services.json` | Done — Firebase project `wu-bp-mobile`, package `com.project.bpmobile` |
 | FCM V1 service-account key on EAS | EAS credentials, not the repo | Believed missing — step 4 below. There is no non-interactive way to read this; confirm with `eas credentials` before assuming |
 | `EXPO_PUBLIC_API_URL` for `preview` builds | EAS environment `preview` | Set — but to an ephemeral tunnel URL, see step 5 |
-| `EXPO_PUBLIC_API_URL` for `production` builds | EAS environment `production` | **Missing — step 5 below** |
+| `EXPO_PUBLIC_API_URL` for `production` builds | EAS environment `production` | Done — `https://api.bpmonapp.com/graphql`, verified 2026-08-25 |
 
 Fixed values you will need:
 
@@ -54,6 +54,17 @@ The Android package must match the Firebase Android app **exactly**. A
 mismatch does not error — tokens simply stop issuing and delivery drops.
 
 ## The blocked steps
+
+> **Status, 2026-08-25.** Steps 1, 2 and 5 are **done** — verified against the
+> checkout and against `eas env:list production`. Only **steps 3–4, the FCM V1
+> service-account key, remain**, and they are the ones no command in this repo
+> can check: `eas credentials` has no non-interactive read, and every flag that
+> looks like one (`--profile`, `--non-interactive`) is rejected. Confirm it by
+> hand before concluding that a delivery failure is a code problem — with the
+> key missing, every fix in `src/push/` still delivers nothing.
+>
+> The steps are left written out below rather than deleted: they are the
+> recovery procedure the day the Firebase project is re-created.
 
 Steps 1–4 need a human with Firebase Console access; step 5 needs EAS access.
 Do 1–4 in order — step 4 depends on step 3, and step 2 depends on step 1. Step
