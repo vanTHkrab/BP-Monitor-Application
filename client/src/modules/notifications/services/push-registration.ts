@@ -57,18 +57,27 @@ export type PushRegistrationOutcome =
 let cachedToken: string | null | undefined;
 
 /**
- * Whether this launch has already run the OS permission prompt.
+ * Which users this launch has already run the OS permission prompt for.
  *
- * The prompt is asked at most once per app session, and only on the first
- * authenticated launch that finds the permission undetermined — see
+ * The prompt is asked at most once per user per app session, and only on the
+ * first authenticated launch that finds the permission undetermined — see
  * `syncPushRegistration`.
+ *
+ * **Keyed by user, not a single flag.** A shared handset is a real case here,
+ * and one boolean made the second sign-in of a session strictly worse than no
+ * guard at all: user B was never prompted, `resolvePermission` reported their
+ * merely-undetermined permission as `'denied'`, and `explainDenialOnce` then
+ * told them notifications were off *and wrote the once-per-account flag that
+ * stops it ever being said again*. The prompt returned on the next launch;
+ * the explanation did not. Restraint about Android 13's one-shot
+ * `POST_NOTIFICATIONS` is per person — it was never a per-process budget.
  */
-let askedThisSession = false;
+const askedUserIds = new Set<string>();
 
 /** Test seam. Nothing in the app should need this. */
 export function resetPushRegistrationState(): void {
   cachedToken = undefined;
-  askedThisSession = false;
+  askedUserIds.clear();
 }
 
 export async function getRegisteredPushToken(): Promise<string | null> {
@@ -276,8 +285,8 @@ export async function syncPushRegistration(userId: string): Promise<PushRegistra
   if (!Notifications) return 'unsupported';
 
   try {
-    const ask = !askedThisSession;
-    askedThisSession = true;
+    const ask = !askedUserIds.has(userId);
+    askedUserIds.add(userId);
 
     const permission = await resolvePermission(Notifications, ask);
 
