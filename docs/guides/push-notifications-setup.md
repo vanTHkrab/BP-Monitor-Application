@@ -8,16 +8,16 @@ owner: client
 
 # Enabling push notifications
 
-Push is **written and tested on both sides and delivers nothing** until the
-steps below are done. Nothing here is a code change — the code shipped in
-PR #95 (gateway) and `client/src/modules/notifications/` (client). What is
-missing is Firebase project setup and one credential upload, both of which
-need Firebase Console access this repo cannot script.
+Push needs Firebase project setup and one credential upload before any code
+can deliver anything. **All of it is now done** — this page is kept as the
+record of what was set up and as the recovery procedure for the day it has to
+be done again. Nothing here is a code change; the code shipped in PR #95
+(gateway) and `client/src/modules/notifications/` (client).
 
-Read "What fails silently" before doing anything. Every item there produces a
-**green build and a device that never receives a notification**, which is the
-single most expensive failure mode this feature has — one of them has already
-happened once in this repo.
+Read "What fails silently" before changing any of it. Every item there
+produces a **green build and a device that never receives a notification**,
+which is the single most expensive failure mode this feature has — one of them
+has already happened once in this repo.
 
 ## What is already in place
 
@@ -37,7 +37,7 @@ before relying on them — an earlier revision of this page asserted the
 | Build profiles | `client/eas.json` | Done — this change |
 | `android.googleServicesFile` | `client/app.json` | Done — this change |
 | `google-services.json` | `client/google-services.json` | Done — Firebase project `wu-bp-mobile`, package `com.project.bpmobile` |
-| FCM V1 service-account key on EAS | EAS credentials, not the repo | Believed missing — step 4 below. There is no non-interactive way to read this; confirm with `eas credentials` before assuming |
+| FCM V1 service-account key on EAS | EAS credentials, not the repo | Present — confirmed by the project owner 2026-08-25. There is no non-interactive way to read this, so re-confirm with `eas credentials` rather than trusting this row |
 | `EXPO_PUBLIC_API_URL` for `preview` builds | EAS environment `preview` | Set — but to an ephemeral tunnel URL, see step 5 |
 | `EXPO_PUBLIC_API_URL` for `production` builds | EAS environment `production` | Done — `https://api.bpmonapp.com/graphql`, verified 2026-08-25 |
 
@@ -53,15 +53,18 @@ Fixed values you will need:
 The Android package must match the Firebase Android app **exactly**. A
 mismatch does not error — tokens simply stop issuing and delivery drops.
 
-## The blocked steps
+## The setup steps
 
-> **Status, 2026-08-25.** Steps 1, 2 and 5 are **done** — verified against the
-> checkout and against `eas env:list production`. Only **steps 3–4, the FCM V1
-> service-account key, remain**, and they are the ones no command in this repo
-> can check: `eas credentials` has no non-interactive read, and every flag that
-> looks like one (`--profile`, `--non-interactive`) is rejected. Confirm it by
-> hand before concluding that a delivery failure is a code problem — with the
-> key missing, every fix in `src/push/` still delivers nothing.
+> **Status, 2026-08-25.** All five steps are **done**. Steps 1, 2 and 5 were
+> verified against the checkout and against `eas env:list production`; steps
+> 3–4, the FCM V1 service-account key, were confirmed by the project owner,
+> because no command in this repo can check them — `eas credentials` has no
+> non-interactive read, and every flag that looks like one (`--profile`,
+> `--non-interactive`) is rejected.
+>
+> That last row is therefore the one to distrust first. It is EAS-side state
+> that changes without a commit, and if delivery stops it is cheaper to
+> re-run `eas credentials` than to go looking in `src/push/`.
 >
 > The steps are left written out below rather than deleted: they are the
 > recovery procedure the day the Firebase project is re-created.
@@ -69,7 +72,8 @@ mismatch does not error — tokens simply stop issuing and delivery drops.
 Steps 1–4 need a human with Firebase Console access; step 5 needs EAS access.
 Do 1–4 in order — step 4 depends on step 3, and step 2 depends on step 1. Step
 5 is independent of Firebase but belongs in the same sitting, because it is the
-same kind of console work and it blocks the same builds.
+same kind of console work and it blocks the same builds. That ordering is why
+they are still written as instructions rather than as history.
 
 1. **Firebase Console → create or open the project → add an Android app.**
    Enter the package name as exactly `com.project.bpmobile`. Nothing else on
@@ -101,12 +105,13 @@ same kind of console work and it blocks the same builds.
    been wrong about it once:
 
    ```bash
-   eas env:list --environment production   # expected today: no variables
+   eas env:list --environment production   # expected today: already set
    eas env:list --environment preview      # expected today: already set
    ```
 
-   `preview` is already provisioned, so it needs no `eas env:create` — read
-   the warning below about *what* it is set to. Only `production` is empty:
+   Both are provisioned today, so neither needs `eas env:create` — read the
+   warning below about *what* `preview` is set to. The command, for the day one
+   of them is empty:
 
    ```bash
    eas env:create production --name EXPO_PUBLIC_API_URL --value https://<gateway-host>/graphql
