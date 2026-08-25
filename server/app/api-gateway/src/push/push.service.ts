@@ -33,6 +33,29 @@ const RECEIPT_ABANDON_AFTER_MS = 24 * 60 * 60 * 1000;
 /** Cap per sweep so one tick cannot monopolise the DB or Expo's rate budget. */
 const MAX_RECEIPTS_PER_SWEEP = 500;
 
+/**
+ * The Android notification channel every push from here is delivered on.
+ *
+ * **This is a cross-app contract, in the same sense the Redis channels are.**
+ * The literal must match `CRITICAL_CHANNEL_ID` in
+ * `client/src/modules/notifications/services/push-registration.ts`, which is
+ * where the channel is actually created — at `AndroidImportance.MAX`, with its
+ * own vibration pattern and light colour. Nothing type-checks the two against
+ * each other, so changing one side alone is a silent regression.
+ *
+ * Omitting it is not a smaller version of setting it. A message with no
+ * `channelId` is delivered on Expo's fallback channel at default importance,
+ * and `priority: 'high'` below cannot raise a channel's importance after the
+ * fact — Android decides that from the channel, not the message. The visible
+ * cost is worse than a missing heads-up banner: the per-channel switch the
+ * user sees labelled "แจ้งเตือนค่าความดันวิกฤต" would control a channel that
+ * never receives anything, so muting miscellaneous notifications would mute
+ * critical BP alerts and muting the critical channel would do nothing.
+ *
+ * iOS ignores the field.
+ */
+const CRITICAL_CHANNEL_ID = 'bp_critical_alerts';
+
 export type PushMessageInput = {
   title: string;
   body: string;
@@ -174,18 +197,49 @@ export class PushService {
         // is always allowed to wake the device. Widening what gets sent here
         // without revisiting this is how a notification channel gets muted.
         priority: 'high',
+        // Android only, and the reason it is not optional is in the constant's
+        // docblock: without it the client's MAX-importance channel is
+        // unreachable and the user's own mute switch points at the wrong thing.
+        channelId: CRITICAL_CHANNEL_ID,
         title: message.title,
         body: message.body,
         data: message.data,
       }));
 
+      // The boundary is per chunk, not around the loop. A transient failure on
+      // the first chunk — a 429, a 5xx, a dropped connection — used to abandon
+      // every chunk after it, which were never attempted and never retried.
+      // The recipients in them were simply not notified, and the single `warn`
+      // that came out was indistinguishable from the `debug` above: "some
+      // caregivers had no token" and "Expo refused half the sends" read the
+      // same in the log. That is the failure this service is most likely to
+      // have and least likely to notice.
+      let failedChunks = 0;
       for (const chunk of this.expo.chunkPushNotifications(messages)) {
-        const tickets = await this.expo.sendPushNotificationsAsync(chunk);
-        await this.handleTickets(chunk, tickets);
+        try {
+          const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+          await this.handleTickets(chunk, tickets);
+        } catch (error) {
+          failedChunks += 1;
+          // `error`, not `warn`: this one is actionable and nobody chose it.
+          this.logger.error(
+            `Push send failed for ${chunk.length} recipient(s): ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+
+      if (failedChunks > 0) {
+        this.logger.error(
+          `Push delivery incomplete: ${failedChunks} chunk(s) undelivered and not retried`,
+        );
       }
     } catch (error) {
-      this.logger.warn(
-        `Push delivery failed: ${error instanceof Error ? error.message : String(error)}`,
+      // Reaching here now means the token lookup or the chunker failed — the
+      // send itself is handled above. Still swallowed: see the class doc.
+      this.logger.error(
+        `Push delivery failed before sending: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -266,6 +320,21 @@ export class PushService {
    */
   @Cron(CronExpression.EVERY_30_MINUTES)
   async sweepPushReceipts(): Promise<void> {
+    try {
+      await this.runReceiptSweep();
+    } catch (error) {
+      // The inner method already tolerates a failed *receipt fetch*; this
+      // catches the three Prisma calls around it, which were outside any
+      // boundary. A rejected promise handed back to `@nestjs/schedule` is at
+      // best an unhandled rejection — the risk `ReadingService` attaches an
+      // explicit no-op `.catch()` to avoid, for the same reason.
+      this.logger.error(
+        `Push receipt sweep failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async runReceiptSweep(): Promise<void> {
     const now = Date.now();
 
     const rows = await this.prisma.pushToken.findMany({
