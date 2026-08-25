@@ -159,6 +159,37 @@ describe('PushService', () => {
       expect(sent[0].title).toBe('ค่าความดันวิกฤต');
     });
 
+    /**
+     * Half of a cross-app contract, and the half a type-check cannot reach —
+     * `channelId` is an optional field on `ExpoPushMessage`, so omitting it
+     * compiles, ships, and downgrades every critical alert to Expo's fallback
+     * channel at default importance. That is exactly how it was omitted once
+     * already. The literal is asserted rather than imported from the service
+     * on purpose: importing whatever the service currently sends would make
+     * this test agree with a rename that the client did not receive, which is
+     * the failure it exists to catch. See `docs/reference/API.md` §5.5.1.
+     */
+    it('stamps the critical-alert Android channel on every message', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([
+        { token: TOKEN_A },
+        { token: TOKEN_B },
+      ]);
+      expo.sendPushNotificationsAsync.mockResolvedValue([
+        { status: 'ok', id: 'receipt-a' },
+        { status: 'ok', id: 'receipt-b' },
+      ]);
+
+      await service.notifyUsers([USER_ID], { title: 't', body: 'b' });
+
+      const sent = expo.sendPushNotificationsAsync.mock.calls[0][0] as {
+        channelId?: string;
+      }[];
+      expect(sent).toHaveLength(2);
+      for (const message of sent) {
+        expect(message.channelId).toBe('bp_critical_alerts');
+      }
+    });
+
     it('does nothing when there are no recipients', async () => {
       await service.notifyUsers([], { title: 't', body: 'b' });
 

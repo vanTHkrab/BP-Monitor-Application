@@ -718,6 +718,23 @@ is a `token` Expo's own validator rejects.
 - **Dead tokens are pruned server-side.** A `DeviceNotRegistered` in either
   the send ticket or the later delivery receipt deletes the row. Clients do
   not need to clean up after an uninstall.
+- **The Android channel id `bp_critical_alerts` is a two-sided contract.**
+  The client *creates* the channel at `AndroidImportance.MAX`
+  (`CRITICAL_CHANNEL_ID` in
+  `client/src/modules/notifications/services/push-registration.ts`); the
+  gateway *stamps* the same literal onto every outgoing message
+  (`CRITICAL_CHANNEL_ID` in `server/app/api-gateway/src/push/push.service.ts`).
+  Nothing type-checks them against each other, so this is a wire contract in
+  the same sense the Redis channels in §8 are — change both sides or neither.
+
+  Getting it wrong fails **silently and in the user's favour-looking
+  direction**: a message whose `channelId` does not match a channel the app
+  created is delivered on Expo's fallback channel at default importance, and
+  `priority: 'high'` cannot raise importance after the fact — Android takes
+  that from the channel. The alert still arrives, just without the heads-up
+  treatment, while the switch the user sees labelled
+  "แจ้งเตือนค่าความดันวิกฤต" controls a channel nothing is delivered on. iOS
+  ignores the field entirely, so a broken pairing is invisible there.
 
 ### 5.6 Caregiver links
 

@@ -33,6 +33,29 @@ const RECEIPT_ABANDON_AFTER_MS = 24 * 60 * 60 * 1000;
 /** Cap per sweep so one tick cannot monopolise the DB or Expo's rate budget. */
 const MAX_RECEIPTS_PER_SWEEP = 500;
 
+/**
+ * The Android notification channel every push from here is delivered on.
+ *
+ * **This is a cross-app contract, in the same sense the Redis channels are.**
+ * The literal must match `CRITICAL_CHANNEL_ID` in
+ * `client/src/modules/notifications/services/push-registration.ts`, which is
+ * where the channel is actually created — at `AndroidImportance.MAX`, with its
+ * own vibration pattern and light colour. Nothing type-checks the two against
+ * each other, so changing one side alone is a silent regression.
+ *
+ * Omitting it is not a smaller version of setting it. A message with no
+ * `channelId` is delivered on Expo's fallback channel at default importance,
+ * and `priority: 'high'` below cannot raise a channel's importance after the
+ * fact — Android decides that from the channel, not the message. The visible
+ * cost is worse than a missing heads-up banner: the per-channel switch the
+ * user sees labelled "แจ้งเตือนค่าความดันวิกฤต" would control a channel that
+ * never receives anything, so muting miscellaneous notifications would mute
+ * critical BP alerts and muting the critical channel would do nothing.
+ *
+ * iOS ignores the field.
+ */
+const CRITICAL_CHANNEL_ID = 'bp_critical_alerts';
+
 export type PushMessageInput = {
   title: string;
   body: string;
@@ -174,6 +197,10 @@ export class PushService {
         // is always allowed to wake the device. Widening what gets sent here
         // without revisiting this is how a notification channel gets muted.
         priority: 'high',
+        // Android only, and the reason it is not optional is in the constant's
+        // docblock: without it the client's MAX-importance channel is
+        // unreachable and the user's own mute switch points at the wrong thing.
+        channelId: CRITICAL_CHANNEL_ID,
         title: message.title,
         body: message.body,
         data: message.data,

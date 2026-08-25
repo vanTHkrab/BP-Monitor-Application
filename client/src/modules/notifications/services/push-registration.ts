@@ -151,6 +151,14 @@ function platformArg(): 'ios' | 'android' | undefined {
  * with reminders or with invites. `MAX` importance because the alternative to
  * a heads-up banner here is a patient's critical reading sitting silently in
  * a tray.
+ *
+ * **The literal is half of a cross-app contract.** The gateway stamps the
+ * same string onto every push it sends — `CRITICAL_CHANNEL_ID` in
+ * `server/app/api-gateway/src/push/push.service.ts` — and nothing checks the
+ * two against each other. Renaming this alone does not move the pushes to the
+ * new channel; it strands them on a channel the user cannot see or mute, and
+ * leaves this one visible in Android settings with nothing behind it. Change
+ * both sides or neither. See `docs/reference/API.md` §5.5.1.
  */
 const CRITICAL_CHANNEL_ID = 'bp_critical_alerts';
 
