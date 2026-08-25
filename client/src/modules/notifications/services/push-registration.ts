@@ -57,18 +57,42 @@ export type PushRegistrationOutcome =
 let cachedToken: string | null | undefined;
 
 /**
- * Whether this launch has already run the OS permission prompt.
+ * Which users this launch has already run the OS permission prompt for.
  *
- * The prompt is asked at most once per app session, and only on the first
- * authenticated launch that finds the permission undetermined — see
+ * The prompt is asked at most once per user per app session, and only on the
+ * first authenticated launch that finds the permission undetermined — see
  * `syncPushRegistration`.
+ *
+ * **Keyed by user, not a single flag.** A shared handset is a real case here,
+ * and one boolean made the second sign-in of a session strictly worse than no
+ * guard at all: user B was never prompted, `resolvePermission` reported their
+ * merely-undetermined permission as `'denied'`, and `explainDenialOnce` then
+ * told them notifications were off *and wrote the once-per-account flag that
+ * stops it ever being said again*. The prompt returned on the next launch;
+ * the explanation did not. Restraint about Android 13's one-shot
+ * `POST_NOTIFICATIONS` is per person — it was never a per-process budget.
  */
-let askedThisSession = false;
+const askedUserIds = new Set<string>();
+
+/**
+ * Who the gateway currently believes this installation belongs to.
+ *
+ * Needed because the rotation listener below fires at an arbitrary moment
+ * with no session in hand, and a token re-registered against the wrong user
+ * is worse than one not re-registered at all.
+ */
+let registeredUserId: string | null = null;
+
+/** The rotation subscription, held so it is armed at most once per session. */
+let rotationSubscription: { remove: () => void } | null = null;
 
 /** Test seam. Nothing in the app should need this. */
 export function resetPushRegistrationState(): void {
   cachedToken = undefined;
-  askedThisSession = false;
+  askedUserIds.clear();
+  registeredUserId = null;
+  rotationSubscription?.remove();
+  rotationSubscription = null;
 }
 
 export async function getRegisteredPushToken(): Promise<string | null> {
@@ -100,6 +124,10 @@ async function rememberPushToken(token: string | null): Promise<void> {
  * stale token here would be sent as the *next* user's on their first logout.
  */
 export async function forgetPushToken(): Promise<void> {
+  // Cleared alongside the token: the rotation listener outlives a sign-out,
+  // and a rotation arriving after logout must not re-register this device
+  // against the account that just left.
+  registeredUserId = null;
   await rememberPushToken(null);
 }
 
@@ -151,6 +179,14 @@ function platformArg(): 'ios' | 'android' | undefined {
  * with reminders or with invites. `MAX` importance because the alternative to
  * a heads-up banner here is a patient's critical reading sitting silently in
  * a tray.
+ *
+ * **The literal is half of a cross-app contract.** The gateway stamps the
+ * same string onto every push it sends — `CRITICAL_CHANNEL_ID` in
+ * `server/app/api-gateway/src/push/push.service.ts` — and nothing checks the
+ * two against each other. Renaming this alone does not move the pushes to the
+ * new channel; it strands them on a channel the user cannot see or mute, and
+ * leaves this one visible in Android settings with nothing behind it. Change
+ * both sides or neither. See `docs/reference/API.md` §5.5.1.
  */
 const CRITICAL_CHANNEL_ID = 'bp_critical_alerts';
 
@@ -251,6 +287,151 @@ async function unregisterStaleToken(): Promise<void> {
 }
 
 /**
+ * Turns a device push token into an Expo token and tells the gateway.
+ *
+ * `devicePushToken` is passed through when the caller already has one — which
+ * the rotation listener does, because that is what it is handed. Without it
+ * `getExpoPushTokenAsync` fetches one itself by calling
+ * `getDevicePushTokenAsync`, and doing *that* from inside the listener is the
+ * infinite loop the API's own JSDoc warns about. The option exists precisely
+ * so the rotation path does not have to ask again for the value it was just
+ * given.
+ */
+async function mintAndRegister(
+  Notifications: NotificationsModule,
+  devicePushToken?: import('expo-notifications').DevicePushToken,
+): Promise<void> {
+  const projectId = getEasProjectId();
+  const { data: token } = await Notifications.getExpoPushTokenAsync({
+    ...(projectId ? { projectId } : {}),
+    ...(devicePushToken ? { devicePushToken } : {}),
+  });
+
+  await graphqlRequest<{ registerPushToken: boolean }>(GQL_REGISTER_PUSH_TOKEN, {
+    input: {
+      token,
+      deviceLabel: deviceLabel(),
+      platform: platformArg(),
+    },
+  });
+
+  await rememberPushToken(token);
+}
+
+/**
+ * Re-registers this installation when the push service rolls its token.
+ *
+ * Rare, and documented by expo-notifications itself: *"In rare situations, a
+ * push token may be changed by the push notification service while the app is
+ * running. When a token is rolled, the old one becomes invalid and sending
+ * notifications to it will fail."* Without this, the gateway keeps addressing
+ * a dead token until the next launch re-registers — and a caregiver whose
+ * patient records a critical reading in that window is simply not told.
+ *
+ * `getExpoPushTokenAsync` also enables Expo's own auto-registration, so a
+ * rolled token does reach *Expo's* service on its own. It does not reach
+ * ours; only this does.
+ *
+ * Armed once, after the first successful registration of the session, and
+ * never removed while the app runs — a rotation is not tied to a session, and
+ * re-arming per sign-in would stack listeners. Sign-out is handled by
+ * `registeredUserId` going null rather than by tearing the listener down,
+ * because the next sign-in on this handset wants it already in place.
+ */
+function armTokenRotationListener(Notifications: NotificationsModule): void {
+  if (rotationSubscription) return;
+
+  rotationSubscription = Notifications.addPushTokenListener((devicePushToken) => {
+    // No session to attach it to. The next `syncPushRegistration` will mint a
+    // fresh token anyway, so dropping this one costs nothing.
+    if (!registeredUserId) return;
+
+    void mintAndRegister(Notifications, devicePushToken).catch(() => {
+      // Offline, or the gateway refused. The launch-time registration is the
+      // backstop, and it runs on every authenticated launch — the same reason
+      // nothing else in this file retries.
+    });
+  });
+}
+
+/**
+ * What to do about this device's row when permission was refused.
+ *
+ * ## The problem this exists to close
+ *
+ * A `PushToken` row is keyed on the token — the device — and carries a
+ * `userId` saying who it currently belongs to. A logout hands the gateway the
+ * token so the row can be deleted, but that call can fail, and
+ * `use-logout.ts` clears locally regardless because the user asked to be
+ * signed out. The row then survives, still owned by whoever just left.
+ *
+ * Normally the next person to sign in reclaims it: registration upserts on
+ * the token and reassigns `userId`. The hole is a person who never registers
+ * — and refusing the permission prompt was, until now, exactly that. The
+ * device keeps receiving the previous account's critical alerts, which name
+ * a patient and carry their reading, on a lock screen belonging to someone
+ * else. Nothing recovers from it: the previous user has no session left, and
+ * the current one cannot delete a row they do not own (`unregisterToken` is
+ * scoped to the caller, which is what stops anyone silencing anyone).
+ *
+ * ## Why registering anyway is safe on Android
+ *
+ * `POST_NOTIFICATIONS` governs *display*, not FCM registration. Verified by
+ * reading the chain rather than the docs: `getExpoPushTokenAsync` →
+ * `getDevicePushTokenAsync` → `PushTokenModule.kt` →
+ * `FirebaseMessaging.getInstance().token`, with no permission check at any
+ * step, in expo-notifications or in Firebase.
+ *
+ * The token that comes back is live. It is not `DeviceNotRegistered` — that
+ * is the provider's verdict that a token is *dead*, and FCM's documented
+ * causes for it are uninstall, explicit unregister, expiry, 270-day
+ * inactivity, and a build that cannot receive. Permission is not among them.
+ * So the gateway's pruning does not undo this.
+ *
+ * **Android only.** iOS turns out to issue an APNs token without
+ * authorization too — `PushTokenModule.swift` calls
+ * `registerForRemoteNotifications()` unconditionally — but Apple's current
+ * wording could not be read directly, and this app is Android-first, so iOS
+ * keeps the old behaviour of dropping the token. Widening it is a one-line
+ * change once someone confirms it on a device.
+ *
+ * ## What it costs
+ *
+ * A `PushToken` row stops meaning "this device shows notifications" and
+ * starts meaning "this device is registered". The gateway will address these
+ * handsets and get `ok` receipts for notifications nobody sees. That
+ * ambiguity already existed — a user who mutes the channel in system settings
+ * produces the same `ok` — but it is wider now. Anything that later treats a
+ * row as proof a user is reachable will be wrong.
+ */
+async function claimTokenWithoutPermission(
+  Notifications: NotificationsModule,
+  userId: string,
+): Promise<void> {
+  if (Platform.OS !== 'android') {
+    // The token cannot be trusted to be live here, so the old behaviour
+    // stands: tell the gateway to stop addressing it.
+    await unregisterStaleToken();
+    return;
+  }
+
+  try {
+    // Same order as the granted path, for the same Firebase reason: the
+    // channel has to exist before the first notification, and the user may
+    // grant permission later without this code running again.
+    await ensureCriticalChannel(Notifications);
+    await mintAndRegister(Notifications);
+
+    registeredUserId = userId;
+    armTokenRotationListener(Notifications);
+  } catch {
+    // No Play services, offline, a project id Expo rejects. The row stays as
+    // it was — which is the situation this function tries to improve, not one
+    // it can make worse — and the next launch tries again.
+  }
+}
+
+/**
  * Brings the gateway's idea of this installation in line with the OS's.
  *
  * Called for the signed-in user on every launch and on every sign-in — see
@@ -268,33 +449,25 @@ export async function syncPushRegistration(userId: string): Promise<PushRegistra
   if (!Notifications) return 'unsupported';
 
   try {
-    const ask = !askedThisSession;
-    askedThisSession = true;
+    const ask = !askedUserIds.has(userId);
+    askedUserIds.add(userId);
 
     const permission = await resolvePermission(Notifications, ask);
 
     if (permission !== 'granted') {
-      await unregisterStaleToken();
+      await claimTokenWithoutPermission(Notifications, userId);
       await explainDenialOnce(userId);
       return permission;
     }
 
+    // Before minting, not after: Firebase documents that an app creating its
+    // first notification channel while backgrounded gets neither a displayed
+    // notification nor a permission prompt until it is next opened.
     await ensureCriticalChannel(Notifications);
+    await mintAndRegister(Notifications);
 
-    const projectId = getEasProjectId();
-    const { data: token } = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
-    );
-
-    await graphqlRequest<{ registerPushToken: boolean }>(GQL_REGISTER_PUSH_TOKEN, {
-      input: {
-        token,
-        deviceLabel: deviceLabel(),
-        platform: platformArg(),
-      },
-    });
-
-    await rememberPushToken(token);
+    registeredUserId = userId;
+    armTokenRotationListener(Notifications);
     return 'registered';
   } catch {
     // Emulator without Google Play services, no network, a project id the

@@ -2,7 +2,7 @@
 title: Troubleshooting
 description: Failures that look like something other than what they are, grouped by where the symptom shows up.
 status: current
-updated: 2026-08-07
+updated: 2026-08-25
 owner: cross
 ---
 
@@ -92,6 +92,29 @@ mocks the transport, so neither can catch it.
 **Fix.** Fix the selection, or — if the field is genuinely new — start the
 gateway (`pnpm start:dev`) to regenerate `src/schema.gql` and commit it with
 the client change.
+
+### Google sign-in fails with `DEVELOPER_ERROR`, or the picker closes silently
+
+Neither is a code fault — the whole path is covered by tests. Both are
+configuration, and Google returns the same opaque error for every variety of
+it so an attacker cannot probe your setup.
+
+The two symptoms are different failures and it is worth knowing which you have:
+
+- **`DEVELOPER_ERROR` in the Metro log** — `GoogleSignin.signIn()` threw. An
+  empty `oauth_client: []` in `google-services.json`, an unregistered SHA-1,
+  or client IDs from a different Google Cloud project than that file.
+- **The picker opens and closes with no message at all** — no ID token came
+  back, and the client treats that as the user cancelling. Almost always a
+  signing-key mismatch, which is why it is worth naming: it looks like the
+  user changed their mind.
+
+The trap most likely to cost an afternoon: **this project does not use
+`~/.android/debug.keystore`.** It has its own at
+`client/android/app/debug.keystore`, and `build.gradle` signs with that.
+
+Full setup, the verification script, and how to read the fingerprint off an
+already-installed APK: [google-sign-in-setup.md](./google-sign-in-setup.md).
 
 ### A binary upload throws at runtime despite type-checking
 

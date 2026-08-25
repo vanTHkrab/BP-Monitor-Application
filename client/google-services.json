@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "45060231184-f9bneknp7j5ivdb0gmrfqupdo2jp4a54.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.project.bpmobile",
+            "certificate_hash": "399496b384df175827196b1b71fd55324e01cb4c"
+          }
+        },
+        {
           "client_id": "45060231184-ji1b476ap07svntuqrklh65t8l1m5ng6.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

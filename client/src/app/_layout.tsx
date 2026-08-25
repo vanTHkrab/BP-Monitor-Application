@@ -22,6 +22,7 @@ import {
 } from '@/modules/auth';
 import { registerActivePatientReset } from '@/modules/caregivers';
 import {
+  consumeInitialNotificationResponse,
   initReminderNotifications,
   registerPushNotifications,
   stopReminderNotifications,
@@ -98,7 +99,7 @@ function useAuthBootstrap() {
  * effect. Both are set up here so the response listener already exists when a
  * push tap cold-starts the app.
  */
-function useNotificationBootstrap() {
+function useNotificationBootstrap(navigatorReady: boolean) {
   useEffect(() => {
     void initReminderNotifications();
     const unsubscribe = registerPushNotifications();
@@ -107,6 +108,17 @@ function useNotificationBootstrap() {
       stopReminderNotifications();
     };
   }, []);
+
+  // Separate effect, gated on the navigator: a tap that cold-starts the app is
+  // retained natively and read back once — but `router.push` needs
+  // `<RootStack/>` mounted, and that waits on the migrations below. Reading it
+  // from the effect above would resolve the response into a navigation that
+  // has nowhere to go, and the read is destructive, so the tap would be lost
+  // for good rather than merely delayed.
+  useEffect(() => {
+    if (!navigatorReady) return;
+    void consumeInitialNotificationResponse();
+  }, [navigatorReady]);
 }
 
 /**
@@ -237,7 +249,7 @@ function ThemedApp() {
   // SQLite on mount, and a missing table is a crash, not an empty list.
   const migrations = useDatabaseMigrations();
   useAuthBootstrap();
-  useNotificationBootstrap();
+  useNotificationBootstrap(migrations.success);
   usePreferencesBootstrap();
   usePendingImageSweep(migrations.success);
   useImageCacheSweep();

@@ -159,6 +159,37 @@ describe('PushService', () => {
       expect(sent[0].title).toBe('ค่าความดันวิกฤต');
     });
 
+    /**
+     * Half of a cross-app contract, and the half a type-check cannot reach —
+     * `channelId` is an optional field on `ExpoPushMessage`, so omitting it
+     * compiles, ships, and downgrades every critical alert to Expo's fallback
+     * channel at default importance. That is exactly how it was omitted once
+     * already. The literal is asserted rather than imported from the service
+     * on purpose: importing whatever the service currently sends would make
+     * this test agree with a rename that the client did not receive, which is
+     * the failure it exists to catch. See `docs/reference/API.md` §5.5.1.
+     */
+    it('stamps the critical-alert Android channel on every message', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([
+        { token: TOKEN_A },
+        { token: TOKEN_B },
+      ]);
+      expo.sendPushNotificationsAsync.mockResolvedValue([
+        { status: 'ok', id: 'receipt-a' },
+        { status: 'ok', id: 'receipt-b' },
+      ]);
+
+      await service.notifyUsers([USER_ID], { title: 't', body: 'b' });
+
+      const sent = expo.sendPushNotificationsAsync.mock.calls[0][0] as {
+        channelId?: string;
+      }[];
+      expect(sent).toHaveLength(2);
+      for (const message of sent) {
+        expect(message.channelId).toBe('bp_critical_alerts');
+      }
+    });
+
     it('does nothing when there are no recipients', async () => {
       await service.notifyUsers([], { title: 't', body: 'b' });
 
@@ -185,6 +216,46 @@ describe('PushService', () => {
       await expect(
         service.notifyUsers([USER_ID], { title: 't', body: 'b' }),
       ).resolves.toBeUndefined();
+    });
+
+    /**
+     * The failure mode a graceful-degradation branch hides. One transient
+     * error used to abandon every chunk behind it, and the resulting log line
+     * was indistinguishable from the ordinary "these users have no token"
+     * case — so nobody would have learned that half the caregivers of a
+     * critical reading were never told.
+     *
+     * The chunker is overridden here rather than left at the suite default,
+     * which returns a single chunk: with one chunk there is no "behind it"
+     * and the regression cannot be expressed.
+     */
+    it('keeps sending after one chunk fails', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([
+        { token: TOKEN_A },
+        { token: TOKEN_B },
+      ]);
+      expo.chunkPushNotifications.mockImplementation((messages: unknown[]) =>
+        messages.map((message) => [message]),
+      );
+      expo.sendPushNotificationsAsync
+        .mockRejectedValueOnce(new Error('expo 429'))
+        .mockResolvedValueOnce([{ status: 'ok', id: 'receipt-b' }]);
+
+      await expect(
+        service.notifyUsers([USER_ID], { title: 't', body: 'b' }),
+      ).resolves.toBeUndefined();
+
+      expect(expo.sendPushNotificationsAsync).toHaveBeenCalledTimes(2);
+      const secondChunk = expo.sendPushNotificationsAsync.mock
+        .calls[1][0] as { to: string }[];
+      expect(secondChunk[0].to).toBe(TOKEN_B);
+      // The survivor's receipt is still parked, so the sweep can prune it
+      // later — a chunk failing must not cost the chunks that succeeded.
+      expect(prisma.pushToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ pendingReceiptId: 'receipt-b' }),
+        }),
+      );
     });
 
     it('prunes a token whose ticket comes back DeviceNotRegistered', async () => {

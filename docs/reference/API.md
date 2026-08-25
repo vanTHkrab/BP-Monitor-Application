@@ -718,6 +718,46 @@ is a `token` Expo's own validator rejects.
 - **Dead tokens are pruned server-side.** A `DeviceNotRegistered` in either
   the send ticket or the later delivery receipt deletes the row. Clients do
   not need to clean up after an uninstall.
+- **A row means "registered", not "will be seen".** On Android the client
+  registers even when the user refused the notification permission.
+  `POST_NOTIFICATIONS` gates *display*, not FCM registration, so the token is
+  live and the gateway's pruning does not remove it — `DeviceNotRegistered` is
+  the provider's verdict that a token is dead (uninstall, explicit
+  unregister, expiry, 270-day inactivity, a build that cannot receive), and
+  permission is not among its causes.
+
+  It is done for one reason: a `PushToken` row survives a logout whose revoke
+  call failed, still owned by the account that left, and the only thing that
+  reclaims it is the next user registering. A user who refuses the prompt used
+  to never register, so the handset kept receiving the previous account's
+  critical alerts — naming a patient, on someone else's lock screen — with no
+  recovery, because the previous user has no session and the current one
+  cannot delete a row they do not own.
+
+  The cost is that the gateway now addresses handsets that will not display
+  anything and gets `ok` receipts back. **Do not read a row as proof the user
+  is reachable.** The ambiguity is not new — muting the channel in system
+  settings has always produced the same `ok` — but it is wider.
+
+  iOS keeps the old behaviour and drops the token instead. It appears to issue
+  one without authorization as well, but that is unconfirmed on a device.
+- **The Android channel id `bp_critical_alerts` is a two-sided contract.**
+  The client *creates* the channel at `AndroidImportance.MAX`
+  (`CRITICAL_CHANNEL_ID` in
+  `client/src/modules/notifications/services/push-registration.ts`); the
+  gateway *stamps* the same literal onto every outgoing message
+  (`CRITICAL_CHANNEL_ID` in `server/app/api-gateway/src/push/push.service.ts`).
+  Nothing type-checks them against each other, so this is a wire contract in
+  the same sense the Redis channels in §8 are — change both sides or neither.
+
+  Getting it wrong fails **silently and in the user's favour-looking
+  direction**: a message whose `channelId` does not match a channel the app
+  created is delivered on Expo's fallback channel at default importance, and
+  `priority: 'high'` cannot raise importance after the fact — Android takes
+  that from the channel. The alert still arrives, just without the heads-up
+  treatment, while the switch the user sees labelled
+  "แจ้งเตือนค่าความดันวิกฤต" controls a channel nothing is delivered on. iOS
+  ignores the field entirely, so a broken pairing is invisible there.
 
 ### 5.6 Caregiver links
 
