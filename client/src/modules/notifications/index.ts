@@ -8,6 +8,7 @@
  * queue and the saved settings describing different schedules.
  */
 export {
+  consumeInitialNotificationResponse,
   initReminderNotifications,
   registerPushNotifications,
   stopReminderNotifications,
